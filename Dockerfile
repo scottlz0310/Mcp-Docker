@@ -17,11 +17,9 @@ RUN apk add --no-cache \
 # ビルドステージ: 依存関係インストール
 FROM base AS builder
 
-# GitHub MCP Server
-RUN npm install -g @modelcontextprotocol/server-github@latest
-
-# Python依存関係（datetime validator用）
-RUN pip install --no-cache-dir --user watchdog==4.0.0
+# GitHub MCP Server & Python依存関係
+RUN npm install -g @modelcontextprotocol/server-github@latest && \
+    pip install --no-cache-dir --user watchdog==4.0.0
 
 # CodeQL CLI
 RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip && \
@@ -56,7 +54,7 @@ RUN chown -R mcp:mcp /app /home/mcp
 USER mcp
 
 # ヘルスチェック追加
-HEALTHCHEK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # デフォルトはGitHub MCPサーバー

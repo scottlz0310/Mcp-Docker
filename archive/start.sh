@@ -2,6 +2,7 @@
 set -e
 
 # .bashrcから環境変数を読み込み
+# shellcheck disable=SC1090
 source ~/.bashrc
 
 # 環境変数チェック（.bashrcまたは.envから）

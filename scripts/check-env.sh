@@ -4,6 +4,7 @@ echo "🔍 Environment Variables Check"
 echo "=============================="
 
 # .bashrcから読み込み
+# shellcheck disable=SC1090,SC1091
 source ~/.bashrc
 
 if [ -n "$GITHUB_PERSONAL_ACCESS_TOKEN" ]; then

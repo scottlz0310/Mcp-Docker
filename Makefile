@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test security lint
+.PHONY: help build start stop logs clean datetime codeql test security lint pre-commit
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -45,4 +45,7 @@ security:
 lint:
 	docker run --rm -i hadolint/hadolint < Dockerfile
 	shellcheck scripts/*.sh tests/*.sh
-	yamllint docker-compose.yml
+	pipx run uv run yamllint docker-compose.yml
+
+pre-commit:
+	pipx run uv run pre-commit run --all-files

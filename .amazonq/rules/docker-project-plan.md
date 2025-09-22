@@ -85,7 +85,7 @@ sleep 10
 curl -f http://localhost:8080/health || exit 1
 
 # DateTime validator動作テスト
-echo "2025-01-01" > test_date.txt
+echo "2025-09-22" > test_date.txt
 # 修正確認ロジック
 
 # クリーンアップ
