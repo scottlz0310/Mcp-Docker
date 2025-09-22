@@ -25,9 +25,9 @@ mcp-docker/
 ```
 
 ### 1.3 初期タスク
-- [ ] GitHubリポジトリ作成
-- [ ] 基本ファイル整備（.gitignore, LICENSE, CONTRIBUTING.md）
-- [ ] Docker特化ルール策定
+- [x] GitHubリポジトリ作成
+- [x] 基本ファイル整備（.gitignore, LICENSE, CONTRIBUTING.md）
+- [x] Docker特化ルール策定
 - [ ] CI/CD設計
 
 ### 1.4 Exit Criteria
