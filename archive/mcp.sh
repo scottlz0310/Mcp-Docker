@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # GitHubトークンを.bashrcから読み込む（すでに読み込まれていれば不要）
+# shellcheck disable=SC1090
 source ~/.bashrc
 
 # チェック
