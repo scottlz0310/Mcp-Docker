@@ -1,6 +1,6 @@
 # MCP Docker Environment
 
-MCPサーバーとツールを統合管理するDocker環境
+Model Context Protocol（MCP）サーバーのためのプロダクション対応Docker環境
 
 ## 構成
 
