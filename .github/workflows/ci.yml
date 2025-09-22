@@ -1,10 +1,11 @@
+---
 name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
       - name: Lint YAML files
         run: |
           pip install yamllint
-          yamllint docker-compose.yml
+          yamllint -c .yamllint.yml docker-compose.yml
 
   build:
     runs-on: ubuntu-latest

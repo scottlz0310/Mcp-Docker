@@ -23,4 +23,4 @@ repos:
     rev: v1.37.1
     hooks:
       - id: yamllint
-        args: [-d, relaxed]
+        args: [-c, .yamllint.yml]

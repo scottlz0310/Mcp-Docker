@@ -45,7 +45,7 @@ security:
 lint:
 	docker run --rm -i hadolint/hadolint < Dockerfile
 	shellcheck scripts/*.sh tests/*.sh
-	pipx run uv run yamllint docker-compose.yml
+	pipx run uv run yamllint -c .yamllint.yml docker-compose.yml
 
 pre-commit:
 	pipx run uv run pre-commit run --all-files
