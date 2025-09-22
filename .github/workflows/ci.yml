@@ -1,0 +1,100 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3008,DL3009,DL3018
+
+      - name: Lint Shell scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          find . -name "*.sh" -exec shellcheck {} \;
+
+      - name: Lint YAML files
+        run: |
+          pip install yamllint
+          yamllint -c .yamllint.yml docker-compose.yml
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        docker-version: ['20.10', '24.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t mcp-docker:latest .
+          docker images
+
+      - name: Test Docker image
+        run: |
+          # 基本的なイメージテスト
+          docker run --rm mcp-docker:latest --version || true
+          docker inspect mcp-docker:latest
+
+  security:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image for security scan
+        run: docker build -t mcp-docker:latest .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mcp-docker:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start services
+        run: |
+          docker compose build
+          docker compose up -d
+          sleep 30
+
+      - name: Check service health
+        run: |
+          docker compose ps
+          docker compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

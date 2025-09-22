@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql
+.PHONY: help build start stop logs clean datetime codeql test security lint pre-commit
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -35,3 +35,17 @@ datetime:
 
 codeql:
 	docker-compose --profile tools run --rm codeql
+
+test:
+	./tests/integration_test.sh
+
+security:
+	docker run --rm -v "$(PWD)":/app aquasec/trivy:latest image mcp-docker:latest
+
+lint:
+	docker run --rm -i hadolint/hadolint < Dockerfile
+	shellcheck scripts/*.sh tests/*.sh
+	pipx run uv run yamllint -c .yamllint.yml docker-compose.yml
+
+pre-commit:
+	pipx run uv run pre-commit run --all-files

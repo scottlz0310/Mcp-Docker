@@ -1,3 +1,4 @@
+---
 version: '3.8'
 
 services:
@@ -7,7 +8,7 @@ services:
     volumes:
       - ~/workspace:/workspace
     restart: unless-stopped
-    command: python datetime_validator.py --directory /workspace
+    command: python datetime_validator.py --directory /workspace  # Markdownファイルのみ監視
     networks:
       - mcp-network
 
