@@ -5,13 +5,13 @@ FROM node:18-alpine AS base
 RUN addgroup -g 1001 -S mcp && \
     adduser -S mcp -u 1001 -G mcp
 
-# 必要なパッケージをインストール（バージョン固定）
+# 必要なパッケージをインストール
 RUN apk add --no-cache \
-    curl=8.5.0-r0 \
-    unzip=6.0-r14 \
-    python3=3.11.8-r0 \
-    py3-pip=23.3.1-r0 \
-    git=2.43.0-r0 && \
+    curl \
+    unzip \
+    python3 \
+    py3-pip \
+    git && \
     apk cache clean
 
 # ビルドステージ: 依存関係インストール
