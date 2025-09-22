@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test security lint pre-commit
+.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -11,6 +11,12 @@ help:
 	@echo "Services:"
 	@echo "  make datetime  - Start DateTime validator"
 	@echo "  make codeql    - Run CodeQL analysis"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test      - Run integration tests"
+	@echo "  make test-all  - Run all test suites"
+	@echo "  make test-bats - Run Bats test suite"
+	@echo "  make security  - Run security scan"
 	@echo ""
 	@echo "GitHub MCP Server:"
 	@echo "  Use: docker run -e GITHUB_PERSONAL_ACCESS_TOKEN=\$$GITHUB_PERSONAL_ACCESS_TOKEN mcp-docker-github-mcp"
@@ -39,8 +45,38 @@ codeql:
 test:
 	./tests/integration_test.sh
 
+test-bats:
+	@echo "🧪 Bats テストスイート実行"
+	bats tests/test_*.bats
+
+test-docker:
+	@echo "🐳 Docker ビルドテスト"
+	bats tests/test_docker_build.bats
+
+test-services:
+	@echo "🚀 サービステスト"
+	bats tests/test_services.bats
+
+test-security:
+	@echo "🔒 セキュリティテスト"
+	bats tests/test_security.bats
+
+test-integration:
+	@echo "🔗 統合テスト"
+	bats tests/test_integration.bats
+
+test-all:
+	@echo "🎯 全テスト実行"
+	make test-docker
+	make test-services
+	make test-security
+	make test-integration
+	make test
+
 security:
-	docker run --rm -v "$(PWD)":/app aquasec/trivy:latest image mcp-docker:latest
+	@echo "🔒 セキュリティスキャン実行"
+	docker build -t mcp-docker:latest . || (echo "❌ Build失敗"; exit 1)
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image mcp-docker:latest
 
 lint:
 	docker run --rm -i hadolint/hadolint < Dockerfile
