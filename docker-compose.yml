@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  datetime-validator:
+    build: .
+    container_name: mcp-datetime
+    volumes:
+      - ~/workspace:/workspace
+    restart: unless-stopped
+    command: python datetime_validator.py --directory /workspace
+    networks:
+      - mcp-network
+
+  codeql:
+    build: .
+    container_name: mcp-codeql
+    volumes:
+      - ~/workspace:/workspace
+    profiles:
+      - tools
+    command: codeql --help
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
