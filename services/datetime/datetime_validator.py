@@ -42,8 +42,9 @@ class DateTimeValidator:
 
     def validate_file(self, file_path: Path) -> Dict[str, any]:
         """ファイルの日付を検証し、必要に応じて修正"""
-        if not file_path.suffix.lower() in ['.md', '.txt', '.py', '.json', '.js', '.ts']:
-            return {'status': 'skipped', 'reason': 'unsupported_format'}
+        # Markdownファイルのみを対象とする
+        if file_path.suffix.lower() != '.md':
+            return {'status': 'skipped', 'reason': 'not_markdown'}
 
         try:
             content = file_path.read_text(encoding='utf-8')
@@ -156,12 +157,12 @@ def main():
     watch_directory = Path(args.directory).resolve()
 
     if args.validate_only:
-        logger.info("プロジェクト全体の日付検証を開始...")
+        logger.info("Markdownファイルの日付検証を開始...")
         total_files = 0
         issues_found = 0
         corrections_made = 0
 
-        for file_path in watch_directory.rglob("*"):
+        for file_path in watch_directory.rglob("*.md"):
             if file_path.is_file():
                 total_files += 1
                 result = validator.validate_file(file_path)
@@ -178,7 +179,7 @@ def main():
         observer.schedule(handler, str(watch_directory), recursive=True)
         observer.start()
 
-        logger.info(f"🔍 DateTime Validator Server 開始: {watch_directory}")
+        logger.info(f"🔍 DateTime Validator Server 開始: {watch_directory} (Markdownファイルのみ)")
         logger.info(f"📅 現在日時: {validator.current_date}")
 
         try:
