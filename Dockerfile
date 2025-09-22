@@ -19,7 +19,7 @@ FROM base AS builder
 
 # GitHub MCP Server & Python依存関係
 RUN npm install -g @modelcontextprotocol/server-github@latest && \
-    pip install --no-cache-dir --user watchdog==4.0.0
+    pip install --no-cache-dir --user --break-system-packages watchdog==4.0.0
 
 # CodeQL CLI
 RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip && \
