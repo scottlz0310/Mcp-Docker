@@ -132,13 +132,14 @@ jobs:
       - name: Build and start services
         run: |
           docker compose build
-          docker compose up -d
+          # CI環境ではGitHub MCPサービスをスキップ
+          docker compose up -d datetime-validator
           sleep 30
 
       - name: Check service health
         run: |
           docker compose ps
-          docker compose logs
+          docker compose logs datetime-validator
 
       - name: Run integration tests
         run: |

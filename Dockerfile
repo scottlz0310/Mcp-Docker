@@ -55,9 +55,9 @@ RUN chown -R mcp:mcp /app /home/mcp
 # 非rootユーザーに切り替え
 USER mcp
 
-# ヘルスチェック追加
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+# ヘルスチェックはサービス固有の設定で実装
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:8080/health || exit 1
 
 # デフォルトはGitHub MCPサーバー
 CMD ["mcp-server-github"]

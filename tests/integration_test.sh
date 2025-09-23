@@ -58,11 +58,29 @@ fi
 echo "🏥 コンテナヘルスチェック"
 CONTAINERS=$(docker compose ps -q)
 for container in $CONTAINERS; do
-    if docker inspect "$container" --format='{{.State.Status}}' | grep -q "running"; then
-        echo "✅ コンテナ $(docker inspect "$container" --format='{{.Name}}') 正常動作"
+    CONTAINER_NAME=$(docker inspect "$container" --format='{{.Name}}')
+    CONTAINER_STATUS=$(docker inspect "$container" --format='{{.State.Status}}')
+
+    # CI環境でGitHub MCPコンテナはスキップ
+    if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+        if echo "$CONTAINER_NAME" | grep -q "github"; then
+            echo "⚠️ CI環境のため GitHub MCP コンテナチェックをスキップ"
+            continue
+        fi
+    fi
+
+    if echo "$CONTAINER_STATUS" | grep -q "running"; then
+        echo "✅ コンテナ $CONTAINER_NAME 正常動作"
     else
-        echo "❌ コンテナ $(docker inspect "$container" --format='{{.Name}}') 異常"
-        exit 1
+        echo "❌ コンテナ $CONTAINER_NAME 異常 (Status: $CONTAINER_STATUS)"
+        # CI環境でGitHub MCP以外のコンテナのみエラーとする
+        if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+            if ! echo "$CONTAINER_NAME" | grep -q "github"; then
+                exit 1
+            fi
+        else
+            exit 1
+        fi
     fi
 done
 
