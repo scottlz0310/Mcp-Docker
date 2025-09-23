@@ -30,7 +30,7 @@ export GITHUB_PERSONAL_ACCESS_TOKEN="your_token_here"
 #### 2. Issue一覧取得
 ```json
 {
-  "method": "tools/call", 
+  "method": "tools/call",
   "params": {
     "name": "list_issues",
     "arguments": {

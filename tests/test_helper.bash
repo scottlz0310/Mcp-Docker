@@ -21,8 +21,8 @@ wait_for_service() {
     local service_name="$1"
     local timeout="${2:-30}"
     local count=0
-    
-    while [ $count -lt $timeout ]; do
+
+    while [ "$count" -lt "$timeout" ]; do
         if docker compose ps "$service_name" | grep -q "Up"; then
             return 0
         fi
@@ -36,7 +36,7 @@ wait_for_service() {
 check_log_contains() {
     local service_name="$1"
     local expected_text="$2"
-    
+
     docker compose logs "$service_name" | grep -q "$expected_text"
 }
 

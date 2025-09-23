@@ -18,7 +18,7 @@ teardown() {
 @test "DateTime Validator service starts successfully" {
     run docker compose up -d datetime-validator
     [ "$status" -eq 0 ]
-    
+
     # サービスが起動するまで待機
     run wait_for_service "datetime-validator" 30
     [ "$status" -eq 0 ]
@@ -28,14 +28,14 @@ teardown() {
     # サービス起動
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
-    
+
     # テストファイル作成
     echo "# Test Document" > "$TEST_WORKSPACE/test.md"
     echo "Date: 2025-01-15" >> "$TEST_WORKSPACE/test.md"
-    
+
     # ファイルをワークスペースにコピー（権限問題を回避）
     docker compose exec -T datetime-validator sh -c "echo '# Test Document\nDate: 2025-01-15' > /tmp/test.md"
-    
+
     # ログでファイル処理を確認
     sleep 5
     run check_log_contains "datetime-validator" "DateTime Validator Server"
@@ -45,7 +45,7 @@ teardown() {
 @test "DateTime Validator logs are structured" {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
-    
+
     sleep 3
     run docker compose logs datetime-validator
     [ "$status" -eq 0 ]
@@ -56,7 +56,7 @@ teardown() {
 @test "Container runs as non-root user" {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
-    
+
     run docker compose exec -T datetime-validator whoami
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp" ]]
@@ -65,7 +65,7 @@ teardown() {
 @test "Container has proper resource limits" {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
-    
+
     # メモリ使用量確認
     run docker stats --no-stream --format "{{.MemUsage}}" mcp-datetime
     [ "$status" -eq 0 ]

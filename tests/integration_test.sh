@@ -37,11 +37,11 @@ else
     # テスト用Markdownファイル作成
     echo "# テストファイル
 実行日時: 2025-01-15" > "$TEST_DIR/test.md"
-    
+
     # ファイルをワークスペースにコピー
     if cp "$TEST_DIR/test.md" ~/workspace/test_datetime.md 2>/dev/null; then
         sleep 3
-        
+
         # バックアップファイルが作成されたか確認
         if ls ~/workspace/test_datetime.md.bak_* 1> /dev/null 2>&1; then
             echo "✅ DateTime Validator 動作確認"
