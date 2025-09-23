@@ -40,7 +40,7 @@ class DateTimeValidator:
         self.current_date = datetime.datetime.now().strftime("%Y-%m-%d")
         self.corrections_made = 0
 
-    def validate_file(self, file_path: Path) -> Dict[str, any]:
+    def validate_file(self, file_path: Path, read_only: bool = False) -> Dict[str, any]:
         """ファイルの日付を検証し、必要に応じて修正"""
         # Markdownファイルのみを対象とする
         if file_path.suffix.lower() != '.md':
@@ -60,26 +60,42 @@ class DateTimeValidator:
             if not issues_found:
                 return {'status': 'valid', 'issues': []}
 
+            # 読み取り専用モードの場合はチェックのみ
+            if read_only:
+                return {
+                    'status': 'issues_found',
+                    'issues': issues_found,
+                    'message': '読み取り専用モード: 修正は実行されません'
+                }
+
             # 自動修正を試行
             corrected_content = self._auto_correct_dates(content)
 
             if corrected_content != original_content:
-                # バックアップ作成
-                backup_path = file_path.with_suffix(f'{file_path.suffix}.bak')
-                backup_path.write_text(original_content, encoding='utf-8')
+                try:
+                    # バックアップ作成
+                    backup_path = file_path.with_suffix(f'{file_path.suffix}.bak')
+                    backup_path.write_text(original_content, encoding='utf-8')
 
-                # 修正版を保存
-                file_path.write_text(corrected_content, encoding='utf-8')
-                self.corrections_made += 1
+                    # 修正版を保存
+                    file_path.write_text(corrected_content, encoding='utf-8')
+                    self.corrections_made += 1
 
-                logger.info(f"📅 日付修正完了: {file_path} ({', '.join(issues_found)} → {self.current_date})")
+                    logger.info(f"📅 日付修正完了: {file_path} ({', '.join(issues_found)} → {self.current_date})")
 
-                return {
-                    'status': 'corrected',
-                    'issues': issues_found,
-                    'backup': str(backup_path),
-                    'corrections': self.corrections_made
-                }
+                    return {
+                        'status': 'corrected',
+                        'issues': issues_found,
+                        'backup': str(backup_path),
+                        'corrections': self.corrections_made
+                    }
+                except PermissionError:
+                    logger.warning(f"⚠️ 書き込み権限なし: {file_path} - 読み取り専用モードで継続")
+                    return {
+                        'status': 'permission_denied',
+                        'issues': issues_found,
+                        'message': '書き込み権限がありません'
+                    }
             else:
                 return {
                     'status': 'issues_found',
@@ -120,8 +136,9 @@ class DateTimeValidator:
 class DateTimeValidatorHandler(FileSystemEventHandler):
     """ファイルシステム監視ハンドラー"""
 
-    def __init__(self, validator: DateTimeValidator):
+    def __init__(self, validator: DateTimeValidator, read_only: bool = False):
         self.validator = validator
+        self.read_only = read_only
 
     def on_modified(self, event):
         if event.is_directory:
@@ -138,7 +155,7 @@ class DateTimeValidatorHandler(FileSystemEventHandler):
             return
 
         logger.info(f"🔍 ファイル変更検出: {file_path}")
-        result = self.validator.validate_file(file_path)
+        result = self.validator.validate_file(file_path, self.read_only)
 
         if result['status'] == 'corrected':
             logger.warning(f"📅 日付修正実行: {file_path}")
@@ -150,6 +167,7 @@ def main():
     parser = argparse.ArgumentParser(description='DateTime Validator MCP Server')
     parser.add_argument('--directory', '-d', default='/workspace', help='監視ディレクトリ')
     parser.add_argument('--validate-only', '-v', action='store_true', help='一括検証のみ実行')
+    parser.add_argument('--read-only', '-r', action='store_true', help='読み取り専用モード（修正しない）')
 
     args = parser.parse_args()
 
@@ -165,7 +183,7 @@ def main():
         for file_path in watch_directory.rglob("*.md"):
             if file_path.is_file():
                 total_files += 1
-                result = validator.validate_file(file_path)
+                result = validator.validate_file(file_path, args.read_only)
 
                 if result['status'] in ['issues_found', 'corrected']:
                     issues_found += 1
@@ -174,7 +192,7 @@ def main():
 
         logger.info(f"検証完了: {total_files}ファイル, {issues_found}問題, {corrections_made}修正")
     else:
-        handler = DateTimeValidatorHandler(validator)
+        handler = DateTimeValidatorHandler(validator, args.read_only)
         observer = Observer()
         observer.schedule(handler, str(watch_directory), recursive=True)
         observer.start()

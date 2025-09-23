@@ -19,9 +19,9 @@ def main():
 
     service = sys.argv[1]
 
-    if service == "--version":
+    if service == "--version" or service == "-v":
         print(f"MCP Docker Environment v{__version__}")
-        return
+        sys.exit(0)
 
     if service == "github":
         # GitHub MCP Server

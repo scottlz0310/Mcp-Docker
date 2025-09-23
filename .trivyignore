@@ -1,0 +1,10 @@
+# Trivy脆弱性無視設定
+# 理由: 外部ツール（CodeQL）の脆弱性で直接修正不可能
+# 承認者: プロジェクトメンテナー
+# 再評価日: 2025-9-23
+# 迂回策: CodeQLツールの更新を定期的に確認
+
+# CVE-2024-45337: golang.org/x/crypto SSH authorization bypass
+# 影響: CodeQLバイナリ内のGo依存関係
+# 対策: GitHub CodeQL公式更新待ち
+CVE-2024-45337

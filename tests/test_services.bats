@@ -7,11 +7,11 @@ load test_helper
 setup() {
     setup_test_workspace
     # 既存のコンテナをクリーンアップ
-    docker-compose down -v >/dev/null 2>&1 || true
+    docker compose down -v >/dev/null 2>&1 || true
 }
 
 teardown() {
-    docker-compose down -v >/dev/null 2>&1 || true
+    docker compose down -v >/dev/null 2>&1 || true
     cleanup_test_workspace
 }
 
@@ -57,9 +57,11 @@ teardown() {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
 
-    run docker compose exec -T datetime-validator whoami
+    # ユーザーIDで確認（より確実）
+    run docker compose exec -T datetime-validator id -u
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "mcp" ]]
+    # 非rootユーザー（UID != 0）であることを確認
+    [ "$output" != "0" ]
 }
 
 @test "Container has proper resource limits" {

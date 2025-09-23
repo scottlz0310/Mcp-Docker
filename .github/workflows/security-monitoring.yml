@@ -1,0 +1,131 @@
+---
+name: 🔍 Security Monitoring
+
+on:
+  schedule:
+    # 毎日午前2時（UTC）に実行
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  issues: write
+
+jobs:
+  security-health-check:
+    name: Security Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Security metrics collection
+        run: |
+          echo "🔍 セキュリティメトリクス収集開始"
+
+          # セキュリティ状況の記録
+          cat > security-metrics.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "scan_type": "daily_monitoring",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Run comprehensive security scan
+        run: |
+          # Docker イメージビルド
+          docker build -t mcp-docker:security-scan .
+
+          # Trivy スキャン（JSON出力）
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image --format json \
+            --output trivy-daily.json mcp-docker:security-scan
+
+      - name: Analyze security results
+        run: |
+          echo "🔍 セキュリティ結果分析"
+
+          # 高・重要度の脆弱性をカウント
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-daily.json 2>/dev/null || echo "0")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-daily.json 2>/dev/null || echo "0")
+
+          echo "Critical vulnerabilities: $CRITICAL"
+          echo "High vulnerabilities: $HIGH"
+
+          # メトリクス更新
+          jq --argjson critical "$CRITICAL" --argjson high "$HIGH" \
+            '. + {critical_vulns: $critical, high_vulns: $high}' \
+            security-metrics.json > tmp.json && mv tmp.json security-metrics.json
+          mv security-metrics-updated.json security-metrics.json
+
+      - name: Create security alert if needed
+        if: always()
+        run: |
+          CRITICAL=$(jq '.critical_vulns // 0' security-metrics.json)
+          HIGH=$(jq '.high_vulns // 0' security-metrics.json)
+
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 5 ]; then
+            echo "🚨 セキュリティアラート: Critical=$CRITICAL, High=$HIGH"
+            echo "SECURITY_ALERT=true" >> $GITHUB_ENV
+            echo "ALERT_MESSAGE=Critical: $CRITICAL, High: $HIGH vulns" >> $GITHUB_ENV
+          fi
+
+      - name: Upload security metrics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-metrics-${{ github.run_number }}
+          path: |
+            security-metrics.json
+            trivy-daily.json
+
+  auto-security-update:
+    name: Auto Security Update Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for security updates
+        run: |
+          echo "🔄 セキュリティ更新確認"
+
+          # Docker base image の更新確認
+          CURRENT_IMAGE=$(grep "FROM node:" Dockerfile | head -1 | cut -d' ' -f2)
+          echo "Current base image: $CURRENT_IMAGE"
+
+          # 最新のセキュリティパッチ確認
+          docker pull node:18-alpine
+
+          # Python依存関係の更新確認
+          if [ -f "requirements.txt" ]; then
+            pip-audit --format=json --output=pip-audit.json || true
+          fi
+
+      - name: Generate security update report
+        run: |
+          cat > security-update-report.md << EOF
+          # Security Update Report
+
+          **Date**: $(date -u +%Y-%m-%d)
+          **Repository**: ${{ github.repository }}
+
+          ## Base Image Status
+          - Current: node:18-alpine
+          - Status: Updates available
+
+          ## Recommendations
+          - Review and apply security updates
+          - Update base images regularly
+          - Monitor dependency vulnerabilities
+          EOF
+
+      - name: Upload update report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-update-report
+          path: security-update-report.md

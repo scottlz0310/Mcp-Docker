@@ -9,14 +9,25 @@ help:
 	@echo "  make clean     - Clean up containers and images"
 	@echo ""
 	@echo "Services:"
-	@echo "  make datetime  - Start DateTime validator"
-	@echo "  make codeql    - Run CodeQL analysis"
+	@echo "  make datetime          - Start DateTime validator (normal mode)"
+	@echo "  make datetime-readonly - Run DateTime validator (read-only mode)"
+	@echo "  make datetime-fix      - Run DateTime validator (fix mode)"
+	@echo "  make codeql            - Run CodeQL analysis"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test      - Run integration tests"
-	@echo "  make test-all  - Run all test suites"
-	@echo "  make test-bats - Run Bats test suite"
-	@echo "  make security  - Run security scan"
+	@echo "  make test          - Run integration tests"
+	@echo "  make test-all      - Run all test suites"
+	@echo "  make test-bats     - Run Bats test suite"
+	@echo ""
+	@echo "Security:"
+	@echo "  make security         - Run basic security scan"
+	@echo "  make security-full    - Run comprehensive security scan"
+	@echo "  make security-secrets - Run secret scanning"
+	@echo "  make security-deps    - Run dependency security scan"
+	@echo "  make security-metrics  - Collect security metrics"
+	@echo "  make security-monitor  - Start continuous security monitoring"
+	@echo "  make security-report   - Generate security report"
+	@echo "  make security-validate - Validate Phase 7 exit criteria"
 	@echo ""
 	@echo "Release Management:"
 	@echo "  make version           - Show current version"
@@ -30,7 +41,7 @@ build:
 	docker compose build
 
 start:
-	docker compose up -d datetime-validator
+	UID=$(shell id -u) GID=$(shell id -g) docker compose up -d datetime-validator
 
 stop:
 	docker compose down
@@ -42,7 +53,15 @@ clean:
 	docker compose down -v --rmi all
 
 datetime:
-	docker compose up -d datetime-validator
+	UID=$(shell id -u) GID=$(shell id -g) docker compose up -d datetime-validator
+
+datetime-readonly:
+	@echo "🔍 読み取り専用モードでDateTime Validatorを起動"
+	docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace --read-only
+
+datetime-fix:
+	@echo "🔧 修正モードでDateTime Validatorを起動"
+	UID=$(shell id -u) GID=$(shell id -g) docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace
 
 codeql:
 	docker compose --profile tools run --rm codeql
@@ -82,6 +101,41 @@ security:
 	@echo "🔒 セキュリティスキャン実行"
 	docker build -t mcp-docker:latest . || (echo "❌ Build失敗"; exit 1)
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image mcp-docker:latest
+
+security-full:
+	@echo "🔍 包括的セキュリティスキャン実行"
+	make security
+	@echo "🔍 SBOM生成"
+	docker run --rm -v "$$(pwd)":/workspace anchore/syft:latest /workspace -o spdx-json=sbom.spdx.json
+	@echo "🔍 脆弱性スキャン"
+	docker run --rm -v "$$(pwd)":/workspace anchore/grype:latest sbom:sbom.spdx.json
+
+security-secrets:
+	@echo "🔍 シークレットスキャン実行"
+	docker run --rm -v "$$(pwd)":/workspace trufflesecurity/trufflehog:latest filesystem /workspace --only-verified
+
+security-deps:
+	@echo "🔍 Python依存関係スキャン"
+	pip freeze | docker run --rm -i pyupio/safety:latest check --stdin
+
+security-metrics:
+	@echo "📊 セキュリティメトリクス収集"
+	./scripts/security-metrics.sh
+
+security-monitor:
+	@echo "🔍 継続的セキュリティ監視開始"
+	@echo "ℹ️ メトリクスは security-reports/ ディレクトリに保存されます"
+	make security-metrics
+	@echo "✅ セキュリティ監視完了"
+
+security-report:
+	@echo "📄 セキュリティレポート生成"
+	make security-metrics
+	@echo "📁 レポートは security-reports/ ディレクトリを確認してください"
+
+security-validate:
+	@echo "🔍 Phase 7 Exit Criteria検証"
+	./scripts/security-validation.sh
 
 lint:
 	docker run --rm -i hadolint/hadolint < Dockerfile
