@@ -74,37 +74,34 @@ jobs:
 
       - name: Build Docker image
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "Skipping Docker build on Windows due to Alpine Linux incompatibility"
-            exit 0
-          fi
           docker build -t mcp-docker:latest .
           docker images
+        if: runner.os != 'Windows'
 
       - name: Test Docker image
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "Skipping Docker image test on Windows"
-            exit 0
-          fi
           # 基本的なイメージテスト
           docker run --rm mcp-docker:latest python --version
           docker run --rm mcp-docker:latest python main.py --version
           docker inspect mcp-docker:latest
+        if: runner.os != 'Windows'
 
-      - name: Platform-specific tests
+      - name: Platform-specific tests (Linux)
         shell: bash
         run: |
           echo "Testing on ${{ runner.os }}"
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "Windows-specific Docker tests"
-            # Verify Windows container mode
-            docker system info --format '{{.OSType}}'
-          else
-            echo "Linux-specific Docker tests"
-            # Verify Linux container capabilities
-            docker system info --format '{{.OSType}}'
-          fi
+          echo "Linux-specific Docker tests"
+          # Verify Linux container capabilities
+          docker system info --format '{{.OSType}}'
+        if: runner.os != 'Windows'
+
+      - name: Platform-specific tests (Windows)
+        shell: pwsh
+        run: |
+          Write-Host "Testing on ${{ runner.os }}"
+          Write-Host "Windows-specific tests (Docker not supported with Alpine)"
+          Write-Host "Skipping Docker tests due to Alpine Linux incompatibility"
+        if: runner.os == 'Windows'
 
   security:
     runs-on: ubuntu-latest
