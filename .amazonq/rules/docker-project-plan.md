@@ -108,9 +108,9 @@ jobs:
 - **セキュリティテスト**: 脆弱性スキャン
 
 ### CI/CD要件
-- **マトリクス**: Docker version × OS (Ubuntu/Windows/macOS)
+- **プラットフォーム**: Ubuntu Linuxのみ（現実的な範囲）
 - **キャッシュ**: Docker layer caching
-- **セキュリティ**: イメージスキャン必須
+- **セキュリティ**: Trivyスキャン（CRITICAL/HIGHのみ）
 - **リリース**: タグ付きイメージ自動push
 
 ## 進捗管理
@@ -189,7 +189,7 @@ jobs:
 
 ### 6.1 CI/CDパイプライン
 - [x] GitHub Actions設定（ci.yml）
-- [x] マトリクステスト（Ubuntu/macOS/Windows × Docker 20.10/24.0）
+- [x] Linuxフォーカス設計（Ubuntuのみ）
 - [x] Docker layer caching実装
 - [x] 権限最小化（permissions設定）
 
@@ -255,7 +255,7 @@ jobs:
   - Conventional Commits解析CHANGELOG生成
   - カテゴリ別変更分類・重複回避機能
   - GitHub Release自動作成・アセット添付
-- ✅ マトリクステスト（Ubuntu/macOS/Windows × Docker 20.10/24.0）
+- ✅ LinuxフォーカスCI（Ubuntuのみ、現実的な範囲）
 - ✅ ブランチ保護設定自動化（setup-branch-protection.sh）
 - ✅ CODEOWNERS設定（全ファイル@scottlz0310）
 - ✅ Batsテストスイート（4種類：build/services/security/integration）
