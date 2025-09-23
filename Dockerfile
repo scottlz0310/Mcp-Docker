@@ -36,23 +36,24 @@ COPY --from=builder /usr/local/bin/mcp-server-github /usr/local/bin/
 COPY --from=builder /root/.local /home/mcp/.local
 COPY --from=builder /opt/codeql /opt/codeql
 
+# 権限設定（rootで実行）
+RUN chown -R mcp:mcp /home/mcp
+
 # 環境変数設定
 ENV PATH="/opt/codeql/codeql:/home/mcp/.local/bin:$PATH"
-ENV PYTHONPATH="/home/mcp/.local/lib/python3.11/site-packages"
+ENV PYTHONPATH="/home/mcp/.local/lib/python3.12/site-packages"
 
 # 作業ディレクトリ設定
 WORKDIR /app
 
-# スクリプトをコピー
-COPY services/datetime/datetime_validator.py /app/
-COPY services/datetime/get_date.py /app/
+# スクリプトをコピーして権限設定
+COPY --chown=mcp:mcp services/datetime/datetime_validator.py /app/
+COPY --chown=mcp:mcp services/datetime/get_date.py /app/
+RUN chmod +x /app/datetime_validator.py /app/get_date.py
 
-# 権限設定
-RUN chown -R mcp:mcp /app /home/mcp && \
-    chmod +x /app/datetime_validator.py /app/get_date.py
-
-# 非rootユーザーに切り替え
+# mcpユーザーでPython依存関係を再インストール
 USER mcp
+RUN pip install --no-cache-dir --user --break-system-packages watchdog==4.0.0
 
 # ヘルスチェック追加
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
