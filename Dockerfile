@@ -2,8 +2,8 @@
 FROM node:18-alpine AS base
 
 # セキュリティ: 非rootユーザー作成（ホストユーザーIDに合わせる）
-RUN addgroup -g 1000 -S mcp && \
-    adduser -S mcp -u 1000 -G mcp
+RUN (addgroup -g 1000 -S mcp 2>/dev/null || addgroup -S mcp) && \
+    (adduser -S mcp -u 1000 -G mcp 2>/dev/null || adduser -S mcp -G mcp)
 
 # 必要なパッケージをインストール
 RUN apk add --no-cache \

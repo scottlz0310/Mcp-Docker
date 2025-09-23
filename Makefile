@@ -9,8 +9,10 @@ help:
 	@echo "  make clean     - Clean up containers and images"
 	@echo ""
 	@echo "Services:"
-	@echo "  make datetime  - Start DateTime validator"
-	@echo "  make codeql    - Run CodeQL analysis"
+	@echo "  make datetime          - Start DateTime validator (normal mode)"
+	@echo "  make datetime-readonly - Run DateTime validator (read-only mode)"
+	@echo "  make datetime-fix      - Run DateTime validator (fix mode)"
+	@echo "  make codeql            - Run CodeQL analysis"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test      - Run integration tests"
@@ -43,6 +45,14 @@ clean:
 
 datetime:
 	docker compose up -d datetime-validator
+
+datetime-readonly:
+	@echo "🔍 読み取り専用モードでDateTime Validatorを起動"
+	docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace --read-only
+
+datetime-fix:
+	@echo "🔧 修正モードでDateTime Validatorを起動"
+	docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace
 
 codeql:
 	docker compose --profile tools run --rm codeql
