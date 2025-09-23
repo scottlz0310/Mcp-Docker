@@ -9,6 +9,7 @@ services:
       - ~/workspace:/workspace
     restart: unless-stopped
     command: python datetime_validator.py --directory /workspace  # 通常モード（修正実行）
+    user: "${UID:-1000}:${GID:-1000}"  # ホストユーザーIDと同じに設定
     networks:
       - mcp-network
 

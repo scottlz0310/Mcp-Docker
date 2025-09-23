@@ -32,7 +32,7 @@ build:
 	docker compose build
 
 start:
-	docker compose up -d datetime-validator
+	UID=$(shell id -u) GID=$(shell id -g) docker compose up -d datetime-validator
 
 stop:
 	docker compose down
@@ -44,7 +44,7 @@ clean:
 	docker compose down -v --rmi all
 
 datetime:
-	docker compose up -d datetime-validator
+	UID=$(shell id -u) GID=$(shell id -g) docker compose up -d datetime-validator
 
 datetime-readonly:
 	@echo "🔍 読み取り専用モードでDateTime Validatorを起動"
@@ -52,7 +52,7 @@ datetime-readonly:
 
 datetime-fix:
 	@echo "🔧 修正モードでDateTime Validatorを起動"
-	docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace
+	UID=$(shell id -u) GID=$(shell id -g) docker compose run --rm datetime-validator python datetime_validator.py --directory /workspace
 
 codeql:
 	docker compose --profile tools run --rm codeql
