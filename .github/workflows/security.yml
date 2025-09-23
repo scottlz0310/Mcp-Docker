@@ -44,8 +44,8 @@ jobs:
           image-ref: 'mcp-docker:latest'
           format: 'table'
           severity: 'CRITICAL'
-          exit-code: '0'
-        continue-on-error: true
+          exit-code: '1'
+          trivyignores: '.trivyignore'
 
   dependency-scan:
     name: Dependency Security Scan
