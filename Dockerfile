@@ -1,5 +1,5 @@
 # マルチステージビルド: ベースイメージ（Windows互換性対応）
-FROM --platform=$BUILDPLATFORM node:18-alpine AS base
+FROM --platform=$BUILDPLATFORM node:24-alpine AS base
 
 # セキュリティ: 非rootユーザー作成（ホストユーザーIDに合わせる）
 RUN (addgroup -g 1000 -S mcp 2>/dev/null || addgroup -S mcp) && \
