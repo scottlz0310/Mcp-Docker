@@ -10,7 +10,7 @@ mkdir -p "$TEST_DIR"
 
 cleanup() {
     echo "🧹 クリーンアップ実行"
-    docker-compose down -v 2>/dev/null || true
+    docker compose down -v 2>/dev/null || true
     rm -rf "$TEST_DIR"
 }
 trap cleanup EXIT
@@ -25,7 +25,7 @@ echo "✅ Docker build 成功"
 
 # 2. サービス起動テスト
 echo "🚀 サービス起動テスト"
-docker-compose up -d
+docker compose up -d
 sleep 5
 
 # 3. DateTime Validator テスト
@@ -48,7 +48,7 @@ fi
 
 # 4. コンテナヘルスチェック
 echo "🏥 コンテナヘルスチェック"
-CONTAINERS=$(docker-compose ps -q)
+CONTAINERS=$(docker compose ps -q)
 for container in $CONTAINERS; do
     if docker inspect "$container" --format='{{.State.Status}}' | grep -q "running"; then
         echo "✅ コンテナ $(docker inspect "$container" --format='{{.Name}}') 正常動作"
@@ -60,6 +60,6 @@ done
 
 # 5. ログ確認
 echo "📋 ログ確認"
-docker-compose logs --tail=10
+docker compose logs --tail=10
 
 echo "🎉 統合テスト完了"
