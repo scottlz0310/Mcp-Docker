@@ -1,0 +1,31 @@
+# Global ownership
+* @scottlz0310
+
+# Docker and CI/CD files
+Dockerfile @scottlz0310
+docker-compose.yml @scottlz0310
+.github/workflows/ @scottlz0310
+.github/CODEOWNERS @scottlz0310
+
+# Scripts and automation
+scripts/ @scottlz0310
+Makefile @scottlz0310
+
+# Tests
+tests/ @scottlz0310
+
+# Documentation
+docs/ @scottlz0310
+README.md @scottlz0310
+CONTRIBUTING.md @scottlz0310
+CHANGELOG.md @scottlz0310
+
+# Configuration files
+.env.template @scottlz0310
+.gitignore @scottlz0310
+.pre-commit-config.yaml @scottlz0310
+.yamllint.yml @scottlz0310
+pyproject.toml @scottlz0310
+
+# Quality rules
+.amazonq/rules/ @scottlz0310

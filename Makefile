@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit
+.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -17,6 +17,11 @@ help:
 	@echo "  make test-all  - Run all test suites"
 	@echo "  make test-bats - Run Bats test suite"
 	@echo "  make security  - Run security scan"
+	@echo ""
+	@echo "Release Management:"
+	@echo "  make version           - Show current version"
+	@echo "  make release-check     - Check release readiness"
+	@echo "  make setup-branch-protection - Setup branch protection"
 	@echo ""
 	@echo "GitHub MCP Server:"
 	@echo "  Use: docker run -e GITHUB_PERSONAL_ACCESS_TOKEN=\$$GITHUB_PERSONAL_ACCESS_TOKEN mcp-docker-github-mcp"
@@ -85,3 +90,24 @@ lint:
 
 pre-commit:
 	pipx run uv run pre-commit run --all-files
+
+version:
+	@echo "Current version: $(shell grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')"
+	@uv run python main.py --version
+
+release-check:
+	@echo "🔍 リリース準備状況チェック"
+	@echo "Version: $(shell grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')"
+	@echo "Git status:"
+	@git status --porcelain
+	@echo "Last commit:"
+	@git log -1 --oneline
+	@echo "Tests:"
+	@make test-all
+	@echo "Security:"
+	@make security
+	@echo "✅ リリース準備完了"
+
+setup-branch-protection:
+	@echo "🛡️ ブランチ保護設定"
+	@./scripts/setup-branch-protection.sh

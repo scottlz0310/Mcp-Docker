@@ -1,0 +1,289 @@
+---
+name: 🚀 Release Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+  security-events: write
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version information
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            PRERELEASE="${{ github.event.inputs.prerelease }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            PRERELEASE="false"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is-prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
+          echo "Target version: $VERSION"
+          echo "Prerelease: $PRERELEASE"
+
+      - name: Smart version check
+        run: |
+          CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          TARGET_VERSION="${{ steps.version.outputs.version }}"
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Target version: $TARGET_VERSION"
+
+          # Version comparison using sort -V
+          if [[ "$CURRENT_VERSION" == "$TARGET_VERSION" ]]; then
+            echo "✅ Version unchanged: $TARGET_VERSION"
+          elif printf '%s\n%s\n' "$CURRENT_VERSION" "$TARGET_VERSION" | \
+               sort -V -C; then
+            echo "🔄 Version upgrade: $CURRENT_VERSION → $TARGET_VERSION"
+            # Update version in pyproject.toml
+            sed -i "s/version = \"$CURRENT_VERSION\"/version = \"$TARGET_VERSION\"/" pyproject.toml
+
+            # Update version in main.py if exists
+            if [[ -f "main.py" ]]; then
+              sed -i "s/__version__ = \"$CURRENT_VERSION\"/" \
+                   "__version__ = \"$TARGET_VERSION\"/" main.py || true
+            fi
+
+            # Commit version update
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add pyproject.toml main.py
+            git commit -m "chore: bump version to $TARGET_VERSION" || true
+            git push || true
+          else
+            echo "❌ Error: Version downgrade not allowed" \
+                 "($CURRENT_VERSION → $TARGET_VERSION)"
+            exit 1
+          fi
+
+  quality-check:
+    runs-on: ubuntu-latest
+    needs: version-check
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Run CI pipeline
+        uses: ./.github/workflows/ci.yml
+
+  prepare-release:
+    runs-on: ubuntu-latest
+    needs: [version-check, quality-check]
+    outputs:
+      changes-made: ${{ steps.changelog.outputs.changes-made }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Generate CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${{ needs.version-check.outputs.version }}"
+          CHANGELOG_FILE="CHANGELOG.md"
+
+          # Create CHANGELOG if not exists
+          if [[ ! -f "$CHANGELOG_FILE" ]]; then
+            cat > "$CHANGELOG_FILE" << 'EOF'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+          and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+          EOF
+          fi
+
+          # Check if version already exists
+          if grep -q "## \[$VERSION\]" "$CHANGELOG_FILE"; then
+            echo "Version $VERSION already exists in CHANGELOG, updating date only"
+            sed -i "s/## \[$VERSION\] - .*/## [$VERSION] - $(date -u +%Y-%m-%d)/" "$CHANGELOG_FILE"
+            echo "changes-made=true" >> $GITHUB_OUTPUT
+          else
+            # Generate new changelog entry from git history
+            echo "Generating new CHANGELOG entry for $VERSION"
+
+            # Get commits since last tag
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [[ -n "$LAST_TAG" ]]; then
+              COMMITS=$(git log --pretty=format:"%s" "$LAST_TAG"..HEAD)
+            else
+              COMMITS=$(git log --pretty=format:"%s")
+            fi
+
+            # Create temporary changelog entry
+            TEMP_ENTRY=$(mktemp)
+            echo "## [$VERSION] - $(date -u +%Y-%m-%d)" > "$TEMP_ENTRY"
+            echo "" >> "$TEMP_ENTRY"
+
+            # Categorize commits
+            FEATURES=""
+            FIXES=""
+            DOCS=""
+            OTHERS=""
+
+            while IFS= read -r commit; do
+              if [[ "$commit" =~ ^feat(\(.+\))?:\ (.+) ]]; then
+                FEATURES="$FEATURES- ${BASH_REMATCH[2]}\n"
+              elif [[ "$commit" =~ ^fix(\(.+\))?:\ (.+) ]]; then
+                FIXES="$FIXES- ${BASH_REMATCH[2]}\n"
+              elif [[ "$commit" =~ ^docs(\(.+\))?:\ (.+) ]]; then
+                DOCS="$DOCS- ${BASH_REMATCH[2]}\n"
+              else
+                OTHERS="$OTHERS- $commit\n"
+              fi
+            done <<< "$COMMITS"
+
+            # Add sections if they have content
+            if [[ -n "$FEATURES" ]]; then
+              echo "### ✨ 新機能" >> "$TEMP_ENTRY"
+              echo -e "$FEATURES" >> "$TEMP_ENTRY"
+            fi
+
+            if [[ -n "$FIXES" ]]; then
+              echo "### 🐛 修正" >> "$TEMP_ENTRY"
+              echo -e "$FIXES" >> "$TEMP_ENTRY"
+            fi
+
+            if [[ -n "$DOCS" ]]; then
+              echo "### 📝 ドキュメント" >> "$TEMP_ENTRY"
+              echo -e "$DOCS" >> "$TEMP_ENTRY"
+            fi
+
+            if [[ -n "$OTHERS" ]]; then
+              echo "### 🔧 その他" >> "$TEMP_ENTRY"
+              echo -e "$OTHERS" >> "$TEMP_ENTRY"
+            fi
+
+            # If no categorized commits, add a generic entry
+            if [[ -z "$FEATURES$FIXES$DOCS$OTHERS" ]]; then
+              echo "### 🔧 その他" >> "$TEMP_ENTRY"
+              echo "- リリース $VERSION" >> "$TEMP_ENTRY"
+              echo "" >> "$TEMP_ENTRY"
+            fi
+
+            # Insert new entry after header
+            sed -i '/^# Changelog/r '"$TEMP_ENTRY" "$CHANGELOG_FILE"
+            rm "$TEMP_ENTRY"
+            echo "changes-made=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        run: |
+          VERSION="${{ needs.version-check.outputs.version }}"
+
+          # Extract release notes from CHANGELOG
+          awk "/## \[$VERSION\]/{flag=1; next} /## \[/{flag=0} flag" CHANGELOG.md > release-notes.md
+
+          echo "Generated release notes:"
+          cat release-notes.md
+
+      - name: Commit changes
+        if: steps.changelog.outputs.changes-made == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG for" \
+                     " v${{ needs.version-check.outputs.version }}" || exit 0
+          git push
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [version-check, prepare-release]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Build packages
+        run: |
+          # Create distribution directory
+          mkdir -p dist/
+
+          # Create source distribution
+          tar -czf "dist/mcp-docker-${{ needs.version-check.outputs.version }}.tar.gz" \
+            --exclude='.git*' \
+            --exclude='dist' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            .
+
+      - name: Create and push tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a "v${{ needs.version-check.outputs.version }}" \
+                  -m "Release v${{ needs.version-check.outputs.version }}"
+          git push origin "v${{ needs.version-check.outputs.version }}"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.version-check.outputs.version }}
+          name: Release v${{ needs.version-check.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ needs.version-check.outputs.is-prerelease }}
+          files: |
+            dist/mcp-docker-${{ needs.version-check.outputs.version }}.tar.gz
+            CHANGELOG.md
+            README.md
+            LICENSE
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  post-release:
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Record release metrics
+        run: |
+          echo "🎉 Release v${{ needs.version-check.outputs.version }} completed successfully!"
+          echo "Prerelease: ${{ needs.version-check.outputs.is-prerelease }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
