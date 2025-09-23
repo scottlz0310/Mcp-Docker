@@ -1,0 +1,22 @@
+{
+  "name": "github-mcp-server",
+  "version": "1.0.0",
+  "description": "GitHub MCP Server configuration",
+  "server": {
+    "command": "mcp-server-github",
+    "args": [],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+    }
+  },
+  "endpoints": {
+    "health": "/health",
+    "metrics": "/metrics"
+  },
+  "features": [
+    "repository-access",
+    "issue-management",
+    "pull-request-management",
+    "code-search"
+  ]
+}

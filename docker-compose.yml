@@ -1,14 +1,30 @@
 ---
-version: '3.8'
-
 services:
+  github-mcp:
+    build: .
+    container_name: mcp-github
+    environment:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    command: mcp-server-github
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   datetime-validator:
     build: .
     container_name: mcp-datetime
     volumes:
       - ~/workspace:/workspace
     restart: unless-stopped
-    command: python datetime_validator.py --directory /workspace  # Markdownファイルのみ監視
+    command: python datetime_validator.py --directory /workspace
     networks:
       - mcp-network
 

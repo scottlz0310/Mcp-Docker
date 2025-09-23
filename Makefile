@@ -9,6 +9,7 @@ help:
 	@echo "  make clean     - Clean up containers and images"
 	@echo ""
 	@echo "Services:"
+	@echo "  make github    - Start GitHub MCP server"
 	@echo "  make datetime  - Start DateTime validator"
 	@echo "  make codeql    - Run CodeQL analysis"
 	@echo ""
@@ -40,6 +41,9 @@ logs:
 
 clean:
 	docker compose down -v --rmi all
+
+github:
+	docker compose up -d github-mcp
 
 datetime:
 	docker compose up -d datetime-validator
