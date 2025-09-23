@@ -48,7 +48,8 @@ COPY services/datetime/datetime_validator.py /app/
 COPY services/datetime/get_date.py /app/
 
 # 権限設定
-RUN chown -R mcp:mcp /app /home/mcp
+RUN chown -R mcp:mcp /app /home/mcp && \
+    chmod +x /app/datetime_validator.py /app/get_date.py
 
 # 非rootユーザーに切り替え
 USER mcp
