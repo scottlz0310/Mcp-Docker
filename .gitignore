@@ -118,13 +118,20 @@ htmlcov/
 
 # Auto-generated entries from templates
 $RECYCLE.BIN/
+**/*.rs.bk
 **/data/
 **/logs/
 *.7z
 *.backup
 *.cover
+*.dll
+*.dylib
+*.exe
+*.exe~
 *.manifest
 *.orig
+*.out
+*.pdb
 *.py,cover
 *.rar
 *.spec
@@ -132,6 +139,7 @@ $RECYCLE.BIN/
 *.sublime-workspace
 *.tar.gz
 *.temp
+*.test
 *.zip
 .coverage.*
 .dmypy.json
@@ -148,6 +156,8 @@ $RECYCLE.BIN/
 .tox/
 .venv
 .venv/
+/target/
+Cargo.lock
 Desktop.ini
 ENV/
 cython_debug/
@@ -155,8 +165,10 @@ dmypy.json
 docker-compose.override.yml
 env.bak/
 env/
+go.work
 nosetests.xml
 requirements.txt
 uv.lock
+vendor/
 venv.bak/
 venv/
