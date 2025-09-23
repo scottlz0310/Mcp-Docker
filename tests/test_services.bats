@@ -16,7 +16,7 @@ teardown() {
 }
 
 @test "DateTime Validator service starts successfully" {
-    run docker-compose up -d datetime-validator
+    run docker compose up -d datetime-validator
     [ "$status" -eq 0 ]
     
     # サービスが起動するまで待機
@@ -26,7 +26,7 @@ teardown() {
 
 @test "DateTime Validator processes files correctly" {
     # サービス起動
-    docker-compose up -d datetime-validator >/dev/null 2>&1
+    docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
     
     # テストファイル作成
@@ -34,7 +34,7 @@ teardown() {
     echo "Date: 2025-01-15" >> "$TEST_WORKSPACE/test.md"
     
     # ファイルをワークスペースにコピー（権限問題を回避）
-    docker-compose exec -T datetime-validator sh -c "echo '# Test Document\nDate: 2025-01-15' > /tmp/test.md"
+    docker compose exec -T datetime-validator sh -c "echo '# Test Document\nDate: 2025-01-15' > /tmp/test.md"
     
     # ログでファイル処理を確認
     sleep 5
@@ -43,27 +43,27 @@ teardown() {
 }
 
 @test "DateTime Validator logs are structured" {
-    docker-compose up -d datetime-validator >/dev/null 2>&1
+    docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
     
     sleep 3
-    run docker-compose logs datetime-validator
+    run docker compose logs datetime-validator
     [ "$status" -eq 0 ]
     [[ "$output" =~ "INFO:" ]]
     [[ "$output" =~ "UTC" ]] || [[ "$output" =~ "2025-" ]]
 }
 
 @test "Container runs as non-root user" {
-    docker-compose up -d datetime-validator >/dev/null 2>&1
+    docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
     
-    run docker-compose exec -T datetime-validator whoami
+    run docker compose exec -T datetime-validator whoami
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp" ]]
 }
 
 @test "Container has proper resource limits" {
-    docker-compose up -d datetime-validator >/dev/null 2>&1
+    docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
     
     # メモリ使用量確認

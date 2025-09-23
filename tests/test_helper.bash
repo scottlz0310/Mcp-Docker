@@ -23,7 +23,7 @@ wait_for_service() {
     local count=0
     
     while [ $count -lt $timeout ]; do
-        if docker-compose ps "$service_name" | grep -q "Up"; then
+        if docker compose ps "$service_name" | grep -q "Up"; then
             return 0
         fi
         sleep 1
@@ -37,7 +37,7 @@ check_log_contains() {
     local service_name="$1"
     local expected_text="$2"
     
-    docker-compose logs "$service_name" | grep -q "$expected_text"
+    docker compose logs "$service_name" | grep -q "$expected_text"
 }
 
 # UTC時刻の取得
