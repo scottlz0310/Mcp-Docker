@@ -1,5 +1,5 @@
-# マルチステージビルド: ベースイメージ
-FROM node:18-alpine AS base
+# マルチステージビルド: ベースイメージ（Windows互換性対応）
+FROM --platform=$BUILDPLATFORM node:18-alpine AS base
 
 # セキュリティ: 非rootユーザー作成（ホストユーザーIDに合わせる）
 RUN (addgroup -g 1000 -S mcp 2>/dev/null || addgroup -S mcp) && \
@@ -15,7 +15,7 @@ RUN apk add --no-cache \
     apk cache clean
 
 # ビルドステージ: 依存関係インストール
-FROM base AS builder
+FROM --platform=$BUILDPLATFORM base AS builder
 
 # GitHub MCP Server & Python依存関係
 RUN npm install -g @modelcontextprotocol/server-github@latest && \
@@ -28,7 +28,7 @@ RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases
     chmod +x /opt/codeql/codeql/codeql
 
 # プロダクションステージ
-FROM base AS production
+FROM --platform=$TARGETPLATFORM base AS production
 
 # ビルドステージから必要なファイルをコピー
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -47,17 +47,18 @@ ENV PYTHONPATH="/home/mcp/.local/lib/python3.12/site-packages"
 WORKDIR /app
 
 # スクリプトをコピーして権限設定
+COPY --chown=mcp:mcp main.py /app/
 COPY --chown=mcp:mcp services/datetime/datetime_validator.py /app/
 COPY --chown=mcp:mcp services/datetime/get_date.py /app/
-RUN chmod +x /app/datetime_validator.py /app/get_date.py
+RUN chmod +x /app/main.py /app/datetime_validator.py /app/get_date.py
 
 # mcpユーザーでPython依存関係を再インストール
 USER mcp
 RUN pip install --no-cache-dir --user --break-system-packages watchdog==4.0.0
 
-# ヘルスチェック追加
+# ヘルスチェック追加（プロセス確認ベース）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD pgrep -f "python" || exit 1
 
 # デフォルトはGitHub MCPサーバー
 CMD ["mcp-server-github"]

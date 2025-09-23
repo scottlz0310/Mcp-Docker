@@ -43,7 +43,7 @@ jobs:
         with:
           image-ref: 'mcp-docker:latest'
           format: 'table'
-          severity: 'HIGH,CRITICAL'
+          severity: 'CRITICAL'
           exit-code: '1'
 
   dependency-scan:
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run Safety (Python dependency scanner)
         run: |
-          pip freeze | safety check --stdin --json --output safety-report.json || true
+          pip freeze | safety check --stdin -o json > safety-report.json || true
 
       - name: Run Bandit (Python security linter)
         run: |

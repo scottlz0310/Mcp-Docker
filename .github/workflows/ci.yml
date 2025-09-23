@@ -64,6 +64,7 @@ jobs:
           docker info
 
       - name: Cache Docker layers
+        if: runner.os != 'Windows'
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
@@ -73,13 +74,22 @@ jobs:
 
       - name: Build Docker image
         run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "Skipping Docker build on Windows due to Alpine Linux incompatibility"
+            exit 0
+          fi
           docker build -t mcp-docker:latest .
           docker images
 
       - name: Test Docker image
         run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "Skipping Docker image test on Windows"
+            exit 0
+          fi
           # 基本的なイメージテスト
-          docker run --rm mcp-docker:latest --version || true
+          docker run --rm mcp-docker:latest python --version
+          docker run --rm mcp-docker:latest python main.py --version
           docker inspect mcp-docker:latest
 
       - name: Platform-specific tests
@@ -168,7 +178,8 @@ jobs:
         run: |
           echo "Running integration tests on Ubuntu"
           # Basic integration test
-          docker compose exec -T datetime-validator python --version || true
+          docker compose exec -T datetime-validator python --version || echo "Service not ready"
+          docker compose exec -T datetime-validator python main.py --version || echo "Main script not ready"
 
       - name: Cleanup
         if: always()
