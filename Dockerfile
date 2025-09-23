@@ -43,7 +43,9 @@ ENV PYTHONPATH="/home/mcp/.local/lib/python3.11/site-packages"
 # 作業ディレクトリ設定
 WORKDIR /app
 
-# スクリプトをコピー
+# アプリケーションファイルをコピー
+COPY main.py /app/
+COPY pyproject.toml /app/
 COPY services/datetime/datetime_validator.py /app/
 COPY services/datetime/get_date.py /app/
 

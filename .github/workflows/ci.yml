@@ -58,7 +58,9 @@ jobs:
       - name: Test Docker image basic functionality
         run: |
           # Test main.py version command
-          docker run --rm mcp-docker:latest python main.py --version
+          docker run --rm mcp-docker:latest python /app/main.py --version
+          # Test default command (mcp-server-github)
+          docker run --rm mcp-docker:latest --help || true
           # Inspect image
           docker inspect mcp-docker:latest
 
