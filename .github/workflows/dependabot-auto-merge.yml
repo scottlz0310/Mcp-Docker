@@ -17,7 +17,7 @@ jobs:
         run: |
           # Wait for CI checks to complete
           sleep 30
-          
+
           # Enable auto-merge with squash
           gh pr merge --auto --squash "$PR_URL"
         env:
