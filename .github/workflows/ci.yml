@@ -78,6 +78,29 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
+  bats-test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bats
+        run: |
+          curl -sSL https://github.com/bats-core/bats-core/archive/v1.10.0.tar.gz | tar -xzf -
+          sudo mv bats-core-1.10.0 /opt/bats
+          sudo ln -sf /opt/bats/bin/bats /usr/local/bin/bats
+          bats --version
+
+      - name: Run Bats test suite
+        run: |
+          make test-docker
+          make test-services
+          make test-integration
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v || true
+
   integration-test:
     runs-on: ubuntu-latest
     needs: build
@@ -94,6 +117,9 @@ jobs:
         run: |
           docker compose ps
           docker compose logs
+
+      - name: Run legacy integration test
+        run: make test
 
       - name: Cleanup
         if: always()
