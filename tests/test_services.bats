@@ -57,9 +57,11 @@ teardown() {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
 
-    run docker compose exec -T datetime-validator whoami
+    run docker compose exec -T datetime-validator whoami 2>/dev/null
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "mcp" ]]
+    # 出力をクリーンアップしてmcpユーザーを確認
+    clean_output=$(echo "$output" | tr -d '\r\n' | grep -o 'mcp')
+    [[ "$clean_output" == "mcp" ]]
 }
 
 @test "Container has proper resource limits" {
