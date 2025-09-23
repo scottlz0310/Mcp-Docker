@@ -1,9 +1,9 @@
 # マルチステージビルド: ベースイメージ
 FROM node:18-alpine AS base
 
-# セキュリティ: 非rootユーザー作成
-RUN addgroup -g 1001 -S mcp && \
-    adduser -S mcp -u 1001 -G mcp
+# セキュリティ: 非rootユーザー作成（ホストユーザーIDに合わせる）
+RUN addgroup -g 1000 -S mcp && \
+    adduser -S mcp -u 1000 -G mcp
 
 # 必要なパッケージをインストール
 RUN apk add --no-cache \

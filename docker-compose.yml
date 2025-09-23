@@ -8,7 +8,7 @@ services:
     volumes:
       - ~/workspace:/workspace
     restart: unless-stopped
-    command: python datetime_validator.py --directory /workspace  # Markdownファイルのみ監視
+    command: python datetime_validator.py --directory /workspace --read-only  # 読み取り専用モード
     networks:
       - mcp-network
 
