@@ -172,3 +172,4 @@ uv.lock
 vendor/
 venv.bak/
 venv/
+docs/_build/
