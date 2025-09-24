@@ -1,53 +1,114 @@
-# 🚀 リリースワークフロー完全ガイド
+# 🚀 MCP Docker Environment - リリース自動化システム
 
 ## 📋 概要
 
-このドキュメントでは、Setup Repositoryプロジェクトの完全自動化リリースワークフローについて詳しく説明します。
+このドキュメントでは、MCP Docker Environmentプロジェクトの次世代リリース自動化システムについて詳しく説明します。本システムは完全自動化されたCI/CDパイプラインにより、開発からリリースまでの全工程を統合的に管理します。
 
-## 🎯 リリースフローの特徴
+## 🎯 システム特徴
 
-- **完全自動化**: ワンクリックで全工程自動実行
-- **2つのトリガー**: 手動実行とタグプッシュ
-- **自動補完**: 不足部分の自動生成・修正
-- **重複回避**: 既存エントリは保持・日付のみ更新
-- **Git履歴ベース**: Conventional Commitsから自動CHANGELOG生成
+### 🔥 完全自動化機能
 
-## 🔄 フローチャート
+- **🚀 ワンクリックリリース**: GitHub Actions UIから完全自動実行
+- **🔄 スマートバージョン管理**: pyproject.toml ↔ main.py 自動同期
+- **📝 インテリジェントCHANGELOG**: Git履歴からConventional Commits解析
+- **🏗️ 統合ドキュメント**: Sphinx + GitHub Pages自動デプロイ
+- **🛡️ セキュリティ保証**: バージョン後退禁止・権限管理
+
+### 🎛️ 多様なトリガー
+
+- **手動実行** (`workflow_dispatch`): GitHub Actions UI
+- **タグプッシュ** (`push: tags`): `git tag v1.0.0 && git push origin v1.0.0`
+- **ドキュメント連動** (`repository_dispatch`): リリース時自動更新
+
+### 🧠 インテリジェント処理
+
+- **バージョン整合性チェック**: 自動検証・同期
+- **品質保証統合**: CI/CDテスト完全連携
+- **変更履歴自動分類**: 機能・修正・ドキュメント・その他
+- **リリースノート生成**: CHANGELOG抽出・GitHub Release統合
+
+## 🔄 完全自動化フローチャート
 
 ```mermaid
 flowchart TD
-    A[開発者] --> B{リリース方法選択}
+    A[👨‍💻 開発者] --> B{🎯 リリース方式選択}
 
-    B -->|手動実行| C[CI画面でバージョン指定]
-    B -->|タグプッシュ| D[git tag v1.0.0 && git push origin v1.0.0]
+    B -->|手動実行| C[🖱️ GitHub Actions UI<br/>バージョン指定]
+    B -->|タグプッシュ| D[📎 git tag v1.0.0<br/>git push origin v1.0.0]
 
-    C --> E[workflow_dispatch トリガー]
-    D --> F[push tags トリガー]
+    C --> E[🔥 workflow_dispatch]
+    D --> F[🏷️ push tags]
 
-    E --> G[version-check ジョブ]
+    E --> G[🔍 version-check]
     F --> G
 
-    G --> H[バージョン情報抽出]
-    H --> I[スマートバージョンチェック]
-    I --> J{バージョン比較}
+    G --> H[📊 バージョン情報抽出]
+    H --> I[🧠 スマートバージョンチェック]
+    I --> J{⚖️ バージョン比較}
 
-    J -->|現在 > 指定| K[❌ エラーで終了]
-    J -->|現在 = 指定| L[quality-check ジョブ]
-    J -->|現在 < 指定| M[自動バージョン更新]
+    J -->|現在 > 指定| K[❌ エラー終了<br/>バージョン後退禁止]
+    J -->|現在 = 指定| L[🔄 quality-check]
+    J -->|現在 < 指定| M[⬆️ 自動バージョン更新<br/>pyproject.toml + main.py]
+
     M --> L
+    L --> N[🧪 CI/CDテスト実行<br/>全品質チェック]
+    N --> O[📝 prepare-release]
 
-    L --> N[CI/CDテスト実行]
-    N --> O[prepare-release ジョブ]
+    O --> P[📚 CHANGELOG自動生成<br/>Conventional Commits解析]
+    P --> Q[📄 リリースノート生成]
+    Q --> R{🔄 変更検出?}
 
-    O --> P[CHANGELOG自動生成・更新]
-    P --> Q[リリースノート生成]
-    Q --> R{変更あり?}
-    R -->|Yes| S[自動コミット・プッシュ]
-    R -->|No| T[create-release ジョブ]
+    R -->|Yes| S[💾 自動コミット・プッシュ]
+    R -->|No| T[🚀 create-release]
     S --> T
 
-    T --> U[パッケージビルド]
-    U --> V{手動実行?}
+    T --> U[📦 パッケージビルド]
+    U --> V{🎯 トリガー判定}
+
+    V -->|手動実行| W[🏷️ タグ作成・プッシュ]
+    V -->|タグプッシュ| X[🎉 GitHub Release作成]
+    W --> X
+
+    X --> Y[📚 update-docs<br/>repository_dispatch]
+    Y --> Z[📊 post-release<br/>メトリクス記録]
+
+    Z --> AA[🎊 リリース完了]
+
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style G fill:#f3e5f5
+    style I fill:#e8f5e8
+    style J fill:#fff3e0
+    style K fill:#ffebee
+    style L fill:#f3e5f5
+    style O fill:#e8f5e8
+    style T fill:#fff3e0
+    style AA fill:#e8f5e8
+```
+
+## 🚀 手動リリース実行（推奨方式）
+
+### 📋 実行手順
+
+1. **🌐 GitHub Actions画面**へ移動
+   ```
+   https://github.com/scottlz0310/Mcp-Docker/actions
+   ```
+
+2. **🎯 ワークフロー選択**
+   - **「🚀 Release Management」**を選択
+
+3. **▶️ ワークフロー実行**
+   - **「Run workflow」**ボタンをクリック
+
+4. **📝 パラメータ設定**
+   - **`version`**: 新しいバージョン (例: `1.3.7`, `2.0.0`)
+   - **`prerelease`**: プレリリースフラグ (`true`/`false`)
+
+5. **🚀 実行開始**
+   - **「Run workflow」**で自動化開始
+
+### 🎢 処理シーケンス
     V -->|Yes| W[タグ作成・プッシュ]
     V -->|No| X[GitHub Release作成]
     W --> X

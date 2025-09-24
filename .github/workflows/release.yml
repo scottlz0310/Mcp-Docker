@@ -302,6 +302,97 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update CHANGELOG with release content
+        run: |
+          VERSION="${{ needs.version-check.outputs.version }}"
+          CHANGELOG_FILE="CHANGELOG.md"
+
+          echo "Waiting for release to be fully created..."
+          sleep 10
+
+          # Get the actual release body from GitHub API to ensure consistency
+          RELEASE_BODY=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/v$VERSION" | \
+            jq -r '.body // empty')
+
+          if [[ -n "$RELEASE_BODY" ]] && [[ "$RELEASE_BODY" != "null" ]]; then
+            echo "Found release body content, updating CHANGELOG..."
+
+            # Create a backup
+            cp "$CHANGELOG_FILE" "${CHANGELOG_FILE}.backup"
+
+            # Find the current version section
+            VERSION_LINE=$(grep -n "## \[$VERSION\]" "$CHANGELOG_FILE" | cut -d: -f1)
+            if [[ -n "$VERSION_LINE" ]]; then
+              # Find the next version section to know where to stop
+              NEXT_VERSION_LINE=$(tail -n +$((VERSION_LINE + 1)) "$CHANGELOG_FILE" | \
+                                 grep -n "## \[" | head -1 | cut -d: -f1)
+
+              if [[ -n "$NEXT_VERSION_LINE" ]]; then
+                NEXT_VERSION_LINE=$((VERSION_LINE + NEXT_VERSION_LINE))
+              else
+                NEXT_VERSION_LINE=$(wc -l < "$CHANGELOG_FILE")
+                NEXT_VERSION_LINE=$((NEXT_VERSION_LINE + 1))
+              fi
+
+              # Create new content combining existing and release page content
+              TEMP_FILE=$(mktemp)
+
+              # Copy everything before the version section
+              sed -n "1,$((VERSION_LINE - 1))p" "$CHANGELOG_FILE" > "$TEMP_FILE"
+
+              # Add the version header
+              echo "## [$VERSION] - $(date -u +%Y-%m-%d)" >> "$TEMP_FILE"
+              echo "" >> "$TEMP_FILE"
+
+              # Add release body content (formatted for markdown)
+              echo "$RELEASE_BODY" | sed 's/^//' >> "$TEMP_FILE"
+              echo "" >> "$TEMP_FILE"
+
+              # Add existing detailed content if it exists and is different
+              EXISTING_CONTENT=$(sed -n "$((VERSION_LINE + 2)),$((NEXT_VERSION_LINE - 1))p" \
+                                "$CHANGELOG_FILE" | grep -v "^$")
+              if [[ -n "$EXISTING_CONTENT" ]] && \
+                 ! echo "$RELEASE_BODY" | grep -q "🚀.*完全自動化"; then
+                echo "### 📋 詳細機能説明" >> "$TEMP_FILE"
+                echo "" >> "$TEMP_FILE"
+                echo "$EXISTING_CONTENT" >> "$TEMP_FILE"
+                echo "" >> "$TEMP_FILE"
+              fi
+
+              # Add synchronization marker
+              echo "<!-- リリースページ統合済み: $(date -u +%Y-%m-%d) -->" >> "$TEMP_FILE"
+              echo "" >> "$TEMP_FILE"
+
+              # Copy everything after the current version section
+              tail -n +$NEXT_VERSION_LINE "$CHANGELOG_FILE" >> "$TEMP_FILE"
+
+              # Replace the original file
+              mv "$TEMP_FILE" "$CHANGELOG_FILE"
+
+              echo "CHANGELOG successfully updated with release page content"
+            else
+              echo "Version section not found in CHANGELOG"
+            fi
+          else
+            echo "No release body found or release not yet available"
+          fi
+
+      - name: Commit updated CHANGELOG
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "docs: sync CHANGELOG with release page content" \
+                       " for v${{ needs.version-check.outputs.version }}"
+            git push
+          fi
+
   update-docs:
     runs-on: ubuntu-latest
     needs: [version-check, create-release]
