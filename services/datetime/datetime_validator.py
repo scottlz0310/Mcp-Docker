@@ -25,6 +25,7 @@ class DateTimeValidator:
         # 不正確な可能性が高いパターン
         'suspicious': [
             r'2025-01-\d{2}',  # 2025年1月は疑わしい
+            r'2025-02-\d{2}',  # 2025年2月も疑わしい
             r'2024-12-\d{2}',  # 2024年12月も疑わしい
             r'実行日時\s*\n\s*2025-01-\d{2}',  # 実行日時の直後
         ],
@@ -105,6 +106,12 @@ class DateTimeValidator:
         # 一般的な疑わしい日付の修正
         corrected = re.sub(
             r'2025-01-\d{2}',
+            self.current_date,
+            corrected
+        )
+
+        corrected = re.sub(
+            r'2025-02-\d{2}',
             self.current_date,
             corrected
         )

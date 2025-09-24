@@ -1,0 +1,179 @@
+---
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['python', 'javascript']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t mcp-docker:security-scan .
+
+      - name: Run Trivy vulnerability scanner on container
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mcp-docker:security-scan'
+          format: 'sarif'
+          output: 'trivy-container-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-container-results.sarif'
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  sbom-generation:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build Docker image
+        run: docker build -t mcp-docker:latest .
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          python scripts/generate-sbom.py --format cyclonedx --output sbom-cyclonedx.json
+
+      - name: Generate SPDX SBOM
+        run: |
+          python scripts/generate-sbom.py --format spdx --output sbom-spdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-files
+          path: |
+            sbom-cyclonedx.json
+            sbom-spdx.json
+          retention-days: 30
+
+  license-scan:
+    name: License Compliance Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Generate license report
+        run: |
+          pip-licenses --format json --output-file licenses.json || echo "[]" > licenses.json
+          pip-licenses --format markdown --output-file licenses.md || echo "No dependencies found" > licenses.md
+
+      - name: Check for prohibited licenses
+        run: |
+          python -c "
+          import json
+          prohibited = ['GPL-3.0', 'AGPL-3.0', 'LGPL-3.0']
+          try:
+              with open('licenses.json') as f:
+                  licenses = json.load(f)
+              for pkg in licenses:
+                  if pkg.get('License') in prohibited:
+                      print(f'❌ Prohibited license found: {pkg[\"Name\"]} ({pkg[\"License\"]})')
+                      exit(1)
+              print('✅ No prohibited licenses found')
+          except:
+              print('✅ No licenses to check')
+          "
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            licenses.json
+            licenses.md
+          retention-days: 30

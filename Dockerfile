@@ -1,5 +1,5 @@
 # マルチステージビルド: ベースイメージ
-FROM node:18-alpine AS base
+FROM node:24-alpine AS base
 
 # セキュリティ: 非rootユーザー作成
 RUN addgroup -g 1001 -S mcp && \
@@ -38,7 +38,7 @@ COPY --from=builder /opt/codeql /opt/codeql
 
 # 環境変数設定
 ENV PATH="/opt/codeql/codeql:/home/mcp/.local/bin:$PATH"
-ENV PYTHONPATH="/home/mcp/.local/lib/python3.11/site-packages"
+ENV PYTHONPATH="/home/mcp/.local/lib/python3.12/site-packages"
 
 # 作業ディレクトリ設定
 WORKDIR /app

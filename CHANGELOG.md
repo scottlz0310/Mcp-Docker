@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CODEOWNERS設定
 - プロジェクトメタデータ拡充
 
-## [0.1.0] - 2025-01-15
+## [0.1.0] - 2025-09-24
 
 ### ✨ 新機能
 - MCP Docker環境の初期実装

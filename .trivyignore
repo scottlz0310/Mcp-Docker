@@ -1,0 +1,11 @@
+# Trivy ignore file for unfixable vulnerabilities
+# Format: CVE-ID or vulnerability ID
+
+# Node.js base image vulnerabilities that are unfixed upstream
+# These should be reviewed periodically and removed when fixes are available
+
+# CVE-2024-21538: cross-spawn regular expression denial of service
+# Status: Unfixed in node:18-alpine as of 2024-09-24
+# Mitigation: Monitor for upstream fixes, consider alternative base images
+# Review date: 2025-09-24
+CVE-2024-21538

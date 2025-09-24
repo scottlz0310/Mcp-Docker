@@ -29,7 +29,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       is-prerelease: ${{ steps.version.outputs.is-prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: version-check
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.ref }}
 
@@ -101,7 +101,7 @@ jobs:
     outputs:
       changes-made: ${{ steps.changelog.outputs.changes-made }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
@@ -229,7 +229,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [version-check, prepare-release]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.ref }}
 
@@ -262,7 +262,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.version-check.outputs.version }}
           name: Release v${{ needs.version-check.outputs.version }}

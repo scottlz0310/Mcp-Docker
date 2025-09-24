@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version
+.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version sbom audit-deps
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -18,6 +18,8 @@ help:
 	@echo "  make test-all  - Run all test suites"
 	@echo "  make test-bats - Run Bats test suite"
 	@echo "  make security  - Run security scan"
+	@echo "  make sbom      - Generate SBOM"
+	@echo "  make audit-deps - Audit dependencies"
 	@echo ""
 	@echo "Release Management:"
 	@echo "  make version           - Show current version"
@@ -115,3 +117,14 @@ release-check:
 setup-branch-protection:
 	@echo "🛡️ ブランチ保護設定"
 	@./scripts/setup-branch-protection.sh
+
+sbom:
+	@echo "📋 SBOM生成"
+	uv run python scripts/generate-sbom.py --format cyclonedx --output sbom-cyclonedx.json
+	uv run python scripts/generate-sbom.py --format spdx --output sbom-spdx.json
+	@echo "✅ SBOM生成完了: sbom-cyclonedx.json, sbom-spdx.json"
+
+audit-deps:
+	@echo "🔍 依存関係監査"
+	uv run python scripts/audit-dependencies.py --output audit-report.json || echo "⚠️  監査完了（一部ツール不可）"
+	@echo "✅ 監査レポート: audit-report.json"
