@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security docs docs-serve docs-clean
+.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security docs docs-serve docs-clean install-bats check-bats
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -17,6 +17,7 @@ help:
 	@echo "  make test      - Run integration tests"
 	@echo "  make test-all  - Run all test suites"
 	@echo "  make test-bats - Run Bats test suite"
+	@echo "  make install-bats - Install Bats testing framework"
 	@echo "  make security  - Run security scan"
 	@echo "  make sbom      - Generate SBOM"
 	@echo "  make audit-deps - Audit dependencies"
@@ -62,19 +63,40 @@ codeql:
 test:
 	./tests/integration_test.sh
 
-test-bats:
+# Bats管理
+check-bats:
+	@if ! which bats > /dev/null 2>&1; then \
+		echo "❌ Bats testing framework not found"; \
+		echo "Installing Bats via Homebrew..."; \
+		$(MAKE) install-bats; \
+	else \
+		echo "✅ Bats $(shell bats --version) is available"; \
+	fi
+
+install-bats:
+	@echo "📦 Installing Bats testing framework..."
+	@if which brew > /dev/null 2>&1; then \
+		brew install bats-core && \
+		echo "✅ Bats installed successfully via Homebrew"; \
+	else \
+		echo "❌ Homebrew not found. Please install Homebrew first"; \
+		echo "Or install Bats manually from: https://github.com/bats-core/bats-core"; \
+		exit 1; \
+	fi
+
+test-bats: check-bats
 	@echo "🧪 Bats テストスイート実行"
 	bats tests/test_*.bats
 
-test-docker:
+test-docker: check-bats
 	@echo "🐳 Docker ビルドテスト"
 	bats tests/test_docker_build.bats
 
-test-services:
+test-services: check-bats
 	@echo "🚀 サービステスト"
 	bats tests/test_services.bats
 
-test-security:
+test-security: check-bats
 	@echo "🔒 セキュリティテスト"
 	bats tests/test_security.bats
 
