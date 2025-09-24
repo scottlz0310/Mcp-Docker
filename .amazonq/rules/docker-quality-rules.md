@@ -129,7 +129,7 @@ production:
 - Slack/Teams/GitHub通知を自動化。MTTA/MTTRの短縮を図る
 
 ### 6.5 Pre-commit規約
-- 自動修正時は新しいコミットを作成する: git add -A && git commit -m "fix: pre-commitによる自動修正"
+- 自動修正時はPreCommit前に使用していたコミットメッセージを変更せずにそのまま使用する
 - amendは使用しない（コミットメッセージが意図しないものになるため）
 - 自動修正のみの場合のメッセージ: "fix: pre-commitによる自動修正"
 
