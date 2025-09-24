@@ -19,6 +19,8 @@ on:
       - 'scripts/generate-docs.sh'
       - 'pyproject.toml'
   workflow_dispatch:
+  repository_dispatch:
+    types: [release-docs-update]
 
 permissions:
   contents: read
@@ -54,6 +56,13 @@ jobs:
         run: |
           chmod +x ./scripts/generate-docs.sh
           ./scripts/generate-docs.sh all
+
+          # リリース時の特別処理
+          if [[ "${{ github.event.action }}" == "release-docs-update" ]]; then
+            VERSION="${{ github.event.client_payload.version }}"
+            echo "📚 Updating documentation for release v$VERSION"
+            # バージョン情報をドキュメントに含める処理をここに追加
+          fi
 
       - name: Upload documentation artifacts
         uses: actions/upload-artifact@v4

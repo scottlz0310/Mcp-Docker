@@ -302,9 +302,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  post-release:
+  update-docs:
     runs-on: ubuntu-latest
     needs: [version-check, create-release]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Trigger documentation update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: release-docs-update
+          client-payload: '{"version": "${{ needs.version-check.outputs.version }}"}'
+
+  post-release:
+    runs-on: ubuntu-latest
+    needs: [version-check, create-release, update-docs]
     if: always() && needs.create-release.result == 'success'
     steps:
       - name: Record release metrics
@@ -312,3 +324,4 @@ jobs:
           echo "🎉 Release v${{ needs.version-check.outputs.version }} completed successfully!"
           echo "Prerelease: ${{ needs.version-check.outputs.is-prerelease }}"
           echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "📚 Documentation update triggered"
