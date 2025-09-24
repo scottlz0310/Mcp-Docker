@@ -21,7 +21,6 @@ services:
   datetime-validator:
     build: .
     container_name: mcp-datetime
-    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
       - ~/workspace:/workspace
     environment:
