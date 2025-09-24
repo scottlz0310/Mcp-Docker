@@ -135,6 +135,7 @@ production:
 
 ### 6.6 コミット規約・バージョニング
 - Conventional Commits（feat, fix, docs, refactor, test, chore, perf, build, ci）
+- コミットメッセージは日本語で記載
 - SemVer準拠。重大変更はPR/CHANGELOGで明示
 
 ### 6.7 署名・DCO
