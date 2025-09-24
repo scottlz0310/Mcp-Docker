@@ -98,9 +98,8 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: main
-          head: HEAD
-          extra_args: --debug --only-verified
+          # 全体スキャン（初回pushや設定問題を回避）
+          extra_args: --debug --only-verified --no-verification
 
   sbom-generation:
     name: Generate SBOM
