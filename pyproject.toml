@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "0.1.0"
+version = "1.0.0"
 description = "Model Context Protocol (MCP) servers in production-ready Docker environment"
 authors = [{name = "MCP Docker Team"}]
 readme = "README.md"
