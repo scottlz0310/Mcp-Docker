@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version sbom audit-deps
+.PHONY: help build start stop logs clean datetime codeql test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version sbom audit-deps validate-security
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -128,3 +128,8 @@ audit-deps:
 	@echo "🔍 依存関係監査"
 	uv run python scripts/audit-dependencies.py --output audit-report.json || echo "⚠️  監査完了（一部ツール不可）"
 	@echo "✅ 監査レポート: audit-report.json"
+
+validate-security:
+	@echo "🛡️  セキュリティバリデーション"
+	./scripts/validate-user-permissions.sh
+	@echo "✅ セキュリティ検証完了"

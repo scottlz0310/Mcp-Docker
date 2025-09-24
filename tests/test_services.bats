@@ -57,9 +57,21 @@ teardown() {
     docker compose up -d datetime-validator >/dev/null 2>&1
     wait_for_service "datetime-validator" 30
 
+    # セキュリティテスト 1: whoami がrootでないことを確認
     run docker compose exec -T datetime-validator whoami
     [ "$status" -eq 0 ]
     [[ "$output" != "root" ]]
+
+    # セキュリティテスト 2: UID が0（root）でないことを確認
+    run docker compose exec -T datetime-validator id -u
+    [ "$status" -eq 0 ]
+    [[ "$output" != "0" ]]
+
+    # セキュリティテスト 3: 特権操作が拒否されることを確認
+    run docker compose exec -T datetime-validator touch /etc/test_root_access
+    [ "$status" -ne 0 ]  # 失敗することを期待
+
+    echo "✅ Non-root security validation passed"
 }
 
 @test "Container has proper resource limits" {
