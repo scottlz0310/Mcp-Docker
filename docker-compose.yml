@@ -21,6 +21,7 @@ services:
   datetime-validator:
     build: .
     container_name: mcp-datetime
+    # セキュリティ: 動的UID/GID設定（書き込み権限確保 + Root昇格防止）
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
       - ~/workspace:/workspace:ro  # セキュリティ: 読み取り専用

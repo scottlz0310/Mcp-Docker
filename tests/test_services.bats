@@ -67,11 +67,16 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" != "0" ]]
 
-    # セキュリティテスト 3: 特権操作が拒否されることを確認
+    # セキュリティテスト 3: 動的UID/GIDが正しく設定されていることを確認
+    # USER_IDが設定されている場合はそれを、そうでなければデフォルト値を期待
+    expected_uid="${USER_ID:-1000}"
+    [[ "$output" == "$expected_uid" ]]
+
+    # セキュリティテスト 4: 特権操作が拒否されることを確認
     run docker compose exec -T datetime-validator touch /etc/test_root_access
     [ "$status" -ne 0 ]  # 失敗することを期待
 
-    echo "✅ Non-root security validation passed"
+    echo "✅ Non-root security validation passed (UID: $output)"
 }
 
 @test "Container has proper resource limits" {
