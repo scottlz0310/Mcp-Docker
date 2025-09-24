@@ -16,6 +16,7 @@ Contents:
    installation
    overview
    usage
+   RELEASE_SYSTEM
    troubleshooting
    api/index
 
@@ -32,7 +33,8 @@ MCP Docker Environmentは、Model Context Protocolサーバーを本番環境で
 * **サービス分離**: 同じイメージから異なるコマンドで起動
 * **軽量運用**: 必要なサービスのみ選択起動
 * **セキュリティ強化**: 非root実行、読み取り専用マウント
-* **自動化**: CI/CD、リリース管理、テスト完全自動化
+* **🚀 完全自動化**: リリース管理・CI/CD・ドキュメント生成完全自動化
+* **🧠 インテリジェント**: スマートバージョン管理・CHANGELOG自動生成
 
 サービス
 ~~~~~~~~

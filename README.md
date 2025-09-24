@@ -116,30 +116,45 @@ make version-sync
 
 このコマンドはpyproject.tomlのバージョンをmain.pyに反映します。
 
-### リリース実行
+### 🚀 クイックリリース実行
 
-GitHub ActionsのRelease Managementワークフローを使用：
+**GitHub ActionsのRelease Managementワークフローを使用（推奨）**:
 
-1. GitHubのActionsタブから「🚀 Release Management」を選択
-2. 「Run workflow」をクリック
-3. バージョン入力欄に新しいバージョンを指定（現在のバージョン情報はワークフロー実行後にSummaryで確認可能）
-4. 必要に応じて「Mark as prerelease」をチェック
+1. **🌐 [GitHub Actions](https://github.com/scottlz0310/Mcp-Docker/actions)** → **「🚀 Release Management」**を選択
+2. **「Run workflow」**をクリック
+3. **バージョン指定**: 新しいバージョン (例: `1.3.7`, `2.0.0`)
+4. **プレリリース**: 必要に応じて「Mark as prerelease」をチェック
+5. **「Run workflow」**で完全自動化実行開始
 
-## 📚 ドキュメント
-
-### ドキュメント生成
+**または、コマンドラインから**:
 
 ```bash
-make docs              # ドキュメント生成
-make docs-serve        # ローカルでドキュメント表示
-make docs-clean        # ドキュメントクリーンアップ
+# タグプッシュによる自動リリース
+git tag v1.3.7
+git push origin v1.3.7
 ```
 
-### オンラインドキュメント
+### � 詳細ドキュメント
 
-- **メインドキュメント**: https://scottlz0310.github.io/mcp-docker
-- **API リファレンス**: 自動生成されたSphinxドキュメント
-- **トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+完全なリリースシステムの詳細については、**[�📚 リリース自動化システム完全ガイド](docs/RELEASE_SYSTEM.md)**を参照してください。
+
+## 📚 ドキュメント体系
+
+### 🏗️ ドキュメント生成
+
+```bash
+make docs              # Sphinx + GitHub Pages自動ドキュメント生成
+make docs-serve        # ローカルでドキュメント表示
+make docs-clean        # ドキュメントビルドクリーンアップ
+```
+
+### 🌐 オンラインリソース
+
+- **🏠 メインドキュメント**: <https://scottlz0310.github.io/Mcp-Docker/>
+- **📋 API リファレンス**: 自動生成Sphinxドキュメント
+- **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
+- **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- **🔒 セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md)
 
 ## 🔧 サービス詳細
 
