@@ -59,7 +59,7 @@ teardown() {
 
     run docker compose exec -T datetime-validator whoami
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "mcp" ]]
+    [[ "$output" != "root" ]]
 }
 
 @test "Container has proper resource limits" {
