@@ -85,15 +85,12 @@ jobs:
           fi
 
   quality-check:
-    runs-on: ubuntu-latest
+    name: Quality Assurance
     needs: version-check
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.ref }}
-
-      - name: Run CI pipeline
-        uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write
 
   prepare-release:
     runs-on: ubuntu-latest
