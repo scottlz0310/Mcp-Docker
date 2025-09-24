@@ -63,12 +63,12 @@ teardown() {
     [[ "$output" != "root" ]]
 
     # セキュリティテスト 2: UID が0（root）でないことを確認
-    run docker compose exec -T datetime-validator id -u
+    run docker compose exec -T datetime-validator sh -c 'id -u 2>/dev/null'
     [ "$status" -eq 0 ]
     [[ "$output" != "0" ]]
 
-    # 実際のUIDを変数に保存
-    actual_uid="$output"
+    # 実際のUIDを変数に保存（警告メッセージを除去）
+    actual_uid=$(echo "$output" | tail -n 1 | tr -d '\n\r ' | grep -E '^[0-9]+$')
 
     # セキュリティテスト 3: 動的UID/GIDが正しく設定されていることを確認
     # USER_IDが設定されている場合はそれを、そうでなければデフォルト値を期待
@@ -76,15 +76,17 @@ teardown() {
 
     # デバッグ情報を出力
     echo "DEBUG: Expected UID: $expected_uid"
-    echo "DEBUG: Actual UID: $actual_uid"
+    echo "DEBUG: Raw output: '$output'"
+    echo "DEBUG: Cleaned UID: '$actual_uid'"
     echo "DEBUG: USER_ID env var: ${USER_ID:-"(not set)"}"
 
     # UID比較（文字列として比較し、両方とも数値であることを確認）
-    if [[ "$actual_uid" =~ ^[0-9]+$ ]] && [[ "$expected_uid" =~ ^[0-9]+$ ]]; then
+    if [[ -n "$actual_uid" ]] && [[ "$actual_uid" =~ ^[0-9]+$ ]] && [[ "$expected_uid" =~ ^[0-9]+$ ]]; then
         [[ "$actual_uid" == "$expected_uid" ]]
     else
         # 数値でない場合はエラー
-        echo "ERROR: Non-numeric UID values detected"
+        echo "ERROR: Non-numeric UID values detected or UID extraction failed"
+        echo "ERROR: actual_uid='$actual_uid', expected_uid='$expected_uid'"
         false
     fi
 

@@ -118,6 +118,7 @@ jobs:
         env:
           USER_ID: 1001
           GROUP_ID: 1001
+          GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           make test-docker
           make test-services
@@ -137,6 +138,7 @@ jobs:
         env:
           USER_ID: 1001
           GROUP_ID: 1001
+          GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose build
           # CI環境ではGitHub MCPサービスをスキップ
@@ -144,14 +146,20 @@ jobs:
           sleep 30
 
       - name: Check service health
+        env:
+          GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose ps
           docker compose logs datetime-validator
 
       - name: Run integration tests
+        env:
+          GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           ./tests/integration_test.sh
 
       - name: Cleanup
         if: always()
+        env:
+          GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: docker compose down -v
