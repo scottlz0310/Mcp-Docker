@@ -1,16 +1,23 @@
-MCP Docker Environment
-======================
+Mcp-Docker Documentation
+========================
 
-Model Context Protocol（MCP）サーバーのためのプロダクション対応Docker環境
+Welcome to the Mcp-Docker project documentation!
+
+This project provides a production-ready Docker environment for Model Context Protocol (MCP) servers.
+
+Updated: 2025-09-24 - GitHub Pages integration enabled
+
+Contents:
 
 .. toctree::
    :maxdepth: 2
-   :caption: 目次:
+   :caption: Contents:
 
-   overview
    installation
+   overview
    usage
    troubleshooting
+   api/index
 
 概要
 ----
