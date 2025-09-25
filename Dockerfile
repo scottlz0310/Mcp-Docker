@@ -35,12 +35,16 @@ RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases
 RUN apk add --no-cache bash
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash && \
-    chmod +x /usr/local/bin/act# プロダクション ステージ
+    mv ./bin/act /usr/local/bin/act && \
+    chmod +x /usr/local/bin/act
+
+# プロダクション ステージ
 FROM base AS production
 
 # ビルドステージから必要なファイルをコピー
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=builder /usr/local/bin/mcp-server-github /usr/local/bin/
+COPY --from=builder /usr/local/bin/act /usr/local/bin/
 COPY --from=builder /root/.local /home/mcp/.local
 COPY --from=builder /opt/codeql /opt/codeql
 
