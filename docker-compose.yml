@@ -60,7 +60,7 @@ services:
       - DOCKER_HOST=unix:///var/run/docker.sock
     profiles:
       - tools
-    command: python main.py actions simulate .github/workflows/ci.yml --dry-run
+    command: python main.py actions simulate .github/workflows/ci.yml
     networks:
       - mcp-network
     # セキュリティ: リソース制限
