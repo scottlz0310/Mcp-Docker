@@ -3,6 +3,8 @@ services:
   github-mcp:
     build: .
     container_name: mcp-github
+    stdin_open: true
+    tty: true
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
     restart: unless-stopped

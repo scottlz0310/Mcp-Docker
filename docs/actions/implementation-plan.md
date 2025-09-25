@@ -4,377 +4,174 @@
 
 既存のMcp-Dockerプロジェクトに、GitHub ActionsワークフローをDockerベースでローカル実行・検証する「CI事前チェック機能」を追加実装します。
 
+## 現状レビュー (2025-09-25)
+
+- ✅ `services/actions/workflow_parser.py` による基本的なYAML解析・検証が動作している。
+- ✅ `services/actions/simulator.py` で単一ジョブの逐次実行・`run`/一部`uses`ステップのシミュレーション、`--dry-run`/環境変数読み込みが可能。
+- ✅ CLI は `python -m services.actions.main` 経由で `simulate`/`validate`/`list-jobs` を提供し、`main.py actions ...` から起動できる。
+- ⚠️ `act_wrapper.py` は存在するものの CLI からは未接続で、`--engine act` オプションは未実装状態。
+- ⚠️ 並列実行・`needs` 依存関係・`strategy.matrix`・シークレット/環境管理・HTMLレポート生成などフェーズ2以降の機能は未着手。
+- ⚠️ ドキュメント内で予定されていた `click`/`rich` ベースのUI、`config_manager.py`、`report_generator.py` などのモジュールは未実装。
+- ❗ `docs/actions` 配下の設計/要約ドキュメントには未実装機能が完了済みとして記載されており、整合性を取る必要がある。
+
 ## 実装戦略
 
 ### 段階的開発アプローチ
 
 #### フェーズ1: MVP（Minimum Viable Product） - 2週間
+
 **目標**: 基本的なワークフロー実行機能の実装
 
-##### 主要機能
-1. **YAML解析エンジン**
-   - `.github/workflows/*.yml`ファイル読み込み
-   - 基本的なワークフロー構造の解析
-   - 簡単なバリデーション
+##### 主要機能（実装状況・拡張）
 
-2. **シンプルジョブ実行**
-   - 単一ジョブの Sequential実行
-   - `ubuntu-latest`ランナーのみサポート
-   - `run:`ステップの実行
-
-3. **基本CLI**
-   - `mcp-docker simulate <workflow-file>`コマンド
-   - 実行ログのコンソール出力
-   - 基本的なエラーハンドリング
-
-##### 技術選択
-- **YAML Parser**: `pyyaml`（Python標準的選択）
-- **Docker API**: `docker-py`ライブラリ
-- **CLI Framework**: `click`（軽量、高機能）
-- **ログ**: 標準`logging`モジュール
-
-##### 成功条件
-- 既存プロジェクトの`ci.yml`ワークフローのlintジョブが実行可能
-- 実行結果（成功/失敗）が正確に報告される
-- 5分以内に実行完了
+- [x] **YAML解析エンジン** — `WorkflowParser` が `.github/workflows/*.yml` を読み込み、必須フィールド検証と簡易バリデーションを提供。
+- [x] **シンプルジョブ実行** — `WorkflowSimulator` が単一ジョブを逐次実行し、`run`/一部`uses`をホストシェル上で再現（Dockerランナーは未実装）。
+- [x] **基本CLI** — `services/actions/main.py` に `simulate` / `validate` / `list-jobs` コマンドを実装。`argparse` ベースで動作（Click移行は未着手）。
 
 #### フェーズ2: 拡張機能 - 3週間
-**目標**: 実用的なCI/CD環境の実現
 
-##### 主要機能
-1. **高度なワークフロー機能**
-   - 複数ジョブの依存関係実行（`needs:`）
-   - 並列実行サポート
-   - Matrix strategy（`strategy.matrix`）
-   - 条件実行（`if:`）
+**目標**: 実用的な CI/CD シナリオへの対応。
 
-2. **環境管理**
-   - 環境変数サポート（`env:`）
-   - Secrets管理（ローカルファイルベース）
-   - 複数ランナーイメージ（ubuntu-20.04, 22.04）
-
-3. **Actions実行**
-   - `uses:`でのGitHub Actions実行
-   - 人気アクション対応（checkout, setup-node, cache等）
-   - カスタムアクション設定
-
-4. **結果レポート**
-   - 詳細実行ログ
-   - HTML形式レポート生成
-   - 実行時間・リソース統計
-
-##### 技術拡張
-- **並列実行**: `concurrent.futures`または`asyncio`
-- **レポート**: `jinja2`テンプレート
-- **設定管理**: `configparser`または`toml`
-
-##### 成功条件
-- 既存プロジェクトの全GitHub Actionsワークフローが動作
-- 実際のGitHub Actions実行時間の70%以内で完了
-- 詳細なエラー診断とデバッグ情報提供
+- [ ] `needs` 依存関係・並列実行のサポート（T1）。
+- [ ] `strategy.matrix` 展開と動的ジョブ生成（T2）。
+- [ ] `if:` 条件評価の強化と CLI UX 改善（T3）。
+- [ ] Secrets / 環境変数管理の強化（T4）。
+- [ ] `act` 連携による Docker ランナー実行、`uses` アクション再現（T5）。
+- [ ] 構造化ログと HTML/JSON レポート生成（T6/T7）。
 
 #### フェーズ3: 統合・最適化 - 2週間
-**目標**: プロダクション品質の実現
 
-##### 主要機能
-1. **既存システム統合**
-   - 現在の`main.py`サービス起動システムとの統合
-   - `docker-compose.yml`での新サービス定義
-   - 既存MCPサービス（github, datetime, codeql）との連携
+**目標**: プロダクション品質とサービス統合を完了する。
 
-2. **パフォーマンス最適化**
-   - Dockerイメージキャッシュ最適化
-   - 段階的ビルド戦略
-   - 並列実行の効率化
+- [ ] 常駐サービス化・REST API 化、`docker-compose` 改善（T8）。
+- [ ] Docker イメージとランナー性能の最適化、実行時間 KPI 達成（T9）。
+- [ ] IDE 連携 / Git hooks など開発者体験強化（T10）。
+- [ ] 実ワークフロー統合テスト・CI パイプライン構築（T11）。
+- [ ] セキュリティ監査・運用ガイド整備（T12）。
+- [ ] 関連ドキュメントのアップデート（T13）。
 
-3. **開発者体験向上**
-   - VS Code拡張（オプション）
-   - Git hooks統合
-   - 実行結果の永続化
+## 優先タスクリスト（T 番号は上記参照）
 
-##### 品質保証
-- 単体テスト（pytest）
-- 統合テスト（実際のワークフロー）
-- パフォーマンステスト
-- セキュリティ監査
+| ID | 内容 | 目的 / 補足 |
+| --- | --- | --- |
+| T1 | `WorkflowSimulator` でジョブ依存関係・並列実行・失敗伝播を実装 | `needs` DAG と並列ワーカーを追加し、フェーズ2の柱を実現 |
+| T2 | `strategy.matrix` と動的ジョブ展開 | 大規模ワークフロー対応。`WorkflowParser`/`WorkflowSimulator` 拡張 |
+| T3 | `if:` 条件評価と CLI 移行（Click + Rich） | 表現式評価ライブラリ導入と UX 向上 |
+| T4 | Secrets / 設定管理レイヤー（`config_manager`） | `.env` 以上の安全なシークレット管理と設定統一 |
+| T5 | `act` エンジン統合 (`--engine act`) | Docker ランナー対応と `uses` ステップ実行を現実的に再現 |
+| T6 | 構造化ログ / メトリクス出力 | `rich` ログ、JSON ログ、実行統計を収集 |
+| T7 | レポート生成・成果物永続化 | HTML/JSON レポート、`output/` 保存、履歴閲覧 |
+| T8 | 常駐サービス化・REST/CLI 統合 | `actions` サービスを長時間起動し他サービスと連携 |
+| T9 | パフォーマンス最適化・Docker イメージ調整 | 5 分/70% 要件達成、Dockerfile 最適化 |
+| T10 | 開発者体験（VS Code、Git hooks） | 即時検証や IDE 連携で adoption を促進 |
+| T11 | 統合テスト（pytest/Bats）、CI パイプライン | 実ワークフローを自動検証し回 regression を防止 |
+| T12 | セキュリティ監査（権限、ネットワーク、シークレット） | ローカル実行リスクを低減し安全性を確保 |
+| T13 | `docs/actions` 配下ドキュメントの整合性更新 | 設計書・要約の記述を実装状態と同期 |
 
-## 技術スタック（改訂版）
+## 技術スタック（現状とフォローアップ）
 
-### Architecture Decision: CodeQL拡張 + act統合
+| 項目 | 現状 | 課題・次ステップ |
+| --- | --- | --- |
+| 言語 | Python 3.13（プロジェクト標準） | 維持 |
+| CLI | `argparse` ベース | Click + Rich へ移行しコマンド体系を統一（T3） |
+| 実行エンジン | ホストシェル (`subprocess.run`) | `act` / Docker ランナーに接続（T5） |
+| 解析 | `PyYAML` + 独自検証 | Matrix/needs/if サポート拡張（T1/T2/T3） |
+| ロギング | 標準 `logging` + ANSI | `rich` での整形表示 + JSON ログ出力（T6） |
+| 設定 | `config.json` を手動読み込み（未使用） | `config_manager` で統一管理・ Secrets マスキング（T4） |
+| 依存関係 | `pyyaml`, `click`, `rich`, `docker` | 未使用ライブラリの活用/整理、`jinja2` 等必要に応じ追加 |
+| テスト | `pytest` による単体テスト | 統合テスト/Bats 導入、CI 自動化（T11） |
 
-既存のMcp-Dockerプロジェクト分析により、**CodeQLサービス拡張アプローチ**を採用：
+## ファイル構造（2025-09-25 時点）
 
-#### 選択理由
-1. **既存統合**: `services/codeql/`ディレクトリが存在、`main.py`でサービス管理
-2. **一貫性**: 現在の`github`、`datetime`、`codeql`サービスパターンに適合
-3. **リソース効率**: 独立サービスより軽量
-4. **メンテナンス性**: 単一コードベースでの管理
-
-### Core Technologies
-```yaml
-Language: Python 3.12+ (既存プロジェクトと統一)
-CLI Framework: Click + Rich (美しいコンソール出力)
-Backend Engine: act (nektos/act) + Python wrapper
-Container Runtime: Docker Engine (既存インフラ活用)
-YAML Processing: PyYAML
-Configuration: 既存config.ymlパターン踏襲
-Testing: Bats + pytest (既存テスト戦略と統一)
-```
-
-### Dependencies（既存pyproject.tomlベース）
-```toml
-[tool.poetry.dependencies]  # 既存に追加
-python = "^3.12"
-click = "^8.1.0"           # 新規追加
-pyyaml = "^6.0"           # 既存依存関係活用
-rich = "^13.0.0"          # 新規追加：美しい出力
-pydantic = "^2.0.0"       # 新規追加：型安全性
-
-# act binary管理（Python経由）
-act-cli = "^1.17.0"       # act Python wrapper
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"         # 既存
-bats = "^1.10.0"          # 既存テストフレームワーク統一
-```
-
-## ファイル構造（改訂版：新規独立サービス `actions`）
-
-### 新規サービス追加
-```
-services/actions/             # 新規独立サービス
+```text
+services/actions/
 ├── __init__.py
-├── cli.py                   # メインCLIエントリーポイント
-├── act_wrapper.py           # act統合ラッパー
-├── codeql_integration.py    # 🆕 既存CodeQL統合
-├── workflow_parser.py       # YAML解析（act補完）
-├── config_manager.py        # 設定管理
-├── report_generator.py      # 結果レポート生成
-├── config.yml              # サービス設定ファイル
-├── models/                 # データモデル
-│   ├── __init__.py
-│   ├── workflow.py        # ワークフローモデル
-│   └── execution.py       # 実行状態モデル
-└── tests/                  # テストファイル（batsパターン）
-    ├── test_actions_simulator.bats
-    ├── fixtures/
-    │   └── sample_workflows/
-    └── integration/
-        └── test_full_simulation.bats
+├── act_wrapper.py
+├── config.json
+├── logger.py
+├── main.py
+├── simulator.py
+└── workflow_parser.py
 ```
 
-### 既存ファイル変更（最小限）
-```
-main.py                     # elif service == "actions": 追加
-docker-compose.yml          # actions-simulator サービス追加
-Dockerfile                 # act binary追加
-Makefile                   # actions ターゲット追加
-README.md                  # サービス説明追加
-```
+予定されている追加モジュール:
 
-### 既存サービス構成（変更なし）
-```
-services/
-├── github/                 # GitHub MCP Server（既存）
-├── datetime/              # DateTime Validator（既存）
-├── codeql/                # CodeQL Analysis（既存・変更なし）
-└── actions/               # 🆕 GitHub Actions Simulator
-```
+- `config_manager.py`（T4）
+- `report_generator.py`（T7）
+- `models/` ディレクトリ（ワークフロー/実行モデル、T2/T7）
+- `tests/fixtures/` 配下の統合テスト資産（T11）
 
-## 開発工程
+## 開発工程とマイルストーン
 
-### Week 1-2: MVP実装
-```mermaid
-gantt
-    title GitHub Actions Simulator MVP
-    dateFormat  YYYY-MM-DD
-    section Core Infrastructure
-    YAML Parser           :active, yaml-parser, 2025-01-01, 3d
-    Basic Job Runner      :job-runner, after yaml-parser, 4d
-    CLI Interface         :cli, after yaml-parser, 3d
-    Docker Integration    :docker, after job-runner, 3d
-
-    section Testing & Integration
-    Unit Tests            :testing, after cli, 2d
-    Integration Test      :integration, after docker, 2d
-    Documentation         :docs, after integration, 1d
-```
-
-### Week 3-5: 拡張機能
-- **Week 3**: 並列実行・依存関係処理
-- **Week 4**: Actions統合・環境管理
-- **Week 5**: レポート生成・エラーハンドリング
-
-### Week 6-7: 品質向上・統合
-- **Week 6**: 既存システム統合・パフォーマンス最適化
-- **Week 7**: テスト拡充・ドキュメント・リリース準備
+| 期間 | 目標 | 主なアウトプット |
+| --- | --- | --- |
+| Week 1-2 | フェーズ1 完了 | CLI / Parser / Simulator MVP、単体テスト |
+| Week 3 | 依存関係・並列実行対応 | T1 着手、設計レビュー |
+| Week 4 | Matrix / Secrets / act 連携 | T2, T4, T5 開発と検証 |
+| Week 5 | レポート・ログ強化 | T6, T7 実装、ユーザーフィードバック反映 |
+| Week 6 | 常駐サービス・最適化 | T8, T9 実装、Docker 最適化 |
+| Week 7 | テスト拡充・ドキュメント更新 | T10-T13、リリース候補の検証 |
 
 ## テスト戦略
 
-### 単体テスト
-```python
-# tests/test_workflow_parser.py
-def test_parse_simple_workflow():
-    yaml_content = """
-    name: CI
-    on: [push]
-    jobs:
-      test:
-        runs-on: ubuntu-latest
-        steps:
-          - run: echo "Hello World"
-    """
-    workflow = WorkflowParser.parse(yaml_content)
-    assert workflow.name == "CI"
-    assert len(workflow.jobs) == 1
-```
+- **単体テスト**: `pytest` で Parser/Simulator/Logger をカバー（既存テストを発展、T11）。
+- **統合テスト**: 実際の `.github/workflows/*.yml` を使った end-to-end 実行、Bats シナリオで CLI を検証（T11）。
+- **パフォーマンステスト**: 中規模ワークフローを用いた 5 分以内達成の検証（T9）。
+- **セキュリティテスト**: 禁止コマンドやシークレット漏洩を防ぐテストケース（T12）。
 
-### 統合テスト
-```python
-# tests/integration/test_full_workflow.py
-@pytest.mark.integration
-def test_full_ci_workflow():
-    """実際のci.ymlワークフローの実行テスト"""
-    result = simulate_workflow('.github/workflows/ci.yml')
-    assert result.success
-    assert 'lint' in result.completed_jobs
-    assert 'build' in result.completed_jobs
-```
+## セキュリティと運用の考慮
 
-### パフォーマンステスト
-```python
-# tests/test_performance.py
-def test_execution_time_under_threshold():
-    """実行時間が許容範囲内であることを確認"""
-    start_time = time.time()
-    simulate_workflow('tests/fixtures/medium_workflow.yml')
-    execution_time = time.time() - start_time
-    assert execution_time < 300  # 5分以内
-```
-
-## セキュリティ考慮事項
-
-### コンテナセキュリティ
-1. **非root実行**: 全てのランナーコンテナは非rootユーザーで実行
-2. **ネットワーク隔離**: 独立したDocker networkでの実行
-3. **リソース制限**: CPU、メモリ、ディスク使用量の制限
-4. **読み取り専用マウント**: 必要最小限のファイルシステムアクセス
-
-### シークレット管理
-1. **ローカル暗号化**: `.env.secrets`ファイルの暗号化保存
-2. **環境変数注入**: コンテナ起動時のみシークレット注入
-3. **ログマスキング**: 実行ログでの機密情報自動マスキング
-4. **一時ファイル削除**: 実行完了後の機密情報削除
-
-### アクセス制御
-```python
-# セキュリティ設定例
-SECURITY_CONFIG = {
-    "allow_network_access": False,  # デフォルトはネットワークアクセス禁止
-    "allowed_actions": [            # 許可されたGitHub Actions
-        "actions/checkout@v4",
-        "actions/setup-python@v4",
-        # ...
-    ],
-    "blocked_commands": [           # 禁止コマンド
-        "sudo", "su", "chmod +x", "curl | sh"
-    ]
-}
-```
-
-## 監視・ログ
-
-### 実行メトリクス
-- ワークフロー実行時間
-- ジョブ成功/失敗率
-- リソース使用量統計
-- エラーパターン分析
-
-### 構造化ログ
-```json
-{
-  "timestamp": "2025-01-15T10:30:00Z",
-  "level": "INFO",
-  "component": "job_orchestrator",
-  "workflow": "ci.yml",
-  "job": "build",
-  "step": "3",
-  "message": "Docker container started",
-  "container_id": "abc123",
-  "execution_time": 45.2
-}
-```
+- 非 root 実行・ネットワーク隔離・リソース制限を Docker 側で徹底（T12）。
+- シークレットは暗号化ファイル/環境変数で管理し、ログではマスキング（T4/T12）。
+- 実行ログは JSON 形式で収集し、異常検知に活用（T6）。
 
 ## 既存システムとの統合
 
-### main.pyの拡張
+`main.py` での呼び出し例（現状）:
+
 ```python
-# main.py に追加
-elif service == "actions-simulator":
-    from services.github_actions_simulator.cli import main as sim_main
-    sim_main()
+elif service == "actions":
+    args = sys.argv[2:]
+    cmd = ["python", "-m", "services.actions.main", *args]
+    subprocess.run(cmd, check=True)
 ```
 
-### docker-compose.ymlの拡張
+`docker-compose.yml` のサービス定義（今後の改善余地あり）:
+
 ```yaml
-# docker-compose.yml に追加
-services:
   actions-simulator:
     build: .
-    container_name: mcp-actions-simulator
     volumes:
       - ./.github:/app/.github:ro
       - ./output:/app/output:rw
       - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    command: python main.py actions-simulator --server
-    networks:
-      - mcp-network
-    ports:
-      - "8081:8081"
+    command: python main.py actions simulate .github/workflows/ci.yml
 ```
+
+- 上記コマンドは単発実行のため、常駐モードや API 化を T8 で検討。
 
 ## 成功指標・KPI
 
-### 機能要件
-- [ ] 既存の5つのワークフローすべてが実行可能
-- [ ] 95%以上の精度でGitHub Actions結果を再現
-- [ ] 平均実行時間がGitHub Actionsの70%以下
-
-### 性能要件
-- [ ] 小規模ワークフロー（1-3ジョブ）: 2分以内
-- [ ] 中規模ワークフロー（4-8ジョブ）: 5分以内
-- [ ] メモリ使用量: ホストメモリの70%以下
-
-### 開発者体験
-- [ ] CLI コマンド1つでワークフロー実行開始
-- [ ] 実行結果の分かりやすい視覚化
-- [ ] エラー時の具体的な修正提案
+- [ ] 既存ワークフロー 5 本すべてがローカルシミュレーターで成功（T1-T5）。
+- [ ] GitHub Actions の実行結果と 95% 以上一致（T5/T7/T11）。
+- [ ] 実行時間を本家の 70% 以内に短縮（T5/T9）。
+- [ ] CLI ワンコマンド起動と分かりやすいレポート（T3/T7）。
 
 ## リスクと対策
 
-### 技術的リスク
+| リスク | 内容 | 対策 |
+| --- | --- | --- |
+| Docker API 互換性 | ホストの Docker 依存 | LTS 版で検証し fallback 手段を用意 |
+| GitHub Actions 仕様変更 | 新機能追従の遅延 | コア機能に集中しプラガブルな設計にする |
+| パフォーマンス不足 | 大規模ワークフローでの遅延 | 早期にベンチマークし並列化・キャッシュを最適化 |
+| シークレット漏洩 | ログや一時ファイルからの漏洩 | マスキング・自動削除・アクセス制御を強化 |
 
-**リスク**: Docker API互換性問題
-- **対策**: Docker Engine LTS版での動作保証、代替API検討
+## ドキュメント整合タスク
 
-**リスク**: GitHub Actions仕様の急激な変更
-- **対策**: コア機能のみ実装、拡張可能なアーキテクチャ設計
-
-**リスク**: パフォーマンス問題（大規模ワークフロー）
-- **対策**: 段階的実装、早期パフォーマンステスト実施
-
-### 運用リスク
-
-**リスク**: メンテナンス負荷の増大
-- **対策**: 十分なテストカバレッジ、自動化されたCI/CD
-
-**リスク**: セキュリティホール
-- **対策**: セキュリティレビュー、最小権限原則、定期監査
+- [ ] `docs/actions/github-actions-simulator-design.md` を現状の機能範囲へ合わせる（T13）。
+- [ ] `docs/actions/github-actions-simulator-summary.md` の完了状況を更新（T13）。
+- [ ] `docs/actions/ui-design.md` で CLI/UI の最新仕様を反映（T13）。
 
 ## まとめ
 
-この実装計画は、既存のMcp-Dockerプロジェクトの価値を大幅に向上させ、開発チームの生産性とCI/CDパイプラインの信頼性を大きく改善します。段階的なアプローチにより、早期から価値を提供しつつ、着実に機能を拡張していくことができます。
-
-7週間の開発期間で、実用的なGitHub Actions Simulatorが完成し、ローカル開発環境でのCI事前検証が日常的なワークフローの一部となることを目指します。
+MVP は CLI / Parser / Simulator の最小機能が揃い、ローカルでワークフローを試行できる段階に到達しました。今後は `needs`・`act`・レポート生成といったフェーズ2の中核機能を集中的に実装し、常駐サービス化とテスト自動化まで仕上げることで、GitHub Actions を安全かつ高速にローカル検証できるプロダクション水準の体験を提供します。

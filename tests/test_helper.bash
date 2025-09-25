@@ -88,6 +88,16 @@ assert_output() {
 
 # runコマンドの実装（簡易版）
 run() {
+    local errexit_was_set=0
+    if [[ $- == *e* ]]; then
+        errexit_was_set=1
+        set +e
+    fi
+
     output=$("$@" 2>&1)
     status=$?
+
+    if [[ $errexit_was_set -eq 1 ]]; then
+        set -e
+    fi
 }
