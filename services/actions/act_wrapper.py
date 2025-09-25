@@ -10,7 +10,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
-from .logger import ActionsLogger
+from logger import ActionsLogger
 
 # ログ設定
 _logger = ActionsLogger(verbose=True)
@@ -122,9 +122,6 @@ class ActWrapper:
         """
         cmd = [self.act_binary]
 
-        # イベント指定
-        cmd.extend(["--eventpath", "-"])
-
         # ワークフローファイル指定
         if workflow_file:
             cmd.extend(["-W", workflow_file])
@@ -146,22 +143,13 @@ class ActWrapper:
             for key, value in env_vars.items():
                 cmd.extend(["--env", f"{key}={value}"])
 
-        # イベントペイロードを作成
-        event_payload = {
-            "action": event,
-            "repository": {
-                "name": "test-repo",
-                "full_name": "test/test-repo"
-            }
-        }
-
         try:
             logger.info(f"actコマンド実行: {' '.join(cmd)}")
 
+            # eventpathなしで実行（デフォルトのpushイベントを使用）
             result = subprocess.run(
                 cmd,
                 cwd=self.working_directory,
-                input=json.dumps(event_payload),
                 capture_output=True,
                 text=True,
                 timeout=600  # 10分のタイムアウト
