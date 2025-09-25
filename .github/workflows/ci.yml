@@ -106,13 +106,14 @@ jobs:
           tags: mcp-docker:latest
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'mcp-docker:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
+          trivyignores: '.trivyignore'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -121,13 +122,14 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
       - name: Run Trivy for PR comment
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         if: github.event_name == 'pull_request'
         with:
           image-ref: 'mcp-docker:latest'
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL,HIGH'
+          trivyignores: '.trivyignore'
 
   test:
     runs-on: ubuntu-latest
