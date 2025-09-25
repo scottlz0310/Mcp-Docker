@@ -48,6 +48,34 @@ services:
     networks:
       - mcp-network
 
+  actions-simulator:
+    build: .
+    container_name: mcp-actions-simulator
+    volumes:
+      - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
+      - ./output:/app/output:rw        # 実行結果出力
+      - /var/run/docker.sock:/var/run/docker.sock  # Dockerアクセス（act用）
+    environment:
+      - PYTHONPATH=/home/mcp/.local/lib/python3.12/site-packages:/app
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    profiles:
+      - tools
+    command: python main.py actions simulate .github/workflows/ci.yml --dry-run
+    networks:
+      - mcp-network
+    # セキュリティ: リソース制限
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    # セキュリティ: 最小権限
+    privileged: false
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
 networks:
   mcp-network:
     driver: bridge

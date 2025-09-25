@@ -58,18 +58,17 @@ class WorkflowParser:
 
     def _validate_basic_structure(self, workflow_data: Dict[str, Any]) -> None:
         """基本構造の検証"""
-        if not isinstance(workflow_data, dict):
+        if not workflow_data or not isinstance(workflow_data, dict):
             raise WorkflowParseError("ワークフローはYAMLオブジェクトである必要があります")
 
-        # 必須フィールドの確認（'on'は文字列または真偽値として解析される場合がある）
+        # GitHub Actions YAML特有の問題への対処
+        # YAMLパーサーが 'on:' を True キーとして解釈する問題を修正
+        workflow_data = self._normalize_github_actions_yaml(workflow_data)
+
+        # 必須フィールドの確認
         for field in self.required_fields:
-            if field == 'on':
-                # 'on'キーは'on'または True として存在する可能性がある
-                if 'on' not in workflow_data and True not in workflow_data:
-                    raise WorkflowParseError(f"必須フィールド '{field}' がありません")
-            else:
-                if field not in workflow_data:
-                    raise WorkflowParseError(f"必須フィールド '{field}' がありません")
+            if field not in workflow_data:
+                raise WorkflowParseError(f"必須フィールド '{field}' がありません")
 
         # ジョブの検証
         jobs = workflow_data.get('jobs', {})
@@ -78,6 +77,34 @@ class WorkflowParser:
 
         for job_id, job_data in jobs.items():
             self._validate_job(job_id, job_data)
+
+    def _normalize_github_actions_yaml(
+        self, workflow_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        GitHub Actions YAML特有の問題を正規化
+
+        YAMLパーサーが 'on:' キーワードを True として解釈する問題に対処
+        これはYAML仕様に従った正常な動作だが、GitHub Actionsでは文字列キーとして扱う必要がある
+
+        Args:
+            workflow_data: 解析されたYAMLデータ
+
+        Returns:
+            正規化されたワークフローデータ
+        """
+        # 辞書のコピーを作成（元データを変更しない）
+        normalized_data = workflow_data.copy()
+
+        # 'on' キーが True として解釈されている場合の修正
+        # 型チェッカー向け: Dict[str, Any]だがYAMLパーサーの仕様上boolキーが存在する
+        bool_keys = [k for k in normalized_data.keys() if isinstance(k, bool)]
+        for bool_key in bool_keys:
+            if bool_key is True and 'on' not in normalized_data:
+                normalized_data['on'] = normalized_data[bool_key]
+                del normalized_data[bool_key]
+
+        return normalized_data
 
     def _validate_job(self, job_id: str, job_data: Dict[str, Any]) -> None:
         """ジョブの検証"""

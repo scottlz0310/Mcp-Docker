@@ -31,7 +31,11 @@ RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases
     rm codeql.zip && \
     chmod +x /opt/codeql/codeql/codeql
 
-# プロダクションステージ
+# Act CLI (GitHub Actions local runner)
+RUN apk add --no-cache bash
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash && \
+    chmod +x /usr/local/bin/act# プロダクション ステージ
 FROM base AS production
 
 # ビルドステージから必要なファイルをコピー
@@ -53,6 +57,7 @@ COPY main.py /app/
 COPY pyproject.toml /app/
 COPY services/datetime/datetime_validator.py /app/
 COPY services/datetime/get_date.py /app/
+COPY services/actions/ /app/services/actions/
 
 # 権限設定
 RUN chown -R mcp:mcp /app /home/mcp
