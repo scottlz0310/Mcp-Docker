@@ -19,7 +19,12 @@ FROM base AS builder
 
 # GitHub MCP Server & Python依存関係
 RUN npm install -g @modelcontextprotocol/server-github@latest && \
-    pip install --no-cache-dir --user --break-system-packages watchdog==4.0.0 && \
+    pip install --no-cache-dir --user --break-system-packages \
+        watchdog==4.0.0 \
+        pyyaml==6.0.2 \
+        click==8.1.0 \
+        rich==13.0.0 \
+        docker==7.1.0 && \
     # 正しいbinスクリプトを作成
     echo '#!/bin/sh' > /usr/local/bin/mcp-server-github-direct && \
     echo 'exec node /usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js "$@"' >> /usr/local/bin/mcp-server-github-direct && \
@@ -34,8 +39,10 @@ RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases
 # Act CLI (GitHub Actions local runner)
 RUN apk add --no-cache bash
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash && \
-    mv ./bin/act /usr/local/bin/act && \
+RUN curl -L -o act_Linux_x86_64.tar.gz https://github.com/nektos/act/releases/latest/download/act_Linux_x86_64.tar.gz && \
+    tar xzf act_Linux_x86_64.tar.gz && \
+    mv act /usr/local/bin/act && \
+    rm act_Linux_x86_64.tar.gz && \
     chmod +x /usr/local/bin/act
 
 # プロダクション ステージ
@@ -43,7 +50,7 @@ FROM base AS production
 
 # ビルドステージから必要なファイルをコピー
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=builder /usr/local/bin/mcp-server-github /usr/local/bin/
+COPY --from=builder /usr/local/bin/mcp-server-github-direct /usr/local/bin/
 COPY --from=builder /usr/local/bin/act /usr/local/bin/
 COPY --from=builder /root/.local /home/mcp/.local
 COPY --from=builder /opt/codeql /opt/codeql
@@ -74,4 +81,4 @@ USER mcp
 #     CMD curl -f http://localhost:8080/health || exit 1
 
 # デフォルトはGitHub MCPサーバー
-CMD ["mcp-server-github"]
+CMD ["mcp-server-github-direct"]

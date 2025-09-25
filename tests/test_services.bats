@@ -7,11 +7,11 @@ load test_helper
 setup() {
     setup_test_workspace
     # 既存のコンテナをクリーンアップ
-    docker-compose down -v >/dev/null 2>&1 || true
+    docker compose down -v >/dev/null 2>&1 || true
 }
 
 teardown() {
-    docker-compose down -v >/dev/null 2>&1 || true
+    docker compose down -v >/dev/null 2>&1 || true
     cleanup_test_workspace
 }
 
