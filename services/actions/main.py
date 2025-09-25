@@ -23,6 +23,7 @@ from typing import Dict, Any, List, Optional
 from .workflow_parser import WorkflowParser
 from .simulator import WorkflowSimulator
 from .logger import ActionsLogger
+from .act_wrapper import ActWrapper
 
 
 def main():
@@ -47,8 +48,12 @@ def main():
     simulate_parser.add_argument('workflow_file', help='ワークフローYAMLファイルのパス')
     simulate_parser.add_argument('--job', '-j', help='実行する特定のジョブ名')
     simulate_parser.add_argument('--env-file', help='環境変数ファイル(.env)')
-    simulate_parser.add_argument('--dry-run', action='store_true', help='実際に実行せずにプランを表示')
-    simulate_parser.add_argument('--verbose', '-v', action='store_true', help='詳細ログを表示')
+    simulate_parser.add_argument('--dry-run', action='store_true',
+                                help='実際に実行せずにプランを表示')
+    simulate_parser.add_argument('--verbose', '-v', action='store_true',
+                                help='詳細ログを表示')
+    simulate_parser.add_argument('--engine', choices=['builtin', 'act'],
+                                default='builtin', help='シミュレーションエンジン')
 
     # validate コマンド
     validate_parser = subparsers.add_parser('validate', help='ワークフローの構文をチェック')
