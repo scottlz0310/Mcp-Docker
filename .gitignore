@@ -116,6 +116,12 @@ htmlcov/
 .pytest_cache/
 .coverage
 
+# Act (nektos/act) temporary files and downloads
+bats-core-*/
+act_temp/
+act_runner/
+act_*.log
+
 # Auto-generated entries from templates
 $RECYCLE.BIN/
 **/*.rs.bk

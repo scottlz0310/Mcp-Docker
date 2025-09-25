@@ -1,0 +1,34 @@
+{
+  "name": "GitHub Actions Simulator",
+  "version": "1.0.0",
+  "description": "GitHub Actions ワークフローのローカルシミュレーション実行環境",
+  "supported_events": [
+    "push",
+    "pull_request",
+    "schedule",
+    "workflow_dispatch",
+    "workflow_call"
+  ],
+  "default_runner": {
+    "os": "ubuntu-latest",
+    "shell": "/bin/bash"
+  },
+  "environment": {
+    "GITHUB_WORKSPACE": "/workspace",
+    "GITHUB_REPOSITORY": "local/test",
+    "GITHUB_REF": "refs/heads/main",
+    "GITHUB_SHA": "0000000000000000000000000000000000000000",
+    "GITHUB_ACTOR": "simulator"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "show_commands": true,
+    "show_outputs": true
+  },
+  "limits": {
+    "max_job_timeout": 3600,
+    "max_step_timeout": 1800,
+    "max_parallel_jobs": 4
+  }
+}
