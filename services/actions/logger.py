@@ -7,7 +7,6 @@ GitHub Actions Simulatorのログ出力を管理します。
 
 import logging
 import sys
-from typing import Optional
 from datetime import datetime
 
 

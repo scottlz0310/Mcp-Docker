@@ -8,9 +8,8 @@
 import os
 import subprocess
 import time
-import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from .logger import ActionsLogger
 
 

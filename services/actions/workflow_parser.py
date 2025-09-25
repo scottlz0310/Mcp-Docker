@@ -7,9 +7,8 @@ GitHub Actions ワークフローYAMLファイルを解析し、
 """
 
 import yaml
-import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 
 class WorkflowParseError(Exception):

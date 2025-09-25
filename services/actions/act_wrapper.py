@@ -5,16 +5,13 @@ actバイナリとの統合を提供するモジュール
 
 import subprocess
 import json
-import tempfile
-import logging
 import os
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
-from logger import ActionsLogger
+from typing import Dict, Any, List, Optional
+from .logger import ActionsLogger
 
 # ログ設定
-_logger = ActionsLogger(verbose=True)
-logger = _logger
+logger = ActionsLogger(verbose=True)
 
 
 class ActWrapper:

@@ -153,9 +153,19 @@ jobs:
 
       - name: Install Bats
         run: |
-          curl -sSL https://github.com/bats-core/bats-core/archive/v1.10.0.tar.gz | tar -xzf -
-          sudo mv bats-core-1.10.0 /opt/bats
-          sudo ln -sf /opt/bats/bin/bats /usr/local/bin/bats
+          # より信頼性の高いaptパッケージを使用
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+          # バックアップとして手動インストールを試行
+          if ! command -v bats &> /dev/null; then
+            echo "apt install failed, trying manual installation..."
+            wget -O bats-core.tar.gz https://github.com/bats-core/bats-core/archive/v1.10.0.tar.gz
+            tar -xzf bats-core.tar.gz
+            sudo mv bats-core-1.10.0 /opt/bats
+            sudo ln -sf /opt/bats/bin/bats /usr/local/bin/bats
+          fi
+
           bats --version
 
       - name: Run Bats test suite
