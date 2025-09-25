@@ -1,96 +1,49 @@
 #!/usr/bin/env python3
-"""
-GitHub Actions Simulator - Main Entry Point
-===========================================
+"""GitHub Actions Simulator - Click/Rich ベース CLI"""
 
-GitHub Actions ワークフローのシミュレーション実行を行うメインモジュールです。
+from __future__ import annotations
 
-機能:
-    - simulate: ワークフローを実行する
-    - validate: ワークフローの構文をチェックする
-    - list-jobs: ワークフロー内のジョブ一覧を表示する
-
-"""
-
-import sys
-import argparse
-import json
 from pathlib import Path
+from typing import Any, Optional
 
-# 内部モジュール
-from .workflow_parser import WorkflowParser
-from .simulator import WorkflowSimulator
+import click
+from rich.console import Console
+
 from .logger import ActionsLogger
+from .simulator import WorkflowSimulator
+from .workflow_parser import WorkflowParseError, WorkflowParser
 
 
-def main():
-    """
-    GitHub Actions Simulator のメインエントリーポイント
-    """
-    parser = argparse.ArgumentParser(
-        description="GitHub Actions Simulator",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-使用例:
-  python main.py actions simulate .github/workflows/ci.yml
-  python main.py actions validate .github/workflows/deploy.yml
-  python main.py actions list-jobs .github/workflows/ci.yml --format json
-        """
-    )
-
-    subparsers = parser.add_subparsers(dest='command', help='利用可能なコマンド')
-
-    # simulate コマンド
-    simulate_parser = subparsers.add_parser('simulate', help='ワークフローを実行')
-    simulate_parser.add_argument('workflow_file', help='ワークフローYAMLファイルのパス')
-    simulate_parser.add_argument('--job', '-j', help='実行する特定のジョブ名')
-    simulate_parser.add_argument('--env-file', help='環境変数ファイル(.env)')
-    simulate_parser.add_argument('--dry-run', action='store_true',
-                                help='実際に実行せずにプランを表示')
-    simulate_parser.add_argument('--verbose', '-v', action='store_true',
-                                help='詳細ログを表示')
-    simulate_parser.add_argument('--engine', choices=['builtin', 'act'],
-                                default='builtin', help='シミュレーションエンジン')
-
-    # validate コマンド
-    validate_parser = subparsers.add_parser('validate', help='ワークフローの構文をチェック')
-    validate_parser.add_argument('workflow_file', help='ワークフローYAMLファイルのパス')
-    validate_parser.add_argument('--strict', action='store_true', help='厳密な検証を実行')
-
-    # list-jobs コマンド
-    list_parser = subparsers.add_parser('list-jobs', help='ジョブ一覧を表示')
-    list_parser.add_argument('workflow_file', help='ワークフローYAMLファイルのパス')
-    list_parser.add_argument('--format', choices=['table', 'json'], default='table', help='出力形式')
-
-    args = parser.parse_args()
-
-    if not args.command:
-        parser.print_help()
-        return 1
-
-    # ロガー設定
-    logger = ActionsLogger(verbose=getattr(args, 'verbose', False))
-
-    try:
-        if args.command == 'simulate':
-            return run_simulate(args, logger)
-        elif args.command == 'validate':
-            return run_validate(args, logger)
-        elif args.command == 'list-jobs':
-            return run_list_jobs(args, logger)
-    except Exception as e:
-        logger.error(f"エラーが発生しました: {e}")
-        if getattr(args, 'verbose', False):
-            import traceback
-            traceback.print_exc()
-        return 1
-
-    return 0
+console = Console()
 
 
-def run_simulate(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
+class CLIContext:
+    """CLI 全体で共有するコンテキスト情報。"""
+
+    def __init__(self) -> None:
+        self.logger: Optional[ActionsLogger] = None
+
+
+def _build_context(ctx: click.Context, verbose: bool = False) -> CLIContext:
+    """コンテキストにロガーを設定して返す。"""
+
+    if ctx.obj is None:
+        ctx.obj = CLIContext()
+
+    if ctx.obj.logger is None:
+        ctx.obj.logger = ActionsLogger(verbose=verbose)
+
+    return ctx.obj
+
+
+def run_simulate(
+    workflow_file: Path,
+    job: Optional[str],
+    env_file: Optional[Path],
+    dry_run: bool,
+    logger: ActionsLogger,
+) -> int:
     """ワークフロー実行コマンドの処理"""
-    workflow_file = Path(args.workflow_file)
 
     if not workflow_file.exists():
         logger.error(f"ワークフローファイルが見つかりません: {workflow_file}")
@@ -102,32 +55,34 @@ def run_simulate(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
     parser = WorkflowParser()
     try:
         workflow = parser.parse_file(workflow_file)
-    except Exception as e:
-        logger.error(f"ワークフロー解析エラー: {e}")
+    except WorkflowParseError as exc:
+        logger.error(f"ワークフロー解析エラー: {exc}")
         return 1
 
     # シミュレーター初期化
     simulator = WorkflowSimulator(logger=logger)
 
     # 環境変数ファイル読み込み
-    if args.env_file:
-        env_file = Path(args.env_file)
+    if env_file:
         if env_file.exists():
             simulator.load_env_file(env_file)
         else:
             logger.warning(f"環境変数ファイルが見つかりません: {env_file}")
 
     # 実行
-    if args.dry_run:
+    if dry_run:
         logger.info("ドライランモード: 実際の実行は行いません")
-        return simulator.dry_run(workflow, job_name=args.job)
+        return simulator.dry_run(workflow, job_name=job)
     else:
-        return simulator.run(workflow, job_name=args.job)
+        return simulator.run(workflow, job_name=job)
 
 
-def run_validate(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
+def run_validate(
+    workflow_file: Path,
+    strict: bool,
+    logger: ActionsLogger,
+) -> int:
     """ワークフロー検証コマンドの処理"""
-    workflow_file = Path(args.workflow_file)
 
     if not workflow_file.exists():
         logger.error(f"ワークフローファイルが見つかりません: {workflow_file}")
@@ -140,21 +95,24 @@ def run_validate(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
     try:
         workflow = parser.parse_file(workflow_file)
 
-        if args.strict:
+        if strict:
             # 厳密な検証
             parser.strict_validate(workflow)
 
         logger.success("ワークフローの検証が完了しました ✓")
         return 0
 
-    except Exception as e:
-        logger.error(f"ワークフロー検証エラー: {e}")
+    except WorkflowParseError as exc:
+        logger.error(f"ワークフロー検証エラー: {exc}")
         return 1
 
 
-def run_list_jobs(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
+def run_list_jobs(
+    workflow_file: Path,
+    output_format: str,
+    logger: ActionsLogger,
+) -> int:
     """ジョブ一覧表示コマンドの処理"""
-    workflow_file = Path(args.workflow_file)
 
     if not workflow_file.exists():
         logger.error(f"ワークフローファイルが見つかりません: {workflow_file}")
@@ -164,40 +122,174 @@ def run_list_jobs(args: 'argparse.Namespace', logger: ActionsLogger) -> int:
     parser = WorkflowParser()
     try:
         workflow = parser.parse_file(workflow_file)
-    except Exception as e:
-        logger.error(f"ワークフロー解析エラー: {e}")
+    except WorkflowParseError as exc:
+        logger.error(f"ワークフロー解析エラー: {exc}")
         return 1
 
     jobs = workflow.get('jobs', {})
 
-    if args.format == 'json':
+    if output_format == 'json':
         # JSON形式で出力
-        jobs_info = []
+        jobs_info: list[dict[str, Any]] = []
         for job_id, job_data in jobs.items():
             jobs_info.append({
-                'id': job_id,
+                'job_id': job_id,
                 'name': job_data.get('name', job_id),
                 'runs_on': job_data.get('runs-on', 'unknown'),
                 'steps': len(job_data.get('steps', []))
             })
-        print(json.dumps(jobs_info, indent=2, ensure_ascii=False))
+        console.print_json(data=jobs_info)
     else:
         # テーブル形式で出力
-        logger.info(f"ワークフロー: {workflow.get('name', 'Unnamed')}")
-        logger.info("=" * 60)
+        from rich.table import Table
+
+        table = Table(title="ジョブ一覧", show_lines=True)
+        table.add_column("Job ID", style="cyan", no_wrap=True)
+        table.add_column("Name", style="green")
+        table.add_column("Runs on", style="magenta")
+        table.add_column("Steps", style="yellow")
+
         for job_id, job_data in jobs.items():
             job_name = job_data.get('name', job_id)
             runs_on = job_data.get('runs-on', 'unknown')
             steps_count = len(job_data.get('steps', []))
+            table.add_row(job_id, job_name, runs_on, str(steps_count))
 
-            print(f"Job ID: {job_id}")
-            print(f"  Name: {job_name}")
-            print(f"  Runs on: {runs_on}")
-            print(f"  Steps: {steps_count}")
-            print()
+        console.print(table)
 
     return 0
 
 
+@click.group(
+    cls=click.Group,
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 100,
+    },
+    help="""GitHub Actions Simulator
+
+GitHub Actions ワークフローをローカルでシミュレート/検証するためのCLIツールです。
+
+利用可能なサブコマンド:
+  - simulate   ワークフローを実行する
+  - validate   ワークフローの構文をチェックする
+  - list-jobs  ジョブ一覧を表示する
+""",
+)
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """CLIエントリーポイント"""
+
+    if ctx.obj is None:
+        ctx.obj = CLIContext()
+
+
+@cli.command(short_help="ワークフローを実行")
+@click.argument("workflow_file")
+@click.option("--job", "job", help="実行する特定のジョブ名")
+@click.option("--env-file", "env_file", help="環境変数ファイル(.env)")
+@click.option("--dry-run", "dry_run", is_flag=True, help="実際に実行せずにプランを表示")
+@click.option("--verbose", "-v", is_flag=True, help="詳細ログを表示")
+@click.option(
+    "--engine",
+    type=click.Choice(["builtin", "act"], case_sensitive=False),
+    default="builtin",
+    show_default=True,
+    help="シミュレーションエンジン",
+)
+@click.pass_context
+def simulate(ctx: click.Context, **params: Any) -> None:
+    """ワークフローを実行するサブコマンド"""
+
+    context = _build_context(ctx, verbose=bool(params.get("verbose", False)))
+    logger = context.logger
+    assert logger is not None  # narrow type for static analyzers
+
+    try:
+        workflow_path = Path(str(params.get("workflow_file")))
+        job_name = str(params.get("job")) if params.get("job") else None
+        env_file_path = (
+            Path(str(params.get("env_file")))
+            if params.get("env_file")
+            else None
+        )
+
+        status = run_simulate(
+            workflow_file=workflow_path,
+            job=job_name,
+            env_file=env_file_path,
+            dry_run=bool(params.get("dry_run", False)),
+            logger=logger,
+        )
+    except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
+        logger.error(f"エラーが発生しました: {exc}")
+        if params.get("verbose"):
+            import traceback
+
+            traceback.print_exc()
+        raise SystemExit(1) from exc
+
+    raise SystemExit(status)
+
+
+@cli.command(short_help="ワークフローの構文をチェック")
+@click.argument("workflow_file")
+@click.option("--strict", "strict", is_flag=True, help="厳密な検証を実行")
+@click.option("--verbose", "-v", is_flag=True, help="詳細ログを表示")
+@click.pass_context
+def validate(ctx: click.Context, **params: Any) -> None:
+    """ワークフローの構文をチェックするサブコマンド"""
+
+    context = _build_context(ctx, verbose=bool(params.get("verbose", False)))
+    logger = context.logger
+    assert logger is not None
+
+    workflow_path = Path(str(params.get("workflow_file")))
+    strict_mode = bool(params.get("strict", False))
+
+    status = run_validate(
+        workflow_file=workflow_path,
+        strict=strict_mode,
+        logger=logger,
+    )
+    raise SystemExit(status)
+
+
+@cli.command(name="list-jobs", short_help="ジョブ一覧を表示")
+@click.argument("workflow_file")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    show_default=True,
+    help="出力形式",
+)
+@click.option("--verbose", "-v", is_flag=True, help="詳細ログを表示")
+@click.pass_context
+def list_jobs(ctx: click.Context, **params: Any) -> None:
+    """ジョブ一覧を表示するサブコマンド"""
+
+    context = _build_context(ctx, verbose=bool(params.get("verbose", False)))
+    logger = context.logger
+    assert logger is not None
+
+    workflow_path = Path(str(params.get("workflow_file")))
+    output_format = str(params.get("output_format", "table"))
+
+    status = run_list_jobs(
+        workflow_file=workflow_path,
+        output_format=output_format,
+        logger=logger,
+    )
+    raise SystemExit(status)
+
+
+def main() -> None:
+    """CLIの実行エントリーポイント"""
+
+    cli.main(prog_name="actions")
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

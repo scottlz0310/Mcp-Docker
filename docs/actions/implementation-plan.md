@@ -10,7 +10,9 @@
 - ✅ `services/actions/simulator.py` で単一ジョブの逐次実行・`run`/一部`uses`ステップのシミュレーション、`--dry-run`/環境変数読み込みが可能。
 - ✅ CLI は `python -m services.actions.main` 経由で `simulate`/`validate`/`list-jobs` を提供し、`main.py actions ...` から起動できる。
 - ⚠️ `act_wrapper.py` は存在するものの CLI からは未接続で、`--engine act` オプションは未実装状態。
-- ⚠️ 並列実行・`needs` 依存関係・`strategy.matrix`・シークレット/環境管理・HTMLレポート生成などフェーズ2以降の機能は未着手。
+- ⚠️ シークレット/環境管理・HTMLレポート生成などフェーズ2以降の機能は未着手。
+- ✅ `WorkflowSimulator` に `needs` 依存関係の実行順序解決と並列実行、`strategy.matrix` 展開を実装（フェーズ2 T1/T2 完了）。
+- 🔄 `ExpressionEvaluator` による `if:` 条件評価を導入し、ステップ/ジョブ条件分岐の再現性を向上（T3: 表現式評価器と単体テストは完了、Click/Rich ベースの CLI は実装済みで追加 UX 改善を検討中）。
 - ⚠️ ドキュメント内で予定されていた `click`/`rich` ベースのUI、`config_manager.py`、`report_generator.py` などのモジュールは未実装。
 - ❗ `docs/actions` 配下の設計/要約ドキュメントには未実装機能が完了済みとして記載されており、整合性を取る必要がある。
 
@@ -32,9 +34,9 @@
 
 **目標**: 実用的な CI/CD シナリオへの対応。
 
-- [ ] `needs` 依存関係・並列実行のサポート（T1）。
-- [ ] `strategy.matrix` 展開と動的ジョブ生成（T2）。
-- [ ] `if:` 条件評価の強化と CLI UX 改善（T3）。
+- [x] `needs` 依存関係・並列実行のサポート（T1 完了）。
+- [x] `strategy.matrix` 展開と動的ジョブ生成（T2 完了）。
+- [ ] `if:` 条件評価の強化と CLI UX 改善（T3：表現式評価器は導入済み、Click/Rich CLI 基盤を実装済みで追加 UX 強化を検討）。
 - [ ] Secrets / 環境変数管理の強化（T4）。
 - [ ] `act` 連携による Docker ランナー実行、`uses` アクション再現（T5）。
 - [ ] 構造化ログと HTML/JSON レポート生成（T6/T7）。
@@ -54,9 +56,9 @@
 
 | ID | 内容 | 目的 / 補足 |
 | --- | --- | --- |
-| T1 | `WorkflowSimulator` でジョブ依存関係・並列実行・失敗伝播を実装 | `needs` DAG と並列ワーカーを追加し、フェーズ2の柱を実現 |
-| T2 | `strategy.matrix` と動的ジョブ展開 | 大規模ワークフロー対応。`WorkflowParser`/`WorkflowSimulator` 拡張 |
-| T3 | `if:` 条件評価と CLI 移行（Click + Rich） | 表現式評価ライブラリ導入と UX 向上 |
+| T1 | `WorkflowSimulator` でジョブ依存関係・並列実行・失敗伝播を実装 | ✅ 完了（`needs` DAG と並列ワーカーを導入済み） |
+| T2 | `strategy.matrix` と動的ジョブ展開 | ✅ 完了（マトリックス展開と派生ジョブ生成を実装） |
+| T3 | `if:` 条件評価と CLI 移行（Click + Rich） | 🔄 進行中（表現式評価器導入済み、Click/Rich CLI 基盤を実装済みで追加 UX 強化を検討） |
 | T4 | Secrets / 設定管理レイヤー（`config_manager`） | `.env` 以上の安全なシークレット管理と設定統一 |
 | T5 | `act` エンジン統合 (`--engine act`) | Docker ランナー対応と `uses` ステップ実行を現実的に再現 |
 | T6 | 構造化ログ / メトリクス出力 | `rich` ログ、JSON ログ、実行統計を収集 |
@@ -73,7 +75,7 @@
 | 項目 | 現状 | 課題・次ステップ |
 | --- | --- | --- |
 | 言語 | Python 3.13（プロジェクト標準） | 維持 |
-| CLI | `argparse` ベース | Click + Rich へ移行しコマンド体系を統一（T3） |
+| CLI | Click + Rich ベース（基礎移行完了） | 追加 UX 改善とサブコマンド拡張を検討（T3） |
 | 実行エンジン | ホストシェル (`subprocess.run`) | `act` / Docker ランナーに接続（T5） |
 | 解析 | `PyYAML` + 独自検証 | Matrix/needs/if サポート拡張（T1/T2/T3） |
 | ロギング | 標準 `logging` + ANSI | `rich` での整形表示 + JSON ログ出力（T6） |
