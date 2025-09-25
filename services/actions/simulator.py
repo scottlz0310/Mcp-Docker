@@ -205,7 +205,7 @@ class WorkflowSimulator:
                 command,
                 shell=True,
                 env=full_env,
-                cwd=self.workspace_path,
+                cwd=str(self.workspace_path),  # Path objectを文字列に変換
                 capture_output=True,
                 text=True
             )

@@ -41,7 +41,7 @@
 ```bash
 # Phase 1 開始: 基本構造作成
 mkdir -p services/actions
-python main.py actions simulate .github/workflows/ci.yml
+make actions  # Docker版で実際に実行（dry-runなし）
 ```
 
 ## 📝 更新履歴

@@ -44,3 +44,60 @@ check_log_contains() {
 get_utc_timestamp() {
     date -u +"%Y-%m-%d %H:%M:%S"
 }
+
+# プロジェクトルートでコマンドを実行
+run_in_project_root() {
+    cd "$PROJECT_ROOT" || return 1
+    "$@"
+}
+
+# Batsアサーション関数
+assert_success() {
+    if [ "$status" -ne 0 ]; then
+        echo "Expected success but got exit code $status"
+        echo "Output: $output"
+        return 1
+    fi
+}
+
+assert_failure() {
+    if [ "$status" -eq 0 ]; then
+        echo "Expected failure but got success"
+        echo "Output: $output"
+        return 1
+    fi
+}
+
+assert_output() {
+    local expected="$1"
+    if [[ "$2" == "--partial" ]]; then
+        expected="$2"
+        if [[ "$output" != *"$expected"* ]]; then
+            echo "Expected output to contain '$expected'"
+            echo "Actual output: $output"
+            return 1
+        fi
+    else
+        if [[ "$output" != "$expected" ]]; then
+            echo "Expected: $expected"
+            echo "Actual: $output"
+            return 1
+        fi
+    fi
+}
+
+# runコマンドの実装（簡易版）
+run() {
+    local errexit_was_set=0
+    if [[ $- == *e* ]]; then
+        errexit_was_set=1
+        set +e
+    fi
+
+    output=$("$@" 2>&1)
+    status=$?
+
+    if [[ $errexit_was_set -eq 1 ]]; then
+        set -e
+    fi
+}
