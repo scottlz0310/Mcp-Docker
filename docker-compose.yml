@@ -20,8 +20,6 @@ services:
     volumes:
       - ~/workspace:/workspace:ro  # セキュリティ: 読み取り専用
       - ./output:/output:rw         # セキュリティ: 書き込みは制限された領域のみ
-    environment:
-      - PYTHONPATH=/home/mcp/.local/lib/python3.12/site-packages:/app
     restart: unless-stopped
     command: python datetime_validator.py --directory /workspace
     networks:
@@ -60,7 +58,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock  # Dockerアクセス（act用）
       - ./.yamllint.yml:/app/.yamllint.yml:ro  # yamllint設定
     environment:
-      - PYTHONPATH=/home/mcp/.local/lib/python3.12/site-packages:/app
       - DOCKER_HOST=unix:///var/run/docker.sock
       - HOST=0.0.0.0
       - PORT=8000

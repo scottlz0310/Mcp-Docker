@@ -1,43 +1,30 @@
-# マルチステージビルド: ベースイメージ
+# Multi-stage build for the MCP Docker environment
 FROM node:24-alpine AS base
 
-# セキュリティ: 非rootユーザー作成
+# Security: create non-root user early to avoid UID reuse surprises
 RUN addgroup -g 1001 -S mcp && \
     adduser -S mcp -u 1001 -G mcp
 
-# 必要なパッケージをインストール
+# Install required system packages
 RUN apk add --no-cache \
+    bash \
     curl \
-    unzip \
+    git \
     python3 \
     py3-pip \
-    git \
-    bash && \
+    unzip && \
     apk cache clean
 
-# ビルドステージ: 依存関係インストール
+# Builder stage: install tooling and Python dependencies via uv
 FROM base AS builder
 
-# GitHub MCP Server & Python依存関係
+# Install GitHub MCP server and helper script
 RUN npm install -g @modelcontextprotocol/server-github@latest && \
-    pip install --no-cache-dir --user --break-system-packages \
-        watchdog==4.0.0 \
-        pyyaml==6.0.2 \
-        click==8.1.0 \
-        rich==13.0.0 \
-        docker==7.1.0 && \
-    # 正しいbinスクリプトを作成
     echo '#!/bin/sh' > /usr/local/bin/mcp-server-github-direct && \
     echo 'exec node /usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js "$@"' >> /usr/local/bin/mcp-server-github-direct && \
     chmod +x /usr/local/bin/mcp-server-github-direct
 
-# CodeQL CLI
-RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip && \
-    unzip codeql.zip -d /opt/codeql && \
-    rm codeql.zip && \
-    chmod +x /opt/codeql/codeql/codeql
-
-# Act CLI (GitHub Actions local runner)
+# Install act CLI (GitHub Actions local runner)
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -L -o act_Linux_x86_64.tar.gz https://github.com/nektos/act/releases/latest/download/act_Linux_x86_64.tar.gz && \
     tar xzf act_Linux_x86_64.tar.gz && \
@@ -45,40 +32,60 @@ RUN curl -L -o act_Linux_x86_64.tar.gz https://github.com/nektos/act/releases/la
     rm act_Linux_x86_64.tar.gz && \
     chmod +x /usr/local/bin/act
 
-# プロダクション ステージ
+# Install CodeQL CLI
+RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip && \
+    unzip codeql.zip -d /opt/codeql && \
+    rm codeql.zip && \
+    chmod +x /opt/codeql/codeql/codeql
+
+# Install uv and pre-sync Python dependencies
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv
+
+RUN mkdir -p /opt/uv
+
+WORKDIR /app
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+COPY pyproject.toml uv.lock ./
+RUN uv python install 3.13 && \
+    uv sync --locked --no-install-project && \
+    uv cache prune --ci
+
+# Production stage
 FROM base AS production
 
-# ビルドステージから必要なファイルをコピー
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv
+ENV PATH="/app/.venv/bin:/opt/codeql/codeql:/usr/local/bin:${PATH}"
+ENV NODE_PATH="/usr/local/lib/node_modules"
+ENV PYTHONUNBUFFERED=1
+
+# Copy tooling from builder
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=builder /usr/local/bin/mcp-server-github-direct /usr/local/bin/
 COPY --from=builder /usr/local/bin/act /usr/local/bin/
-COPY --from=builder /root/.local /home/mcp/.local
+COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=builder /opt/uv /opt/uv
 COPY --from=builder /opt/codeql /opt/codeql
+COPY --from=builder /app/.venv /app/.venv
 
-# 環境変数設定
-ENV PATH="/opt/codeql/codeql:/home/mcp/.local/bin:/usr/local/bin:$PATH"
-ENV PYTHONPATH="/home/mcp/.local/lib/python3.12/site-packages"
-ENV NODE_PATH="/usr/local/lib/node_modules"
-
-# 作業ディレクトリ設定
+# Application files
 WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY LICENSE ./
+COPY README.md ./
+COPY main.py ./
+COPY services/actions ./services/actions
+COPY services/datetime ./services/datetime
+COPY scripts ./scripts
 
-# アプリケーションファイルをコピー
-COPY main.py /app/
-COPY pyproject.toml /app/
-COPY services/datetime/datetime_validator.py /app/
-COPY services/datetime/get_date.py /app/
-COPY services/actions/ /app/services/actions/
+# Permissions
+RUN chown -R mcp:mcp /app /opt/codeql /opt/uv /usr/local/lib/node_modules
 
-# 権限設定
-RUN chown -R mcp:mcp /app /home/mcp
-
-# 非rootユーザーに切り替え
 USER mcp
 
-# ヘルスチェックはサービス固有の設定で実装
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#     CMD curl -f http://localhost:8080/health || exit 1
-
-# デフォルトはGitHub MCPサーバー
+# Default command: GitHub MCP server
 CMD ["mcp-server-github-direct"]

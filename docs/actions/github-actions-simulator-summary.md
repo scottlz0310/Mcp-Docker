@@ -22,11 +22,11 @@ Docker 上で nektos/act を利用し、GitHub Actions を実行せずに lint /
 ## 🏗️ アーキテクチャ概要
 
 ```text
-Developer → Click CLI → Workflow Parser → (Builtin Simulator | Act Wrapper) → Result Output
+Developer → Click CLI → Workflow Parser → Act Wrapper → Result Output
 ```
 
 - `simulate/validate/list-jobs` の CLI が唯一のエントリポイント。
-- `--engine act` を標準とし、Builtin Simulator はユニットテストとドライラン用途に限定。
+- エンジンは act に統一し、Builtin Simulator はレガシースタブとして廃止。
 - 出力は Rich テーブルと JSON サマリーに集約。
 
 ## 🛠️ 技術スタック
@@ -65,7 +65,7 @@ make actions
 ./scripts/run-actions.sh .github/workflows/ci.yml
 
 # CLI 直接
-python -m services.actions.main simulate .github/workflows/ci.yml --engine act --json
+uv run python main.py actions simulate .github/workflows/ci.yml --json
 ```
 
 ## 🔒 品質とセキュリティ

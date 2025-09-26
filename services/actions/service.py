@@ -6,12 +6,10 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .act_wrapper import ActWrapper
 from .logger import ActionsLogger
-from .simulator import SimulationError, WorkflowSimulator
-from .workflow_parser import WorkflowParseError, WorkflowParser
 
 
 @dataclass(slots=True)
@@ -19,7 +17,6 @@ class SimulationParameters:
     """Parameters that control a single simulation run."""
 
     workflow_file: Path
-    engine: str = "builtin"
     job: str | None = None
     dry_run: bool = False
     env_file: Path | None = None
@@ -33,10 +30,10 @@ class SimulationResult:
 
     success: bool
     return_code: int
-    engine: str
+    engine: str = "act"
     stdout: str = ""
     stderr: str = ""
-    metadata: dict[str, object] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SimulationServiceError(Exception):
@@ -44,7 +41,7 @@ class SimulationServiceError(Exception):
 
 
 class SimulationService:
-    """Execute workflow simulations using either the builtin engine or act."""
+    """Execute workflow simulations via the act CLI."""
 
     def __init__(
         self,
@@ -66,8 +63,6 @@ class SimulationService:
         capture_output: bool = False,
     ) -> SimulationResult:
         """Run the workflow simulation and return a structured result."""
-
-        engine_name = params.engine.lower()
         runner_logger = logger or self._logger_factory(params.verbose)
 
         stdout_io: StringIO | None = None
@@ -80,18 +75,9 @@ class SimulationService:
                 stack.enter_context(redirect_stderr(stderr_io))
 
             try:
-                if engine_name == "act":
-                    result = self._run_with_act(params, runner_logger)
-                elif engine_name == "builtin":
-                    result = self._run_with_builtin(params, runner_logger)
-                else:
-                    raise SimulationServiceError(
-                        f"Unsupported engine: {params.engine}"
-                    )
+                result = self._run_with_act(params, runner_logger)
             except SimulationServiceError:
                 raise
-            except (WorkflowParseError, SimulationError) as exc:
-                raise SimulationServiceError(str(exc)) from exc
             except Exception as exc:  # noqa: BLE001 - defensive
                 raise SimulationServiceError(
                     f"Unexpected error: {exc}"
@@ -107,58 +93,16 @@ class SimulationService:
 
         return result
 
-    def _run_with_builtin(
-        self,
-        params: SimulationParameters,
-        logger: ActionsLogger,
-    ) -> SimulationResult:
-        if not params.workflow_file.exists():
-            raise SimulationServiceError(
-                f"ワークフローファイルが見つかりません: {params.workflow_file}"
-            )
-
-        logger.info(f"ワークフローを解析中: {params.workflow_file}")
-
-        parser = WorkflowParser()
-        workflow = parser.parse_file(params.workflow_file)
-
-        simulator = WorkflowSimulator(logger=logger)
-
-        if params.env_file:
-            if params.env_file.exists():
-                simulator.load_env_file(params.env_file)
-            else:
-                logger.warning(f"環境変数ファイルが見つかりません: {params.env_file}")
-
-        if params.env_vars:
-            simulator.env_vars.update(params.env_vars)
-
-        if params.dry_run:
-            logger.info("ドライランモード: 実際の実行は行いません")
-            return_code = simulator.dry_run(workflow, job_name=params.job)
-        else:
-            return_code = simulator.run(workflow, job_name=params.job)
-
-        success = return_code == 0
-        if success:
-            logger.success("ワークフローの実行が完了しました ✓")
-        else:
-            logger.error("ワークフローの実行に失敗しました")
-
-        return SimulationResult(
-            success=success,
-            return_code=return_code,
-            engine="builtin",
-        )
-
     def _run_with_act(
         self,
         params: SimulationParameters,
         logger: ActionsLogger,
     ) -> SimulationResult:
-        if not params.workflow_file.exists():
+        workflow_path = params.workflow_file
+
+        if not workflow_path.exists():
             raise SimulationServiceError(
-                f"ワークフローファイルが見つかりません: {params.workflow_file}"
+                f"ワークフローファイルが見つかりません: {workflow_path}"
             )
 
         env_vars: dict[str, str] | None = None
@@ -173,13 +117,13 @@ class SimulationService:
 
         try:
             wrapper = ActWrapper(
-                working_directory=str(params.workflow_file.parent)
+                working_directory=str(workflow_path.parent)
             )
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 
         result = wrapper.run_workflow(
-            workflow_file=str(params.workflow_file),
+            workflow_file=workflow_path.name,
             job=params.job,
             dry_run=params.dry_run,
             verbose=params.verbose,

@@ -2,7 +2,7 @@
 
 ## 概要
 
-本ドキュメントは、軽量な GitHub Actions シミュレーターを Docker 上で再現するための技術設計を示す。目標は「act を使った最小限の CI 事前チェック体験」であり、常駐サービスや Web UI を伴う重厚な構成は採用しない。システムは Click/Rich ベースの CLI、act 実行ラッパー、Workflow Parser / Simulator の 3 層を中心に構成する。
+本ドキュメントは、軽量な GitHub Actions シミュレーターを Docker 上で再現するための技術設計を示す。目標は「act を使った最小限の CI 事前チェック体験」であり、常駐サービスや Web UI を伴う重厚な構成は採用しない。システムは Click/Rich ベースの CLI、Workflow Parser、act 実行ラッパーの 3 層を中心に構成する。
 
 ## 目的と制約
 
@@ -24,24 +24,23 @@
 │          CLI (Click/Rich)        │
 │  simulate / validate / list-jobs │
 └──────────────┬──────────────────┘
-               │
-     ┌─────────▼──────────┐
-     │ Workflow Parser &   │
-     │ Builtin Simulator   │
-     └─────────┬──────────┘
-               │
-      ┌────────▼─────────┐
-      │   Act Wrapper     │  ──▶  nektos/act (Docker in Docker)
-      └────────┬─────────┘
-               │
-      ┌────────▼─────────┐
-      │  Output Manager   │  ──▶  console / json / output/
-      └───────────────────┘
+       │
+  ┌────────▼─────────┐
+  │  Workflow Parser  │
+  └────────┬─────────┘
+       │
+  ┌────────▼─────────┐
+  │    Act Wrapper    │  ──▶  nektos/act (Docker in Docker)
+  └────────┬─────────┘
+       │
+  ┌────────▼─────────┐
+  │  Output Manager   │  ──▶  console / json / output/
+  └───────────────────┘
 ```
 
 - **CLI**: ユーザーの唯一のインターフェース。Click でコマンド構造を定義し、Rich でテーブルやサマリーを描画する。
-- **Workflow Parser & Builtin Simulator**: YAML 構文と依存関係の検証、`simulate --engine builtin` のテスト用途を担う。
-- **Act Wrapper**: `--engine act` で呼ばれる実行器。Docker コンテナ内から act CLI を起動し、ワークフローを実行する。
+- **Workflow Parser**: YAML 構文と依存関係の検証、`needs` や `strategy.matrix` の調整を担う。
+- **Act Wrapper**: act CLI を起動し、ワークフローを実行する。
 - **Output Manager**: 実行ログ / JSON サマリー / exit code を整理し、CLI から提示する。
 
 ## コンポーネント詳細
@@ -49,7 +48,7 @@
 ### CLI (`services/actions/main.py`)
 
 - Click グループ `cli` に `simulate`, `validate`, `list-jobs` を実装。
-- グローバルオプション: `--engine`, `--dry-run`, `--job`, `--verbose`, `--quiet`, `--json` など。
+- グローバルオプション: `--dry-run`, `--job`, `--verbose`, `--quiet`, `--json` など。
 - リッチフォーマット: 実行プラン、ジョブ一覧、結果サマリーをテーブル表示。
 - `make actions` / `scripts/run-actions.sh` から呼び出し可能な共通エントリーとする。
 
@@ -57,11 +56,6 @@
 
 - `.github/workflows/*.yml` を読み込み、GitHub Actions のジョブ構造を抽象化。
 - `needs`, `strategy.matrix`, `if` 条件を解決し、 `SimulationPlan` として CLI に供給。
-
-### Builtin Simulator (`services/actions/simulator.py`)
-
-- ドライラン / ユニットテスト向けの最小シミュレータ。
-- `run` ステップをホスト shell で実行する既存ロジックは keep するが、`act` がデフォルトになった後も fallback として維持。
 
 ### Act Wrapper (`services/actions/act_wrapper.py`)
 
@@ -88,7 +82,7 @@
 ```text
 make actions
   └─ docker compose run actions-simulator \
-       python main.py actions simulate <workflow> --engine act
+     uv run python main.py actions simulate <workflow>
           └─ ActWrapper.run()
                └─ act --workflows <file> --job <job> --eventpath <temp.json>
 ```

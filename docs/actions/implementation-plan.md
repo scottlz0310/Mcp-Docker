@@ -14,9 +14,9 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 ## 現状レビュー (2025-09-26)
 
 - ✅ `WorkflowParser` による YAML 構文・構造検証が安定動作。
-- ✅ `WorkflowSimulator` が `needs` 依存解決・並列実行・`strategy.matrix` 展開をサポート（T1/T2 完了）。
+- ✅ `WorkflowParser` が `needs` 依存解決と `strategy.matrix` 展開をカバーし、CLI から再利用可能。
 - ✅ `ExpressionEvaluator` による `if:` 条件分岐評価とユニットテストが完了。
-- ✅ CLI を Click/Rich 化し、マルチワークフロー / JSON サマリー / `--engine act` を含む UX 強化 (T3 完了)。
+- ✅ CLI を Click/Rich 化し、マルチワークフロー / JSON サマリーなどの UX を強化 (T3 完了)。
 - ✅ `make actions` から CLI をラップし、簡易対話モードと非対話モードを提供。
 - ⚠️ act を含んだ Docker イメージは肥大化しており、キャッシュと依存整理が未着手。
 - ⚠️ pre-commit 連携による lint / test / hadolint / shellcheck / trivy などの自動実行は未整備。
@@ -49,9 +49,9 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 
 | ID | 内容 | 状態 | 補足 |
 | --- | --- | --- | --- |
-| T1 | `needs` 依存関係と並列実行 | ✅ | `WorkflowSimulator` が DAG を解決済み |
+| T1 | `needs` 依存関係と並列実行 | ✅ | ワークフロー解析ロジックで DAG を解決 |
 | T2 | `strategy.matrix` 展開 | ✅ | 行列展開と派生ジョブ生成を実装 |
-| T3 | ExpressionEvaluator / CLI UX 改善 | ✅ | Click/Rich CLI、JSON サマリー、`--engine act` |
+| T3 | ExpressionEvaluator / CLI UX 改善 | ✅ | Click/Rich CLI と JSON サマリーを実装 |
 | T4 | act ランナー最適化 | 🔄 | ミニマル Dockerfile、builtin 依存の削除、uv ベースのインストール、キャッシュ/バージョン管理 |
 | T5 | 1 コマンド起動 (`make actions`/ スクリプト) の統一 | 🔄 | CLI 引数プリセット、環境変数設定テンプレート |
 | T6 | pre-commit & quality gate 導入 | 🔄 | lint / test / セキュリティスキャンを軽量構成で追加 |
@@ -64,7 +64,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 | --- | --- | --- |
 | 言語 | Python 3.13 | 維持 (uv 経由でロック管理) |
 | CLI | Click + Rich | 成果物サマリーのみ (HTML/REST は対象外) |
-| 実行エンジン | builtinシミュレータ + act | act を標準化、builtin は単体テスト用補助 |
+| 実行エンジン | act | act を標準化（builtin 実装は廃止しスタブ化） |
 | コンテナ | Docker + multi-stage build | act と uv ランタイムのみを含む軽量イメージ |
 | Lint/Test | pytest, bats, hadolint, shellcheck, yamllint | pre-commit・CI 双方で統合 |
 | セキュリティ | Trivy (軽量スキャン) | オプション扱い、CI とローカルで同一コマンド |
@@ -76,7 +76,7 @@ services/actions/
 ├── __init__.py
 ├── expression.py
 ├── main.py            # Click CLI
-├── simulator.py       # builtin シミュレーション
+├── simulator.py       # builtin シミュレーションのレガシースタブ
 ├── workflow_parser.py
 ├── act_wrapper.py
 └── config/
@@ -99,7 +99,7 @@ scripts/
 ## テスト戦略
 
 - **単体テスト**: `pytest` で Parser / Simulator / ExpressionEvaluator を継続カバー。
-- **CLI/Bats テスト**: Click CLI の主要経路 (`simulate`, `validate`, `list-jobs`, `--engine act` ドライラン) を網羅。
+- **CLI/Bats テスト**: Click CLI の主要経路 (`simulate`, `validate`, `list-jobs`) のドライランを網羅。
 - **統合テスト**: Docker コンテナ内で `scripts/run-actions.sh` を実行する簡易 E2E (CI で nightly)。
 - **品質ゲート**: pre-commit & CI で `hadolint`, `shellcheck`, `yamllint`, `uv run pytest`, `uv run bats`。
 - **セキュリティ (任意)**: Trivy を `make security` で呼び出し、主要イメージをスキャン。

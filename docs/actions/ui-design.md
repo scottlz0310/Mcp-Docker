@@ -10,7 +10,7 @@
 
 | 経路 | 想定ユーザー | 役割 |
 | --- | --- | --- |
-| CLI (`python -m services.actions.main`) | 高度なオプションを使いたい開発者 | 直接実行・自動化スクリプト |
+| CLI (`uv run python main.py actions`) | 高度なオプションを使いたい開発者 | 直接実行・自動化スクリプト |
 | `make actions` | 通常の開発者 | インタラクティブにワークフローを選択 |
 | `scripts/run-actions.sh` | 配布用 / CI | ワンショットで標準手順を実行 |
 
@@ -19,7 +19,7 @@
 ### 基本構造
 
 ```bash
-python -m services.actions.main <command> [options] <workflow>...
+uv run python main.py actions <command> [options] <workflow>...
 ```
 
 - `simulate`: act を用いてワークフローを再現。
@@ -30,7 +30,6 @@ python -m services.actions.main <command> [options] <workflow>...
 
 | オプション | 説明 |
 | --- | --- |
-| `--engine {act,builtin}` | 実行エンジン。デフォルトは `act`。 |
 | `--job JOB_ID` | 特定ジョブのみ実行。 |
 | `--dry-run` | 実行せずにプランを表示。 |
 | `--json` | JSON サマリーを標準出力 + `output/` に保存。 |
@@ -49,7 +48,7 @@ python -m services.actions.main <command> [options] <workflow>...
 
 1. `.github/workflows/*.yml` を一覧表示。
 2. 数字入力でワークフローを選択 (Enter で先頭)。
-3. オプションに応じて act / builtin を切り替え、結果を Rich 表示。
+3. act エンジンで実行し、結果を Rich 表示。
 
 ### 変数と挙動
 
@@ -57,7 +56,6 @@ python -m services.actions.main <command> [options] <workflow>...
 | --- | --- | --- |
 | `WORKFLOW` | 実行対象ファイル | `WORKFLOW=.github/workflows/ci.yml` |
 | `JOB` | 特定ジョブ | `JOB=test` |
-| `ENGINE` | `act` or `builtin` | `ENGINE=act` |
 | `DRY_RUN` | `1` でプランのみ | `DRY_RUN=1` |
 | `JSON` | `1` で JSON 出力 | `JSON=1` |
 | `CLI_ARGS` | その他オプション | `CLI_ARGS="--env NODE_ENV=test"` |
@@ -65,7 +63,7 @@ python -m services.actions.main <command> [options] <workflow>...
 ### 非対話モード
 
 ```bash
-WORKFLOW=.github/workflows/ci.yml ENGINE=act JSON=1 make actions
+WORKFLOW=.github/workflows/ci.yml JSON=1 make actions
 ```
 
 - CI や自動化で利用。
@@ -77,14 +75,13 @@ WORKFLOW=.github/workflows/ci.yml ENGINE=act JSON=1 make actions
 
 1. Docker / Git / uv の存在とバージョンを確認。
 2. `docker compose pull` で `actions-simulator` サービスを更新。
-3. `docker compose run --rm actions-simulator make actions WORKFLOW=$1 ENGINE=${ENGINE:-act}` を実行。
+3. `docker compose run --rm actions-simulator make actions WORKFLOW=$1` を実行。
 4. 成功時は JSON サマリーのパスを表示、失敗時はログを案内。
 
 ### 代表コマンド
 
 ```bash
 ./scripts/run-actions.sh .github/workflows/ci.yml
-ENGINE=builtin ./scripts/run-actions.sh .github/workflows/ci.yml
 ```
 
 - 環境変数 `ACT_ARGS`, `CLI_ARGS`, `JSON=1` などを受け取り、内部で `make actions` に渡す。
@@ -105,7 +102,7 @@ ENGINE=builtin ./scripts/run-actions.sh .github/workflows/ci.yml
 | フェーズ | コマンド | 備考 |
 | --- | --- | --- |
 | pre-commit | `uv run pytest`, `uv run bats`, `hadolint`, `shellcheck`, `yamllint` | 差分対象のみ実行 |
-| optional | `ENGINE=act make actions WORKFLOW=.github/workflows/ci.yml` | 大きな変更時に手動で実行 |
+| optional | `make actions WORKFLOW=.github/workflows/ci.yml` | 大きな変更時に手動で実行 |
 | CI | `make lint`, `make test`, `make actions WORKFLOW=... JSON=1` | 同じコマンドで再利用 |
 
 ## エラーハンドリング UX
@@ -116,8 +113,8 @@ ENGINE=builtin ./scripts/run-actions.sh .github/workflows/ci.yml
 
 ## ドキュメント / ヘルプ
 
-- `python -m services.actions.main --help`
-- `python -m services.actions.main simulate --help`
+- `uv run python main.py actions --help`
+- `uv run python main.py actions simulate --help`
 - `make actions help` (番号一覧、環境変数説明)
 - `scripts/run-actions.sh --help`
 

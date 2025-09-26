@@ -130,7 +130,7 @@ actions:
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
-	set -- python main.py actions; \
+	set -- uv run python main.py actions; \
 	if [ -n "$(VERBOSE)" ]; then \
 		set -- "$$@" --verbose; \
 	fi; \
@@ -149,9 +149,6 @@ actions:
 	fi; \
 	if [ -n "$(DRY_RUN)" ]; then \
 		set -- "$$@" --dry-run; \
-	fi; \
-	if [ -n "$(ENGINE)" ]; then \
-		set -- "$$@" --engine "$(ENGINE)"; \
 	fi; \
 	if [ -n "$(ENV_FILE)" ]; then \
 		set -- "$$@" --env-file "$(ENV_FILE)"; \
@@ -211,10 +208,10 @@ actions-run:
 	@if [ -n "$(JOB)" ]; then \
 		echo "🎯 ジョブ: $(JOB)"; \
 		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) -e JOB_NAME=$(JOB) actions-simulator \
-			python main.py actions simulate $(WORKFLOW) --job $(JOB) $(if $(VERBOSE),--verbose,); \
+			uv run python main.py actions simulate $(WORKFLOW) --job $(JOB) $(if $(VERBOSE),--verbose,); \
 	else \
 		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) actions-simulator \
-			python main.py actions simulate $(WORKFLOW) $(if $(VERBOSE),--verbose,); \
+			uv run python main.py actions simulate $(WORKFLOW) $(if $(VERBOSE),--verbose,); \
 	fi
 	@echo "🎭 GitHub Actions Simulator - カスタムワークフロー"
 	@if [ -z "$(WORKFLOW)" ]; then \
@@ -227,10 +224,10 @@ actions-run:
 	@if [ -n "$(JOB)" ]; then \
 		echo "🎯 ジョブ: $(JOB)"; \
 		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) -e JOB_NAME=$(JOB) actions-simulator \
-			python main.py actions simulate $(WORKFLOW) --job $(JOB) $(if $(VERBOSE),--verbose,); \
+			uv run python main.py actions simulate $(WORKFLOW) --job $(JOB) $(if $(VERBOSE),--verbose,); \
 	else \
 		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) actions-simulator \
-			python main.py actions simulate $(WORKFLOW) $(if $(VERBOSE),--verbose,); \
+			uv run python main.py actions simulate $(WORKFLOW) $(if $(VERBOSE),--verbose,); \
 	fi
 
 actions-validate:
@@ -238,11 +235,11 @@ actions-validate:
 	@if [ -z "$(WORKFLOW)" ]; then \
 		echo "📋 全ワークフローを検証"; \
 		docker compose --profile tools run --rm actions-simulator \
-			python main.py actions validate .github/workflows/; \
+			uv run python main.py actions validate .github/workflows/; \
 	else \
 		echo "📝 検証対象: $(WORKFLOW)"; \
 		docker compose --profile tools run --rm actions-simulator \
-			python main.py actions validate $(WORKFLOW); \
+			uv run python main.py actions validate $(WORKFLOW); \
 	fi
 
 actions-dry-run:
@@ -253,7 +250,7 @@ actions-dry-run:
 		exit 1; \
 	fi
 	docker compose --profile tools run --rm actions-simulator \
-		python main.py actions simulate $(WORKFLOW) --dry-run $(if $(VERBOSE),--verbose,)
+		uv run python main.py actions simulate $(WORKFLOW) --dry-run $(if $(VERBOSE),--verbose,)
 
 actions-api:
 	@echo "☁️  GitHub Actions Simulator REST API サーバー起動"

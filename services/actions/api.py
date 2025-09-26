@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
@@ -24,10 +24,6 @@ class SimulateRequest(BaseModel):
     workflow_file: str = Field(
         ...,
         description="Path to the workflow file on the server",
-    )
-    engine: Literal["builtin", "act"] = Field(
-        default="builtin",
-        description="Simulation engine to use",
     )
     job: str | None = Field(
         default=None,
@@ -76,11 +72,8 @@ def _build_parameters(payload: SimulateRequest) -> SimulationParameters:
 
     workflow_path = Path(payload.workflow_file)
     env_path = Path(payload.env_file) if payload.env_file else None
-    engine = payload.engine.lower()
-
     return SimulationParameters(
         workflow_file=workflow_path,
-        engine=engine,
         job=payload.job,
         dry_run=payload.dry_run,
         env_file=env_path,

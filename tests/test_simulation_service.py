@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tests for the SimulationService abstraction."""
+"""Tests for the act-backed ``SimulationService`` abstraction."""
 
 from __future__ import annotations
 
@@ -14,44 +14,6 @@ from services.actions.service import (
     SimulationService,
     SimulationServiceError,
 )
-
-
-class DummySimulator:
-    """Fake simulator used to isolate builtin engine tests."""
-
-    def __init__(self, logger: ActionsLogger | None = None) -> None:
-        self.logger = logger or ActionsLogger(verbose=False)
-        self.env_vars: dict[str, Any] = {}
-        self.loaded_env_files: list[Path] = []
-
-    def load_env_file(self, env_file: Path) -> None:
-        self.loaded_env_files.append(env_file)
-
-    def run(
-        self,
-        workflow: dict[str, Any],
-        job_name: str | None = None,
-    ) -> int:
-        return 0
-
-    def dry_run(
-        self,
-        workflow: dict[str, Any],
-        job_name: str | None = None,
-    ) -> int:
-        return 0
-
-
-class DummyParser:
-    """Fake workflow parser for builtin engine tests."""
-
-    def __init__(self, workflow: dict[str, Any]) -> None:
-        self._workflow = workflow
-
-    def parse_file(self, file_path: Path) -> dict[str, Any]:
-        if not file_path.exists():
-            raise AssertionError("Expected workflow file to exist")
-        return self._workflow
 
 
 class DummyActWrapper:
@@ -81,7 +43,7 @@ def logger() -> ActionsLogger:
     return ActionsLogger(verbose=False)
 
 
-def test_builtin_engine_success(
+def test_run_simulation_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     logger: ActionsLogger,
@@ -89,50 +51,12 @@ def test_builtin_engine_success(
     workflow_file = tmp_path / "workflow.yml"
     workflow_file.write_text("name: test\njobs: {}\n", encoding="utf-8")
 
-    fake_workflow: dict[str, Any] = {"jobs": {}}
-
-    monkeypatch.setattr(
-        "services.actions.service.WorkflowParser",
-        lambda: DummyParser(fake_workflow),
-    )
-    monkeypatch.setattr(
-        "services.actions.service.WorkflowSimulator",
-        DummySimulator,
-    )
-
-    service = SimulationService()
-    params = SimulationParameters(
-        workflow_file=workflow_file,
-        engine="builtin",
-        dry_run=False,
-        verbose=False,
-    )
-
-    result = service.run_simulation(params, logger=logger)
-
-    assert result.success is True
-    assert result.engine == "builtin"
-    assert result.return_code == 0
-
-
-def test_act_engine_success(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    logger: ActionsLogger,
-) -> None:
-    workflow_file = tmp_path / "workflow.yml"
-    workflow_file.write_text("name: act\njobs: {}\n", encoding="utf-8")
-
     wrapper = DummyActWrapper(success=True)
-    monkeypatch.setattr(
-        "services.actions.service.ActWrapper",
-        wrapper,
-    )
+    monkeypatch.setattr("services.actions.service.ActWrapper", wrapper)
 
     service = SimulationService()
     params = SimulationParameters(
         workflow_file=workflow_file,
-        engine="act",
         dry_run=True,
         verbose=False,
     )
@@ -146,13 +70,62 @@ def test_act_engine_success(
     assert wrapper.calls, "ActWrapper.run_workflow should have been called"
 
 
-def test_act_engine_runtime_error(
+def test_run_simulation_merges_env_vars(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     logger: ActionsLogger,
 ) -> None:
     workflow_file = tmp_path / "workflow.yml"
-    workflow_file.write_text("name: act\njobs: {}\n", encoding="utf-8")
+    workflow_file.write_text("name: test\njobs: {}\n", encoding="utf-8")
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=bar\n", encoding="utf-8")
+
+    wrapper = DummyActWrapper(success=True)
+    monkeypatch.setattr("services.actions.service.ActWrapper", wrapper)
+
+    service = SimulationService()
+    params = SimulationParameters(
+        workflow_file=workflow_file,
+        dry_run=False,
+        env_file=env_file,
+        env_vars={"BAZ": "qux"},
+        verbose=False,
+    )
+
+    service.run_simulation(params, logger=logger)
+
+    assert wrapper.calls, "ActWrapper.run_workflow should have been called"
+    env_vars = wrapper.calls[0]["env_vars"]
+    assert env_vars == {"FOO": "bar", "BAZ": "qux"}
+
+
+def test_run_simulation_missing_workflow(
+    tmp_path: Path,
+    logger: ActionsLogger,
+) -> None:
+    workflow_file = tmp_path / "missing.yml"
+
+    service = SimulationService()
+    params = SimulationParameters(
+        workflow_file=workflow_file,
+        dry_run=False,
+        verbose=False,
+    )
+
+    with pytest.raises(SimulationServiceError) as exc:
+        service.run_simulation(params, logger=logger)
+
+    assert "ワークフローファイルが見つかりません" in str(exc.value)
+
+
+def test_run_simulation_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    logger: ActionsLogger,
+) -> None:
+    workflow_file = tmp_path / "workflow.yml"
+    workflow_file.write_text("name: test\njobs: {}\n", encoding="utf-8")
 
     def raise_runtime_error(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("act binary not found")
@@ -165,7 +138,6 @@ def test_act_engine_runtime_error(
     service = SimulationService()
     params = SimulationParameters(
         workflow_file=workflow_file,
-        engine="act",
         dry_run=False,
         verbose=False,
     )
@@ -174,23 +146,3 @@ def test_act_engine_runtime_error(
         service.run_simulation(params, logger=logger)
 
     assert "act binary not found" in str(exc.value)
-
-
-def test_unknown_engine(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    logger: ActionsLogger,
-) -> None:
-    workflow_file = tmp_path / "workflow.yml"
-    workflow_file.write_text("name: test\njobs: {}\n", encoding="utf-8")
-
-    service = SimulationService()
-    params = SimulationParameters(
-        workflow_file=workflow_file,
-        engine="invalid",
-        dry_run=False,
-        verbose=False,
-    )
-
-    with pytest.raises(SimulationServiceError):
-        service.run_simulation(params, logger=logger)

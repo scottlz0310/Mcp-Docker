@@ -146,7 +146,6 @@ def run_simulate(
     job: str | None,
     env_file: Path | None,
     dry_run: bool,
-    engine: str,
     logger: ActionsLogger,
     console: Console,
     env_vars: Dict[str, str] | None,
@@ -157,7 +156,6 @@ def run_simulate(
 
     params = SimulationParameters(
         workflow_file=workflow_file,
-        engine=engine,
         job=job,
         dry_run=dry_run,
         env_file=env_file,
@@ -176,7 +174,6 @@ def run_simulate(
         return SimulationResult(
             success=False,
             return_code=1,
-            engine=engine,
             stderr=str(exc),
         )
 
@@ -372,13 +369,6 @@ def cli(
     is_flag=True,
     help="デバッグログを有効化 (verboseを暗黙的に有効化)",
 )
-@click.option(
-    "--engine",
-    type=click.Choice(["builtin", "act"], case_sensitive=False),
-    default="builtin",
-    show_default=True,
-    help="シミュレーションエンジン",
-)
 @click.option("--event", "event_name", help="GitHubイベント名を指定")
 @click.option("--ref", "git_ref", help="Gitリファレンスを指定")
 @click.option("--actor", help="実行ユーザー名を指定")
@@ -415,7 +405,6 @@ def simulate(
     simulate_verbose: bool,
     simulate_quiet: bool,
     simulate_debug: bool,
-    engine: str,
     event_name: str | None,
     git_ref: str | None,
     actor: str | None,
@@ -472,8 +461,6 @@ def simulate(
 
     env_vars = env_overrides or None
     env_file_path = env_file
-    engine_name = engine.lower()
-
     service = context.service or SimulationService()
     context.service = service
 
@@ -484,7 +471,6 @@ def simulate(
             job=job,
             env_file=env_file_path,
             dry_run=dry_run,
-            engine=engine_name,
             logger=logger,
             console=console,
             env_vars=env_vars,
@@ -510,7 +496,7 @@ def simulate(
     summary_rows.extend(
         {
             "workflow": str(path),
-            "engine": engine_name,
+            "engine": "act",
             "status": "skipped",
             "return_code": None,
         }
