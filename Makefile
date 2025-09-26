@@ -315,9 +315,16 @@ security:
 	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image mcp-docker:latest
 
 lint:
-	docker run --rm -i hadolint/hadolint < Dockerfile
-	shellcheck scripts/*.sh tests/*.sh
-	pipx run uv run yamllint -c .yamllint.yml docker-compose.yml
+	@echo "🧹 Running MegaLinter (Docker)..."
+	docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e APPLY_FIXES=none \
+		-e DEFAULT_WORKSPACE=/tmp/lint \
+		-e REPORT_OUTPUT_FOLDER=/tmp/lint/megalinter-reports \
+		-e HOME=/tmp/lint \
+		-v "$(CURDIR)":/tmp/lint \
+		oxsecurity/megalinter:v7
+	@echo "✅ MegaLinter completed. Reports (if any) are stored in ./megalinter-reports"
 
 pre-commit:
 	pipx run uv run pre-commit run --all-files

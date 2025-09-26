@@ -101,7 +101,7 @@ WORKFLOW=.github/workflows/ci.yml JSON=1 make actions
 
 | フェーズ | コマンド | 備考 |
 | --- | --- | --- |
-| pre-commit | `uv run pytest`, `uv run bats`, `hadolint`, `shellcheck`, `yamllint` | 差分対象のみ実行 |
+| pre-commit | `uv run pytest`, `uv run bats`, MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) | 差分対象のみ実行 |
 | optional | `make actions WORKFLOW=.github/workflows/ci.yml` | 大きな変更時に手動で実行 |
 | CI | `make lint`, `make test`, `make actions WORKFLOW=... JSON=1` | 同じコマンドで再利用 |
 

@@ -84,6 +84,7 @@ Thumbs.db
 *.tmp
 *.bak
 output/
+megalinter-reports/
 temp/
 
 # Python

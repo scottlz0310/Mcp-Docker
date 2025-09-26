@@ -17,27 +17,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Run MegaLinter
+        uses: oxsecurity/megalinter@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLY_FIXES: none
+          MEGALINTER_CONFIG: .mega-linter.yml
+          DEFAULT_BRANCH: main
 
-      - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.3.0
+      - name: Upload MegaLinter reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          dockerfile: Dockerfile
-          ignore: DL3008,DL3009,DL3018
-
-      - name: Lint Shell scripts
-        run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          find . -name "*.sh" -exec shellcheck {} \;
-
-      - name: Lint YAML files
-        run: |
-          pip install --break-system-packages yamllint
-          # .yamllint.ymlが存在しない場合はデフォルト設定で実行
-          if [ -f .yamllint.yml ]; then
-            yamllint -c .yamllint.yml docker-compose.yml
-          else
-            yamllint docker-compose.yml
-          fi
+          name: mega-linter-reports
+          path: megalinter-reports/
+          if-no-files-found: warn
 
   build:
     runs-on: ubuntu-latest

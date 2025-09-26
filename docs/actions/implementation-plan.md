@@ -19,7 +19,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 - ✅ CLI を Click/Rich 化し、マルチワークフロー / JSON サマリーなどの UX を強化 (T3 完了)。
 - ✅ `make actions` から CLI をラップし、簡易対話モードと非対話モードを提供。
 - ⚠️ act を含んだ Docker イメージは肥大化しており、キャッシュと依存整理が未着手。
-- ⚠️ pre-commit 連携による lint / test / hadolint / shellcheck / trivy などの自動実行は未整備。
+- ⚠️ pre-commit 連携による lint / test / MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) / Trivy の自動実行は未整備。
 - ⚠️ ワンショット配布用スクリプト（例: `scripts/run-actions.sh`）は雛形のみ。
 - ❗ ドキュメントは旧ロードマップ (REST API や常駐サーバー) を前提に記述されており、現状と不一致。
 
@@ -35,7 +35,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 
 ### フェーズB: 品質ゲートと自動化 (1 週間)
 
-- B1. pre-commit で `uv run pytest`, `uv run bats`, `hadolint`, `shellcheck`, `yamllint` を段階的に走らせる。
+- B1. pre-commit で `uv run pytest`, `uv run bats`, MegaLinter チェック (Ruff/ShellCheck/Hadolint/Yamllint) を段階的に走らせる。
 - B2. 軽量セキュリティ (Trivy または Grype) をオプションで追加し、CI での実行時間を 3 分以内に抑える。
 - B3. 成果物・ログを `output/` に集約し、最小限の JSON サマリーを CLI から確認できるようにする。
 
@@ -66,7 +66,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 | CLI | Click + Rich | 成果物サマリーのみ (HTML/REST は対象外) |
 | 実行エンジン | act | act を標準化（builtin 実装は廃止しスタブ化） |
 | コンテナ | Docker + multi-stage build | act と uv ランタイムのみを含む軽量イメージ |
-| Lint/Test | pytest, bats, hadolint, shellcheck, yamllint | pre-commit・CI 双方で統合 |
+| Lint/Test | MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint), pytest, bats | pre-commit・CI 双方で統合 |
 | セキュリティ | Trivy (軽量スキャン) | オプション扱い、CI とローカルで同一コマンド |
 
 ## ファイル構造 (再整理後の想定)
@@ -101,7 +101,7 @@ scripts/
 - **単体テスト**: `pytest` で Parser / Simulator / ExpressionEvaluator を継続カバー。
 - **CLI/Bats テスト**: Click CLI の主要経路 (`simulate`, `validate`, `list-jobs`) のドライランを網羅。
 - **統合テスト**: Docker コンテナ内で `scripts/run-actions.sh` を実行する簡易 E2E (CI で nightly)。
-- **品質ゲート**: pre-commit & CI で `hadolint`, `shellcheck`, `yamllint`, `uv run pytest`, `uv run bats`。
+- **品質ゲート**: pre-commit & CI で MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) と `uv run pytest`, `uv run bats`。
 - **セキュリティ (任意)**: Trivy を `make security` で呼び出し、主要イメージをスキャン。
 
 ## リスクと対応

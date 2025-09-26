@@ -6,9 +6,9 @@ MCP DateTime Validator Server
 import re
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 import logging
 import argparse
 import time
@@ -41,7 +41,7 @@ class DateTimeValidator:
         self.current_date = datetime.datetime.now().strftime("%Y-%m-%d")
         self.corrections_made = 0
 
-    def validate_file(self, file_path: Path) -> Dict[str, any]:
+    def validate_file(self, file_path: Path) -> Dict[str, Any]:
         """ファイルの日付を検証し、必要に応じて修正"""
         # Markdownファイルのみを対象とする
         if file_path.suffix.lower() != '.md':
@@ -130,7 +130,7 @@ class DateTimeValidatorHandler(FileSystemEventHandler):
     def __init__(self, validator: DateTimeValidator):
         self.validator = validator
 
-    def on_modified(self, event):
+    def on_modified(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
 

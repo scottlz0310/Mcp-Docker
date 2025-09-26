@@ -73,8 +73,8 @@
 
 ### ベースイメージ
 
-- `python:3.13-slim` をベースに uv / act / hadolint / shellcheck をインストール。
-- multi-stage build で act バイナリ、pre-commit フック用ツールをまとめる。
+- `python:3.13-slim` をベースに uv / act をインストールし、アプリ実行に必要なものだけを同梱。
+- lint ツールは MegaLinter コンテナ経由で提供し、ビルドイメージから外部化して軽量化。
 - `ACT_CACHE_DIR` を `/opt/act/cache` とし、ホスト側にボリュームマウント。
 
 ### 実行フロー
@@ -87,13 +87,9 @@ make actions
                └─ act --workflows <file> --job <job> --eventpath <temp.json>
 ```
 
-- CLI は act 実行前に `temp_event.json` を生成し、`--eventpath` に渡す。
-- `.env` から読み込んだ環境変数は act の `--env` 引数として注入。
-- 実行ログは標準出力で Rich 表示しつつ、`output/act.log` にも保存。
 
 ## 設定とテンプレート
 
-### TOML 設定 (予定)
 
 ```toml
 # services/actions/config/act-runner.toml (草案)
@@ -123,9 +119,7 @@ GITHUB_USER = "local-runner"
 - `.pre-commit-config.yaml` に以下のフックを定義:
   - `uv run pytest` (差分対象のみ)
   - `uv run bats tests/test_actions_simulator.bats`
-  - `hadolint Dockerfile`
-  - `shellcheck scripts/*.sh`
-  - `yamllint .github/workflows`
+  - MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) のローカル実行ラッパー
 - CI では同じスクリプトを `make lint` / `make test` / `make security` で呼び出す。
 - act 実行は手動トリガーまたは nightly ジョブで実施し、CI 時間を最小化。
 

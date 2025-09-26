@@ -36,7 +36,7 @@ Developer → Click CLI → Workflow Parser → Act Wrapper → Result Output
 | CLI | Click, Rich | コマンド構造と表示 |
 | Parser | PyYAML | ワークフロー解析 |
 | Runner | nektos/act | GitHub Actions の再現 |
-| Quality | pytest, bats, hadolint, shellcheck, yamllint | 品質ゲート |
+| Quality | MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint), pytest, bats | 品質ゲート |
 | 配布 | Docker, docker compose, shell scripts | ワンショット実行 |
 
 ## 📅 ロードマップ (概要)
