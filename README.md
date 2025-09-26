@@ -51,10 +51,12 @@ mcp-docker/
 | GitHub MCP | 8080 | GitHub API連携のMCPサーバー |
 | DateTime Validator | - | 日付検証・自動修正サービス |
 | CodeQL | - | 静的コード分析ツール |
+| Actions Simulator API | 8000 | FastAPI ベースのワークフローシミュレーター REST サービス |
 
 ## 🚀 クイックスタート
 
 ### 1. 初期設定
+
 ```bash
 # 環境変数設定
 echo 'export GITHUB_PERSONAL_ACCESS_TOKEN="your_token_here"' >> ~/.bashrc
@@ -77,6 +79,8 @@ source ~/.bashrc
   make github    - Start GitHub MCP server
   make datetime  - Start DateTime validator
   make codeql    - Run CodeQL analysis
+  make actions   - Interactive GitHub Actions Simulator (Docker)
+  make actions-api - Launch Actions REST API (uvicorn)
   make test      - Run integration tests
   make test-all  - Run all test suites
   make test-bats - Run Bats test suite
@@ -173,6 +177,20 @@ make docs-clean        # ドキュメントビルドクリーンアップ
 
 - 静的コード分析
 - オンデマンド実行
+
+### Actions Simulator API
+
+- ポート: 8000 (`make actions-api` または `docker compose --profile tools up actions-simulator`)
+- エンドポイント:
+  - `GET /actions/healthz`
+  - `POST /actions/simulate`
+- 利用例:
+
+```bash
+curl -X POST http://localhost:8000/actions/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_file": ".github/workflows/ci.yml", "engine": "builtin"}'
+```
 
 ## 🛡️ セキュリティ
 

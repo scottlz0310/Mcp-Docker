@@ -574,7 +574,7 @@ class WorkflowSimulator:
         self,
         step: Dict[str, Any],
         step_number: int,
-        env_vars: Dict[str, str],
+        env_vars: Dict[str, Any],
         base_context: Dict[str, Any],
     ) -> int:
         """ステップの実行"""
@@ -704,14 +704,19 @@ class WorkflowSimulator:
 
         return selected
 
-    def _execute_command(self, command: str, env_vars: Dict[str, str]) -> int:
+    def _execute_command(self, command: str, env_vars: Dict[str, Any]) -> int:
         """コマンド実行"""
         self.logger.debug(f"    実行: {command}")
 
         try:
             # 環境変数を設定してコマンド実行
             full_env = os.environ.copy()
-            full_env.update(env_vars)
+            normalized_env: Dict[str, str] = {}
+            for raw_key, raw_value in env_vars.items():
+                key = str(raw_key)
+                value = "" if raw_value is None else str(raw_value)
+                normalized_env[key] = value
+            full_env.update(normalized_env)
 
             result = subprocess.run(
                 command,

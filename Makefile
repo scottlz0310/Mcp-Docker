@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security docs docs-serve docs-clean install-bats check-bats
+.PHONY: help build start stop logs clean datetime codeql actions actions-auto actions-list actions-run actions-api test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security docs docs-serve docs-clean install-bats check-bats
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -13,6 +13,7 @@ help:
 	@echo "  make datetime  - Start DateTime validator"
 	@echo "  make codeql    - Run CodeQL analysis"
 	@echo "  make actions   - Interactive GitHub Actions Simulator (Docker)"
+	@echo "  make actions-api - Launch Actions REST API (uvicorn)"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test      - Run integration tests"
@@ -178,6 +179,11 @@ actions-dry-run:
 	fi
 	docker compose --profile tools run --rm actions-simulator \
 		python main.py actions simulate $(WORKFLOW) --dry-run $(if $(VERBOSE),--verbose,)
+
+actions-api:
+	@echo "☁️  GitHub Actions Simulator REST API サーバー起動"
+	@echo "   HOST=$${HOST:-0.0.0.0} PORT=$${PORT:-8000}"
+	./scripts/start-actions-api.sh
 
 test:
 	./tests/integration_test.sh

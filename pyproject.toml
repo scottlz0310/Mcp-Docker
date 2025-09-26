@@ -11,6 +11,9 @@ dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
     "docker>=6.1.0",
+    "fastapi>=0.117.1",
+    "uvicorn[standard]>=0.37.0",
+    "httpx>=0.28.1",
 ]
 keywords = ["mcp", "docker", "model-context-protocol", "ai", "llm"]
 classifiers = [

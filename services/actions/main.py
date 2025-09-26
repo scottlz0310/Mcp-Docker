@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import click
 from rich.console import Console
 
-from .act_wrapper import ActWrapper
 from .logger import ActionsLogger
-from .simulator import WorkflowSimulator
+from .service import (
+    SimulationParameters,
+    SimulationService,
+    SimulationServiceError,
+)
 from .workflow_parser import WorkflowParseError, WorkflowParser
 
 
@@ -22,7 +25,8 @@ class CLIContext:
     """CLI 全体で共有するコンテキスト情報。"""
 
     def __init__(self) -> None:
-        self.logger: Optional[ActionsLogger] = None
+        self.logger: ActionsLogger | None = None
+        self.service: SimulationService | None = None
 
 
 def _build_context(ctx: click.Context, verbose: bool = False) -> CLIContext:
@@ -37,132 +41,43 @@ def _build_context(ctx: click.Context, verbose: bool = False) -> CLIContext:
     return ctx.obj
 
 
-def _load_env_file_as_dict(
-    env_file: Path,
-    logger: ActionsLogger,
-) -> dict[str, str]:
-    """環境変数ファイルを辞書として読み込む。"""
-
-    env_vars: dict[str, str] = {}
-
-    try:
-        with env_file.open("r", encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-
-                if "=" not in line:
-                    logger.warning(
-                        f"環境変数ファイルの形式が無効です (無視します): {line}"
-                    )
-                    continue
-
-                key, value = line.split("=", 1)
-                env_vars[key] = value
-
-        if env_vars:
-            logger.debug(
-                f"環境変数ファイルを読み込みました ({len(env_vars)} 件): {env_file}"
-            )
-        else:
-            logger.debug(
-                f"環境変数ファイルを読み込みましたが有効なエントリがありません: {env_file}"
-            )
-
-    except OSError as exc:
-        logger.error(f"環境変数ファイルの読み込みに失敗しました: {exc}")
-
-    return env_vars
-
-
 def run_simulate(
     workflow_file: Path,
-    job: Optional[str],
-    env_file: Optional[Path],
+    job: str | None,
+    env_file: Path | None,
     dry_run: bool,
     engine: str,
     logger: ActionsLogger,
+    *,
+    service: SimulationService,
 ) -> int:
     """ワークフロー実行コマンドの処理"""
 
-    if not workflow_file.exists():
-        logger.error(f"ワークフローファイルが見つかりません: {workflow_file}")
-        return 1
+    params = SimulationParameters(
+        workflow_file=workflow_file,
+        engine=engine,
+        job=job,
+        dry_run=dry_run,
+        env_file=env_file,
+        verbose=logger.verbose,
+    )
 
-    engine_name = engine.lower()
-
-    if engine_name == "act":
-        logger.info("nektos/act エンジンを使用してワークフローを実行します")
-
-        env_vars: dict[str, str] | None = None
-        if env_file:
-            if env_file.exists():
-                parsed_env = _load_env_file_as_dict(env_file, logger)
-                if parsed_env:
-                    env_vars = parsed_env
-            else:
-                logger.warning(f"環境変数ファイルが見つかりません: {env_file}")
-
-        try:
-            wrapper = ActWrapper(working_directory=str(workflow_file.parent))
-        except RuntimeError as exc:
-            logger.error(str(exc))
-            return 1
-
-        result = wrapper.run_workflow(
-            workflow_file=str(workflow_file),
-            job=job,
-            dry_run=dry_run,
-            verbose=logger.verbose,
-            env_vars=env_vars,
-        )
-
-        stdout = result.get("stdout")
-        stderr = result.get("stderr")
-        if stdout:
-            console.print(stdout)
-        if stderr:
-            console.print(stderr, style="red")
-
-        if result.get("success"):
-            logger.success("act でのワークフロー実行が完了しました ✓")
-            return 0
-
-        exit_code = result.get("returncode") or 1
-        logger.error(f"act 実行が失敗しました (returncode={exit_code})")
-        return exit_code
-
-    if engine_name != "builtin":
-        logger.error(f"未知のエンジンが指定されました: {engine}")
-        return 1
-
-    logger.info(f"ワークフローを解析中: {workflow_file}")
-
-    # ワークフロー解析
-    parser = WorkflowParser()
     try:
-        workflow = parser.parse_file(workflow_file)
-    except WorkflowParseError as exc:
-        logger.error(f"ワークフロー解析エラー: {exc}")
+        result = service.run_simulation(
+            params,
+            logger=logger,
+            capture_output=True,
+        )
+    except SimulationServiceError as exc:
+        logger.error(str(exc))
         return 1
 
-    # シミュレーター初期化
-    simulator = WorkflowSimulator(logger=logger)
+    if result.stdout:
+        console.print(result.stdout.rstrip("\n"))
+    if result.stderr:
+        console.print(result.stderr.rstrip("\n"), style="red")
 
-    # 環境変数ファイル読み込み
-    if env_file:
-        if env_file.exists():
-            simulator.load_env_file(env_file)
-        else:
-            logger.warning(f"環境変数ファイルが見つかりません: {env_file}")
-
-    # 実行
-    if dry_run:
-        logger.info("ドライランモード: 実際の実行は行いません")
-        return simulator.dry_run(workflow, job_name=job)
-    else:
-        return simulator.run(workflow, job_name=job)
+    return result.return_code
 
 
 def run_validate(
@@ -303,6 +218,11 @@ def simulate(ctx: click.Context, **params: Any) -> None:
         )
         engine_name = str(params.get("engine", "builtin"))
 
+        service = context.service
+        if service is None:
+            service = SimulationService()
+            context.service = service
+
         status = run_simulate(
             workflow_file=workflow_path,
             job=job_name,
@@ -310,6 +230,7 @@ def simulate(ctx: click.Context, **params: Any) -> None:
             dry_run=bool(params.get("dry_run", False)),
             engine=engine_name,
             logger=logger,
+            service=service,
         )
     except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
         logger.error(f"エラーが発生しました: {exc}")

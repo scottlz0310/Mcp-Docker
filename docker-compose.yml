@@ -60,9 +60,11 @@ services:
     environment:
       - PYTHONPATH=/home/mcp/.local/lib/python3.12/site-packages:/app
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST=0.0.0.0
+      - PORT=8000
     profiles:
       - tools
-    command: python main.py actions simulate .github/workflows/ci.yml
+    command: ["/bin/bash", "./scripts/start-actions-api.sh"]
     networks:
       - mcp-network
     # セキュリティ: リソース制限
