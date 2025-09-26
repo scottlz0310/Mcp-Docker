@@ -21,7 +21,11 @@ services:
       - ~/workspace:/workspace:ro  # セキュリティ: 読み取り専用
       - ./output:/output:rw         # セキュリティ: 書き込みは制限された領域のみ
     restart: unless-stopped
-    command: python datetime_validator.py --directory /workspace
+    command:
+      - python
+      - services/datetime/datetime_validator.py
+      - --directory
+      - /workspace
     networks:
       - mcp-network
     # セキュリティ: リソース制限
