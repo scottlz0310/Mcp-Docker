@@ -15,7 +15,8 @@ import pytest
 import tempfile
 import yaml
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 # テスト対象のインポート
 from services.actions.workflow_parser import WorkflowParser, WorkflowParseError
@@ -219,6 +220,365 @@ class TestWorkflowSimulator:
         result = self.simulator.dry_run(workflow_data, job_name='nonexistent_job')
         assert result == 1
 
+    def test_run_respects_needs_order(self):
+        """needs 依存関係に基づきジョブが正しい順序で実行される"""
+        workflow_data = {
+            'name': 'Needs Workflow',
+            'jobs': {
+                'lint': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [{'run': 'echo lint'}],
+                },
+                'test': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': 'lint',
+                    'steps': [{'run': 'echo test'}],
+                },
+                'deploy': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': ['test'],
+                    'steps': [{'run': 'echo deploy'}],
+                },
+            },
+        }
+
+        execution_order = []
+
+        def fake_run(
+            job_id: str,
+            job_data: Dict[str, Any],
+            *_args: Any,
+        ) -> int:
+            execution_order.append(job_id)
+            return 0
+
+        with patch.object(self.simulator, '_run_job', side_effect=fake_run):
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        assert set(execution_order) == {'lint', 'test', 'deploy'}
+        assert execution_order.index('lint') < execution_order.index('test')
+        assert execution_order.index('test') < execution_order.index('deploy')
+
+    def test_run_skips_failed_dependencies(self):
+        """依存ジョブが失敗した場合に後続ジョブがスキップされる"""
+        workflow_data = {
+            'name': 'Failure Workflow',
+            'jobs': {
+                'lint': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [{'run': 'echo lint'}],
+                },
+                'test': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': 'lint',
+                    'steps': [{'run': 'echo test'}],
+                },
+                'docs': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [{'run': 'echo docs'}],
+                },
+                'deploy': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': ['test'],
+                    'steps': [{'run': 'echo deploy'}],
+                },
+            },
+        }
+
+        execution_order = []
+
+        def fake_run(
+            job_id: str,
+            job_data: Dict[str, Any],
+            *_args: Any,
+        ) -> int:
+            execution_order.append(job_id)
+            return 1 if job_id == 'lint' else 0
+
+        with patch.object(self.simulator, '_run_job', side_effect=fake_run):
+            result = self.simulator.run(workflow_data)
+
+        assert result == 1
+        assert set(execution_order) == {'lint', 'docs'}
+        assert 'test' not in execution_order
+        assert 'deploy' not in execution_order
+
+    def test_job_if_helpers(self):
+        """`if:` 条件で startsWith / contains ヘルパーが利用できる"""
+        workflow_data = {
+            'name': 'Conditional Jobs',
+            'jobs': {
+                'should_run': {
+                    'if': "startsWith(github.ref, 'refs/heads/')",
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [{'run': 'echo run'}],
+                },
+                'should_skip': {
+                    'if': "contains(env.TARGET, 'ubuntu')",
+                    'runs-on': 'ubuntu-latest',
+                    'env': {'TARGET': 'windows-latest'},
+                    'steps': [{'run': 'echo skip'}],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        commands = [call.args[0] for call in mock_exec.call_args_list]
+        assert commands.count('echo run') == 1
+        assert 'echo skip' not in commands
+
+    def test_step_if_uses_string_functions(self):
+        """ステップ条件で contains / endsWith ヘルパーが評価される"""
+        workflow_data = {
+            'name': 'Step Conditions',
+            'jobs': {
+                'verify': {
+                    'runs-on': 'ubuntu-latest',
+                    'env': {'TARGET': 'ubuntu-latest', 'VERSION': '1.0'},
+                    'steps': [
+                        {'run': 'echo first'},
+                        {
+                            'name': 'Only on Ubuntu',
+                            'if': "contains(env.TARGET, 'ubuntu')",
+                            'run': 'echo ubuntu',
+                        },
+                        {
+                            'name': 'Version Gate',
+                            'if': "endsWith(env.VERSION, '.0')",
+                            'run': 'echo version',
+                        },
+                    ],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        commands = [call.args[0] for call in mock_exec.call_args_list]
+        assert commands.count('echo ubuntu') == 1
+        assert commands.count('echo version') == 1
+
+    def test_run_missing_dependency(self):
+        """存在しない依存ジョブが指定された場合にエラーを返す"""
+        workflow_data = {
+            'name': 'Missing Dependency Workflow',
+            'jobs': {
+                'lint': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [{'run': 'echo lint'}],
+                },
+                'test': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': 'build',
+                    'steps': [{'run': 'echo test'}],
+                },
+            },
+        }
+
+        result = self.simulator.run(workflow_data)
+
+        assert result == 1
+
+    def test_run_detects_dependency_cycles(self):
+        """循環依存がある場合にエラーを返す"""
+        workflow_data = {
+            'name': 'Cyclic Workflow',
+            'jobs': {
+                'job1': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': 'job2',
+                    'steps': [{'run': 'echo job1'}],
+                },
+                'job2': {
+                    'runs-on': 'ubuntu-latest',
+                    'needs': 'job1',
+                    'steps': [{'run': 'echo job2'}],
+                },
+            },
+        }
+
+        result = self.simulator.run(workflow_data)
+
+        assert result == 1
+
+    def test_step_condition_skip(self):
+        """if 条件によりステップがスキップされる"""
+        workflow_data = {
+            'name': 'Conditional Workflow',
+            'jobs': {
+                'conditional': {
+                    'runs-on': 'ubuntu-latest',
+                    'env': {'RUN_FIRST': 'false'},
+                    'steps': [
+                        {
+                            'name': 'First step',
+                            'run': 'echo first',
+                            'if': "${{ env.RUN_FIRST == 'true' }}",
+                        },
+                        {
+                            'name': 'Second step',
+                            'run': 'echo second',
+                        },
+                    ],
+                }
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        assert mock_exec.call_count == 1
+        executed_command = mock_exec.call_args[0][0]
+        assert executed_command == 'echo second'
+
+    def test_job_condition_skip(self):
+        """ジョブ if 条件が満たされない場合にジョブがスキップされる"""
+        workflow_data = {
+            'name': 'Job Conditional Workflow',
+            'jobs': {
+                'job': {
+                    'runs-on': 'ubuntu-latest',
+                    'if': "${{ contains(github.ref, 'feature/') }}",
+                    'steps': [
+                        {'run': 'echo should not run'},
+                    ],
+                }
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        mock_exec.assert_not_called()
+
+    def test_continue_on_error_allows_job_to_succeed(self, tmp_path):
+        """continue-on-error が true の場合にジョブ全体は成功するが failure() は真になる"""
+        self.simulator.workspace_path = tmp_path
+        self.simulator.env_vars['GITHUB_WORKSPACE'] = str(tmp_path)
+
+        continue_expr = "${{ env.ALLOW_FAILURE == '1' }}"
+
+        workflow_data = {
+            'name': 'Continue On Error Workflow',
+            'jobs': {
+                'conditional': {
+                    'runs-on': 'ubuntu-latest',
+                    'env': {'ALLOW_FAILURE': '1'},
+                    'steps': [
+                        {
+                            'id': 'allow_fail',
+                            'name': 'Allow failure',
+                            'run': 'echo fail',
+                            'continue-on-error': continue_expr,
+                        },
+                        {
+                            'name': 'Execute on failure',
+                            'if': 'failure()',
+                            'run': 'echo fallback',
+                        },
+                        {
+                            'name': 'Success gated step',
+                            'if': 'success()',
+                            'run': 'echo success',
+                        },
+                    ],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            side_effect=[1, 0],
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        executed = [call.args[0] for call in mock_exec.call_args_list]
+        assert executed == ['echo fail', 'echo fallback']
+
+    def test_extended_expression_helpers(self, tmp_path):
+        """format/join/fromJSON/toJSON/hashFiles ヘルパーを評価できる"""
+        self.simulator.workspace_path = tmp_path
+        self.simulator.env_vars['GITHUB_WORKSPACE'] = str(tmp_path)
+
+        sample_file = tmp_path / 'sample.txt'
+        sample_file.write_text('hello world', encoding='utf-8')
+
+        format_join_expr = (
+            "${{ format('Hello {0}', 'World') == 'Hello World' "
+            "and join(fromJSON('[\"a\",\"b\"]'), ',') == 'a,b' }}"
+        )
+        hash_expr = "${{ hashFiles('*.txt') != '' }}"
+        to_json_expr = "${{ contains(toJSON(github), 'local/test') }}"
+
+        workflow_data = {
+            'name': 'Expression Helpers Workflow',
+            'jobs': {
+                'helpers': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [
+                        {'run': 'echo base'},
+                        {
+                            'name': 'Format and join',
+                            'if': format_join_expr,
+                            'run': 'echo format',
+                        },
+                        {
+                            'name': 'Hash files',
+                            'if': hash_expr,
+                            'run': 'echo hashed',
+                        },
+                        {
+                            'name': 'To JSON',
+                            'if': to_json_expr,
+                            'run': 'echo json',
+                        },
+                    ],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        commands = [call.args[0] for call in mock_exec.call_args_list]
+        assert commands == [
+            'echo base',
+            'echo format',
+            'echo hashed',
+            'echo json',
+        ]
+
     def test_load_env_file(self):
         """環境変数ファイル読み込みテスト"""
         env_content = """
@@ -231,7 +591,11 @@ EMPTY_LINE_BELOW=
 TEST_VAR3=value3
 """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.env',
+            delete=False,
+        ) as f:
             f.write(env_content)
             temp_path = Path(f.name)
 
@@ -265,7 +629,7 @@ class TestActionsLogger:
         assert verbose_logger is not None
 
     @patch('services.actions.logger.logging')
-    def test_logger_methods(self, mock_logging):
+    def test_logger_methods(self, mock_logging: MagicMock):
         """ロガーメソッドのテスト"""
         logger = ActionsLogger()
 
@@ -297,7 +661,11 @@ jobs:
 
         # ワークフロー解析
         parser = WorkflowParser()
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.yml',
+            delete=False,
+        ) as f:
             f.write(workflow_content)
             temp_path = Path(f.name)
 

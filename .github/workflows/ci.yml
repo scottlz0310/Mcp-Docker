@@ -276,9 +276,8 @@ jobs:
             cd /tmp
 
             if $DOWNLOAD_CMD bats-core.tar.gz https://github.com/bats-core/bats-core/archive/v1.10.0.tar.gz && \
-               tar -xzf bats-core.tar.gz && \
-               cp bats-core-1.10.0/bin/bats "$HOME/bin/bats" && \
-               chmod +x "$HOME/bin/bats"; then
+              tar -xzf bats-core.tar.gz && \
+              (cd bats-core-1.10.0 && ./install.sh "$HOME"); then
 
               # PATH設定
               export PATH="$HOME/bin:$PATH"

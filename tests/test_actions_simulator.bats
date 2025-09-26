@@ -84,7 +84,7 @@ teardown() {
     # 検証対象: CLI基本機能
     # 目的: ヘルプメッセージが適切に表示されることを確認
 
-    run_in_project_root uv run python main.py actions --help
+  run run_in_project_root uv run python main.py actions --help
     assert_success
     assert_output --partial "GitHub Actions Simulator"
     assert_output --partial "simulate"
@@ -97,7 +97,7 @@ teardown() {
     # 検証対象: ワークフロー解析機能
     # 目的: 有効なYAMLファイルが正常に解析されることを確認
 
-    run_in_project_root uv run python main.py actions validate "$TEST_WORKSPACE/.github/workflows/test.yml"
+  run run_in_project_root uv run python main.py actions validate "$TEST_WORKSPACE/.github/workflows/test.yml"
     assert_success
     assert_output --partial "検証が完了しました"
 }
@@ -107,8 +107,8 @@ teardown() {
     # 検証対象: エラーハンドリング機能
     # 目的: 構文エラーが適切に検出されることを確認
 
-    # 無効なYAMLファイル作成
-    cat > "$TEST_WORKSPACE/.github/workflows/invalid.yml" <<EOF
+    # 無効なYAMLファイル作成（構文エラーを含む）
+    cat > "$TEST_WORKSPACE/.github/workflows/invalid.yml" <<'EOF'
 name: Invalid Workflow
 on: [push]
 jobs:
@@ -116,10 +116,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "test"
-        invalid_key: without_proper_indentation
+        invalid_key without_proper_indentation
 EOF
 
-    run_in_project_root uv run python main.py actions validate "$TEST_WORKSPACE/.github/workflows/invalid.yml"
+  run run_in_project_root uv run python main.py actions validate "$TEST_WORKSPACE/.github/workflows/invalid.yml"
     assert_failure
 }
 
@@ -128,7 +128,7 @@ EOF
     # 検証対象: ファイルアクセスエラー処理
     # 目的: ファイルが存在しない場合の適切なエラー処理を確認
 
-    run_in_project_root uv run python main.py actions validate "/tmp/nonexistent_workflow.yml"
+  run run_in_project_root uv run python main.py actions validate "/tmp/nonexistent_workflow.yml"
     assert_failure
     assert_output --partial "ファイルが見つかりません"
 }
@@ -138,10 +138,11 @@ EOF
     # 検証対象: ジョブ一覧機能
     # 目的: ワークフロー内のジョブが適切に一覧表示されることを確認
 
-    run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/test.yml" --format table
+  run run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/test.yml" --format table
     assert_success
-    assert_output --partial "Job ID: test"
-    assert_output --partial "ubuntu-latest"
+  assert_output --partial "ジョブ一覧"
+  assert_output --partial "Job ID"
+  assert_output --partial "│ test   │ test │ ubuntu-latest │"
 }
 
 # テスト: ジョブ一覧表示（JSON形式）
@@ -149,10 +150,10 @@ EOF
     # 検証対象: JSON出力機能
     # 目的: JSON形式でのジョブ情報出力が正常に動作することを確認
 
-    run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/test.yml" --format json
+  run run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/test.yml" --format json
     assert_success
-    assert_output --partial '"job_id"'
-    assert_output --partial '"runs_on"'
+  assert_output --partial '"job_id"'
+  assert_output --partial '"runs_on"'
 }
 
 # テスト: 複雑なワークフローのジョブ一覧表示
@@ -160,10 +161,11 @@ EOF
     # 検証対象: 複雑なワークフロー解析
     # 目的: 依存関係やmatrix strategyを含むワークフローが適切に解析されることを確認
 
-    run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/complex.yml" --format table
+  run run_in_project_root uv run python main.py actions list-jobs "$TEST_WORKSPACE/.github/workflows/complex.yml" --format table
     assert_success
-    assert_output --partial "Job ID: lint"
-    assert_output --partial "Job ID: test"
+  assert_output --partial "ジョブ一覧"
+  assert_output --partial "│ lint                  │ lint"
+  assert_output --partial "│ test__node-version-20 │ test"
 }
 
 # テスト: ドライランモードでのワークフロー実行
@@ -171,7 +173,7 @@ EOF
     # 検証対象: シミュレーション実行機能
     # 目的: ドライランモードで実際に実行せずに計画が表示されることを確認
 
-    run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run
+  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run
     assert_success
     assert_output --partial "ドライラン実行"
     assert_output --partial "Test Workflow"
@@ -183,7 +185,7 @@ EOF
     # 検証対象: ジョブ指定実行機能
     # 目的: 特定のジョブのみが実行されることを確認
 
-    run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/complex.yml" --job lint --dry-run
+  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/complex.yml" --job lint --dry-run
     assert_success
     assert_output --partial "ジョブ: lint"
     # testジョブは実行されないことを確認
@@ -195,7 +197,7 @@ EOF
     # 検証対象: ジョブ指定エラー処理
     # 目的: 存在しないジョブを指定した場合の適切なエラー処理を確認
 
-    run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --job nonexistent --dry-run
+  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --job nonexistent --dry-run
     assert_failure
     assert_output --partial "指定されたジョブが見つかりません"
 }
@@ -205,7 +207,7 @@ EOF
     # 検証対象: 詳細ログ機能
     # 目的: verboseオプションで詳細情報が出力されることを確認
 
-    run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run --verbose
+  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run --verbose
     assert_success
     assert_output --partial "ドライラン実行"
     # 詳細情報が含まれていることを確認（具体的な内容は実装に依存）
@@ -222,16 +224,17 @@ EOF
     fi
 
     # 構文検証
-    run_in_project_root uv run python main.py actions validate .github/workflows/ci.yml
+  run run_in_project_root uv run python main.py actions validate .github/workflows/ci.yml
     assert_success
 
     # ジョブ一覧表示
-    run_in_project_root uv run python main.py actions list-jobs .github/workflows/ci.yml --format table
+  run run_in_project_root uv run python main.py actions list-jobs .github/workflows/ci.yml --format table
     assert_success
-    assert_output --partial "Job ID:"
+  assert_output --partial "ジョブ一覧"
+  assert_output --partial "│ lint        │ lint"
 
     # ドライラン実行
-    run_in_project_root uv run python main.py actions simulate .github/workflows/ci.yml --dry-run
+  run run_in_project_root uv run python main.py actions simulate .github/workflows/ci.yml --dry-run
     assert_success
     assert_output --partial "ドライラン実行"
 }
@@ -242,12 +245,12 @@ EOF
     # 目的: エラー時に適切な終了コードが返されることを確認
 
     # 存在しないファイルでの実行（終了コード1を期待）
-    run_in_project_root uv run python main.py actions validate "/tmp/nonexistent.yml"
+  run run_in_project_root uv run python main.py actions validate "/tmp/nonexistent.yml"
     assert_failure
     [[ "$status" -eq 1 ]]
 
     # 存在しないジョブでの実行（終了コード1を期待）
-    run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --job nonexistent --dry-run
+  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --job nonexistent --dry-run
     assert_failure
     [[ "$status" -eq 1 ]]
 }

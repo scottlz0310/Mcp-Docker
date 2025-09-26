@@ -69,15 +69,15 @@ assert_failure() {
 }
 
 assert_output() {
-    local expected="$1"
-    if [[ "$2" == "--partial" ]]; then
-        expected="$2"
+    if [[ "$1" == "--partial" ]]; then
+        local expected="$2"
         if [[ "$output" != *"$expected"* ]]; then
             echo "Expected output to contain '$expected'"
             echo "Actual output: $output"
             return 1
         fi
     else
+        local expected="$1"
         if [[ "$output" != "$expected" ]]; then
             echo "Expected: $expected"
             echo "Actual: $output"

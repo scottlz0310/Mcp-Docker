@@ -56,13 +56,17 @@ services:
     volumes:
       - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw        # 実行結果出力
+      - ./docker-compose.yml:/app/docker-compose.yml:ro  # yamllint参照用
       - /var/run/docker.sock:/var/run/docker.sock  # Dockerアクセス（act用）
+      - ./.yamllint.yml:/app/.yamllint.yml:ro  # yamllint設定
     environment:
       - PYTHONPATH=/home/mcp/.local/lib/python3.12/site-packages:/app
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST=0.0.0.0
+      - PORT=8000
     profiles:
       - tools
-    command: python main.py actions simulate .github/workflows/ci.yml
+    command: ["/bin/bash", "./scripts/start-actions-api.sh"]
     networks:
       - mcp-network
     # セキュリティ: リソース制限
