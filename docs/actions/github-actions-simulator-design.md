@@ -1,291 +1,168 @@
-# GitHub Actions Docker Simulator - 技術設計書
+# GitHub Actions Simulator - 技術設計書
 
 ## 概要
 
-GitHub ActionsのワークフローをDockerベースでローカル環境で事前実行・検証できるCIシミュレーション機能を実装します。この機能により、実際のGitHub Actionsにプッシュする前に、ローカル環境でワークフローの動作確認、デバッグ、最適化が可能になります。
+本ドキュメントは、軽量な GitHub Actions シミュレーターを Docker 上で再現するための技術設計を示す。目標は「act を使った最小限の CI 事前チェック体験」であり、常駐サービスや Web UI を伴う重厚な構成は採用しない。システムは Click/Rich ベースの CLI、act 実行ラッパー、Workflow Parser / Simulator の 3 層を中心に構成する。
 
-## 背景・目的
+## 目的と制約
 
-### 課題
-- GitHub Actionsの実行は時間がかかり、デバッグサイクルが非効率
-- ワークフロー実行にはGitHub APIコール制限やビルド時間の制約がある
-- 本番環境でしかテストできない設定ミスの早期発見が困難
+### 目的
 
-### 目標
-- ローカル環境でのGitHub Actions完全シミュレーション
-- 高速なフィードバックループの実現
-- ワークフロー設定ミスの事前検出
-- 既存MCPインフラストラクチャとの統合
+- GitHub Actions を実行せずに lint / test / 軽量セキュリティ検査のフィードバックを得る。
+- Docker で隔離されたクリーン環境を維持し、ホスト差異を排除する。
+- ワンコマンドでの起動と pre-commit 連携を容易にする。
 
-## アーキテクチャ設計
+### 非目標
 
-### 全体アーキテクチャ
+- 常駐 API サーバー、Web UI、HTML レポート、ジョブ監視ダッシュボード。
+- GitHub 全機能の完全再現（セルフホステッドランナーや GitHub サービス固有機能など）。
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    GitHub Actions Simulator                │
-├─────────────────────────────────────────────────────────────┤
-│  CLI Interface                 │  Web UI (Optional)          │
-├─────────────────────────────────────────────────────────────┤
-│                  Workflow Parser & Validator               │
-├─────────────────────────────────────────────────────────────┤
-│  Job Orchestrator  │  Environment Manager │  Result Aggregator│
-├─────────────────────────────────────────────────────────────┤
-│            Docker Container Runtime Engine                  │
-├─────────────────────────────────────────────────────────────┤
-│                    Docker Network Bridge                   │
-├─────────────────────────────────────────────────────────────┤
-│  Runner Container 1 │ Runner Container 2 │ Runner Container N │
-└─────────────────────────────────────────────────────────────┘
-```
+## 全体アーキテクチャ
 
-### コンポーネント構成
-
-#### 1. Workflow Parser & Validator
-- **目的**: GitHub Actionsワークフローファイル（.yml/.yaml）の解析・検証
-- **機能**:
-  - YAML構文解析
-  - GitHub Actions仕様準拠性チェック
-  - セマンティック検証（依存関係、権限等）
-  - 環境変数・シークレット解決
-
-#### 2. Job Orchestrator
-- **目的**: ワークフロージョブの実行制御・スケジューリング
-- **機能**:
-  - 依存関係に基づく実行順序制御
-  - 並列実行管理
-  - ジョブ間データ共有（artifacts）
-  - 実行状態管理（running, success, failure, cancelled）
-
-#### 3. Environment Manager
-- **目的**: 実行環境の構築・管理
-- **機能**:
-  - Dockerイメージの動的選択・構築
-  - 環境変数・シークレットの注入
-  - ボリュームマウント管理
-  - ネットワーク設定
-
-#### 4. Container Runtime Engine
-- **目的**: Docker コンテナでの実際のワークフロー実行
-- **機能**:
-  - ランナー環境のコンテナ起動
-  - ステップ実行管理
-  - ログ収集・転送
-  - リソース制限・監視
-
-#### 5. Result Aggregator
-- **目的**: 実行結果の集約・レポート生成
-- **機能**:
-  - 実行ログの統合
-  - 成功/失敗状況の集約
-  - HTML/JSON形式のレポート生成
-  - 実行時間・リソース使用量統計
-
-## 技術仕様
-
-### サポート対象
-
-#### GitHub Actions機能
-- ✅ **基本ワークフロー**: on, jobs, steps
-- ✅ **ランナー指定**: ubuntu-latest, ubuntu-20.04, ubuntu-22.04
-- ✅ **アクション実行**: uses, run
-- ✅ **環境変数**: env (global, job, step level)
-- ✅ **条件分岐**: if, needs
-- ✅ **マトリックス戦略**: strategy.matrix
-- ⚠️ **部分対応**: secrets（ローカルファイルから読み込み）
-- ❌ **未対応**:
-  - GitHub固有サービス（GitHub Container Registry等）
-  - セルフホステッドランナー固有機能
-  - GitHub App認証
-
-#### Dockerランナー環境
-```yaml
-# サポートするランナーイメージ
-runners:
-  ubuntu-latest: "ghcr.io/catthehacker/ubuntu:act-latest"
-  ubuntu-22.04: "ghcr.io/catthehacker/ubuntu:act-22.04"
-  ubuntu-20.04: "ghcr.io/catthehacker/ubuntu:act-20.04"
-  ubuntu-18.04: "ghcr.io/catthehacker/ubuntu:act-18.04"
+```text
+┌─────────────────────────────┐
+│          CLI (Click/Rich)        │
+│  simulate / validate / list-jobs │
+└──────────────┬──────────────────┘
+               │
+     ┌─────────▼──────────┐
+     │ Workflow Parser &   │
+     │ Builtin Simulator   │
+     └─────────┬──────────┘
+               │
+      ┌────────▼─────────┐
+      │   Act Wrapper     │  ──▶  nektos/act (Docker in Docker)
+      └────────┬─────────┘
+               │
+      ┌────────▼─────────┐
+      │  Output Manager   │  ──▶  console / json / output/
+      └───────────────────┘
 ```
 
-### データフロー
+- **CLI**: ユーザーの唯一のインターフェース。Click でコマンド構造を定義し、Rich でテーブルやサマリーを描画する。
+- **Workflow Parser & Builtin Simulator**: YAML 構文と依存関係の検証、`simulate --engine builtin` のテスト用途を担う。
+- **Act Wrapper**: `--engine act` で呼ばれる実行器。Docker コンテナ内から act CLI を起動し、ワークフローを実行する。
+- **Output Manager**: 実行ログ / JSON サマリー / exit code を整理し、CLI から提示する。
 
-1. **ワークフロー読み込み**
-   ```
-   .github/workflows/*.yml → YAML Parser → AST生成
-   ```
+## コンポーネント詳細
 
-2. **実行プラン作成**
-   ```
-   AST → Dependency Resolver → Execution Plan
-   ```
+### CLI (`services/actions/main.py`)
 
-3. **コンテナ実行**
-   ```
-   Execution Plan → Container Manager → Docker API → Runner Containers
-   ```
+- Click グループ `cli` に `simulate`, `validate`, `list-jobs` を実装。
+- グローバルオプション: `--engine`, `--dry-run`, `--job`, `--verbose`, `--quiet`, `--json` など。
+- リッチフォーマット: 実行プラン、ジョブ一覧、結果サマリーをテーブル表示。
+- `make actions` / `scripts/run-actions.sh` から呼び出し可能な共通エントリーとする。
 
-4. **結果集約**
-   ```
-   Container Logs → Result Aggregator → Report Generator
-   ```
+### Workflow Parser (`services/actions/workflow_parser.py`)
 
-## API設計
+- `.github/workflows/*.yml` を読み込み、GitHub Actions のジョブ構造を抽象化。
+- `needs`, `strategy.matrix`, `if` 条件を解決し、 `SimulationPlan` として CLI に供給。
 
-### REST API エンドポイント
+### Builtin Simulator (`services/actions/simulator.py`)
 
-```yaml
-# ワークフロー実行
-POST /api/v1/simulate
-Content-Type: application/json
-{
-  "workflow_path": ".github/workflows/ci.yml",
-  "event": "push",
-  "ref": "refs/heads/main",
-  "actor": "testuser",
-  "environment": {
-    "GITHUB_TOKEN": "***",
-    "CUSTOM_VAR": "value"
-  }
-}
+- ドライラン / ユニットテスト向けの最小シミュレータ。
+- `run` ステップをホスト shell で実行する既存ロジックは keep するが、`act` がデフォルトになった後も fallback として維持。
 
-# 実行状況確認
-GET /api/v1/simulate/{run_id}
-Response:
-{
-  "id": "run_123",
-  "status": "running",
-  "jobs": [
-    {
-      "id": "lint",
-      "status": "completed",
-      "conclusion": "success",
-      "started_at": "2025-01-15T10:00:00Z",
-      "completed_at": "2025-01-15T10:05:00Z"
-    }
-  ]
-}
+### Act Wrapper (`services/actions/act_wrapper.py`)
 
-# 実行ログ取得
-GET /api/v1/simulate/{run_id}/logs
-GET /api/v1/simulate/{run_id}/jobs/{job_id}/logs
+- act CLI をサブプロセス起動し、`--workflows`, `--job`, `--eventpath` などを CLI 引数化。
+- Docker ソケットと `.github` ディレクトリをマウント。
+- Act のバージョン固定とキャッシュボリュームの制御 (後述) を担当。
 
-# 実行停止
-POST /api/v1/simulate/{run_id}/cancel
+### Output Manager
+
+- CLI で表示するサマリー構造体 (`SimulationResult`) を生成。
+- `--json` 指定時は `output/simulation-*.json` へ保存。
+- pre-commit / CI では JSON を機械読み取りして判定に利用可能。
+
+## Docker / act 設計
+
+### ベースイメージ
+
+- `python:3.13-slim` をベースに uv / act / hadolint / shellcheck をインストール。
+- multi-stage build で act バイナリ、pre-commit フック用ツールをまとめる。
+- `ACT_CACHE_DIR` を `/opt/act/cache` とし、ホスト側にボリュームマウント。
+
+### 実行フロー
+
+```text
+make actions
+  └─ docker compose run actions-simulator \
+       python main.py actions simulate <workflow> --engine act
+          └─ ActWrapper.run()
+               └─ act --workflows <file> --job <job> --eventpath <temp.json>
 ```
 
-### CLI インターface
+- CLI は act 実行前に `temp_event.json` を生成し、`--eventpath` に渡す。
+- `.env` から読み込んだ環境変数は act の `--env` 引数として注入。
+- 実行ログは標準出力で Rich 表示しつつ、`output/act.log` にも保存。
 
-```bash
-# 基本実行
-mcp-docker simulate .github/workflows/ci.yml
+## 設定とテンプレート
 
-# イベント指定実行
-mcp-docker simulate .github/workflows/ci.yml --event pull_request
+### TOML 設定 (予定)
 
-# 環境変数指定
-mcp-docker simulate .github/workflows/ci.yml --env-file .env.local
+```toml
+# services/actions/config/act-runner.toml (草案)
+[runner]
+image = "ghcr.io/catthehacker/ubuntu:act-latest"
+platforms = ["ubuntu-latest", "ubuntu-22.04"]
+container_workdir = "/github/workspace"
 
-# デバッグモード
-mcp-docker simulate .github/workflows/ci.yml --debug --verbose
+[exec]
+cleanup = true
+reuse = false
+cache_dir = "/opt/act/cache"
 
-# 特定ジョブのみ実行
-mcp-docker simulate .github/workflows/ci.yml --job build
-
-# レポート出力
-mcp-docker simulate .github/workflows/ci.yml --output-format html --output-file report.html
+[env]
+GITHUB_USER = "local-runner"
 ```
 
-## 実装計画
+### ワンショットスクリプト (`scripts/run-actions.sh`)
 
-### Phase 1: Core Infrastructure (2週間)
-- [ ] YAML Parser実装
-- [ ] Basic Job Orchestrator
-- [ ] Docker Container Manager
-- [ ] CLI基盤構築
+1. Docker / act / uv のバージョンを確認。
+2. `docker compose pull` で最新イメージを取得。
+3. `docker compose run --rm actions-simulator make actions WORKFLOW=$1` を実行。
+4. 結果コードを引き継いで終了。
 
-### Phase 2: Advanced Features (3週間)
-- [ ] マトリックス戦略サポート
-- [ ] 環境変数・シークレット管理
-- [ ] 実行結果レポーティング
-- [ ] エラーハンドリング強化
+## pre-commit / CI 連携
 
-### Phase 3: Integration & Polish (2週間)
-- [ ] 既存MCPサービスとの統合
-- [ ] Web UI開発（Optional）
-- [ ] パフォーマンス最適化
-- [ ] ドキュメント整備
+- `.pre-commit-config.yaml` に以下のフックを定義:
+  - `uv run pytest` (差分対象のみ)
+  - `uv run bats tests/test_actions_simulator.bats`
+  - `hadolint Dockerfile`
+  - `shellcheck scripts/*.sh`
+  - `yamllint .github/workflows`
+- CI では同じスクリプトを `make lint` / `make test` / `make security` で呼び出す。
+- act 実行は手動トリガーまたは nightly ジョブで実施し、CI 時間を最小化。
 
-## セキュリティ考慮
+## 出力仕様
 
-### コンテナセキュリティ
-- **隔離**: ランナーコンテナは独立したネットワークで実行
-- **権限制限**: 非rootユーザーでの実行、最小権限原則
-- **リソース制限**: CPU、メモリ、ディスク容量の制限
-- **イメージ検証**: 使用するDockerイメージの署名検証
+| 種別 | 保存先 | 説明 |
+| --- | --- | --- |
+| 標準出力 | CLI (Rich) | テーブル/サマリー。 |
+| JSON サマリー | `output/simulation-YYYYMMDD-HHMM.json` | `success`, `jobs`, `engine`, `duration`。 |
+| act ログ | `output/act.log` | act の標準出力・標準エラーを転記。 |
+| キャッシュ | `/opt/act/cache` | Act のイメージ/依存ダウンロード結果。 |
 
-### シークレット管理
-- **暗号化**: ローカルシークレットファイルの暗号化保存
-- **アクセス制御**: シークレットアクセスの監査ログ
-- **マスキング**: ログ出力でのシークレット自動マスキング
+## セキュリティ・リソース管理
 
-## パフォーマンス要件
+- Docker コンテナは非 root ユーザーで実行。必要な場合のみ `docker.sock` をマウント。
+- Trivy スキャンは `make security` で on-demand 実行。
+- `cleanup` オプションで実行後にコンテナを削除し、ディスク使用を抑制。
 
-### 実行時間目標
-- **小規模ワークフロー** (1-3 jobs): < 2分
-- **中規模ワークフロー** (4-8 jobs): < 5分
-- **大規模ワークフロー** (9+ jobs): < 10分
+## テスト計画
 
-### リソース使用量
-- **メモリ使用量**: ホスト物理メモリの70%以下
-- **CPU使用量**: 並列実行時でもシステム応答性を維持
-- **ディスク使用量**: 一時ファイル、ログの自動クリーンアップ
+1. **Unit**: Parser / ExpressionEvaluator / ActWrapper (引数生成) を pytest で検証。
+2. **CLI**: Bats で `simulate`, `validate`, `list-jobs`, `make actions` 経路を検証。
+3. **Integration**: Docker 内で `scripts/run-actions.sh sample.yml` を実行し exit code を確認。
+4. **Regression**: `uv run pytest` + `uv run bats` を pre-commit と CI で共通化。
 
-## モニタリング・ロギング
+## 将来拡張 (任意)
 
-### 実行メトリクス
-- ジョブ実行時間
-- リソース使用量（CPU、メモリ、ネットワーク）
-- 成功/失敗率
-- エラーパターン分析
+- act のカスタムイメージ選択 (`--platform` 対応)。
+- 成果物 (artifacts) の簡易ダウンロード。
+- Slack/Teams 通知など外部連携はオプションとして個別スクリプトで対応。
 
-### ログ管理
-- 構造化ログ（JSON形式）
-- ログレベル制御（DEBUG、INFO、WARN、ERROR）
-- 長期保存とローテーション設定
-- 実行コンテキスト情報の保存
+## まとめ
 
-## 互換性・制限事項
-
-### 制限事項
-1. **GitHub固有サービス**: GitHub Container Registry、GitHub Packages等は利用不可
-2. **外部サービス**: 実際のGitHub API呼び出しは制限される場合がある
-3. **ハードウェア依存**: macOS/Windows runnerは対応予定なし（Linux Dockerのみ）
-4. **ネットワーク制限**: 内部ネットワークアクセスに制限
-
-### 既存ツールとの差別化
-- **Act**: より高速で軽量、既存MCPインフラ統合
-- **GitHub CLI**: オフライン実行可能、詳細デバッグ情報
-- **Nektos/act**: リソース効率性向上、リアルタイム監視
-
-## 今後の拡張予定
-
-### v1.1: Enhanced Runner Support
-- Windows Serverコンテナサポート（WSL2環境）
-- カスタムランナーイメージ作成支援
-- GPUアクセレーション対応
-
-### v1.2: Advanced Integration
-- IDE統合（VS Code Extension）
-- Git hooks統合による自動実行
-- 継続的インテグレーション統計ダッシュボード
-
-### v1.3: Enterprise Features
-- 複数プロジェクト管理
-- チーム権限管理
-- 実行履歴の検索・分析
-- Slack/Teams通知統合
-
-## 結論
-
-このGitHub Actions Docker Simulatorは、開発チームの生産性向上とCI/CDパイプラインの信頼性向上に大きく貢献すると期待されます。既存のMcp-Dockerプロジェクトとの統合により、統一されたコンテナベース開発環境を提供し、ローカル開発からプロダクション環境まで一貫した体験を実現します。
+アーキテクチャを CLI + act の 2 層に絞ることで、保守コストを最小化しつつ Docker 上での再現性を確保する。Click/Rich の表現力でユーザー体験を担保し、pre-commit / CI から同じコマンドを呼び出すことで「軽量で一貫した開発フロー」を実現する。
