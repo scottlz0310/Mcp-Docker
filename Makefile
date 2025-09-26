@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats
+.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -11,7 +11,6 @@ help:
 	@echo "Services:"
 	@echo "  make github    - Start GitHub MCP server"
 	@echo "  make datetime  - Start DateTime validator"
-	@echo "  make codeql    - Run CodeQL analysis"
 	@echo "  make actions   - Interactive GitHub Actions Simulator (Docker)"
 	@echo ""
 	@echo "Testing:"
@@ -61,9 +60,6 @@ github:
 
 datetime:
 	docker compose up -d datetime-validator
-
-codeql:
-	docker compose --profile tools run --rm codeql
 
 # GitHub Actions Simulator（Docker版）
 	if [ -z "$$workflows" ]; then \

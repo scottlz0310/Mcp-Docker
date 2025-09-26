@@ -11,8 +11,7 @@ RUN apk add --no-cache \
     curl \
     git \
     python3 \
-    py3-pip \
-    unzip && \
+    py3-pip && \
     apk cache clean
 
 # Builder stage: install tooling and Python dependencies via uv
@@ -31,12 +30,6 @@ RUN curl -L -o act_Linux_x86_64.tar.gz https://github.com/nektos/act/releases/la
     mv act /usr/local/bin/act && \
     rm act_Linux_x86_64.tar.gz && \
     chmod +x /usr/local/bin/act
-
-# Install CodeQL CLI
-RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases/latest/download/codeql-linux64.zip && \
-    unzip codeql.zip -d /opt/codeql && \
-    rm codeql.zip && \
-    chmod +x /opt/codeql/codeql/codeql
 
 # Install uv and pre-sync Python dependencies
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -59,7 +52,7 @@ FROM base AS production
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 ENV UV_LINK_MODE=copy
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv
-ENV PATH="/app/.venv/bin:/opt/codeql/codeql:/usr/local/bin:${PATH}"
+ENV PATH="/app/.venv/bin:/usr/local/bin:${PATH}"
 ENV NODE_PATH="/usr/local/lib/node_modules"
 ENV PYTHONUNBUFFERED=1
 
@@ -69,7 +62,6 @@ COPY --from=builder /usr/local/bin/mcp-server-github-direct /usr/local/bin/
 COPY --from=builder /usr/local/bin/act /usr/local/bin/
 COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
 COPY --from=builder /opt/uv /opt/uv
-COPY --from=builder /opt/codeql /opt/codeql
 COPY --from=builder /app/.venv /app/.venv
 
 # Application files
@@ -83,7 +75,7 @@ COPY services/datetime ./services/datetime
 COPY scripts ./scripts
 
 # Permissions
-RUN chown -R mcp:mcp /app /opt/codeql /opt/uv /usr/local/lib/node_modules
+RUN chown -R mcp:mcp /app /opt/uv /usr/local/lib/node_modules
 
 USER mcp
 

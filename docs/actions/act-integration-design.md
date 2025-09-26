@@ -1,4 +1,7 @@
 # Act統合によるGitHub Actions Simulator設計書
+<!-- markdownlint-disable -->
+
+> ℹ️ 2025-09-27 時点でローカル CodeQL サービスはアーカイブ (`archive/services/codeql/`) に移行済みです。本ドキュメントの CodeQL 記述は歴史的背景および将来再導入時の参考情報として残しています。
 
 ## 🎯 設計決定：新規独立サービス `actions` + act統合アプローチ
 
@@ -7,7 +10,7 @@
 既存のMcp-Dockerプロジェクト構成分析に基づく最適アプローチ：
 
 #### ✅ 新規独立サービスのメリット
-1. **責任分離**: CodeQL（静的解析）とActions Simulator（CI実行）は明確に異なる役割
+1. **責任分離**: 静的解析系コンポーネント（旧CodeQLサービス）と Actions Simulator（CI実行）は役割が異なるため切り離しやすい
 2. **既存パターン踏襲**: `services/github/`, `services/datetime/`と同様の構造
 3. **統一管理**: `main.py`の既存サービスパターンに自然に統合
 4. **独立性**: 各サービスが独立して機能、メンテナンスが容易
@@ -23,8 +26,10 @@
 services/
 ├── github/         # GitHub MCP Server
 ├── datetime/       # DateTime Validator
-├── codeql/         # CodeQL Analysis (静的コード分析)
-└── actions/        # 🆕 GitHub Actions Simulator (CI実行)
+└── actions/        # GitHub Actions Simulator (CI実行)
+
+archive/services/
+└── codeql/         # 旧 CodeQL Analysis 設定（2025-09-27 アーカイブ）
 ```
 
 ## 🏗️ アーキテクチャ設計

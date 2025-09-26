@@ -9,7 +9,6 @@ Model Context Protocol（MCP）サーバーのためのメインエントリー�
 Modules:
     - GitHub MCP Server: GitHub API連携機能
     - DateTime Validator: 日付検証・自動修正機能
-    - CodeQL: 静的コード分析機能
     - GitHub Actions Simulator: ワークフローシミュレーション機能
 
 Example:
@@ -45,7 +44,7 @@ def main():
     MCP Docker Environment のメインエントリーポイント
 
     コマンドライン引数に基づいて適切なサービスを起動します。
-    サポートされているサービス: github, datetime, codeql, actions
+    サポートされているサービス: github, datetime, actions
 
     Returns:
         None
@@ -63,7 +62,7 @@ def main():
     """
     if len(sys.argv) < 2:
         print("Usage: python main.py <service>")
-        print("Available services: github, datetime, codeql, actions")
+        print("Available services: github, datetime, actions")
         print(f"Version: {__version__}")
         sys.exit(1)
 
@@ -79,10 +78,6 @@ def main():
     elif service == "datetime":
         # DateTime Validator
         cmd = ["python", "services/datetime/datetime_validator.py"]
-    elif service == "codeql":
-        # CodeQL Analysis
-        print("CodeQL analysis not implemented yet")
-        sys.exit(1)
     elif service == "actions":
         # GitHub Actions Simulator
         # 追加の引数をそのまま渡す

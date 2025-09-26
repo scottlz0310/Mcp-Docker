@@ -37,17 +37,6 @@ services:
     cap_add:
       - NET_BIND_SERVICE  # 必要最小限の権限のみ
 
-  codeql:
-    build: .
-    container_name: mcp-codeql
-    volumes:
-      - ~/workspace:/workspace
-    profiles:
-      - tools
-    command: codeql --help
-    networks:
-      - mcp-network
-
   actions-simulator:
     build:
       context: .

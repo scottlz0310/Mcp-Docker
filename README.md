@@ -15,7 +15,7 @@ Model Context Protocol（MCP）サーバーのためのプロダクション対�
 
 - **ファイル数**: 1313個のソースファイル
 - **テスト数**: 4個のテストファイル
-- **Dockerサービス**: 4個の定義済みサービス
+- **Dockerサービス**: 3個の定義済みサービス
 - **最新コミット**: `bbbef3e chore: bump version to 1.0.1...`
 
 ## 📁 構成
@@ -25,7 +25,7 @@ mcp-docker/
 ├── services/           # サービス別設定
 │   ├── github/         # GitHub MCP設定
 │   ├── datetime/       # 日付検証スクリプト
-│   └── codeql/         # CodeQL設定
+│   └── (archived)      # CodeQL設定は archive/services/codeql/ へ移動
 ├── scripts/            # 管理スクリプト
 ├── docs/              # 運用ドキュメント (Markdown)
 ├── tests/             # テストスイート
@@ -49,8 +49,9 @@ mcp-docker/
 |-----------|--------|------|
 | GitHub MCP | 8080 | GitHub API連携のMCPサーバー |
 | DateTime Validator | - | 日付検証・自動修正サービス |
-| CodeQL | - | 静的コード分析ツール |
 | Actions Simulator API | 8000 | FastAPI ベースのワークフローシミュレーター REST サービス |
+
+> ℹ️ CodeQL ベースのローカル静的解析サービスは 2025-09-27 に撤去されました。過去の設定は `archive/services/codeql/` に保管されており、GitHub Actions のセキュリティワークフローでは Trivy を中心としたスキャンを継続しています。
 
 ## 🚀 クイックスタート
 
@@ -140,7 +141,6 @@ ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/
   make clean     - Clean up containers and images
   make github    - Start GitHub MCP server
   make datetime  - Start DateTime validator
-  make codeql    - Run CodeQL analysis
   make actions   - Interactive GitHub Actions Simulator (Docker)
   make test      - Run integration tests
   make test-all  - Run all test suites
@@ -209,6 +209,7 @@ git push origin v1.3.7
 - **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 - **🔒 セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md)
 - **🗂️ アーカイブ済み Sphinx プロジェクト**: `archive/docs/sphinx/` (HTML 生成に再利用する場合)
+- **🛡️ アーカイブ済み CodeQL 設定**: `archive/services/codeql/`
 
 ## 🔧 サービス詳細
 
@@ -222,11 +223,6 @@ git push origin v1.3.7
 
 - ファイル監視による日付自動修正
 - 2025-01, 2024-12などの疑わしい日付を検出
-
-### CodeQL
-
-- 静的コード分析
-- オンデマンド実行
 
 ### Actions Simulator API
 

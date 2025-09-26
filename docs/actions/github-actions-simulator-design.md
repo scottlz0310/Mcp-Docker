@@ -1,4 +1,5 @@
 # GitHub Actions Simulator - 技術設計書
+<!-- markdownlint-disable -->
 
 ## 概要
 

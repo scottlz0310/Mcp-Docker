@@ -1,7 +1,7 @@
 ---
 name: codeql-analyzer
 version: 1.0.0
-description: CodeQL static analysis configuration
+description: CodeQL static analysis configuration (archived)
 
 analyzer:
   languages:
