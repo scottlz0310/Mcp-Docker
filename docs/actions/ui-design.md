@@ -18,83 +18,109 @@ GitHub Actions Simulator
 ### 基本コマンド構造
 
 ```bash
-mcp-docker actions-simulator <command> [options] [workflow-file]
+python main.py actions <command> [options] <workflow>...
 ```
+
+複数のワークフローを同時に指定できる点が新しい特長です。第一引数にサブコマンド（`simulate` / `validate` / `list-jobs`）を指定し、続く引数で対象ファイルやディレクトリを渡します。
 
 ### メインコマンド
 
-#### 1. シミュレーション実行
+#### 1. シミュレーション実行 (`simulate`)
+
 ```bash
-# 基本実行
-mcp-docker actions-simulator run .github/workflows/ci.yml
+# 単一ワークフローの実行
+python main.py actions simulate .github/workflows/ci.yml
 
-# エイリアス（短縮形）
-mcp-docker sim run ci.yml
-mcp-docker sim ci.yml  # runは省略可能
+# 特定ジョブのみ実行
+python main.py actions simulate .github/workflows/ci.yml --job test
 
-# 複数ワークフロー同時実行
-mcp-docker sim run ci.yml security.yml release.yml
+# 複数ワークフローを連続実行（fail-fast対応）
+python main.py actions simulate \
+  .github/workflows/ci.yml workflows/security.yml --fail-fast
 ```
 
-#### 2. ワークフロー検証
+#### 2. ワークフロー検証 (`validate`)
+
 ```bash
-# 文法チェック
-mcp-docker sim validate .github/workflows/ci.yml
+# ファイル単位で検証
+python main.py actions validate .github/workflows/ci.yml --strict
 
-# 全ワークフローの一括検証
-mcp-docker sim validate .github/workflows/
-
-# 詳細検証（依存関係、セキュリティ等）
-mcp-docker sim validate ci.yml --strict --security
+# ディレクトリ配下を再帰的に検証
+python main.py actions validate .github/workflows
 ```
 
-#### 3. ワークフロー情報表示
+#### 3. ジョブ一覧表示 (`list-jobs`)
+
 ```bash
-# ワークフロー構造表示
-mcp-docker sim info ci.yml
-
-# ジョブ一覧表示
-mcp-docker sim jobs ci.yml
-
-# 実行履歴表示
-mcp-docker sim history
+python main.py actions list-jobs .github/workflows/ci.yml --format json
 ```
+
+### Makefile 連携 (`make actions`)
+
+```bash
+# 対話モード（Enter=1 で先頭を実行）
+make actions
+
+# 非対話モード（CI/AI向け）
+make actions WORKFLOW=.github/workflows/ci.yml
+
+# インデックス指定
+INDEX=2 make actions
+
+# 追加オプションをCLIに渡す
+make actions WORKFLOW=.github/workflows/ci.yml \
+  CLI_ARGS="--event pull_request --ref refs/pull/42/head --output-format json"
+```
+
+| 変数        | 役割                                     |
+|-------------|------------------------------------------|
+| `WORKFLOW`  | 実行するワークフローファイルパス         |
+| `INDEX`     | 一覧の番号指定（1始まり）               |
+| `JOB`       | 特定ジョブのみ実行                      |
+| `DRY_RUN`   | 1 を指定するとプランのみ表示            |
+| `ENGINE`    | `builtin` / `act` の切り替え             |
+| `VERBOSE` / `QUIET` / `DEBUG` | CLIの出力量を制御        |
+| `CONFIG`    | TOML 設定ファイルを指定                 |
+| `ENV_FILE`  | 追加の環境変数ファイル                  |
+| `EVENT` / `REF` / `ACTOR` | GitHub コンテキストの上書き |
+| `ENV_VARS`  | `KEY=VALUE` 形式を空白区切りで複数指定  |
+| `CLI_ARGS`  | その他の CLI オプションを丸ごと連結     |
+
+人間は `make actions` の番号選択だけで操作でき、AI や自動化ツールは変数指定で即時にワークフローを走らせられるよう設計している。
 
 ### オプション設計
 
 #### グローバルオプション
+
 ```bash
---verbose, -v         # 詳細ログ表示
---quiet, -q          # 最小限の出力
---debug              # デバッグモード
---config CONFIG      # 設定ファイル指定
---help, -h          # ヘルプ表示
---version           # バージョン表示
+-v, --verbose        # 詳細ログ表示
+-q, --quiet          # 最小限の出力
+  --debug          # デバッグモード（verboseを内包）
+  --config PATH    # TOML設定ファイルを読み込む
+  --version        # CLIバージョン表示
 ```
 
 #### 実行オプション
+
 ```bash
 # イベント・トリガー指定
---event push                    # push イベントをシミュレート
---event pull_request           # PR イベントをシミュレート
---ref refs/heads/main          # ブランチ指定
---actor username               # 実行ユーザー指定
+  --event EVENT            # GitHubイベント名（例: push, pull_request）
+  --ref REF                # Gitリファレンス（例: refs/heads/main）
+  --actor NAME             # 実行ユーザー
 
 # 実行制御
---job JOB_NAME                 # 特定ジョブのみ実行
---skip-job JOB_NAME           # 特定ジョブをスキップ
---fail-fast                   # 最初の失敗で停止
---continue-on-error           # エラー時も続行
+  --job JOB_ID             # 特定ジョブのみ実行
+  --dry-run                # 実際のコマンド実行は行わずプランのみ表示
+  --engine builtin|act     # 実行エンジンの切り替え
+  --fail-fast              # 最初の失敗で残りのワークフローをスキップ
 
 # 環境設定
---env-file .env.local         # 環境変数ファイル
---secret-file .secrets        # シークレットファイル
---env KEY=VALUE              # 環境変数直接指定
+  --env-file PATH          # .env 互換ファイルから読み込み
+  --env KEY=VALUE          # 追加の環境変数指定（複数可）
 
 # 出力制御
---output-format json|html|text # 出力形式
---output-file report.html     # 出力ファイル
---no-cleanup                 # 一時ファイル保持
+  --output-format console|json  # 実行サマリーの形式
+  --output-file PATH            # サマリーをJSONとして保存
 ```
 
 ### 使用例
@@ -386,7 +412,7 @@ components:
 
 ### ダッシュボード画面
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ 🚀 GitHub Actions Simulator                   [Settings] │
 ├─────────────────────────────────────────────────────────────┤
@@ -418,7 +444,7 @@ components:
 
 ### 実行詳細画面
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ 📋 ci.yml - 実行詳細                            [🔄] [❌]   │
 ├─────────────────────────────────────────────────────────────┤
@@ -455,32 +481,35 @@ components:
 
 ### CLI使いやすさ機能
 
-1. **インタラクティブモード**
+1. **マルチワークフロー実行と fail-fast**
+
    ```bash
-   mcp-docker sim
-   # 対話式でワークフロー選択・オプション設定
+   python main.py actions simulate ci.yml security.yml --fail-fast
    ```
 
-2. **オートコンプリート**
+   1コマンドで複数ワークフローを連続実行し、`--fail-fast` が最初の失敗後に残りの処理をスキップします。
+
+1. **JSON/コンソールの柔軟なサマリー表示**
+
    ```bash
-   # Bash/Zsh completion
-   mcp-docker sim <TAB>
-   # → run validate info jobs history
+   python main.py actions simulate ci.yml --output-format json --output-file summary.json
    ```
 
-3. **進捗表示**
-   - プログレスバー
-   - 残り時間推定
-   - リアルタイム統計
+   Rich のテーブルによるカラー出力と、JSONファイル保存によるレポート自動化の両方に対応します。
 
-4. **カラー出力**
-   - 成功（緑）、エラー（赤）、警告（黄）
-   - `--no-color`オプション対応
+1. **環境変数の上書きと設定ファイル統合**
+
+   ```bash
+   python main.py actions simulate ci.yml --config simulator.toml --env GITHUB_ACTOR=local
+   ```
+
+   TOML 設定からデフォルトのイベントやリファレンスを読み込みつつ、`--env` や `--env-file` で本番相当の環境を簡単に再現できます。
 
 ### エラーハンドリング
 
 1. **分かりやすいエラーメッセージ**
-   ```bash
+
+  ```bash
    ❌ Error: Workflow file not found
 
    📍 Searched locations:
@@ -493,7 +522,7 @@ components:
      • .github/workflows/build.yml
    ```
 
-2. **修正提案**
+1. **修正提案**
    - 設定ミスの自動検出
    - 具体的な修正方法の提示
    - 関連ドキュメントへのリンク
@@ -550,6 +579,7 @@ components:
 このユーザーインターフェース設計は、開発者の日常的なワークフローに自然に統合され、GitHub Actions の事前検証を効率的かつ直感的に行えることを目指しています。
 
 **主要な特徴:**
+
 - 🚀 **高速起動**: 1コマンドで即座に実行開始
 - 🎯 **直感的操作**: 覚えやすいコマンド体系
 - 📊 **豊富な情報**: 実行状況、統計、パフォーマンス情報

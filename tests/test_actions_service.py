@@ -475,6 +475,110 @@ class TestWorkflowSimulator:
         assert result == 0
         mock_exec.assert_not_called()
 
+    def test_continue_on_error_allows_job_to_succeed(self, tmp_path):
+        """continue-on-error が true の場合にジョブ全体は成功するが failure() は真になる"""
+        self.simulator.workspace_path = tmp_path
+        self.simulator.env_vars['GITHUB_WORKSPACE'] = str(tmp_path)
+
+        continue_expr = "${{ env.ALLOW_FAILURE == '1' }}"
+
+        workflow_data = {
+            'name': 'Continue On Error Workflow',
+            'jobs': {
+                'conditional': {
+                    'runs-on': 'ubuntu-latest',
+                    'env': {'ALLOW_FAILURE': '1'},
+                    'steps': [
+                        {
+                            'id': 'allow_fail',
+                            'name': 'Allow failure',
+                            'run': 'echo fail',
+                            'continue-on-error': continue_expr,
+                        },
+                        {
+                            'name': 'Execute on failure',
+                            'if': 'failure()',
+                            'run': 'echo fallback',
+                        },
+                        {
+                            'name': 'Success gated step',
+                            'if': 'success()',
+                            'run': 'echo success',
+                        },
+                    ],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            side_effect=[1, 0],
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        executed = [call.args[0] for call in mock_exec.call_args_list]
+        assert executed == ['echo fail', 'echo fallback']
+
+    def test_extended_expression_helpers(self, tmp_path):
+        """format/join/fromJSON/toJSON/hashFiles ヘルパーを評価できる"""
+        self.simulator.workspace_path = tmp_path
+        self.simulator.env_vars['GITHUB_WORKSPACE'] = str(tmp_path)
+
+        sample_file = tmp_path / 'sample.txt'
+        sample_file.write_text('hello world', encoding='utf-8')
+
+        format_join_expr = (
+            "${{ format('Hello {0}', 'World') == 'Hello World' "
+            "and join(fromJSON('[\"a\",\"b\"]'), ',') == 'a,b' }}"
+        )
+        hash_expr = "${{ hashFiles('*.txt') != '' }}"
+        to_json_expr = "${{ contains(toJSON(github), 'local/test') }}"
+
+        workflow_data = {
+            'name': 'Expression Helpers Workflow',
+            'jobs': {
+                'helpers': {
+                    'runs-on': 'ubuntu-latest',
+                    'steps': [
+                        {'run': 'echo base'},
+                        {
+                            'name': 'Format and join',
+                            'if': format_join_expr,
+                            'run': 'echo format',
+                        },
+                        {
+                            'name': 'Hash files',
+                            'if': hash_expr,
+                            'run': 'echo hashed',
+                        },
+                        {
+                            'name': 'To JSON',
+                            'if': to_json_expr,
+                            'run': 'echo json',
+                        },
+                    ],
+                },
+            },
+        }
+
+        with patch.object(
+            self.simulator,
+            '_execute_command',
+            return_value=0,
+        ) as mock_exec:
+            result = self.simulator.run(workflow_data)
+
+        assert result == 0
+        commands = [call.args[0] for call in mock_exec.call_args_list]
+        assert commands == [
+            'echo base',
+            'echo format',
+            'echo hashed',
+            'echo json',
+        ]
+
     def test_load_env_file(self):
         """環境変数ファイル読み込みテスト"""
         env_content = """

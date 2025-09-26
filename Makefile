@@ -81,24 +81,99 @@ actions:
 		echo "❌ ワークフローファイルが見つかりません"; \
 		exit 1; \
 	fi; \
+	total=$$(echo "$$workflows" | wc -l | tr -d ' '); \
+	default_selection=$$(echo "$$workflows" | head -n1); \
 	echo "$$workflows" | nl -w2 -s') '; \
 	echo ""; \
-	echo "🎯 実行するワークフローを選択してください (番号入力):"; \
-	read -p "選択 [1-$$(echo "$$workflows" | wc -l)]: " choice; \
-	if ! echo "$$choice" | grep -q '^[0-9]\+$$'; then \
-		echo "❌ 無効な選択です"; \
-		exit 1; \
+	selected=""; \
+	if [ -n "$(WORKFLOW)" ]; then \
+		if [ -f "$(WORKFLOW)" ]; then \
+			selected="$(WORKFLOW)"; \
+		else \
+			match=$$(echo "$$workflows" | grep -Fx "$(WORKFLOW)"); \
+			if [ -z "$$match" ]; then \
+				echo "❌ 指定された WORKFLOW が一覧に見つかりません: $(WORKFLOW)"; \
+				exit 1; \
+			fi; \
+			selected="$$match"; \
+		fi; \
+	elif [ -n "$(INDEX)" ]; then \
+		if ! echo "$(INDEX)" | grep -Eq '^[0-9]+$$'; then \
+			echo "❌ INDEX は数値で指定してください"; \
+			exit 1; \
+		fi; \
+		selected=$$(echo "$$workflows" | sed -n "$(INDEX)p"); \
+		if [ -z "$$selected" ]; then \
+			echo "❌ INDEX が範囲外です: $(INDEX)"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "💡 Enter だけで $$default_selection を実行します"; \
+		printf "🎯 実行するワークフローを選択してください (Enter=1): "; \
+		read choice; \
+		if [ -z "$$choice" ]; then \
+			choice=1; \
+		fi; \
+		if ! echo "$$choice" | grep -Eq '^[0-9]+$$'; then \
+			echo "❌ 無効な選択です"; \
+			exit 1; \
+		fi; \
+		selected=$$(echo "$$workflows" | sed -n "$${choice}p"); \
+		if [ -z "$$selected" ]; then \
+			echo "❌ 無効な番号です"; \
+			exit 1; \
+		fi; \
 	fi; \
-	selected=$$(echo "$$workflows" | sed -n "$${choice}p"); \
 	if [ -z "$$selected" ]; then \
-		echo "❌ 無効な番号です"; \
-		exit 1; \
+		selected="$$default_selection"; \
 	fi; \
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
-	docker compose --profile tools run --rm -e WORKFLOW_FILE="$$selected" actions-simulator \
-		python main.py actions simulate "$$selected"
+	set -- python main.py actions; \
+	if [ -n "$(VERBOSE)" ]; then \
+		set -- "$$@" --verbose; \
+	fi; \
+	if [ -n "$(QUIET)" ]; then \
+		set -- "$$@" --quiet; \
+	fi; \
+	if [ -n "$(DEBUG)" ]; then \
+		set -- "$$@" --debug; \
+	fi; \
+	if [ -n "$(CONFIG)" ]; then \
+		set -- "$$@" --config "$(CONFIG)"; \
+	fi; \
+	set -- "$$@" simulate "$$selected"; \
+	if [ -n "$(JOB)" ]; then \
+		set -- "$$@" --job "$(JOB)"; \
+	fi; \
+	if [ -n "$(DRY_RUN)" ]; then \
+		set -- "$$@" --dry-run; \
+	fi; \
+	if [ -n "$(ENGINE)" ]; then \
+		set -- "$$@" --engine "$(ENGINE)"; \
+	fi; \
+	if [ -n "$(ENV_FILE)" ]; then \
+		set -- "$$@" --env-file "$(ENV_FILE)"; \
+	fi; \
+	if [ -n "$(EVENT)" ]; then \
+		set -- "$$@" --event "$(EVENT)"; \
+	fi; \
+	if [ -n "$(REF)" ]; then \
+		set -- "$$@" --ref "$(REF)"; \
+	fi; \
+	if [ -n "$(ACTOR)" ]; then \
+		set -- "$$@" --actor "$(ACTOR)"; \
+	fi; \
+	if [ -n "$(ENV_VARS)" ]; then \
+		for kv in $(ENV_VARS); do \
+			set -- "$$@" --env "$$kv"; \
+		done; \
+	fi; \
+	if [ -n "$(CLI_ARGS)" ]; then \
+		set -- "$$@" $(CLI_ARGS); \
+	fi; \
+	docker compose --profile tools run --rm -e WORKFLOW_FILE="$$selected" actions-simulator "$$@"
 
 actions-auto:
 	@echo "🎭 GitHub Actions Simulator - 自動実行 (CI)"

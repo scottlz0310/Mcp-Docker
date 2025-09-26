@@ -14,7 +14,7 @@
 - ✅ CLI から `--engine act` を指定した場合に `ActWrapper` を利用してワークフローを実行可能。
 - ⚠️ シークレット/環境管理・HTMLレポート生成などフェーズ2以降の機能は未着手。
 - ✅ `WorkflowSimulator` に `needs` 依存関係の実行順序解決と並列実行、`strategy.matrix` 展開を実装（フェーズ2 T1/T2 完了）。
-- 🔄 `ExpressionEvaluator` による `if:` 条件評価を導入し、ステップ/ジョブ条件分岐の再現性を向上（T3: 表現式評価器と Click/Rich CLI 基盤は完了。高度な UX 改善のみ未着手）。
+- ✅ `ExpressionEvaluator` による `if:` 条件評価を導入し、ステップ/ジョブ条件分岐の再現性を向上。Click/Rich ベースの CLI はグローバルオプションやマルチワークフロー実行、JSON サマリー出力を備え、T3 で定義した UX 改善が完了。
 - ✅ `SimulationService` を新設し、CLI と今後実装する API から共通利用できるシミュレーションレイヤーを整備済み。
 - ✅ FastAPI/Uvicorn 依存関係を追加し、REST API 実装のための基盤を整備。
 - ⚠️ ドキュメント内で予定されていた `click`/`rich` ベースのUI、`config_manager.py`、`report_generator.py` などのモジュールは未実装。
@@ -40,7 +40,7 @@
 
 - [x] `needs` 依存関係・並列実行のサポート（T1 完了）。
 - [x] `strategy.matrix` 展開と動的ジョブ生成（T2 完了）。
-- [ ] `if:` 条件評価の強化と CLI UX 改善（T3：表現式評価器は導入済み、Click/Rich CLI 基盤を実装済みで追加 UX 強化を検討）。
+- [x] `if:` 条件評価の強化と CLI UX 改善（T3：表現式評価器の拡張、CLI グローバルオプションとマルチワークフロー対応、JSON サマリーやロガー統合まで完了）。
 - [ ] Secrets / 環境変数管理の強化（T4）。
 - [x] `act` 連携による Docker ランナー実行、`uses` アクション再現（T5：CLI からの `--engine act` 実行パスを実装済み。コンテナ内常駐サーバー対応は T8/T14 で継続）。
 - [ ] 構造化ログと HTML/JSON レポート生成（T6/T7）。
@@ -62,7 +62,7 @@
 | --- | --- | --- |
 | T1 | `WorkflowSimulator` でジョブ依存関係・並列実行・失敗伝播を実装 | ✅ 完了（`needs` DAG と並列ワーカーを導入済み） |
 | T2 | `strategy.matrix` と動的ジョブ展開 | ✅ 完了（マトリックス展開と派生ジョブ生成を実装） |
-| T3 | `if:` 条件評価と CLI 移行（Click + Rich） | 🔄 基盤完了（表現式評価器と Click/Rich CLI は実装済み。改善項目を追加検討） |
+| T3 | `if:` 条件評価と CLI 移行（Click + Rich） | ✅ 完了（表現式評価器の例外処理とヘルパー拡張、Click/Rich CLI の UX 改善とドキュメント更新を完遂） |
 | T4 | Secrets / 設定管理レイヤー（`config_manager`） | `.env` 以上の安全なシークレット管理と設定統一 |
 | T5 | `act` エンジン統合 (`--engine act`) | ✅ CLI から `ActWrapper` を呼び出す実行パスを実装（Docker 常駐対応は T8/T14 へ委譲） |
 | T6 | 構造化ログ / メトリクス出力 | `rich` ログ、JSON ログ、実行統計を収集 |
@@ -81,7 +81,7 @@
 | 項目 | 現状 | 課題・次ステップ |
 | --- | --- | --- |
 | 言語 | Python 3.13（プロジェクト標準） | 維持 |
-| CLI | Click + Rich ベース（基礎移行完了） | 追加 UX 改善とサブコマンド拡張を検討（T3） |
+| CLI | Click + Rich ベース（グローバルオプション、JSON サマリー、マルチワークフロー対応を実装） | 追加サブコマンドとサービス連携を検討（T8/T14） |
 | 実行エンジン | ホストシェル (`subprocess.run`) + `ActWrapper` | CLI から `--engine act` で実行可能。Docker 内常駐化は T8/T14 |
 | API フレームワーク | FastAPI + Uvicorn（依存関係追加済み） | `SimulationService` を利用する REST API を実装（T14） |
 | 解析 | `PyYAML` + 独自検証 | Matrix/needs/if サポート拡張（T1/T2/T3） |

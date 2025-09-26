@@ -68,6 +68,60 @@ source ~/.bashrc
 
 ### 2. 使用方法
 
+#### GitHub Actions Simulator CLI
+
+```bash
+python main.py actions --help
+```
+
+グローバルオプションとして `-v/--verbose`, `-q/--quiet`, `--debug`, `--config <path>`, `--version` をサポートしています。設定ファイルは TOML 形式で、`[simulator]` や `[environment]` セクションからデフォルト値を読み込みます。
+
+代表的な実行例:
+
+```bash
+# 単一ワークフローをシミュレート
+python main.py actions simulate .github/workflows/ci.yml --job test
+
+# 複数ワークフローをまとめて実行し、fail-fast で早期終了
+python main.py actions simulate .github/workflows/ci.yml workflows/security.yml \
+  --fail-fast --event pull_request --ref refs/pull/42/head
+
+# 実行結果のサマリーを JSON で保存
+python main.py actions simulate .github/workflows/ci.yml --output-format json \
+  --output-file output/simulation-summary.json
+
+# 追加の環境変数を上書きして実行
+python main.py actions simulate .github/workflows/ci.yml \
+  --env GITHUB_ACTOR=local-dev --env NODE_ENV=development
+
+# act エンジンに切り替えて実行
+python main.py actions simulate .github/workflows/ci.yml --engine act
+```
+
+検証用途には `validate`、ジョブ一覧確認には `list-jobs` サブコマンドを使用してください。複数のワークフローをまとめて検証する場合は `python main.py actions validate .github/workflows --strict` のようにディレクトリを指定できます。
+
+#### make actions ターゲットの活用
+
+```bash
+# 対話モード（番号を選択、Enter だけで先頭を実行）
+make actions
+
+# 非対話モード（AI/CI向け）
+make actions WORKFLOW=.github/workflows/ci.yml
+
+# インデックス指定で実行
+INDEX=2 make actions
+
+# 追加オプションをCLIに伝達
+make actions WORKFLOW=.github/workflows/ci.yml \
+  CLI_ARGS="--event pull_request --ref refs/pull/42/head --output-format json"
+
+# 環境変数をまとめて注入
+ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/dev.yml
+```
+
+利用可能な変数: `WORKFLOW`（パス）、`INDEX`（一覧の番号）、`JOB`、`DRY_RUN`、`ENGINE`、`VERBOSE`/`QUIET`/`DEBUG`、`CONFIG`、`ENV_FILE`、`EVENT`、`REF`、`ACTOR`、`ENV_VARS`、`CLI_ARGS` など。人間は `make actions` の番号選択だけで実行でき、AI や自動化は変数指定で即座にワークフローを走らせられます。
+
 ### 📋 利用可能コマンド
 
 ```bash

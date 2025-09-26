@@ -92,7 +92,12 @@ class ExpressionEvaluator:
                 self._evaluate_node(arg, context)
                 for arg in node.args
             ]
-            return func(*args)
+            try:
+                return func(*args)
+            except ExpressionEvaluationError:
+                raise
+            except Exception as exc:  # pragma: no cover - defensive
+                raise ExpressionEvaluationError(str(exc)) from exc
 
         if isinstance(node, ast.Attribute):
             value = self._evaluate_node(node.value, context)

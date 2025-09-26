@@ -13,22 +13,36 @@ from datetime import datetime
 class ActionsLogger:
     """Actions用カスタムロガー"""
 
-    def __init__(self, verbose: bool = False, name: str = "actions-simulator"):
+    def __init__(
+        self,
+        verbose: bool = False,
+        *,
+        quiet: bool = False,
+        debug: bool = False,
+        name: str = "actions-simulator",
+    ) -> None:
         """
         初期化
 
         Args:
             verbose: 詳細ログを有効にするかどうか
+            quiet: 情報レベルのログを抑制するかどうか
+            debug: デバッグログを有効にするかどうか
             name: ロガー名
         """
         self.logger = logging.getLogger(name)
-        self.verbose = verbose
+        self.quiet = quiet
+        self.debug_mode = debug
+        self.verbose = bool(verbose or debug)
 
         # ログレベル設定
-        if verbose:
-            self.logger.setLevel(logging.DEBUG)
+        if self.quiet:
+            log_level = logging.WARNING
+        elif self.verbose:
+            log_level = logging.DEBUG
         else:
-            self.logger.setLevel(logging.INFO)
+            log_level = logging.INFO
+        self.logger.setLevel(log_level)
 
         # ハンドラー設定
         if not self.logger.handlers:
@@ -44,10 +58,14 @@ class ActionsLogger:
 
     def info(self, message: str) -> None:
         """情報ログ"""
+        if self.quiet:
+            return
         self.logger.info(message)
 
     def debug(self, message: str) -> None:
         """デバッグログ"""
+        if not self.verbose:
+            return
         self.logger.debug(message)
 
     def warning(self, message: str) -> None:
@@ -64,6 +82,8 @@ class ActionsLogger:
         GREEN = '\033[92m'
         ENDC = '\033[0m'
 
+        if self.quiet:
+            return
         if sys.stdout.isatty():
             print(f"{GREEN}✓ {message}{ENDC}")
         else:
@@ -71,11 +91,15 @@ class ActionsLogger:
 
     def step_start(self, step_name: str, step_number: int) -> None:
         """ステップ開始ログ"""
+        if self.quiet:
+            return
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] ▶ Step {step_number}: {step_name}")
 
     def step_end(self, step_number: int, success: bool = True) -> None:
         """ステップ終了ログ"""
+        if self.quiet:
+            return
         if success:
             print(f"  ✓ Step {step_number} completed")
         else:
@@ -83,20 +107,31 @@ class ActionsLogger:
 
     def job_start(self, job_name: str) -> None:
         """ジョブ開始ログ"""
+        if self.quiet:
+            return
         print(f"\n{'='*60}")
         print(f"🚀 Job: {job_name}")
         print(f"{'='*60}")
 
     def job_end(self, job_name: str, success: bool = True) -> None:
         """ジョブ終了ログ"""
+        if self.quiet:
+            return
         if success:
             print(f"\n✓ Job '{job_name}' completed successfully")
         else:
             print(f"\n✗ Job '{job_name}' failed")
         print("-" * 60)
 
-    def workflow_summary(self, total_jobs: int, successful_jobs: int, duration: float) -> None:
+    def workflow_summary(
+        self,
+        total_jobs: int,
+        successful_jobs: int,
+        duration: float,
+    ) -> None:
         """ワークフロー実行サマリー"""
+        if self.quiet:
+            return
         print(f"\n{'='*60}")
         print("📊 Workflow Summary")
         print(f"{'='*60}")

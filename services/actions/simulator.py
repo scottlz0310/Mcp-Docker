@@ -5,13 +5,16 @@
 解析されたワークフローを実際に実行するシミュレーターです。
 """
 
+import glob
+import hashlib
+import json
 import os
 import subprocess
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set
 
 from .expression import (
     ExpressionEvaluationError,
@@ -52,7 +55,10 @@ class WorkflowSimulator:
             'GITHUB_REF': 'refs/heads/main',
             'GITHUB_SHA': '0' * 40,
             'GITHUB_ACTOR': 'simulator',
+            'GITHUB_EVENT_NAME': 'push',
+            'GITHUB_EVENT_ACTION': '',
             'RUNNER_OS': 'Linux',
+            'RUNNER_ARCH': 'X64',
             'RUNNER_TEMP': '/tmp',
         })
 
@@ -60,9 +66,9 @@ class WorkflowSimulator:
         self,
         job_data: Dict[str, Any],
         job_results: Dict[str, Optional[int]],
-    ) -> Dict[str, Dict[str, str]]:
+    ) -> Dict[str, Dict[str, Any]]:
         dependencies = self._normalize_needs(job_data.get('needs', []))
-        needs_context: Dict[str, Dict[str, str]] = {}
+        needs_context: Dict[str, Dict[str, Any]] = {}
         for dependency in dependencies:
             result = job_results.get(dependency)
             if result == 0:
@@ -75,6 +81,8 @@ class WorkflowSimulator:
                 'result': status,
                 'status': status,
                 'outcome': status,
+                'conclusion': status,
+                'outputs': {},
             }
         return needs_context
 
@@ -84,12 +92,34 @@ class WorkflowSimulator:
         job_name: str,
         job_env: Dict[str, str],
         matrix_values: Optional[Dict[str, Any]],
-        needs_context: Dict[str, Dict[str, str]],
+        needs_context: Dict[str, Dict[str, Any]],
+        *,
+        job_strategy: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if isinstance(matrix_values, dict):
             matrix_context: Dict[str, Any] = dict(matrix_values)
         else:
             matrix_context = {}
+        runner_context = {
+            'os': self.env_vars.get('RUNNER_OS'),
+            'arch': self.env_vars.get('RUNNER_ARCH'),
+            'temp': self.env_vars.get('RUNNER_TEMP'),
+        }
+        github_context = {
+            'ref': self.env_vars.get('GITHUB_REF'),
+            'repository': self.env_vars.get('GITHUB_REPOSITORY'),
+            'actor': self.env_vars.get('GITHUB_ACTOR'),
+            'sha': self.env_vars.get('GITHUB_SHA'),
+            'event_name': self.env_vars.get('GITHUB_EVENT_NAME', 'push'),
+            'event': {
+                'name': self.env_vars.get('GITHUB_EVENT_NAME', 'push'),
+                'action': self.env_vars.get('GITHUB_EVENT_ACTION'),
+            },
+        }
+        strategy_context = (
+            job_strategy if isinstance(job_strategy, dict) else {}
+        )
+
         return {
             'env': job_env,
             'matrix': matrix_context,
@@ -97,6 +127,7 @@ class WorkflowSimulator:
                 'id': job_id,
                 'name': job_name,
                 'status': 'success',
+                'conclusion': 'success',
             },
             'status': 'success',
             'job_status': 'success',
@@ -104,14 +135,12 @@ class WorkflowSimulator:
             'step_outcome': 'success',
             'needs': needs_context,
             'steps': {},
-            'runner': {
-                'os': self.env_vars.get('RUNNER_OS'),
-            },
-            'github': {
-                'ref': self.env_vars.get('GITHUB_REF'),
-                'repository': self.env_vars.get('GITHUB_REPOSITORY'),
-                'actor': self.env_vars.get('GITHUB_ACTOR'),
-            },
+            'runner': runner_context,
+            'github': github_context,
+            'vars': {},
+            'secrets': {},
+            'inputs': {},
+            'strategy': strategy_context,
         }
 
     def _compose_step_context(
@@ -161,6 +190,16 @@ class WorkflowSimulator:
                 value = context.get(key)
                 if isinstance(value, str):
                     values.append(value.lower())
+            steps_data = context.get('steps')
+            if isinstance(steps_data, Mapping):
+                for step_info in steps_data.values():
+                    if isinstance(step_info, Mapping):
+                        outcome = (
+                            step_info.get('outcome')
+                            or step_info.get('conclusion')
+                        )
+                        if isinstance(outcome, str):
+                            values.append(outcome.lower())
             return values
 
         def success() -> bool:
@@ -186,7 +225,7 @@ class WorkflowSimulator:
                 return False
             if isinstance(container, str):
                 return str(item) in container
-            if isinstance(container, dict):
+            if isinstance(container, Mapping):
                 return item in container.values() or item in container
             if isinstance(container, (list, tuple, set, frozenset)):
                 return item in container
@@ -202,6 +241,96 @@ class WorkflowSimulator:
                 return False
             return string.endswith(suffix)
 
+        def format_str(template: Any, *args: Any) -> str:
+            try:
+                return str(template).format(*args)
+            except Exception as exc:  # noqa: BLE001 - defensive
+                raise ExpressionEvaluationError(
+                    f"format() failed: {exc}"
+                ) from exc
+
+        def join_values(values: Any, separator: Any = ',') -> str:
+            if isinstance(values, Mapping):
+                iterable = list(values.values())
+            elif isinstance(values, (list, tuple, set, frozenset)):
+                iterable = list(values)
+            elif isinstance(values, str):
+                iterable = [values]
+            else:
+                raise ExpressionEvaluationError(
+                    "join() requires a sequence or mapping"
+                )
+
+            sep = '' if separator is None else str(separator)
+            return sep.join(str(item) for item in iterable)
+
+        def from_json(value: Any) -> Any:
+            if value is None:
+                return None
+            if not isinstance(value, str):
+                raise ExpressionEvaluationError(
+                    "fromJSON() expects a string"
+                )
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ExpressionEvaluationError(
+                    f"fromJSON() failed: {exc}"
+                ) from exc
+
+        def to_json(value: Any) -> str:
+            try:
+                return json.dumps(value, ensure_ascii=False, sort_keys=True)
+            except TypeError as exc:
+                raise ExpressionEvaluationError(
+                    f"toJSON() failed: {exc}"
+                ) from exc
+
+        def hash_files(*patterns: Any) -> str:
+            normalized: List[str] = []
+            for pattern in patterns:
+                if pattern is None:
+                    continue
+                if not isinstance(pattern, str) or not pattern:
+                    raise ExpressionEvaluationError(
+                        "hashFiles() expects string patterns"
+                    )
+                normalized.append(pattern)
+
+            if not normalized:
+                raise ExpressionEvaluationError(
+                    "hashFiles() requires at least one pattern"
+                )
+
+            workspace_root = self.workspace_path.resolve()
+            files: List[Path] = []
+            for pattern in normalized:
+                absolute_pattern = (
+                    pattern if os.path.isabs(pattern)
+                    else str(workspace_root / pattern)
+                )
+                for match in glob.glob(absolute_pattern, recursive=True):
+                    candidate = Path(match)
+                    if candidate.is_file():
+                        files.append(candidate.resolve())
+
+            unique_files = sorted({path for path in files})
+            if not unique_files:
+                return ''
+
+            digest = hashlib.sha256()
+            for file_path in unique_files:
+                try:
+                    with file_path.open('rb') as handle:
+                        for chunk in iter(lambda: handle.read(8192), b''):
+                            digest.update(chunk)
+                except OSError as exc:
+                    raise ExpressionEvaluationError(
+                        f"hashFiles() failed to read {file_path}: {exc}"
+                    ) from exc
+
+            return digest.hexdigest()
+
         return {
             'success': success,
             'failure': failure,
@@ -210,6 +339,11 @@ class WorkflowSimulator:
             'contains': contains,
             'startsWith': starts_with,
             'endsWith': ends_with,
+            'format': format_str,
+            'join': join_values,
+            'fromJSON': from_json,
+            'toJSON': to_json,
+            'hashFiles': hash_files,
         }
 
     def load_env_file(self, env_file: Path) -> None:
@@ -509,7 +643,7 @@ class WorkflowSimulator:
         self,
         job_id: str,
         job_data: Dict[str, Any],
-        needs_context: Optional[Dict[str, Dict[str, str]]] = None,
+        needs_context: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> int:
         """ジョブの実行"""
         job_name = job_data.get('name', job_id)
@@ -537,12 +671,20 @@ class WorkflowSimulator:
                 env_key = f"MATRIX_{str(matrix_key).upper().replace('-', '_')}"
                 job_env[env_key] = str(matrix_value)
 
+        raw_strategy = job_data.get('strategy')
+        strategy_dict: Optional[Dict[str, Any]] = (
+            dict(raw_strategy)
+            if isinstance(raw_strategy, dict)
+            else None
+        )
+
         base_context = self._build_base_expression_context(
             job_id,
             job_name,
             job_env,
             matrix_dict if matrix_dict else None,
             needs_context or {},
+            job_strategy=strategy_dict,
         )
 
         job_condition = job_data.get('if')
@@ -555,6 +697,10 @@ class WorkflowSimulator:
                 self.logger.info(
                     f"ジョブ '{job_name}' をスキップ: 条件 '{job_condition}'"
                 )
+                base_context['job']['status'] = 'skipped'
+                base_context['job']['conclusion'] = 'skipped'
+                base_context['status'] = 'skipped'
+                base_context['job_status'] = 'skipped'
                 return 0
 
         steps = job_data.get('steps', [])
@@ -610,8 +756,22 @@ class WorkflowSimulator:
                 base_context['steps'][step_key] = {
                     'outcome': 'skipped',
                     'status': 'skipped',
+                    'conclusion': 'skipped',
                 }
+                base_context['step_status'] = 'skipped'
+                base_context['step_outcome'] = 'skipped'
                 return 0
+
+        continue_raw = step.get('continue-on-error')
+        allow_failure = False
+        if isinstance(continue_raw, bool):
+            allow_failure = continue_raw
+        elif isinstance(continue_raw, str) and continue_raw.strip():
+            allow_failure = self._evaluate_condition(
+                continue_raw,
+                evaluation_context,
+                f"ステップ '{step_name}' の continue-on-error",
+            )
 
         if 'run' in step:
             result = self._execute_command(step['run'], step_env)
@@ -628,18 +788,34 @@ class WorkflowSimulator:
             base_context['steps'][step_key] = {
                 'outcome': 'success',
                 'status': 'success',
+                'conclusion': 'success',
             }
             base_context['step_status'] = 'success'
             base_context['step_outcome'] = 'success'
             return 0
 
+        if allow_failure:
+            self.logger.warning(
+                "    失敗しましたが continue-on-error を尊重して続行します"
+            )
+            base_context['steps'][step_key] = {
+                'outcome': 'failure',
+                'status': 'failure',
+                'conclusion': 'failure',
+            }
+            base_context['step_status'] = 'failure'
+            base_context['step_outcome'] = 'failure'
+            return 0
+
         base_context['steps'][step_key] = {
             'outcome': 'failure',
             'status': 'failure',
+            'conclusion': 'failure',
         }
         base_context['status'] = 'failure'
         base_context['job_status'] = 'failure'
         base_context['job']['status'] = 'failure'
+        base_context['job']['conclusion'] = 'failure'
         base_context['step_status'] = 'failure'
         base_context['step_outcome'] = 'failure'
         return result
