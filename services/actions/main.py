@@ -355,6 +355,24 @@ def cli(
     help="実際に実行せずにプランを表示",
 )
 @click.option(
+    "--verbose",
+    "simulate_verbose",
+    is_flag=True,
+    help="詳細ログを有効化",
+)
+@click.option(
+    "--quiet",
+    "simulate_quiet",
+    is_flag=True,
+    help="標準出力を抑制",
+)
+@click.option(
+    "--debug",
+    "simulate_debug",
+    is_flag=True,
+    help="デバッグログを有効化 (verboseを暗黙的に有効化)",
+)
+@click.option(
     "--engine",
     type=click.Choice(["builtin", "act"], case_sensitive=False),
     default="builtin",
@@ -394,6 +412,9 @@ def simulate(
     job: str | None,
     env_file: Path | None,
     dry_run: bool,
+    simulate_verbose: bool,
+    simulate_quiet: bool,
+    simulate_debug: bool,
     engine: str,
     event_name: str | None,
     git_ref: str | None,
@@ -405,7 +426,12 @@ def simulate(
 ) -> None:
     """ワークフローを実行するサブコマンド"""
 
-    context = _build_context(ctx)
+    context = _build_context(
+        ctx,
+        verbose=True if simulate_verbose else None,
+        quiet=True if simulate_quiet else None,
+        debug=True if simulate_debug else None,
+    )
     logger = context.logger
     assert logger is not None
     console = context.console
