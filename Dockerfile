@@ -11,7 +11,8 @@ RUN apk add --no-cache \
     unzip \
     python3 \
     py3-pip \
-    git && \
+    git \
+    bash && \
     apk cache clean
 
 # ビルドステージ: 依存関係インストール
@@ -37,7 +38,6 @@ RUN curl -L -o codeql.zip https://github.com/github/codeql-cli-binaries/releases
     chmod +x /opt/codeql/codeql/codeql
 
 # Act CLI (GitHub Actions local runner)
-RUN apk add --no-cache bash
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -L -o act_Linux_x86_64.tar.gz https://github.com/nektos/act/releases/latest/download/act_Linux_x86_64.tar.gz && \
     tar xzf act_Linux_x86_64.tar.gz && \
