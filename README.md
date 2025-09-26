@@ -4,15 +4,14 @@ Model Context Protocol（MCP）サーバーのためのプロダクション対�
 
 [![CI Status](https://github.com/scottlz0310/mcp-docker/workflows/CI/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 [![Security Scan](https://github.com/scottlz0310/mcp-docker/workflows/Security/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
-[![Documentation](https://github.com/scottlz0310/mcp-docker/workflows/Documentation/badge.svg)](https://scottlz0310.github.io/mcp-docker)
 
-### 📦 バージョン情報
+## 📦 バージョン情報
 
 - **現在のバージョン**: v1.0.1
 - **最終更新**: 2025年09月24日
 - **サポート**: Python 3.13+
 
-### 📊 プロジェクト統計
+## 📊 プロジェクト統計
 
 - **ファイル数**: 1313個のソースファイル
 - **テスト数**: 4個のテストファイル
@@ -21,14 +20,14 @@ Model Context Protocol（MCP）サーバーのためのプロダクション対�
 
 ## 📁 構成
 
-```
+```text
 mcp-docker/
 ├── services/           # サービス別設定
 │   ├── github/         # GitHub MCP設定
 │   ├── datetime/       # 日付検証スクリプト
 │   └── codeql/         # CodeQL設定
 ├── scripts/            # 管理スクリプト
-├── docs/              # ドキュメント
+├── docs/              # 運用ドキュメント (Markdown)
 ├── tests/             # テストスイート
 ├── Dockerfile          # 統合イメージ
 ├── docker-compose.yml  # サービス定義
@@ -153,8 +152,6 @@ ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/
   make version-sync      - Sync versions between pyproject.toml and main.py
   make release-check     - Check release readiness
   make setup-branch-protection - Setup branch protection
-  make docs              - Generate documentation
-  make docs-serve        - Serve documentation locally
 ```
 
 ## 📦 バージョン管理
@@ -200,27 +197,18 @@ git tag v1.3.7
 git push origin v1.3.7
 ```
 
-### � 詳細ドキュメント
+### 📄 詳細ドキュメント
 
-完全なリリースシステムの詳細については、**[�📚 リリース自動化システム完全ガイド](docs/RELEASE_SYSTEM.md)**を参照してください。
+完全なリリースシステムの詳細については、**[📚 リリース自動化システム完全ガイド](docs/RELEASE_SYSTEM.md)**を参照してください。
 
 ## 📚 ドキュメント体系
 
-### 🏗️ ドキュメント生成
-
-```bash
-make docs              # Sphinx + GitHub Pages自動ドキュメント生成
-make docs-serve        # ローカルでドキュメント表示
-make docs-clean        # ドキュメントビルドクリーンアップ
-```
-
 ### 🌐 オンラインリソース
 
-- **🏠 メインドキュメント**: <https://scottlz0310.github.io/Mcp-Docker/>
-- **📋 API リファレンス**: 自動生成Sphinxドキュメント
 - **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
 - **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 - **🔒 セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md)
+- **🗂️ アーカイブ済み Sphinx プロジェクト**: `archive/docs/sphinx/` (HTML 生成に再利用する場合)
 
 ## 🔧 サービス詳細
 
@@ -285,7 +273,7 @@ make test-integration  # 統合テスト
 
 ```bash
 # 開発依存関係インストール
-uv sync --group dev --group docs
+uv sync --group dev
 
 # Pre-commitフック設定
 pre-commit install

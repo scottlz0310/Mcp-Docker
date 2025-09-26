@@ -4,11 +4,8 @@
 MCPプロトコルに準拠した日付検証サーバー
 """
 import asyncio
-import json
 from datetime import datetime
-from pathlib import Path
 from mcp.server import Server
-from mcp.types import Tool, TextContent
 
 # MCPサーバー初期化
 server = Server("datetime-validator")

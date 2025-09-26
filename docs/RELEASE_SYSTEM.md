@@ -491,16 +491,7 @@ make release-check
 
 ### 📚 ドキュメント管理
 
-```bash
-# ドキュメント生成
-make docs
-
-# ローカルサーバー起動
-make docs-serve
-
-# ドキュメントクリーンアップ
-make docs-clean
-```
+自動生成ドキュメントのワークフローは退役しました。Sphinx プロジェクトは `archive/docs/sphinx/` に保管してあるため、必要に応じて個別に `sphinx-build` を実行してください。
 
 ### 🧪 テスト実行
 
@@ -517,11 +508,11 @@ make lint
 
 ## 🌐 システム連携
 
-### 📚 ドキュメント自動化
+### 📚 ドキュメント自動化（退役）
 
-- **Sphinx**: API文書自動生成
-- **GitHub Pages**: 自動デプロイ・公開
-- **repository_dispatch**: リリース連動更新
+- **Sphinx**: API文書自動生成（現在は `archive/docs/sphinx/` に退避）
+- **GitHub Pages**: 自動デプロイ・公開（ワークフロー停止中）
+- **repository_dispatch**: リリース連動更新（停止中）
 
 ### 🔒 セキュリティ統合
 
@@ -537,7 +528,6 @@ make lint
 
 ## 📚 関連ドキュメント・リソース
 
-- **🏠 メインドキュメント**: [GitHub Pages](https://scottlz0310.github.io/Mcp-Docker/)
 - **📋 開発ガイド**: [README.md](../README.md#開発・テスト)
 - **🔒 セキュリティガイド**: [SECURITY.md](../SECURITY.md)
 - **📝 変更履歴**: [CHANGELOG.md](../CHANGELOG.md)
@@ -552,7 +542,7 @@ MCP Docker Environment のリリース自動化システムは、現代的なCI/
 - ワンクリック完全自動化
 - インテリジェントな品質保証
 - セキュアなバージョン管理
-- 統合ドキュメント自動化
+- 統合ドキュメント自動化（退役済み）
 - 完全な監査可能性
 
 このシステムを活用することで、開発チームはリリース作業にかかる時間を大幅に削減し、よりクリエイティブな開発作業に集中できます。🎊

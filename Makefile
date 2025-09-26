@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime codeql actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security docs docs-serve docs-clean install-bats check-bats
+.PHONY: help build start stop logs clean datetime codeql actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -28,11 +28,6 @@ help:
 	@echo "  make version-sync      - Sync versions between pyproject.toml and main.py"
 	@echo "  make release-check     - Check release readiness"
 	@echo "  make setup-branch-protection - Setup branch protection"
-	@echo ""
-	@echo "Documentation:"
-	@echo "  make docs              - Generate documentation"
-	@echo "  make docs-serve        - Serve documentation locally"
-	@echo "  make docs-clean        - Clean documentation build"
 	@echo ""
 	@echo "GitHub Actions Simulator:"
 	@echo "  make actions             - Interactive workflow selection (Docker)"
@@ -373,24 +368,3 @@ validate-security:
 	@echo "🛡️  セキュリティバリデーション"
 	./scripts/validate-user-permissions.sh
 	@echo "✅ セキュリティ検証完了"
-
-docs:
-	@echo "📚 ドキュメント生成"
-	./scripts/generate-docs.sh all
-	@echo "✅ ドキュメント生成完了: docs/_build/html/index.html"
-
-docs-serve:
-	@echo "🌐 ドキュメントサーバー起動"
-	@if [ -d "docs/_build/html" ]; then \
-		echo "📍 http://localhost:8000 でドキュメントを確認できます"; \
-		echo "Ctrl+C で停止"; \
-		cd docs/_build/html && python3 -m http.server 8000; \
-	else \
-		echo "❌ ドキュメントがビルドされていません"; \
-		echo "最初に 'make docs' を実行してください"; \
-	fi
-
-docs-clean:
-	@echo "🧹 ドキュメントビルドをクリア"
-	rm -rf docs/_build docs/api
-	@echo "✅ クリーンアップ完了"
