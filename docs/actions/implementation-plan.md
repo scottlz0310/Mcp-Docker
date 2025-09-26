@@ -27,11 +27,11 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 
 ### フェーズA: 軽量アーキテクチャの確立 (1 週間)
 
-- A1. act + 必須バイナリのみを含むミニマル Docker イメージを作成。
-- A2. CLI から act を呼び出すまでの経路と設定ファイルを整理 (`config/act-runner.toml` 相当)。
-- A3. `make actions` / `scripts/run-actions.sh` / `docker-compose` を一貫したエントリポイントに揃える。
-- A4. Docker イメージから builtin 実行器用の依存物を削除し、act ベースに一本化。
-- A5. Python 依存のインストールフローを uv (`uv pip install`, `uv run`) へ切り替え、ドキュメントと Dockerfile を同時更新。
+- ✅ A1. act + 必須バイナリのみを含むミニマル Docker イメージを作成。（`Dockerfile.actions` 追加, 2025-09-26）
+- ✅ A2. CLI から act を呼び出すまでの経路と設定ファイルを整理（`services/actions/config/act-runner.toml` バンドル）。
+- ✅ A3. `make actions` / `scripts/run-actions.sh` / `docker-compose` を一貫したエントリポイントに揃える。
+- ✅ A4. Docker イメージから builtin 実行器用の依存物を削除し、act ベースに一本化。
+- ✅ A5. Python 依存のインストールフローを uv (`uv run`) へ統一し、ドキュメントと Dockerfile を同時更新。
 
 ### フェーズB: 品質ゲートと自動化 (1 週間)
 
@@ -52,8 +52,8 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 | T1 | `needs` 依存関係と並列実行 | ✅ | ワークフロー解析ロジックで DAG を解決 |
 | T2 | `strategy.matrix` 展開 | ✅ | 行列展開と派生ジョブ生成を実装 |
 | T3 | ExpressionEvaluator / CLI UX 改善 | ✅ | Click/Rich CLI と JSON サマリーを実装 |
-| T4 | act ランナー最適化 | 🔄 | ミニマル Dockerfile、builtin 依存の削除、uv ベースのインストール、キャッシュ/バージョン管理 |
-| T5 | 1 コマンド起動 (`make actions`/ スクリプト) の統一 | 🔄 | CLI 引数プリセット、環境変数設定テンプレート |
+| T4 | act ランナー最適化 | ✅ | `Dockerfile.actions` + act キャッシュボリューム + uv ベースインストール |
+| T5 | 1 コマンド起動 (`make actions`/ スクリプト) の統一 | ✅ | `scripts/run-actions.sh` と Makefile/compose の統合済み |
 | T6 | pre-commit & quality gate 導入 | 🔄 | lint / test / セキュリティスキャンを軽量構成で追加 |
 | T7 | ドキュメント刷新 (設計・UI・README) | 🔜 | 旧ロードマップの記述を軽量方針へ更新 |
 | T8 | テンプレート・配布パッケージ整備 | 🔜 | `.env.example`, `.pre-commit-config.yaml`, スクリプト群 |
@@ -84,8 +84,7 @@ services/actions/
 
 scripts/
 ├── run-actions.sh      # ワンショット起動スクリプト
-├── setup.sh
-└── start-actions-api.sh (★ 将来的に不要なら削除候補)
+└── setup.sh
 ```
 
 ## 開発工程 (新タイムライン)

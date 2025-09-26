@@ -1,0 +1,15 @@
+[runner]
+image = "ghcr.io/catthehacker/ubuntu:act-latest"
+platforms = ["ubuntu-latest", "ubuntu-22.04"]
+container_workdir = "/github/workspace"
+cache_dir = "/opt/act/cache"
+
+[environment]
+GITHUB_USER = "local-runner"
+GITHUB_ACTOR = "local-runner"
+GITHUB_REPOSITORY = "local/example"
+
+[simulator]
+default_event = "push"
+default_ref = "refs/heads/main"
+default_actor = "local-runner"

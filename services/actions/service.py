@@ -6,7 +6,7 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .act_wrapper import ActWrapper
 from .logger import ActionsLogger
@@ -46,14 +46,19 @@ class SimulationService:
     def __init__(
         self,
         logger_factory: Callable[[bool], ActionsLogger] | None = None,
+        config: Mapping[str, Any] | None = None,
     ) -> None:
         self._logger_factory: Callable[[bool], ActionsLogger] = (
             logger_factory or self._default_logger_factory
         )
+        self._config: dict[str, Any] = dict(config) if config else {}
 
     @staticmethod
     def _default_logger_factory(verbose: bool) -> ActionsLogger:
         return ActionsLogger(verbose=verbose)
+
+    def set_config(self, config: Mapping[str, Any] | None) -> None:
+        self._config = dict(config) if config else {}
 
     def run_simulation(
         self,
@@ -115,10 +120,22 @@ class SimulationService:
         if params.env_vars:
             env_vars = {**(env_vars or {}), **params.env_vars}
 
+        wrapper_factory = ActWrapper
         try:
-            wrapper = ActWrapper(
-                working_directory=str(workflow_path.parent)
+            wrapper = wrapper_factory(
+                working_directory=str(workflow_path.parent),
+                config=self._config,
+                logger=logger,
             )
+        except TypeError:
+            try:
+                wrapper = wrapper_factory(str(workflow_path.parent))
+            except Exception as exc:  # pragma: no cover - defensive
+                raise SimulationServiceError(str(exc)) from exc
+            if hasattr(wrapper, "config"):
+                setattr(wrapper, "config", self._config)
+            if hasattr(wrapper, "logger"):
+                setattr(wrapper, "logger", logger)
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 

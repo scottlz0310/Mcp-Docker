@@ -119,6 +119,18 @@ ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/
 
 利用可能な変数: `WORKFLOW`（パス）、`INDEX`（一覧の番号）、`JOB`、`DRY_RUN`、`VERBOSE`/`QUIET`/`DEBUG`、`CONFIG`、`ENV_FILE`、`EVENT`、`REF`、`ACTOR`、`ENV_VARS`、`CLI_ARGS` など。人間は `make actions` の番号選択だけで実行でき、AI や自動化は変数指定で即座にワークフローを走らせられます。
 
+#### ワンショットスクリプト (`scripts/run-actions.sh`)
+
+```bash
+# 最新イメージを取得しつつワークフローをシミュレート
+./scripts/run-actions.sh .github/workflows/ci.yml -- --fail-fast
+
+# 引数なしでヘルプを確認
+./scripts/run-actions.sh
+```
+
+スクリプトは Docker / Docker Compose のバージョンを確認し、`actions-simulator` コンテナで Click CLI を起動します。追加の CLI 引数は `--` 区切りで渡せます（例: `-- --job build --output-format json`）。
+
 ### 📋 利用可能コマンド
 
 ```bash
@@ -131,7 +143,6 @@ ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/
   make datetime  - Start DateTime validator
   make codeql    - Run CodeQL analysis
   make actions   - Interactive GitHub Actions Simulator (Docker)
-  make actions-api - Launch Actions REST API (uvicorn)
   make test      - Run integration tests
   make test-all  - Run all test suites
   make test-bats - Run Bats test suite

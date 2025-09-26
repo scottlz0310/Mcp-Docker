@@ -49,21 +49,22 @@ services:
       - mcp-network
 
   actions-simulator:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.actions
     container_name: mcp-actions-simulator
     volumes:
       - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw        # 実行結果出力
-      - ./docker-compose.yml:/app/docker-compose.yml:ro  # yamllint参照用
+      - act-cache:/opt/act/cache
       - /var/run/docker.sock:/var/run/docker.sock  # Dockerアクセス（act用）
-      - ./.yamllint.yml:/app/.yamllint.yml:ro  # yamllint設定
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - HOST=0.0.0.0
       - PORT=8000
     profiles:
       - tools
-    command: ["/bin/bash", "./scripts/start-actions-api.sh"]
+    command: ["uv", "run", "python", "main.py", "actions", "--help"]
     networks:
       - mcp-network
     # セキュリティ: リソース制限
@@ -82,3 +83,6 @@ services:
 networks:
   mcp-network:
     driver: bridge
+
+volumes:
+  act-cache:

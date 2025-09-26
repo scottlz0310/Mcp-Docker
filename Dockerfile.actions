@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1.7
+
+ARG PYTHON_VERSION=3.13
+
+FROM python:${PYTHON_VERSION}-slim AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Builder stage --------------------------------------------------------
+FROM base AS builder
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+ENV UV_LINK_MODE=copy
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY services ./services
+COPY main.py ./
+
+RUN uv python install "${PYTHON_VERSION}" \
+    && uv sync --locked \
+    && uv cache prune --ci
+
+# --- Runtime stage -------------------------------------------------------
+FROM base AS runtime
+
+ARG ACT_VERSION=v0.2.69
+ARG TARGETARCH
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && rm -rf /root/.local/share/uv
+
+RUN install -d -m 0755 /opt/uv
+
+RUN case "${TARGETARCH}" in \
+        "arm64")   ACT_ARCH="arm64" ;; \
+        "aarch64") ACT_ARCH="arm64" ;; \
+        "amd64")   ACT_ARCH="x86_64" ;; \
+        "x86_64") ACT_ARCH="x86_64" ;; \
+        *)          ACT_ARCH="x86_64" ;; \
+    esac \
+    && curl -fsSL "https://github.com/nektos/act/releases/download/${ACT_VERSION}/act_Linux_${ACT_ARCH}.tar.gz" -o /tmp/act.tgz \
+    && tar -xzf /tmp/act.tgz -C /usr/local/bin act \
+    && rm /tmp/act.tgz \
+    && chmod +x /usr/local/bin/act
+
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv
+ENV UV_LINK_MODE=copy
+ENV PATH="/app/.venv/bin:/usr/local/bin:${PATH}"
+ENV ACT_CACHE_DIR=/opt/act/cache
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY --from=builder /opt/uv /opt/uv
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/pyproject.toml /app/pyproject.toml
+COPY --from=builder /app/uv.lock /app/uv.lock
+COPY --from=builder /app/main.py /app/main.py
+COPY --from=builder /app/services /app/services
+
+RUN useradd --system --create-home --shell /bin/bash actions \
+    && install -d -m 0755 -o actions -g actions /opt/act/cache /app/output
+
+USER actions
+
+ENTRYPOINT ["tini", "--"]
+CMD ["uv", "run", "python", "main.py", "actions", "--help"]

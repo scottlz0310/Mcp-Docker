@@ -19,5 +19,14 @@ GitHub Actions Simulatorは、GitHub Actions ワークフローをローカル�
 
 """
 
+from pathlib import Path
+
 __version__ = "1.0.0"
 __author__ = "MCP Docker Team"
+
+PACKAGE_ROOT = Path(__file__).resolve().parent
+DEFAULT_CONFIG_PATH = PACKAGE_ROOT / "config" / "act-runner.toml"
+
+__all__ = [
+    "DEFAULT_CONFIG_PATH",
+]

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, cast
 
 import click
 import tomllib
@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
-from . import __version__ as simulator_version
+from . import DEFAULT_CONFIG_PATH, __version__ as simulator_version
 from .logger import ActionsLogger
 from .service import (
     SimulationParameters,
@@ -38,10 +38,15 @@ class CLIContext:
         self.verbose = verbose or debug
         self.quiet = quiet
         self.debug = debug
-        self.config_path = config_path
+        default_config = (
+            DEFAULT_CONFIG_PATH if DEFAULT_CONFIG_PATH.exists() else None
+        )
+        self._default_config_path = default_config
+        self.config_path = config_path or default_config
         self.config_data: dict[str, Any] = {}
         self.logger: ActionsLogger | None = None
         self.service: SimulationService | None = None
+        self._config_warning_emitted = False
         self.console: Console = Console(
             quiet=self.quiet,
             highlight=not self.quiet,
@@ -64,8 +69,17 @@ class CLIContext:
             if debug:
                 self.verbose = True
         if config_path is not None:
-            self.config_path = config_path
-            self.config_data = {}
+            resolved = config_path
+            if resolved != self.config_path:
+                self.config_path = resolved
+                self.config_data = {}
+                self.service = None
+                self._config_warning_emitted = False
+        elif (
+            self.config_path is None
+            and self._default_config_path is not None
+        ):
+            self.config_path = self._default_config_path
 
         # モード変更時はロガーとコンソールを再初期化する
         self.console = Console(
@@ -75,20 +89,32 @@ class CLIContext:
         self.logger = None
 
     def load_config(self) -> None:
-        if not self.config_path or self.config_data:
+        if not self.config_path:
+            self.config_data = {}
+            return
+        if self.config_data:
             return
 
         try:
             with self.config_path.open("rb") as handle:
                 self.config_data = tomllib.load(handle)
+                self.service = None
         except FileNotFoundError:
-            self.console.print(
-                f"[red]設定ファイルが見つかりません: {self.config_path}[/red]"
-            )
+            if not self._config_warning_emitted:
+                self.console.print(
+                    f"[yellow]設定ファイルが見つかりません: {self.config_path}[/yellow]"
+                )
+                self._config_warning_emitted = True
+            self.config_data = {}
+            self.service = None
         except tomllib.TOMLDecodeError as exc:
-            self.console.print(
-                f"[red]設定ファイルの読み込みに失敗しました: {exc}[/red]"
-            )
+            if not self._config_warning_emitted:
+                self.console.print(
+                    f"[red]設定ファイルの読み込みに失敗しました: {exc}[/red]"
+                )
+                self._config_warning_emitted = True
+            self.config_data = {}
+            self.service = None
 
 
 def _parse_env_assignments(assignments: Iterable[str]) -> Dict[str, str]:
@@ -434,20 +460,23 @@ def simulate(
 
     config_env = context.config_data.get("environment")
     if isinstance(config_env, dict):
-        for key, value in config_env.items():
-            env_overrides[str(key)] = str(value)
+        typed_env = cast(Dict[str, Any], config_env)
+        env_overrides.update(
+            {str(key): str(value) for key, value in typed_env.items()}
+        )
 
-    simulator_config = context.config_data.get("simulator", {})
+    simulator_config = context.config_data.get("simulator")
     if isinstance(simulator_config, dict):
-        default_event = simulator_config.get("default_event")
-        if default_event and not event_name:
-            env_overrides.setdefault("GITHUB_EVENT_NAME", str(default_event))
-        default_ref = simulator_config.get("default_ref")
-        if default_ref and not git_ref:
-            env_overrides.setdefault("GITHUB_REF", str(default_ref))
-        default_actor = simulator_config.get("default_actor")
-        if default_actor and not actor:
-            env_overrides.setdefault("GITHUB_ACTOR", str(default_actor))
+        typed_simulator = cast(Dict[str, Any], simulator_config)
+        default_event = typed_simulator.get("default_event")
+        if isinstance(default_event, str) and not event_name:
+            env_overrides.setdefault("GITHUB_EVENT_NAME", default_event)
+        default_ref = typed_simulator.get("default_ref")
+        if isinstance(default_ref, str) and not git_ref:
+            env_overrides.setdefault("GITHUB_REF", default_ref)
+        default_actor = typed_simulator.get("default_actor")
+        if isinstance(default_actor, str) and not actor:
+            env_overrides.setdefault("GITHUB_ACTOR", default_actor)
 
     if event_name:
         env_overrides["GITHUB_EVENT_NAME"] = event_name
@@ -461,7 +490,7 @@ def simulate(
 
     env_vars = env_overrides or None
     env_file_path = env_file
-    service = context.service or SimulationService()
+    service = context.service or SimulationService(config=context.config_data)
     context.service = service
 
     results: List[tuple[Path, SimulationResult]] = []
