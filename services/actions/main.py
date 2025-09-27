@@ -561,6 +561,16 @@ def cli(
     type=click.Path(dir_okay=False, path_type=Path),
     help="サマリーを保存するファイルパス",
 )
+@click.option(
+    "--enhanced",
+    is_flag=True,
+    help="改良されたActWrapperを使用（診断機能とデッドロック検出付き）",
+)
+@click.option(
+    "--diagnose",
+    is_flag=True,
+    help="実行前にシステム診断を実行",
+)
 @click.pass_context
 def simulate(
     ctx: click.Context,
@@ -578,6 +588,8 @@ def simulate(
     fail_fast: bool,
     output_format: str,
     output_file: Path | None,
+    enhanced: bool,
+    diagnose: bool,
 ) -> None:
     """ワークフローを実行するサブコマンド"""
 
@@ -630,7 +642,11 @@ def simulate(
 
     env_vars = env_overrides or None
     env_file_path = env_file
-    service = context.service or SimulationService(config=context.config_data)
+    service = context.service or SimulationService(
+        config=context.config_data,
+        use_enhanced_wrapper=enhanced,
+        enable_diagnostics=diagnose,
+    )
     context.service = service
 
     run_id = generate_run_id()

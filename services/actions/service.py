@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 from .act_wrapper import ActWrapper
+from .enhanced_act_wrapper import EnhancedActWrapper
+from .diagnostic import DiagnosticService
 from .logger import ActionsLogger
 from .execution_tracer import ExecutionTracer
 
@@ -49,12 +51,16 @@ class SimulationService:
         logger_factory: Callable[[bool], ActionsLogger] | None = None,
         config: Mapping[str, Any] | None = None,
         execution_tracer: Optional[ExecutionTracer] = None,
+        use_enhanced_wrapper: bool = False,
+        enable_diagnostics: bool = False,
     ) -> None:
         self._logger_factory: Callable[[bool], ActionsLogger] = (
             logger_factory or self._default_logger_factory
         )
         self._config: dict[str, Any] = dict(config) if config else {}
         self._execution_tracer = execution_tracer
+        self._use_enhanced_wrapper = use_enhanced_wrapper
+        self._enable_diagnostics = enable_diagnostics
 
     @staticmethod
     def _default_logger_factory(verbose: bool) -> ActionsLogger:
@@ -123,17 +129,32 @@ class SimulationService:
         if params.env_vars:
             env_vars = {**(env_vars or {}), **params.env_vars}
 
-        wrapper_factory = ActWrapper
-        try:
-            # ExecutionTracerを作成（まだ存在しない場合）
-            tracer = self._execution_tracer or ExecutionTracer(logger=logger)
+        # ExecutionTracerを作成（まだ存在しない場合）
+        tracer = self._execution_tracer or ExecutionTracer(logger=logger)
 
-            wrapper = wrapper_factory(
-                working_directory=str(workflow_path.parent),
-                config=self._config,
-                logger=logger,
-                execution_tracer=tracer,
-            )
+        # EnhancedActWrapperまたは通常のActWrapperを選択
+        if self._use_enhanced_wrapper:
+            diagnostic_service = DiagnosticService(logger=logger) if self._enable_diagnostics else None
+            wrapper_factory = EnhancedActWrapper
+            wrapper_kwargs = {
+                "working_directory": str(workflow_path.parent),
+                "config": self._config,
+                "logger": logger,
+                "execution_tracer": tracer,
+                "diagnostic_service": diagnostic_service,
+                "enable_diagnostics": self._enable_diagnostics,
+            }
+        else:
+            wrapper_factory = ActWrapper
+            wrapper_kwargs = {
+                "working_directory": str(workflow_path.parent),
+                "config": self._config,
+                "logger": logger,
+                "execution_tracer": tracer,
+            }
+
+        try:
+            wrapper = wrapper_factory(**wrapper_kwargs)
         except TypeError:
             try:
                 wrapper = wrapper_factory(str(workflow_path.parent))
@@ -148,13 +169,65 @@ class SimulationService:
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 
-        result = wrapper.run_workflow(
-            workflow_file=workflow_path.name,
-            job=params.job,
-            dry_run=params.dry_run,
-            verbose=params.verbose,
-            env_vars=env_vars,
-        )
+        # EnhancedActWrapperの場合は診断機能付きメソッドを使用
+        if self._use_enhanced_wrapper and hasattr(wrapper, 'run_workflow_with_diagnostics'):
+            detailed_result = wrapper.run_workflow_with_diagnostics(
+                workflow_file=workflow_path.name,
+                job=params.job,
+                dry_run=params.dry_run,
+                verbose=params.verbose,
+                env_vars=env_vars,
+                pre_execution_diagnostics=self._enable_diagnostics,
+            )
+
+            # DetailedResultをSimulationResultに変換
+            result = {
+                "success": detailed_result.success,
+                "returncode": detailed_result.returncode,
+                "stdout": detailed_result.stdout,
+                "stderr": detailed_result.stderr,
+                "command": detailed_result.command,
+            }
+
+            # 追加の診断情報をメタデータに含める
+            metadata = {
+                "command": detailed_result.command,
+                "execution_time_ms": detailed_result.execution_time_ms,
+                "enhanced_wrapper": True,
+            }
+
+            if detailed_result.diagnostic_results:
+                metadata["diagnostic_results"] = [
+                    {
+                        "component": dr.component,
+                        "status": dr.status.value,
+                        "message": dr.message,
+                    }
+                    for dr in detailed_result.diagnostic_results
+                ]
+
+            if detailed_result.deadlock_indicators:
+                metadata["deadlock_indicators"] = [
+                    {
+                        "type": di.deadlock_type.value,
+                        "severity": di.severity,
+                        "recommendations": di.recommendations,
+                    }
+                    for di in detailed_result.deadlock_indicators
+                ]
+
+            if detailed_result.hang_analysis:
+                metadata["hang_analysis"] = detailed_result.hang_analysis
+        else:
+            # 通常のActWrapperを使用
+            result = wrapper.run_workflow(
+                workflow_file=workflow_path.name,
+                job=params.job,
+                dry_run=params.dry_run,
+                verbose=params.verbose,
+                env_vars=env_vars,
+            )
+            metadata = {"command": result.get("command"), "enhanced_wrapper": False}
 
         success = bool(result.get("success"))
         return_code = int(result.get("returncode", 1))
@@ -172,7 +245,7 @@ class SimulationService:
             engine="act",
             stdout=stdout,
             stderr=stderr,
-            metadata={"command": result.get("command")},
+            metadata=metadata,
         )
 
 
