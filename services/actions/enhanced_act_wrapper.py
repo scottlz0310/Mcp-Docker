@@ -25,6 +25,12 @@ from .execution_tracer import ExecutionTracer, ExecutionStage
 from .hangup_detector import HangupDetector, HangupAnalysis, ErrorReport, DebugBundle
 from .logger import ActionsLogger
 
+# パフォーマンス監視のインポート
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
+from performance_monitor import PerformanceMonitor
+
 
 class DeadlockType(Enum):
     """デッドロックの種類"""
@@ -76,6 +82,9 @@ class DetailedResult:
     process_monitoring_data: Dict[str, Any] = field(default_factory=dict)
     hang_analysis: Optional[HangupAnalysis] = None
     error_report: Optional[ErrorReport] = None
+    performance_metrics: Optional[Dict[str, Any]] = None
+    bottlenecks_detected: List[Dict[str, Any]] = field(default_factory=list)
+    optimization_opportunities: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class ProcessMonitor:
@@ -790,8 +799,10 @@ class EnhancedActWrapper(ActWrapper):
         execution_tracer: Optional[ExecutionTracer] = None,
         diagnostic_service: Optional[DiagnosticService] = None,
         enable_diagnostics: bool = True,
+        enable_performance_monitoring: bool = True,
         deadlock_detection_interval: float = 10.0,
-        activity_timeout: float = 60.0
+        activity_timeout: float = 60.0,
+        performance_monitoring_interval: float = 0.5
     ) -> None:
         """
         EnhancedActWrapperを初期化
@@ -803,8 +814,10 @@ class EnhancedActWrapper(ActWrapper):
             execution_tracer: 実行トレーサー
             diagnostic_service: 診断サービス
             enable_diagnostics: 診断機能を有効にするかどうか
+            enable_performance_monitoring: パフォーマンス監視を有効にするかどうか
             deadlock_detection_interval: デッドロック検出の間隔（秒）
             activity_timeout: アクティビティタイムアウト（秒）
+            performance_monitoring_interval: パフォーマンス監視の間隔（秒）
         """
         super().__init__(
             working_directory=working_directory,
@@ -815,6 +828,14 @@ class EnhancedActWrapper(ActWrapper):
 
         self.diagnostic_service = diagnostic_service or DiagnosticService(logger=self.logger)
         self.enable_diagnostics = enable_diagnostics
+        self.enable_performance_monitoring = enable_performance_monitoring
+
+        # パフォーマンス監視の初期化
+        self.performance_monitor = PerformanceMonitor(
+            logger=self.logger,
+            monitoring_interval=performance_monitoring_interval
+        ) if enable_performance_monitoring else None
+
         self.process_monitor = ProcessMonitor(
             logger=self.logger,
             deadlock_detection_interval=deadlock_detection_interval,
@@ -931,7 +952,10 @@ class EnhancedActWrapper(ActWrapper):
                 diagnostic_results=diagnostic_results,
                 deadlock_indicators=result.get("deadlock_indicators", []),
                 process_monitoring_data=result.get("process_monitoring_data", {}),
-                hang_analysis=result.get("hang_analysis")
+                hang_analysis=result.get("hang_analysis"),
+                performance_metrics=result.get("performance_metrics"),
+                bottlenecks_detected=result.get("bottlenecks_detected", []),
+                optimization_opportunities=result.get("optimization_opportunities", [])
             )
 
         except Exception as e:
@@ -958,7 +982,7 @@ class EnhancedActWrapper(ActWrapper):
         env_vars: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
-        改良された監視機能でワークフローを実行
+        改良された監視機能でワークフローを実行（パフォーマンス監視付き）
 
         Args:
             workflow_file: ワークフローファイル
@@ -982,6 +1006,15 @@ class EnhancedActWrapper(ActWrapper):
                 env_vars=env_vars
             )
 
+        # パフォーマンス監視を開始
+        performance_metrics = None
+        bottlenecks_detected = []
+        optimization_opportunities = []
+
+        if self.performance_monitor:
+            self.performance_monitor.start_monitoring()
+            self.performance_monitor.start_stage("workflow_initialization")
+
         # 実行トレースを開始
         trace_id = f"enhanced_act_workflow_{int(time.time() * 1000)}"
         self.execution_tracer.start_trace(trace_id)
@@ -993,20 +1026,45 @@ class EnhancedActWrapper(ActWrapper):
                 "job": job,
                 "dry_run": dry_run,
                 "verbose": verbose,
-                "enhanced_monitoring": True
+                "enhanced_monitoring": True,
+                "performance_monitoring": self.performance_monitor is not None
             })
 
-            # コマンドを構築
+            # コマンド構築段階
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.start_stage("command_building")
+
             cmd = self._build_command(workflow_file, event, job, dry_run, verbose, env_vars)
             process_env = self._build_process_env(event, env_vars)
 
             self.logger.info(f"改良されたactコマンド実行: {' '.join(cmd)}")
 
+            # プロセス作成段階
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.start_stage("subprocess_creation")
+
             # 安全なサブプロセス作成
             monitored_process = self._create_monitored_subprocess(cmd, process_env)
 
+            # Docker操作を記録
+            if self.performance_monitor:
+                self.performance_monitor.record_docker_operation("subprocess_creation",
+                                                               str(monitored_process.process.pid))
+
+            # 出力ストリーミング段階
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.start_stage("output_streaming")
+
             # 出力ストリーミングを安全に処理
             self._handle_output_streaming_safely(monitored_process)
+
+            # プロセス監視段階
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.start_stage("process_monitoring")
 
             # プロセス監視とタイムアウト処理
             timed_out, deadlock_indicators = self.process_monitor.monitor_with_heartbeat(
@@ -1016,6 +1074,17 @@ class EnhancedActWrapper(ActWrapper):
             # タイムアウト時の処理
             if timed_out:
                 self.logger.error("プロセス実行がタイムアウトまたはデッドロックしました")
+
+                # パフォーマンス監視を停止して分析
+                if self.performance_monitor:
+                    self.performance_monitor.end_stage()
+                    self.performance_monitor.stop_monitoring()
+
+                    detailed_analysis = self.performance_monitor.get_detailed_analysis()
+                    performance_metrics = detailed_analysis["performance_summary"]
+                    bottlenecks_detected = detailed_analysis["bottlenecks"]
+                    optimization_opportunities = detailed_analysis["optimization_opportunities"]
+
                 self.process_monitor.force_cleanup_on_timeout(monitored_process)
 
                 # ハングアップ分析
@@ -1042,11 +1111,19 @@ class EnhancedActWrapper(ActWrapper):
                     "deadlock_indicators": deadlock_indicators,
                     "hang_analysis": hang_analysis,
                     "error_report": error_report,
+                    "performance_metrics": performance_metrics,
+                    "bottlenecks_detected": bottlenecks_detected,
+                    "optimization_opportunities": optimization_opportunities,
                     "process_monitoring_data": {
                         "force_killed": monitored_process.force_killed,
                         "execution_time": time.time() - monitored_process.start_time
                     }
                 }
+
+            # 完了段階
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.start_stage("completion_processing")
 
             # 正常終了の処理
             return_code = monitored_process.process.returncode or 0
@@ -1059,6 +1136,34 @@ class EnhancedActWrapper(ActWrapper):
             else:
                 self.execution_tracer.set_stage(ExecutionStage.COMPLETED)
 
+            # パフォーマンス監視を停止して分析
+            if self.performance_monitor:
+                self.performance_monitor.end_stage()
+                self.performance_monitor.stop_monitoring()
+
+                detailed_analysis = self.performance_monitor.get_detailed_analysis()
+                performance_metrics = detailed_analysis["performance_summary"]
+                bottlenecks_detected = detailed_analysis["bottlenecks"]
+                optimization_opportunities = detailed_analysis["optimization_opportunities"]
+
+                # パフォーマンス結果をログ出力
+                if self.logger.verbose and performance_metrics:
+                    self.logger.info(f"📊 パフォーマンス監視結果:")
+                    self.logger.info(f"   実行時間: {performance_metrics.get('total_execution_time_ms', 0):.2f}ms")
+                    self.logger.info(f"   ピークCPU: {performance_metrics.get('cpu_usage', {}).get('peak', 0):.1f}%")
+                    self.logger.info(f"   ピークメモリ: {performance_metrics.get('memory_usage', {}).get('peak_mb', 0):.1f}MB")
+                    self.logger.info(f"   Docker操作数: {performance_metrics.get('docker_operations', {}).get('total_count', 0)}")
+
+                    if bottlenecks_detected:
+                        self.logger.warning(f"⚠️  検出されたボトルネック: {len(bottlenecks_detected)}個")
+                        for bottleneck in bottlenecks_detected[:3]:  # 最初の3個のみ表示
+                            self.logger.warning(f"   - {bottleneck['type']}: {bottleneck['description']}")
+
+                    if optimization_opportunities:
+                        self.logger.info(f"💡 最適化機会: {len(optimization_opportunities)}個")
+                        for opportunity in optimization_opportunities[:2]:  # 最初の2個のみ表示
+                            self.logger.info(f"   - {opportunity['title']}: {opportunity['estimated_improvement']}")
+
             return {
                 "success": return_code == 0,
                 "returncode": return_code,
@@ -1066,6 +1171,9 @@ class EnhancedActWrapper(ActWrapper):
                 "stderr": stderr_text,
                 "command": " ".join(cmd),
                 "deadlock_indicators": deadlock_indicators,
+                "performance_metrics": performance_metrics,
+                "bottlenecks_detected": bottlenecks_detected,
+                "optimization_opportunities": optimization_opportunities,
                 "process_monitoring_data": {
                     "force_killed": monitored_process.force_killed,
                     "execution_time": time.time() - monitored_process.start_time
@@ -1073,6 +1181,10 @@ class EnhancedActWrapper(ActWrapper):
             }
 
         finally:
+            # パフォーマンス監視が残っている場合は停止
+            if self.performance_monitor and self.performance_monitor.is_monitoring():
+                self.performance_monitor.stop_monitoring()
+
             # トレースを終了
             final_trace = self.execution_tracer.end_trace()
             if final_trace and self.logger.verbose:
@@ -1679,3 +1791,185 @@ class EnhancedActWrapper(ActWrapper):
             Dict[str, Any]: 自動復旧統計情報
         """
         return self.auto_recovery.get_recovery_statistics()
+    def export_performance_metrics(
+        self,
+        output_path: Path,
+        format: str = "json",
+        include_raw_data: bool = True
+    ) -> bool:
+        """
+        パフォーマンスメトリクスをファイルにエクスポート
+
+        Args:
+            output_path: 出力ファイルパス
+            format: 出力形式 ("json" のみサポート)
+            include_raw_data: 生データを含めるかどうか
+
+        Returns:
+            bool: エクスポート成功時True
+        """
+        if not self.performance_monitor:
+            self.logger.warning("パフォーマンス監視が無効のため、エクスポートできません")
+            return False
+
+        try:
+            return self.performance_monitor.export_metrics(
+                output_path=output_path,
+                format=format
+            )
+        except Exception as e:
+            self.logger.error(f"パフォーマンスメトリクスエクスポートエラー: {e}")
+            return False
+
+    def get_performance_summary(self) -> Optional[Dict[str, Any]]:
+        """
+        パフォーマンスサマリーを取得
+
+        Returns:
+            Optional[Dict[str, Any]]: パフォーマンスサマリー（監視が無効の場合はNone）
+        """
+        if not self.performance_monitor:
+            return None
+
+        try:
+            return self.performance_monitor.get_performance_summary()
+        except Exception as e:
+            self.logger.error(f"パフォーマンスサマリー取得エラー: {e}")
+            return None
+
+    def get_bottleneck_analysis(self) -> List[Dict[str, Any]]:
+        """
+        ボトルネック分析結果を取得
+
+        Returns:
+            List[Dict[str, Any]]: ボトルネック分析結果のリスト
+        """
+        if not self.performance_monitor:
+            return []
+
+        try:
+            detailed_analysis = self.performance_monitor.get_detailed_analysis()
+            return detailed_analysis.get("bottlenecks", [])
+        except Exception as e:
+            self.logger.error(f"ボトルネック分析取得エラー: {e}")
+            return []
+
+    def get_optimization_opportunities(self) -> List[Dict[str, Any]]:
+        """
+        最適化機会を取得
+
+        Returns:
+            List[Dict[str, Any]]: 最適化機会のリスト
+        """
+        if not self.performance_monitor:
+            return []
+
+        try:
+            detailed_analysis = self.performance_monitor.get_detailed_analysis()
+            return detailed_analysis.get("optimization_opportunities", [])
+        except Exception as e:
+            self.logger.error(f"最適化機会取得エラー: {e}")
+            return []
+
+    def analyze_performance_trends(self, historical_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        パフォーマンストレンドを分析
+
+        Args:
+            historical_data: 過去のパフォーマンスデータのリスト
+
+        Returns:
+            Dict[str, Any]: トレンド分析結果
+        """
+        if not historical_data:
+            return {"error": "履歴データがありません"}
+
+        try:
+            # 実行時間のトレンド
+            execution_times = [
+                data.get("performance_summary", {}).get("total_execution_time_ms", 0)
+                for data in historical_data
+                if data.get("performance_summary")
+            ]
+
+            # CPU使用率のトレンド
+            cpu_peaks = [
+                data.get("performance_summary", {}).get("cpu_usage", {}).get("peak", 0)
+                for data in historical_data
+                if data.get("performance_summary", {}).get("cpu_usage")
+            ]
+
+            # メモリ使用量のトレンド
+            memory_peaks = [
+                data.get("performance_summary", {}).get("memory_usage", {}).get("peak_mb", 0)
+                for data in historical_data
+                if data.get("performance_summary", {}).get("memory_usage")
+            ]
+
+            # Docker操作数のトレンド
+            docker_ops = [
+                data.get("performance_summary", {}).get("docker_operations", {}).get("total_count", 0)
+                for data in historical_data
+                if data.get("performance_summary", {}).get("docker_operations")
+            ]
+
+            import statistics
+
+            trend_analysis = {
+                "data_points": len(historical_data),
+                "execution_time_trend": {
+                    "average_ms": statistics.mean(execution_times) if execution_times else 0,
+                    "median_ms": statistics.median(execution_times) if execution_times else 0,
+                    "min_ms": min(execution_times) if execution_times else 0,
+                    "max_ms": max(execution_times) if execution_times else 0,
+                    "trend": "improving" if len(execution_times) >= 2 and execution_times[-1] < execution_times[0] else "stable"
+                },
+                "cpu_usage_trend": {
+                    "average_percent": statistics.mean(cpu_peaks) if cpu_peaks else 0,
+                    "peak_percent": max(cpu_peaks) if cpu_peaks else 0,
+                    "trend": "stable"
+                },
+                "memory_usage_trend": {
+                    "average_mb": statistics.mean(memory_peaks) if memory_peaks else 0,
+                    "peak_mb": max(memory_peaks) if memory_peaks else 0,
+                    "trend": "stable"
+                },
+                "docker_operations_trend": {
+                    "average_count": statistics.mean(docker_ops) if docker_ops else 0,
+                    "max_count": max(docker_ops) if docker_ops else 0,
+                    "trend": "stable"
+                }
+            }
+
+            # トレンドの判定
+            if len(execution_times) >= 3:
+                recent_avg = statistics.mean(execution_times[-3:])
+                older_avg = statistics.mean(execution_times[:-3]) if len(execution_times) > 3 else execution_times[0]
+
+                if recent_avg < older_avg * 0.9:
+                    trend_analysis["execution_time_trend"]["trend"] = "improving"
+                elif recent_avg > older_avg * 1.1:
+                    trend_analysis["execution_time_trend"]["trend"] = "degrading"
+
+            # 推奨事項の生成
+            recommendations = []
+
+            if trend_analysis["execution_time_trend"]["trend"] == "degrading":
+                recommendations.append("実行時間が悪化傾向にあります。ボトルネック分析を実行してください")
+
+            if trend_analysis["cpu_usage_trend"]["average_percent"] > 80:
+                recommendations.append("CPU使用率が継続的に高いです。並列処理の最適化を検討してください")
+
+            if trend_analysis["memory_usage_trend"]["average_mb"] > 1000:
+                recommendations.append("メモリ使用量が多いです。メモリ効率の改善を検討してください")
+
+            if trend_analysis["docker_operations_trend"]["average_count"] > 100:
+                recommendations.append("Docker操作が多いです。操作の最適化を検討してください")
+
+            trend_analysis["recommendations"] = recommendations
+
+            return trend_analysis
+
+        except Exception as e:
+            self.logger.error(f"パフォーマンストレンド分析エラー: {e}")
+            return {"error": str(e)}

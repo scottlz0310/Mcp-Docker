@@ -53,6 +53,7 @@ class SimulationService:
         execution_tracer: Optional[ExecutionTracer] = None,
         use_enhanced_wrapper: bool = False,
         enable_diagnostics: bool = False,
+        enable_performance_monitoring: bool = False,
     ) -> None:
         self._logger_factory: Callable[[bool], ActionsLogger] = (
             logger_factory or self._default_logger_factory
@@ -61,6 +62,7 @@ class SimulationService:
         self._execution_tracer = execution_tracer
         self._use_enhanced_wrapper = use_enhanced_wrapper
         self._enable_diagnostics = enable_diagnostics
+        self._enable_performance_monitoring = enable_performance_monitoring
 
     @staticmethod
     def _default_logger_factory(verbose: bool) -> ActionsLogger:
@@ -143,6 +145,7 @@ class SimulationService:
                 "execution_tracer": tracer,
                 "diagnostic_service": diagnostic_service,
                 "enable_diagnostics": self._enable_diagnostics,
+                "enable_performance_monitoring": self._enable_performance_monitoring,
             }
         else:
             wrapper_factory = ActWrapper
@@ -218,6 +221,16 @@ class SimulationService:
 
             if detailed_result.hang_analysis:
                 metadata["hang_analysis"] = detailed_result.hang_analysis
+
+            # パフォーマンスメトリクスをメタデータに追加
+            if detailed_result.performance_metrics:
+                metadata["performance_metrics"] = detailed_result.performance_metrics
+
+            if detailed_result.bottlenecks_detected:
+                metadata["bottlenecks_detected"] = detailed_result.bottlenecks_detected
+
+            if detailed_result.optimization_opportunities:
+                metadata["optimization_opportunities"] = detailed_result.optimization_opportunities
         else:
             # 通常のActWrapperを使用
             result = wrapper.run_workflow(
