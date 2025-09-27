@@ -35,9 +35,9 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 
 ### フェーズB: 品質ゲートと自動化 (1 週間)
 
-- B1. pre-commit で `uv run pytest`, `uv run bats`, MegaLinter チェック (Ruff/ShellCheck/Hadolint/Yamllint) を段階的に走らせる。
-- B2. 軽量セキュリティ (Trivy または Grype) をオプションで追加し、CI での実行時間を 3 分以内に抑える。
-- B3. 成果物・ログを `output/` に集約し、最小限の JSON サマリーを CLI から確認できるようにする。
+- ✅ **B1.** pre-commit 経由で `uv run pytest` / `uv run bats` / MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) を統合。（`scripts/run_bats.py` と `.pre-commit-config.yaml` 更新済み）
+- ✅ **B2.** 軽量 Trivy スキャンを `uv run security-scan` に集約し、`Makefile` の `security` ターゲットからオプション実行可能にした（デフォルト 3 分以内、結果は `output/security/trivy` に保存）。
+- ✅ **B3.** 実行ログと JSON サマリーを `output/actions` に保存し、CLI `actions summary` コマンドで最新結果を閲覧可能にした。
 
 ### フェーズC: 配布・体験強化 (1 週間)
 
@@ -54,7 +54,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 | T3 | ExpressionEvaluator / CLI UX 改善 | ✅ | Click/Rich CLI と JSON サマリーを実装 |
 | T4 | act ランナー最適化 | ✅ | `Dockerfile.actions` + act キャッシュボリューム + uv ベースインストール |
 | T5 | 1 コマンド起動 (`make actions`/ スクリプト) の統一 | ✅ | `scripts/run-actions.sh` と Makefile/compose の統合済み |
-| T6 | pre-commit & quality gate 導入 | 🔄 | lint / test / セキュリティスキャンを軽量構成で追加 |
+| T6 | pre-commit & quality gate 導入 | ✅ | lint / test / セキュリティ・ログ集約を light-weight に統合 |
 | T7 | ドキュメント刷新 (設計・UI・README) | 🔜 | 旧ロードマップの記述を軽量方針へ更新 |
 | T8 | テンプレート・配布パッケージ整備 | 🔜 | `.env.example`, `.pre-commit-config.yaml`, スクリプト群 |
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, cast
 
@@ -22,6 +23,14 @@ from .service import (
     SimulationServiceError,
 )
 from .workflow_parser import WorkflowParseError, WorkflowParser
+from .output import (
+    ensure_subdir,
+    generate_run_id,
+    load_summary,
+    relative_to_output,
+    save_json_payload,
+    write_log,
+)
 
 
 class CLIContext:
@@ -493,7 +502,10 @@ def simulate(
     service = context.service or SimulationService(config=context.config_data)
     context.service = service
 
-    results: List[tuple[Path, SimulationResult]] = []
+    run_id = generate_run_id()
+    started_at = datetime.now(timezone.utc).isoformat()
+
+    collected_results: List[tuple[Path, SimulationResult, Dict[str, str]]] = []
     for workflow_path in workflow_paths:
         result = run_simulate(
             workflow_file=workflow_path,
@@ -505,43 +517,77 @@ def simulate(
             env_vars=env_vars,
             service=service,
         )
-        results.append((workflow_path, result))
+
+        log_refs: Dict[str, str] = {}
+        if result.stdout:
+            stdout_log = write_log(
+                result.stdout,
+                run_id=run_id,
+                name=workflow_path.stem,
+                channel="stdout",
+            )
+            log_refs["stdout"] = relative_to_output(stdout_log)
+        if result.stderr:
+            stderr_log = write_log(
+                result.stderr,
+                run_id=run_id,
+                name=f"{workflow_path.stem}-err",
+                channel="stderr",
+            )
+            log_refs["stderr"] = relative_to_output(stderr_log)
+
+        collected_results.append((workflow_path, result, log_refs))
         if fail_fast and result.return_code != 0:
             break
 
     skipped: List[Path] = []
-    if len(results) < len(workflow_paths):
-        skipped = workflow_paths[len(results):]
+    if len(collected_results) < len(workflow_paths):
+        skipped = workflow_paths[len(collected_results):]
 
-    summary_rows: List[Dict[str, object]] = [
-        {
+    summary_rows: List[Dict[str, object]] = []
+    for path, res, log_refs in collected_results:
+        entry: Dict[str, object] = {
             "workflow": str(path),
             "engine": res.engine,
             "status": "success" if res.success else "failed",
             "return_code": res.return_code,
         }
-        for path, res in results
-    ]
-    summary_rows.extend(
-        {
-            "workflow": str(path),
-            "engine": "act",
-            "status": "skipped",
-            "return_code": None,
-        }
-        for path in skipped
-    )
+        if log_refs:
+            entry["logs"] = log_refs
+        if res.metadata:
+            entry["metadata"] = res.metadata
+        summary_rows.append(entry)
+
+    for path in skipped:
+        summary_rows.append(
+            {
+                "workflow": str(path),
+                "engine": "act",
+                "status": "skipped",
+                "return_code": None,
+            }
+        )
 
     successful = all(
         row["status"] == "success"
         for row in summary_rows
         if row["status"] != "skipped"
     )
-    summary_payload = {
+
+    summary_payload: Dict[str, Any] = {
+        "run_id": run_id,
+        "generated_at": started_at,
         "results": summary_rows,
         "success": successful,
         "fail_fast_triggered": bool(skipped),
+        "skipped": [str(path) for path in skipped],
     }
+    artifact_path = ensure_subdir("summaries") / f"{run_id}.json"
+    summary_payload["artifact"] = relative_to_output(artifact_path)
+
+    save_json_payload(summary_payload, run_id=run_id)
+
+    summary_reference = str(summary_payload.get("artifact", ""))
 
     if output_format.lower() == "json":
         if output_file:
@@ -558,6 +604,7 @@ def simulate(
             table.add_column("Engine", style="magenta")
             table.add_column("Status", style="green")
             table.add_column("Exit Code", style="yellow")
+            table.add_column("Logs", style="blue")
             for row in summary_rows:
                 status = str(row["status"])
                 status_style = {
@@ -566,17 +613,32 @@ def simulate(
                     "skipped": "yellow",
                 }.get(status, "white")
                 return_code = row.get("return_code")
+                log_links = ""
+                logs = row.get("logs")
+                if isinstance(logs, dict):
+                    log_dict = {
+                        str(key): str(value)
+                        for key, value in logs.items()
+                    }
+                    log_links = ", ".join(
+                        f"{key}:{value}" for key, value in log_dict.items()
+                    )
                 table.add_row(
                     str(row["workflow"]),
                     str(row.get("engine", "")),
                     f"[{status_style}]{status}[/]",
                     "" if return_code is None else str(return_code),
+                    log_links,
                 )
             console.print(table)
             if skipped:
                 console.print(
                     "[yellow]fail-fast により {count} 件のワークフローがスキップ"
                     "されました。[/yellow]".format(count=len(skipped))
+                )
+            if summary_reference:
+                console.print(
+                    f"[dim]Summary artifact: {summary_reference}[/dim]",
                 )
         if output_file:
             output_file.write_text(
@@ -586,6 +648,95 @@ def simulate(
 
     exit_code = 0 if successful else 1
     raise SystemExit(exit_code)
+
+
+@cli.command(name="summary", short_help="保存済みサマリーを表示")
+@click.option(
+    "--file",
+    "summary_file",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="表示するサマリーファイルを指定",
+)
+@click.option(
+    "--format",
+    "summary_format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    show_default=True,
+    help="表示形式を選択",
+)
+@click.pass_context
+def show_summary(
+    ctx: click.Context,
+    summary_file: Path | None,
+    summary_format: str,
+) -> None:
+    """保存済みのシミュレーションサマリーを表示する。"""
+
+    context = _build_context(ctx)
+    console = context.console
+
+    target_path: Path | None = summary_file
+    if target_path is not None:
+        target_path = target_path.resolve()
+
+    try:
+        summary_path, payload = load_summary(target_path)
+    except FileNotFoundError:
+        console.print("[red]保存されたサマリーが見つかりません。[/red]")
+        raise SystemExit(1)
+
+    if summary_format.lower() == "json":
+        console.print_json(data=payload)
+        raise SystemExit(0)
+
+    console.print(Rule("Stored Simulation Summary"))
+    run_id = payload.get("run_id", "-")
+    success_flag = bool(payload.get("success"))
+    status_icon = "✅" if success_flag else "❌"
+    console.print(f"{status_icon} run_id={run_id} success={success_flag}")
+    table = Table(show_lines=True)
+    table.add_column("Workflow", style="cyan")
+    table.add_column("Engine", style="magenta")
+    table.add_column("Status", style="green")
+    table.add_column("Exit", style="yellow")
+    table.add_column("Logs", style="blue")
+
+    results_data = payload.get("results", [])
+    if isinstance(results_data, list):
+        for entry in results_data:
+            if not isinstance(entry, dict):
+                continue
+            status = str(entry.get("status", "unknown"))
+            status_style = {
+                "success": "green",
+                "failed": "red",
+                "skipped": "yellow",
+            }.get(status, "white")
+            return_code = entry.get("return_code")
+            logs_obj = entry.get("logs")
+            log_pairs = ""
+            if isinstance(logs_obj, dict):
+                log_pairs = ", ".join(
+                    f"{str(key)}:{str(value)}"
+                    for key, value in logs_obj.items()
+                )
+            table.add_row(
+                str(entry.get("workflow", "")),
+                str(entry.get("engine", "")),
+                f"[{status_style}]{status}[/]",
+                "" if return_code is None else str(return_code),
+                log_pairs,
+            )
+
+    console.print(table)
+    artifact = payload.get("artifact")
+    if isinstance(artifact, str) and artifact:
+        formatted = relative_to_output(Path(summary_path))
+        console.print(f"[dim]Summary file: {formatted}[/dim]")
+    else:
+        console.print(f"[dim]Summary file: {summary_path}[/dim]")
+    raise SystemExit(0)
 
 
 @cli.command(short_help="ワークフローの構文をチェック")

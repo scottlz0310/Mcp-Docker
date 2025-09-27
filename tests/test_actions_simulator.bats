@@ -17,6 +17,7 @@ load 'test_helper'
 setup() {
     # プロジェクトルートの設定
     export PROJECT_ROOT="/home/hiro/workspace/Mcp-Docker"
+  export ACTIONS_SIMULATOR_ENGINE="mock"
 
     # テスト用の一時ワークスペース作成
     export TEST_WORKSPACE="/tmp/mcp_actions_test_$$"

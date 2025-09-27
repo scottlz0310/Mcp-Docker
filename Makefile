@@ -292,8 +292,8 @@ test-all:
 
 security:
 	@echo "🔒 セキュリティスキャン実行"
-	docker build -t mcp-docker:latest . || (echo "❌ Build失敗"; exit 1)
-	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image mcp-docker:latest
+	uv run security-scan $(if $(IMAGE),--image $(IMAGE),) $(if $(FAIL_ON),--fail-on $(FAIL_ON),) $(if $(SKIP_BUILD),--skip-build,) $(if $(SEVERITY),--severity $(SEVERITY),)
+	@echo "✅ セキュリティサマリーは output/security/trivy に保存されました"
 
 lint:
 	@echo "🧹 Running MegaLinter (Docker)..."

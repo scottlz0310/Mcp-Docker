@@ -9,11 +9,17 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional, cast
 
 from .logger import ActionsLogger
+
+try:
+    import yaml  # type: ignore[import-untyped]
+except ModuleNotFoundError as exc:  # pragma: no cover - defensive
+    raise RuntimeError("PyYAML がインストールされていません") from exc
 
 
 @dataclass(frozen=True)
@@ -100,7 +106,26 @@ class ActWrapper:
             )
         self.logger = logger or ActionsLogger(verbose=False)
         self.settings = ActRunnerSettings.from_mapping(config)
-        self.act_binary = self._find_act_binary()
+        engine_name = os.getenv("ACTIONS_SIMULATOR_ENGINE", "act").strip()
+        self._engine = engine_name.lower() or "act"
+        self._mock_mode = self._engine in {"mock", "stub", "fake", "noop"}
+        mock_delay = os.getenv("ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS")
+        try:
+            self._mock_delay_seconds = (
+                max(0.0, float(mock_delay))
+                if mock_delay
+                else 0.0
+            )
+        except ValueError:
+            self._mock_delay_seconds = 0.0
+
+        if self._mock_mode:
+            self.act_binary = "mock-act"
+            self.logger.debug(
+                f"ACTIONS_SIMULATOR_ENGINE={engine_name} のためモックモードで実行します",
+            )
+        else:
+            self.act_binary = self._find_act_binary()
 
     def _find_act_binary(self) -> str:
         """Locate the act binary in the current environment."""
@@ -203,6 +228,15 @@ class ActWrapper:
     ) -> Dict[str, Any]:
         """Execute a workflow through act and return structured output."""
 
+        if self._mock_mode:
+            return self._run_mock_workflow(
+                workflow_file=workflow_file,
+                job=job,
+                dry_run=dry_run,
+                verbose=verbose,
+                env_vars=env_vars,
+            )
+
         cmd: list[str] = [self.act_binary]
         cmd.extend(self._compose_runner_flags())
 
@@ -262,6 +296,128 @@ class ActWrapper:
             "stdout": result.stdout,
             "stderr": result.stderr,
             "command": " ".join(cmd),
+        }
+
+    def _run_mock_workflow(
+        self,
+        *,
+        workflow_file: Optional[str],
+        job: Optional[str],
+        dry_run: bool,
+        verbose: bool,
+        env_vars: Optional[Dict[str, str]],
+    ) -> Dict[str, Any]:
+        workflow_name = workflow_file or "workflow.yml"
+        workflow_path = (self.working_directory / workflow_name).resolve()
+
+        if not workflow_path.exists():
+            message = f"ワークフローファイルが見つかりません: {workflow_path}"
+            self.logger.error(message)
+            return {
+                "success": False,
+                "returncode": 1,
+                "stdout": "",
+                "stderr": message,
+                "command": f"mock-act -W {workflow_name}",
+            }
+
+        try:
+            with workflow_path.open("r", encoding="utf-8") as handle:
+                workflow_raw = yaml.safe_load(handle) or {}
+        except (
+            OSError,
+            yaml.YAMLError,
+        ) as exc:  # pragma: no cover - defensive
+            message = f"ワークフローファイルの読み込みに失敗しました: {exc}"
+            self.logger.error(message)
+            return {
+                "success": False,
+                "returncode": 1,
+                "stdout": "",
+                "stderr": message,
+                "command": f"mock-act -W {workflow_name}",
+            }
+
+        workflow_data: dict[str, Any] = {}
+        if isinstance(workflow_raw, Mapping):
+            workflow_map = cast(Mapping[Any, Any], workflow_raw)
+            for key, value in workflow_map.items():
+                workflow_data[str(key)] = value
+
+        jobs_data: dict[str, dict[str, Any]] = {}
+        jobs_raw = workflow_data.get("jobs")
+        if isinstance(jobs_raw, Mapping):
+            jobs_map = cast(Mapping[Any, Any], jobs_raw)
+            for job_key, job_value in jobs_map.items():
+                job_id_str = str(job_key)
+                if isinstance(job_value, Mapping):
+                    job_details_map = cast(Mapping[Any, Any], job_value)
+                    jobs_data[job_id_str] = {
+                        str(step_key): step_value
+                        for step_key, step_value in job_details_map.items()
+                    }
+                else:
+                    jobs_data[job_id_str] = {}
+
+        if job and job not in jobs_data:
+            message = "指定されたジョブが見つかりません"
+            self.logger.error(message)
+            return {
+                "success": False,
+                "returncode": 1,
+                "stdout": "",
+                "stderr": message,
+                "command": f"mock-act -W {workflow_name} -j {job}",
+            }
+
+        selected_jobs: list[tuple[str, dict[str, Any]]] = []
+        if job:
+            selected_jobs.append((job, jobs_data.get(job, {})))
+        else:
+            selected_jobs.extend(jobs_data.items())
+
+        if self._mock_delay_seconds:
+            time.sleep(self._mock_delay_seconds)
+
+        workflow_name_raw = workflow_data.get("name")
+        workflow_display = (
+            str(workflow_name_raw)
+            if isinstance(workflow_name_raw, str)
+            else workflow_name
+        )
+        lines: list[str] = []
+        if dry_run:
+            lines.append(f"ドライラン実行: {workflow_display}")
+        else:
+            lines.append(f"シミュレーション実行: {workflow_display}")
+
+        if selected_jobs:
+            for job_id, job_def in selected_jobs:
+                job_title_raw = job_def.get("name")
+                display_name = (
+                    str(job_title_raw)
+                    if isinstance(job_title_raw, str)
+                    else job_id
+                )
+                lines.append(f"ジョブ: {display_name}")
+                if verbose:
+                    lines.append(f"  - job_id={job_id}")
+        else:
+            lines.append("ジョブが定義されていません")
+
+        if env_vars:
+            lines.append("環境変数:")
+            for key, value in sorted(env_vars.items()):
+                lines.append(f"  - {key}={value}")
+
+        stdout_text = "\n".join(lines) + "\n"
+
+        return {
+            "success": True,
+            "returncode": 0,
+            "stdout": stdout_text,
+            "stderr": "",
+            "command": f"mock-act -W {workflow_name}",
         }
 
     def validate_workflow(self, workflow_file: str) -> Dict[str, Any]:

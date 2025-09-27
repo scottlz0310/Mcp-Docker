@@ -25,6 +25,7 @@ uv run python main.py actions <command> [options] <workflow>...
 - `simulate`: act を用いてワークフローを再現。
 - `validate`: Workflow Parser による YAML 検証。
 - `list-jobs`: ジョブ一覧を表示。
+- `summary`: `output/actions/summaries` に保存された最新サマリーを表示。
 
 ### 主要オプション
 
@@ -94,8 +95,9 @@ WORKFLOW=.github/workflows/ci.yml JSON=1 make actions
 | 失敗 | ❌ 赤色のジョブ名と失敗ステップ | `{"success": false, "failed_job": ...}` |
 | ドライラン | 📝 プランのみ | `{"success": true, "dry_run": true}` |
 
-- JSON ファイルは `output/simulation-YYYYMMDD-HHMM.json` に保存。
-- act の生ログを `output/act.log` に追記。
+- JSON ファイルは `output/actions/summaries/<run_id>.json` と `latest.json` に保存。
+- ワークフローごとの stdout/stderr ログは `output/actions/logs/{stdout,stderr}/` に保存。
+- Bats / セキュリティレポートは `output/actions/quality`・`output/security/trivy` に整理。
 
 ## pre-commit & CI からの利用
 
@@ -103,6 +105,7 @@ WORKFLOW=.github/workflows/ci.yml JSON=1 make actions
 | --- | --- | --- |
 | pre-commit | `uv run pytest`, `uv run bats`, MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) | 差分対象のみ実行 |
 | optional | `make actions WORKFLOW=.github/workflows/ci.yml` | 大きな変更時に手動で実行 |
+| security (選択) | `uv run security-scan --skip-build` | `output/security/trivy` に JSON サマリーを保存 |
 | CI | `make lint`, `make test`, `make actions WORKFLOW=... JSON=1` | 同じコマンドで再利用 |
 
 ## エラーハンドリング UX

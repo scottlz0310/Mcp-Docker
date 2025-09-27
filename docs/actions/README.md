@@ -34,9 +34,14 @@
 make actions
 # もしくは
 ./scripts/run-actions.sh .github/workflows/ci.yml
+# 最新サマリーの確認
+uv run python main.py actions summary
+# 軽量セキュリティスキャン
+uv run security-scan --skip-build
 ```
 
 ## 📝 更新履歴
 
+- **2025-09-27**: Phase B 施策を反映（pre-commit 品質ゲート / セキュリティスキャン / サマリー閲覧コマンドを追加）
 - **2025-09-26**: 軽量 act 方針に合わせて目次を刷新
 - **2025-09-25**: 旧ロードマップ向けドキュメントを追加

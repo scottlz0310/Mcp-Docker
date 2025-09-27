@@ -70,9 +70,9 @@ uv run python main.py actions simulate .github/workflows/ci.yml --json
 
 ## 🔒 品質とセキュリティ
 
-- pre-commit フックで lint/test を自動実行。
-- Trivy/Grype をオプションとして `make security` で呼び出し。
-- act キャッシュとログは `output/` および `/opt/act/cache` に整理。
+- pre-commit フックで `uv run pytest` / `uv run bats` / MegaLinter を自動実行。
+- 軽量 Trivy スキャンを `uv run security-scan` で呼び出し、JSON サマリーを `output/security/trivy` に保存。
+- act 実行ログとサマリーを `output/actions/logs` / `output/actions/summaries` に整理し、`actions summary` コマンドで閲覧可能。
 
 ## 📊 成功指標
 

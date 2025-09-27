@@ -24,3 +24,22 @@ repos:
     hooks:
       - id: yamllint
         args: [-c, .yamllint.yml]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: local
+    hooks:
+      - id: uv-pytest
+        name: pytest via uv
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+      - id: uv-bats
+        name: bats test suite via uv
+        entry: uv run bats
+        language: system
+        pass_filenames: false

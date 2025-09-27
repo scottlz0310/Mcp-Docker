@@ -32,6 +32,7 @@ classifiers = [
 dev = [
     "pre-commit>=4.3.0",
     "yamllint>=1.37.1",
+    "ruff>=0.6.9",
 ]
 test = [
     "pytest>=7.4.0",
@@ -45,6 +46,10 @@ Homepage = "https://github.com/scottlz0310/mcp-docker"
 Repository = "https://github.com/scottlz0310/mcp-docker"
 Issues = "https://github.com/scottlz0310/mcp-docker/issues"
 Changelog = "https://github.com/scottlz0310/mcp-docker/blob/main/CHANGELOG.md"
+
+[project.scripts]
+bats = "scripts.run_bats:main"
+security-scan = "scripts.run_security_scan:main"
 
 [build-system]
 requires = ["hatchling"]
