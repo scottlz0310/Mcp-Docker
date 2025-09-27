@@ -189,6 +189,8 @@ def run_simulate(
     service: SimulationService,
     create_debug_bundle: bool = False,
     debug_bundle_dir: Path | None = None,
+    show_performance_metrics: bool = False,
+    show_execution_trace: bool = False,
 ) -> SimulationResult:
     """ワークフロー実行コマンドの処理"""
 
@@ -208,11 +210,52 @@ def run_simulate(
             capture_output=True,
         )
 
-        # ハングアップ検出とデバッグバンドル作成の処理
+        # 詳細結果の表示処理
         if hasattr(result, 'detailed_result') and result.detailed_result:
             detailed_result = result.detailed_result
 
-            # ハングアップが検出された場合
+            # 診断結果の表示
+            if hasattr(detailed_result, 'diagnostic_results') and detailed_result.diagnostic_results:
+                console.print("\n[cyan]📋 診断結果:[/cyan]")
+                for diag_result in detailed_result.diagnostic_results:
+                    status_icon = {
+                        "OK": "✅",
+                        "WARNING": "⚠️",
+                        "ERROR": "❌"
+                    }.get(diag_result.status.value if hasattr(diag_result.status, 'value') else str(diag_result.status), "❓")
+
+                    console.print(f"  {status_icon} {diag_result.component}: {diag_result.message}")
+
+                    if diag_result.recommendations:
+                        for rec in diag_result.recommendations[:2]:  # 最初の2つの推奨事項のみ表示
+                            console.print(f"    💡 {rec}")
+
+            # パフォーマンスメトリクスの表示
+            if show_performance_metrics and hasattr(detailed_result, 'performance_metrics') and detailed_result.performance_metrics:
+                console.print("\n[cyan]📊 パフォーマンスメトリクス:[/cyan]")
+                metrics = detailed_result.performance_metrics
+
+                if hasattr(metrics, 'execution_time_ms'):
+                    console.print(f"  ⏱️  実行時間: {metrics.execution_time_ms:.2f}ms")
+                if hasattr(metrics, 'peak_memory_mb'):
+                    console.print(f"  🧠 ピークメモリ使用量: {metrics.peak_memory_mb:.2f}MB")
+                if hasattr(metrics, 'cpu_usage_percent'):
+                    console.print(f"  ⚡ CPU使用率: {metrics.cpu_usage_percent:.1f}%")
+                if hasattr(metrics, 'docker_operations_count'):
+                    console.print(f"  🐳 Docker操作数: {metrics.docker_operations_count}")
+
+            # 実行トレースの表示
+            if show_execution_trace and hasattr(detailed_result, 'execution_trace') and detailed_result.execution_trace:
+                console.print("\n[cyan]🔍 実行トレース:[/cyan]")
+                trace = detailed_result.execution_trace
+
+                if hasattr(trace, 'stages') and trace.stages:
+                    for stage in trace.stages[-5:]:  # 最後の5段階のみ表示
+                        stage_name = stage.stage.value if hasattr(stage.stage, 'value') else str(stage.stage)
+                        duration = f" ({stage.duration_ms:.2f}ms)" if hasattr(stage, 'duration_ms') and stage.duration_ms else ""
+                        console.print(f"  📍 {stage_name}{duration}")
+
+            # ハングアップ検出とデバッグバンドル作成の処理
             if (detailed_result.hang_analysis or
                 (hasattr(detailed_result, 'error_report') and detailed_result.error_report)):
 
@@ -358,6 +401,8 @@ def run_diagnose(
     console: Console,
     output_format: str,
     output_file: Path | None,
+    include_performance_analysis: bool = False,
+    include_trace_analysis: bool = False,
 ) -> int:
     """システム診断コマンドの処理"""
 
@@ -371,6 +416,45 @@ def run_diagnose(
 
     # ハングアップの潜在的原因を特定
     hangup_causes = diagnostic_service.identify_hangup_causes()
+
+    # パフォーマンス分析（オプション）
+    performance_analysis = {}
+    if include_performance_analysis:
+        logger.info("パフォーマンス分析を実行中...")
+        try:
+            # システムリソースの詳細分析
+            import psutil
+            performance_analysis = {
+                "cpu_count": psutil.cpu_count(),
+                "cpu_percent": psutil.cpu_percent(interval=1),
+                "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
+                "memory_available_gb": round(psutil.virtual_memory().available / (1024**3), 2),
+                "disk_usage_percent": psutil.disk_usage('/').percent,
+                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None,
+            }
+        except Exception as e:
+            logger.warning(f"パフォーマンス分析中にエラーが発生しました: {e}")
+            performance_analysis = {"error": str(e)}
+
+    # トレース分析（オプション）
+    trace_analysis = {}
+    if include_trace_analysis:
+        logger.info("実行トレース分析を実行中...")
+        try:
+            # 最近の実行ログの分析
+            from pathlib import Path
+            output_dir = Path("output")
+            if output_dir.exists():
+                log_files = list(output_dir.rglob("*.log"))
+                trace_analysis = {
+                    "recent_log_files": len(log_files),
+                    "latest_logs": [str(f) for f in sorted(log_files, key=lambda x: x.stat().st_mtime, reverse=True)[:5]]
+                }
+            else:
+                trace_analysis = {"log_files": 0, "message": "出力ディレクトリが見つかりません"}
+        except Exception as e:
+            logger.warning(f"トレース分析中にエラーが発生しました: {e}")
+            trace_analysis = {"error": str(e)}
 
     # 結果の出力
     if output_format.lower() == 'json':
@@ -392,6 +476,12 @@ def run_diagnose(
             ],
             "potential_hangup_causes": hangup_causes
         }
+
+        # パフォーマンス分析とトレース分析を追加
+        if performance_analysis:
+            json_data["performance_analysis"] = performance_analysis
+        if trace_analysis:
+            json_data["trace_analysis"] = trace_analysis
 
         if output_file:
             output_file.write_text(
@@ -448,6 +538,27 @@ def run_diagnose(
             for i, cause in enumerate(hangup_causes, 1):
                 console.print(f"{i}. {cause}")
 
+        # パフォーマンス分析の表示
+        if performance_analysis and "error" not in performance_analysis:
+            console.print()
+            console.print(Rule("パフォーマンス分析"))
+            console.print(f"🖥️  CPU: {performance_analysis.get('cpu_count', 'N/A')}コア, 使用率: {performance_analysis.get('cpu_percent', 'N/A')}%")
+            console.print(f"🧠 メモリ: {performance_analysis.get('memory_available_gb', 'N/A')}GB利用可能 / {performance_analysis.get('memory_total_gb', 'N/A')}GB総容量")
+            console.print(f"💾 ディスク使用率: {performance_analysis.get('disk_usage_percent', 'N/A')}%")
+            if performance_analysis.get('load_average'):
+                load_avg = performance_analysis['load_average']
+                console.print(f"⚡ システム負荷: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}")
+
+        # トレース分析の表示
+        if trace_analysis and "error" not in trace_analysis:
+            console.print()
+            console.print(Rule("実行トレース分析"))
+            console.print(f"📁 最近のログファイル数: {trace_analysis.get('recent_log_files', 0)}")
+            if trace_analysis.get('latest_logs'):
+                console.print("📋 最新のログファイル:")
+                for log_file in trace_analysis['latest_logs'][:3]:
+                    console.print(f"  • {log_file}")
+
         # ファイル出力
         if output_file:
             json_data = {
@@ -467,6 +578,13 @@ def run_diagnose(
                 ],
                 "potential_hangup_causes": hangup_causes
             }
+
+            # パフォーマンス分析とトレース分析を追加
+            if performance_analysis:
+                json_data["performance_analysis"] = performance_analysis
+            if trace_analysis:
+                json_data["trace_analysis"] = trace_analysis
+
             output_file.write_text(
                 json.dumps(json_data, ensure_ascii=False, indent=2),
                 encoding="utf-8"
@@ -493,10 +611,10 @@ def run_diagnose(
 GitHub Actions ワークフローをローカルでシミュレート/検証するためのCLIツールです。
 
 利用可能なサブコマンド:
-  - simulate   ワークフローを実行する
+  - simulate   ワークフローを実行する（--diagnose で事前診断、--show-performance-metrics でメトリクス表示）
   - validate   ワークフローの構文をチェックする
   - list-jobs  ジョブ一覧を表示する
-  - diagnose   システムヘルスチェックを実行する
+  - diagnose   システムヘルスチェックを実行する（--include-performance, --include-trace で詳細分析）
 """,
 )
 @click.option("-v", "--verbose", is_flag=True, help="詳細ログを表示")
@@ -622,6 +740,16 @@ def cli(
     type=click.Path(file_okay=False, path_type=Path),
     help="デバッグバンドルの出力ディレクトリ",
 )
+@click.option(
+    "--show-performance-metrics",
+    is_flag=True,
+    help="パフォーマンスメトリクスを表示",
+)
+@click.option(
+    "--show-execution-trace",
+    is_flag=True,
+    help="実行トレース情報を表示",
+)
 @click.pass_context
 def simulate(
     ctx: click.Context,
@@ -643,6 +771,8 @@ def simulate(
     diagnose: bool,
     create_debug_bundle: bool,
     debug_bundle_dir: Path | None,
+    show_performance_metrics: bool,
+    show_execution_trace: bool,
 ) -> None:
     """ワークフローを実行するサブコマンド"""
 
@@ -702,6 +832,40 @@ def simulate(
     )
     context.service = service
 
+    # 診断機能を有効にする場合の事前チェック
+    if diagnose:
+        console.print("[cyan]🔍 ワークフロー実行前にシステム診断を実行しています...[/cyan]")
+
+        diagnostic_service = DiagnosticService(logger=logger)
+        health_report = diagnostic_service.run_comprehensive_health_check()
+
+        # 診断結果の簡易表示
+        status_icon = {
+            DiagnosticStatus.OK: "✅",
+            DiagnosticStatus.WARNING: "⚠️",
+            DiagnosticStatus.ERROR: "❌"
+        }.get(health_report.overall_status, "❓")
+
+        console.print(f"{status_icon} システム診断結果: {health_report.overall_status.value}")
+
+        # エラーがある場合は詳細を表示
+        if health_report.overall_status == DiagnosticStatus.ERROR:
+            console.print("[red]重大な問題が検出されました。以下の問題を修正してから再実行してください:[/red]")
+            for result in health_report.results:
+                if result.status == DiagnosticStatus.ERROR:
+                    console.print(f"  ❌ {result.component}: {result.message}")
+                    for rec in result.recommendations[:2]:  # 最初の2つの推奨事項のみ
+                        console.print(f"    💡 {rec}")
+
+            console.print("\n[yellow]詳細な診断結果を確認するには 'actions diagnose' コマンドを実行してください。[/yellow]")
+            raise SystemExit(1)
+
+        elif health_report.overall_status == DiagnosticStatus.WARNING:
+            console.print("[yellow]警告が検出されましたが、実行を継続します:[/yellow]")
+            for result in health_report.results:
+                if result.status == DiagnosticStatus.WARNING:
+                    console.print(f"  ⚠️  {result.component}: {result.message}")
+
     run_id = generate_run_id()
     started_at = datetime.now(timezone.utc).isoformat()
 
@@ -718,6 +882,8 @@ def simulate(
             service=service,
             create_debug_bundle=create_debug_bundle,
             debug_bundle_dir=debug_bundle_dir,
+            show_performance_metrics=show_performance_metrics,
+            show_execution_trace=show_execution_trace,
         )
 
         log_refs: Dict[str, str] = {}
@@ -1009,11 +1175,23 @@ def list_jobs(
     type=click.Path(dir_okay=False, path_type=Path),
     help="診断結果を保存するファイルパス",
 )
+@click.option(
+    "--include-performance",
+    is_flag=True,
+    help="パフォーマンス分析を含める",
+)
+@click.option(
+    "--include-trace",
+    is_flag=True,
+    help="実行トレース分析を含める",
+)
 @click.pass_context
 def diagnose(
     ctx: click.Context,
     output_format: str,
     output_file: Path | None,
+    include_performance: bool,
+    include_trace: bool,
 ) -> None:
     """システムヘルスチェックを実行してハングアップ問題を診断するサブコマンド"""
 
@@ -1026,6 +1204,8 @@ def diagnose(
         console=context.console,
         output_format=output_format,
         output_file=output_file,
+        include_performance_analysis=include_performance,
+        include_trace_analysis=include_trace,
     )
     raise SystemExit(status)
 
