@@ -47,9 +47,11 @@ services:
     volumes:
       - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw        # 実行結果出力
+      - ./logs:/app/logs:rw            # ログファイル出力
       - act-cache:/opt/act/cache:rw    # actキャッシュ（読み書き可能）
       - /var/run/docker.sock:/var/run/docker.sock:rw  # Dockerアクセス（act用、読み書き可能）
       - /tmp:/tmp:rw                   # 一時ファイル用
+      - act-workspace:/github/workspace:rw  # actワークスペース
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - HOST=0.0.0.0
@@ -59,30 +61,39 @@ services:
       - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
       - DOCKER_BUILDKIT=1              # BuildKit有効化
       - COMPOSE_DOCKER_CLI_BUILD=1     # Docker Compose CLI Build有効化
+      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-info}  # actログレベル
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41}  # Docker APIバージョン
+      - PYTHONUNBUFFERED=1             # Python出力バッファリング無効化
+      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-false}  # GitHub Actionsデバッグ
+      - RUNNER_DEBUG=${RUNNER_DEBUG:-false}  # ランナーデバッグ
+      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest}  # actプラットフォーム
+      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock  # コンテナ内Dockerソケット
     profiles:
       - tools
     command: ["bash", "-c", "uv run python main.py actions --help"]
     networks:
       - mcp-network
-    # ヘルスチェック設定
+    # 改良されたヘルスチェック設定
     healthcheck:
-      test: ["CMD", "python", "-c",
-             "import services.actions.docker_integration_checker;
+      test: ["CMD", "bash", "-c",
+             "python -c 'import services.actions.docker_integration_checker;
               checker = services.actions.docker_integration_checker.DockerIntegrationChecker();
-              exit(0 if checker.verify_socket_access() else 1)"]
+              exit(0 if checker.verify_socket_access() else 1)' &&
+              docker version --format '{{.Server.Version}}' > /dev/null 2>&1 &&
+              act --version > /dev/null 2>&1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
     # セキュリティ: リソース制限
     deploy:
       resources:
         limits:
-          memory: 2G                   # actの実行に必要なメモリを増加
-          cpus: '2.0'                  # CPUリソースを増加
+          memory: 4G                   # actの実行に必要なメモリを増加
+          cpus: '4.0'                  # CPUリソースを増加
         reservations:
-          memory: 512M                 # 最小メモリ予約
-          cpus: '0.5'                  # 最小CPU予約
+          memory: 1G                   # 最小メモリ予約を増加
+          cpus: '1.0'                  # 最小CPU予約を増加
     # Docker統合のための権限設定
     privileged: false
     cap_drop:
@@ -93,11 +104,42 @@ services:
       - SETUID                         # UID変更（act用）
       - SETGID                         # GID変更（act用）
       - SYS_PTRACE                     # プロセストレース（デバッグ用）
+      - CHOWN                          # ファイル所有者変更（act用）
+      - FOWNER                         # ファイル所有者操作（act用）
     # Docker socket グループアクセス
     group_add:
       - "${DOCKER_GID:-999}"           # Dockerグループへの追加
+    # 依存関係設定
+    depends_on:
+      - docker-health-check
     # 再起動ポリシー
     restart: unless-stopped
+    # ログ設定
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=actions-simulator"
+
+  # Docker接続ヘルスチェック用サービス
+  docker-health-check:
+    image: docker:24-cli
+    container_name: mcp-docker-health-check
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["sh", "-c", "docker version && docker info && echo 'Docker daemon is healthy'"]
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "docker", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: "no"  # 一度実行されれば終了
+    profiles:
+      - tools
 
 networks:
   mcp-network:
@@ -105,3 +147,4 @@ networks:
 
 volumes:
   act-cache:
+  act-workspace:

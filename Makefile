@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats
+.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -12,6 +12,15 @@ help:
 	@echo "  make github    - Start GitHub MCP server"
 	@echo "  make datetime  - Start DateTime validator"
 	@echo "  make actions   - Interactive GitHub Actions Simulator (Docker)"
+	@echo ""
+	@echo "Docker Setup & Health:"
+	@echo "  make setup-docker      - Setup Docker integration environment"
+	@echo "  make health-check      - Run comprehensive Docker health check"
+	@echo "  make verify-containers - Verify container startup and configuration"
+	@echo "  make docker-setup      - Alias for setup-docker"
+	@echo "  make docker-health     - Alias for health-check"
+	@echo "  make actions-setup     - Setup Actions Simulator environment"
+	@echo "  make actions-verify    - Verify Actions Simulator container"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test      - Run integration tests"
@@ -364,3 +373,55 @@ validate-security:
 	@echo "🛡️  セキュリティバリデーション"
 	./scripts/validate-user-permissions.sh
 	@echo "✅ セキュリティ検証完了"
+
+# Docker Setup & Health Check Targets
+setup-docker:
+	@echo "🐳 Docker統合環境セットアップ"
+	@./scripts/setup-docker-integration.sh
+	@echo "✅ Docker統合セットアップ完了"
+
+health-check:
+	@echo "🏥 Docker統合ヘルスチェック"
+	@./scripts/docker-health-check.sh --comprehensive
+	@echo "✅ ヘルスチェック完了"
+
+verify-containers:
+	@echo "🔍 コンテナ起動検証"
+	@./scripts/verify-container-startup.sh --all
+	@echo "✅ コンテナ検証完了"
+
+docker-setup: setup-docker
+
+docker-health: health-check
+
+# Actions Simulator specific targets
+actions-setup:
+	@echo "🎭 Actions Simulator環境セットアップ"
+	@./scripts/setup-docker-integration.sh
+	@echo "🚀 Actions Simulatorコンテナを起動中..."
+	@docker-compose --profile tools up -d actions-simulator
+	@echo "⏳ コンテナの起動を待機中..."
+	@sleep 10
+	@./scripts/verify-container-startup.sh --actions-simulator
+	@echo "✅ Actions Simulator準備完了"
+
+actions-verify:
+	@echo "🔍 Actions Simulatorコンテナ検証"
+	@./scripts/verify-container-startup.sh --actions-simulator
+	@echo "✅ Actions Simulator検証完了"
+
+# Quick health check targets
+health-daemon:
+	@./scripts/docker-health-check.sh --daemon-only
+
+health-socket:
+	@./scripts/docker-health-check.sh --socket-only
+
+health-container:
+	@./scripts/docker-health-check.sh --container-test-only
+
+health-network:
+	@./scripts/docker-health-check.sh --network-only
+
+health-act:
+	@./scripts/docker-health-check.sh --act-only

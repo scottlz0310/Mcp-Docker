@@ -118,6 +118,32 @@ setup_docker_network() {
     return 0
 }
 
+# 必要なディレクトリの作成
+setup_directories() {
+    log_info "必要なディレクトリを作成中..."
+
+    local directories=(
+        "output"
+        "logs"
+        ".github/workflows"
+    )
+
+    for dir in "${directories[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            mkdir -p "$dir"
+            log_success "ディレクトリを作成しました: $dir"
+        else
+            log_info "ディレクトリは既に存在します: $dir"
+        fi
+    done
+
+    # ディレクトリの権限設定
+    chmod 755 output logs
+    log_info "ディレクトリの権限を設定しました"
+
+    return 0
+}
+
 # 環境変数の設定
 setup_environment_variables() {
     log_info "環境変数を設定中..."
@@ -139,11 +165,38 @@ setup_environment_variables() {
     if [[ -n "$DOCKER_GID" ]]; then
         log_info "DockerグループID: $DOCKER_GID"
 
-        # .envファイルにDOCKER_GIDを追加（存在しない場合）
-        if [[ -f .env ]] && ! grep -q "DOCKER_GID" .env; then
-            echo "DOCKER_GID=$DOCKER_GID" >> .env
-            log_success "DOCKER_GIDを.envファイルに追加しました"
+        # .envファイルにDOCKER_GIDを追加または更新
+        if [[ -f .env ]]; then
+            if grep -q "DOCKER_GID" .env; then
+                sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$DOCKER_GID/" .env
+                log_success "DOCKER_GIDを更新しました: $DOCKER_GID"
+            else
+                echo "DOCKER_GID=$DOCKER_GID" >> .env
+                log_success "DOCKER_GIDを.envファイルに追加しました: $DOCKER_GID"
+            fi
         fi
+    fi
+
+    # ユーザーIDとグループIDの設定
+    USER_ID=$(id -u)
+    GROUP_ID=$(id -g)
+
+    if [[ -f .env ]]; then
+        # USER_IDの設定
+        if grep -q "USER_ID" .env; then
+            sed -i "s/^USER_ID=.*/USER_ID=$USER_ID/" .env
+        else
+            echo "USER_ID=$USER_ID" >> .env
+        fi
+
+        # GROUP_IDの設定
+        if grep -q "GROUP_ID" .env; then
+            sed -i "s/^GROUP_ID=.*/GROUP_ID=$GROUP_ID/" .env
+        else
+            echo "GROUP_ID=$GROUP_ID" >> .env
+        fi
+
+        log_success "ユーザー権限を設定しました: USER_ID=$USER_ID, GROUP_ID=$GROUP_ID"
     fi
 
     return 0
@@ -168,6 +221,25 @@ run_integration_test() {
     fi
 }
 
+# コンテナ起動検証の実行
+run_container_verification() {
+    log_info "コンテナ起動検証を実行中..."
+
+    if [[ -f scripts/verify-container-startup.sh ]]; then
+        if bash scripts/verify-container-startup.sh --docker-health-check; then
+            log_success "Docker Health Checkが正常に完了しました"
+            return 0
+        else
+            log_warning "Docker Health Checkで問題が検出されました"
+            log_info "詳細は上記の出力を確認してください"
+            return 1
+        fi
+    else
+        log_warning "コンテナ起動検証スクリプトが見つかりません"
+        return 1
+    fi
+}
+
 # メイン処理
 main() {
     log_info "GitHub Actions Simulator Docker統合セットアップを開始します"
@@ -180,11 +252,21 @@ main() {
     check_act_installation || exit_code=1
     setup_docker_permissions || exit_code=1
     setup_docker_network || exit_code=1
+    setup_directories || exit_code=1
     setup_environment_variables || exit_code=1
 
     if [[ $exit_code -eq 0 ]]; then
         log_info "統合テストを実行します..."
         run_integration_test || exit_code=1
+
+        # Docker Health Checkサービスを起動して検証
+        log_info "Docker Health Checkサービスを起動して検証します..."
+        if docker-compose --profile tools up --no-deps docker-health-check; then
+            run_container_verification || exit_code=1
+        else
+            log_error "Docker Health Checkサービスの起動に失敗しました"
+            exit_code=1
+        fi
     fi
 
     echo "=================================================================="
@@ -194,6 +276,9 @@ main() {
         log_info "GitHub Actions Simulatorを使用する準備ができています"
         log_info "次のコマンドでサービスを起動できます:"
         echo "  docker-compose --profile tools up -d actions-simulator"
+        echo ""
+        log_info "コンテナの起動状態を確認するには:"
+        echo "  bash scripts/verify-container-startup.sh"
     else
         log_error "Docker統合セットアップで問題が発生しました"
         log_info "上記のエラーメッセージを確認して問題を修正してください"
