@@ -47,29 +47,57 @@ services:
     volumes:
       - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw        # 実行結果出力
-      - act-cache:/opt/act/cache
-      - /var/run/docker.sock:/var/run/docker.sock  # Dockerアクセス（act用）
+      - act-cache:/opt/act/cache:rw    # actキャッシュ（読み書き可能）
+      - /var/run/docker.sock:/var/run/docker.sock:rw  # Dockerアクセス（act用、読み書き可能）
+      - /tmp:/tmp:rw                   # 一時ファイル用
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - HOST=0.0.0.0
       - PORT=8000
+      - ACT_CACHE_DIR=/opt/act/cache
+      - ACTIONS_SIMULATOR_ENGINE=act
+      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
+      - DOCKER_BUILDKIT=1              # BuildKit有効化
+      - COMPOSE_DOCKER_CLI_BUILD=1     # Docker Compose CLI Build有効化
     profiles:
       - tools
     command: ["bash", "-c", "uv run python main.py actions --help"]
     networks:
       - mcp-network
+    # ヘルスチェック設定
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import services.actions.docker_integration_checker;
+              checker = services.actions.docker_integration_checker.DockerIntegrationChecker();
+              exit(0 if checker.verify_socket_access() else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     # セキュリティ: リソース制限
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
-    # セキュリティ: 最小権限
+          memory: 2G                   # actの実行に必要なメモリを増加
+          cpus: '2.0'                  # CPUリソースを増加
+        reservations:
+          memory: 512M                 # 最小メモリ予約
+          cpus: '0.5'                  # 最小CPU予約
+    # Docker統合のための権限設定
     privileged: false
     cap_drop:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
+      - DAC_OVERRIDE                   # ファイル権限のオーバーライド（act用）
+      - SETUID                         # UID変更（act用）
+      - SETGID                         # GID変更（act用）
+      - SYS_PTRACE                     # プロセストレース（デバッグ用）
+    # Docker socket グループアクセス
+    group_add:
+      - "${DOCKER_GID:-999}"           # Dockerグループへの追加
+    # 再起動ポリシー
+    restart: unless-stopped
 
 networks:
   mcp-network:

@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .act_wrapper import ActWrapper
 from .diagnostic import DiagnosticService, DiagnosticResult, DiagnosticStatus
+from .docker_integration_checker import DockerIntegrationChecker, DockerConnectionStatus
 from .execution_tracer import ExecutionTracer, ExecutionStage
 from .logger import ActionsLogger
 
@@ -816,6 +817,11 @@ class EnhancedActWrapper(ActWrapper):
             activity_timeout=activity_timeout
         )
 
+        # Docker統合チェッカーを追加
+        self.docker_integration_checker = DockerIntegrationChecker(logger=self.logger)
+        self._docker_connection_verified = False
+        self._docker_retry_count = 3
+
     def run_workflow_with_diagnostics(
         self,
         workflow_file: Optional[str] = None,
@@ -850,6 +856,22 @@ class EnhancedActWrapper(ActWrapper):
                 self.logger.info("実行前診断を開始します...")
                 health_report = self.diagnostic_service.run_comprehensive_health_check()
                 diagnostic_results.extend(health_report.results)
+
+                # Docker統合チェックを実行
+                docker_check_results = self._verify_docker_integration_with_retry()
+                if not docker_check_results["overall_success"]:
+                    self.logger.error("Docker統合に問題があります")
+                    recommendations = self.docker_integration_checker.generate_docker_fix_recommendations(docker_check_results)
+
+                    return DetailedResult(
+                        success=False,
+                        returncode=-2,
+                        stdout="",
+                        stderr=f"Docker統合エラー: {docker_check_results['summary']}\n推奨修正:\n" + "\n".join(recommendations),
+                        command="Docker統合チェック",
+                        execution_time_ms=(time.time() - start_time) * 1000,
+                        diagnostic_results=diagnostic_results
+                    )
 
                 # 重大なエラーがある場合は実行を中止
                 if health_report.has_errors:
@@ -1263,3 +1285,63 @@ class EnhancedActWrapper(ActWrapper):
                 self.logger.debug(f"診断サービスでのハングアップ分析に失敗しました: {e}")
 
         return analysis
+
+    def _verify_docker_integration_with_retry(self) -> Dict[str, Any]:
+        """
+        リトライ機能付きでDocker統合を検証
+
+        Returns:
+            Dict[str, Any]: Docker統合チェック結果
+        """
+        if self._docker_connection_verified:
+            self.logger.debug("Docker接続は既に検証済みです")
+            return {"overall_success": True, "summary": "Docker統合は正常です（キャッシュ済み）"}
+
+        self.logger.info("Docker統合をリトライ機能付きで検証中...")
+
+        # 包括的なDockerチェックを実行
+        check_results = self.docker_integration_checker.run_comprehensive_docker_check()
+
+        if check_results["overall_success"]:
+            self._docker_connection_verified = True
+            self.logger.success("Docker統合検証完了: 正常 ✓")
+        else:
+            self.logger.error(f"Docker統合に問題があります: {check_results['summary']}")
+
+            # 修正推奨事項をログに出力
+            recommendations = self.docker_integration_checker.generate_docker_fix_recommendations(check_results)
+            self.logger.info("Docker統合の修正推奨事項:")
+            for rec in recommendations:
+                self.logger.info(f"  {rec}")
+
+        return check_results
+
+    def _ensure_docker_connection(self) -> bool:
+        """
+        Docker接続を確保（必要に応じてリトライ）
+
+        Returns:
+            bool: Docker接続が確保できたかどうか
+        """
+        if self._docker_connection_verified:
+            return True
+
+        self.logger.debug("Docker接続を確保中...")
+
+        # Docker daemon接続テスト（リトライ付き）
+        connection_result = self.docker_integration_checker.test_docker_daemon_connection_with_retry()
+
+        if connection_result.status == DockerConnectionStatus.CONNECTED:
+            self._docker_connection_verified = True
+            self.logger.debug(f"Docker接続確保成功: {connection_result.response_time_ms:.1f}ms")
+            return True
+        else:
+            self.logger.error(f"Docker接続確保失敗: {connection_result.message}")
+            return False
+
+    def reset_docker_connection_cache(self) -> None:
+        """
+        Docker接続キャッシュをリセット
+        """
+        self._docker_connection_verified = False
+        self.logger.debug("Docker接続キャッシュをリセットしました")

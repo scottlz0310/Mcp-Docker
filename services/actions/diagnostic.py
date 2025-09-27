@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .logger import ActionsLogger
+from .docker_integration_checker import DockerIntegrationChecker
 
 
 class DiagnosticStatus(Enum):
@@ -68,6 +69,7 @@ class DiagnosticService:
         self.logger = logger or ActionsLogger(verbose=True)
         self._docker_client_available = None
         self._act_binary_path = None
+        self._docker_integration_checker = DockerIntegrationChecker(logger=logger)
 
     def run_comprehensive_health_check(self) -> SystemHealthReport:
         """
@@ -756,6 +758,14 @@ class DiagnosticService:
                     details["docker_disk_usage"] = docker_system_result.stdout
             except Exception:
                 details["docker_disk_usage"] = "取得失敗"
+
+            # Docker統合チェッカーによる追加チェック
+            try:
+                docker_check = self._docker_integration_checker.run_comprehensive_docker_check()
+                details["docker_integration_status"] = docker_check["overall_success"]
+                details["docker_integration_summary"] = docker_check["summary"]
+            except Exception:
+                details["docker_integration_status"] = "チェック失敗"
 
             # 実行中のDockerコンテナ数
             try:
