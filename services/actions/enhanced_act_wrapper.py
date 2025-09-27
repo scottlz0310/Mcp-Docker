@@ -75,14 +75,19 @@ class DetailedResult:
 
 class ProcessMonitor:
     """
-    プロセス監視とデッドロック検出を行うクラス
+    改良されたプロセス監視とデッドロック検出を行うクラス
+    細かいタイムアウト制御、タイムアウトエスカレーション、改良されたハートビートメカニズムを提供
     """
 
     def __init__(
         self,
         logger: Optional[ActionsLogger] = None,
         deadlock_detection_interval: float = 10.0,
-        activity_timeout: float = 60.0
+        activity_timeout: float = 60.0,
+        warning_timeout: float = 480.0,  # 8分で警告
+        escalation_timeout: float = 540.0,  # 9分でエスカレーション
+        heartbeat_interval: float = 30.0,
+        detailed_logging: bool = True
     ):
         """
         ProcessMonitorを初期化
@@ -91,13 +96,32 @@ class ProcessMonitor:
             logger: ログ出力用のロガー
             deadlock_detection_interval: デッドロック検出の間隔（秒）
             activity_timeout: アクティビティタイムアウト（秒）
+            warning_timeout: 警告タイムアウト（秒）
+            escalation_timeout: エスカレーションタイムアウト（秒）
+            heartbeat_interval: ハートビート間隔（秒）
+            detailed_logging: 詳細ログを有効にするかどうか
         """
         self.logger = logger or ActionsLogger(verbose=True)
         self.deadlock_detection_interval = deadlock_detection_interval
         self.activity_timeout = activity_timeout
+        self.warning_timeout = warning_timeout
+        self.escalation_timeout = escalation_timeout
+        self.heartbeat_interval = heartbeat_interval
+        self.detailed_logging = detailed_logging
+
+        # 監視状態
         self._monitoring_active = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+
+        # エスカレーション状態
+        self._warning_sent = False
+        self._escalation_started = False
+        self._last_heartbeat = time.time()
+
+        # リソース監視
+        self._resource_snapshots: List[Dict[str, Any]] = []
+        self._performance_metrics: Dict[str, float] = {}
 
     def monitor_with_heartbeat(
         self,
@@ -105,21 +129,32 @@ class ProcessMonitor:
         timeout: int
     ) -> Tuple[bool, List[DeadlockIndicator]]:
         """
-        ハートビートメカニズムでプロセスを監視
+        改良されたハートビートメカニズムでプロセスを監視
+        タイムアウトエスカレーション（警告 -> 強制終了）を実装
 
         Args:
             monitored_process: 監視対象プロセス
-            timeout: タイムアウト時間（秒）
+            timeout: 最終タイムアウト時間（秒）
 
         Returns:
             Tuple[bool, List[DeadlockIndicator]]: (タイムアウトフラグ, デッドロック指標リスト)
         """
-        self.logger.debug(f"プロセス監視を開始: PID {monitored_process.process.pid}")
+        self.logger.info(f"改良されたプロセス監視を開始: PID {monitored_process.process.pid}, タイムアウト: {timeout}秒")
 
         start_time = time.time()
-        deadline = start_time + timeout if timeout > 0 else None
-        heartbeat_interval = min(30, timeout // 10) if timeout > 0 else 30
-        next_heartbeat = start_time + heartbeat_interval
+        self._last_heartbeat = start_time
+
+        # タイムアウト段階の設定
+        warning_deadline = start_time + self.warning_timeout if self.warning_timeout > 0 else None
+        escalation_deadline = start_time + self.escalation_timeout if self.escalation_timeout > 0 else None
+        final_deadline = start_time + timeout if timeout > 0 else None
+
+        next_heartbeat = start_time + self.heartbeat_interval
+        next_resource_check = start_time + 10.0  # 10秒ごとにリソースチェック
+
+        # 状態をリセット
+        self._warning_sent = False
+        self._escalation_started = False
 
         # デッドロック検出スレッドを開始
         self._start_deadlock_detection(monitored_process)
@@ -128,21 +163,32 @@ class ProcessMonitor:
             while True:
                 return_code = monitored_process.process.poll()
                 if return_code is not None:
-                    self.logger.debug(f"プロセスが正常終了: PID {monitored_process.process.pid}, 終了コード: {return_code}")
+                    elapsed = time.time() - start_time
+                    self.logger.info(f"プロセスが正常終了: PID {monitored_process.process.pid}, 終了コード: {return_code}, 実行時間: {elapsed:.2f}秒")
                     break
 
                 now = time.time()
+                elapsed = now - start_time
 
-                # タイムアウトチェック
-                if deadline and now >= deadline:
-                    self.logger.warning(f"プロセス実行がタイムアウトしました: PID {monitored_process.process.pid}")
-                    return True, monitored_process.deadlock_indicators
+                # タイムアウトエスカレーション処理
+                timeout_result = self._handle_timeout_escalation(
+                    monitored_process, now, elapsed,
+                    warning_deadline, escalation_deadline, final_deadline
+                )
 
-                # ハートビートログ
+                if timeout_result:
+                    return timeout_result
+
+                # 改良されたハートビートログ
                 if now >= next_heartbeat:
-                    elapsed = int(now - start_time)
-                    self._log_heartbeat(monitored_process, elapsed)
-                    next_heartbeat = now + heartbeat_interval
+                    self._log_enhanced_heartbeat(monitored_process, elapsed)
+                    next_heartbeat = now + self.heartbeat_interval
+                    self._last_heartbeat = now
+
+                # リソース使用量チェック
+                if now >= next_resource_check:
+                    self._check_resource_usage(monitored_process)
+                    next_resource_check = now + 10.0
 
                 # デッドロック検出結果をチェック
                 if monitored_process.deadlock_indicators:
@@ -156,6 +202,8 @@ class ProcessMonitor:
         finally:
             # デッドロック検出を停止
             self._stop_deadlock_detection()
+            # 最終リソース使用量を記録
+            self._record_final_metrics(monitored_process, time.time() - start_time)
 
     def detect_deadlock_conditions(self, monitored_process: MonitoredProcess) -> List[DeadlockIndicator]:
         """
@@ -248,44 +296,380 @@ class ProcessMonitor:
 
     def force_cleanup_on_timeout(self, monitored_process: MonitoredProcess) -> None:
         """
-        タイムアウト時の強制クリーンアップ
+        改良されたタイムアウト時の強制クリーンアップ
+        段階的なプロセス終了とリソース解放を保証
 
         Args:
             monitored_process: クリーンアップ対象プロセス
         """
-        self.logger.warning(f"プロセスの強制クリーンアップを開始: PID {monitored_process.process.pid}")
+        self.logger.warning(f"改良されたプロセス強制クリーンアップを開始: PID {monitored_process.process.pid}")
+
+        cleanup_start = time.time()
 
         try:
-            # まず穏やかに終了を試行
+            # ステップ1: 穏やかな終了を試行 (SIGTERM)
             if monitored_process.process.poll() is None:
-                self.logger.debug("SIGTERMでプロセス終了を試行")
+                self.logger.info("ステップ1: SIGTERMでプロセス終了を試行")
                 monitored_process.process.terminate()
 
                 # 5秒待機
                 try:
                     monitored_process.process.wait(timeout=5)
-                    self.logger.debug("プロセスが正常に終了しました")
+                    self.logger.info("プロセスがSIGTERMで正常に終了しました")
                     return
                 except subprocess.TimeoutExpired:
-                    self.logger.warning("SIGTERM後のタイムアウト、SIGKILLを送信")
+                    self.logger.warning("SIGTERM後のタイムアウト、次のステップに進みます")
 
-            # 強制終了
+            # ステップ2: プロセスグループ全体を終了
             if monitored_process.process.poll() is None:
+                self.logger.info("ステップ2: プロセスグループの終了を試行")
+                try:
+                    import os
+                    import signal
+                    if hasattr(os, 'killpg'):
+                        os.killpg(os.getpgid(monitored_process.process.pid), signal.SIGTERM)
+                        time.sleep(2)
+
+                        if monitored_process.process.poll() is None:
+                            os.killpg(os.getpgid(monitored_process.process.pid), signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    self.logger.debug("プロセスグループ終了に失敗、個別プロセス終了に進みます")
+
+            # ステップ3: 強制終了 (SIGKILL)
+            if monitored_process.process.poll() is None:
+                self.logger.warning("ステップ3: SIGKILLでプロセス強制終了")
                 monitored_process.process.kill()
                 monitored_process.force_killed = True
-                self.logger.warning("プロセスを強制終了しました")
 
                 # 最終確認
                 try:
                     monitored_process.process.wait(timeout=3)
+                    self.logger.info("プロセスがSIGKILLで強制終了されました")
                 except subprocess.TimeoutExpired:
-                    self.logger.error("プロセスの強制終了に失敗しました")
+                    self.logger.error("プロセスの強制終了に失敗しました - ゾンビプロセスの可能性があります")
 
         except Exception as e:
             self.logger.error(f"プロセスクリーンアップ中にエラーが発生しました: {e}")
 
-        # スレッドのクリーンアップ
+        # ステップ4: スレッドとリソースのクリーンアップ
+        self.logger.info("ステップ4: スレッドとリソースのクリーンアップ")
         self._cleanup_threads(monitored_process)
+
+        # ステップ5: 出力バッファのクリア
+        self._clear_output_buffers(monitored_process)
+
+        cleanup_duration = time.time() - cleanup_start
+        self.logger.info(f"プロセスクリーンアップ完了: 実行時間 {cleanup_duration:.2f}秒")
+
+    def _handle_timeout_escalation(
+        self,
+        monitored_process: MonitoredProcess,
+        current_time: float,
+        elapsed: float,
+        warning_deadline: Optional[float],
+        escalation_deadline: Optional[float],
+        final_deadline: Optional[float]
+    ) -> Optional[Tuple[bool, List[DeadlockIndicator]]]:
+        """
+        タイムアウトエスカレーション処理
+
+        Args:
+            monitored_process: 監視対象プロセス
+            current_time: 現在時刻
+            elapsed: 経過時間
+            warning_deadline: 警告タイムアウト
+            escalation_deadline: エスカレーションタイムアウト
+            final_deadline: 最終タイムアウト
+
+        Returns:
+            Optional[Tuple[bool, List[DeadlockIndicator]]]: タイムアウト時の結果
+        """
+        # 警告段階
+        if warning_deadline and current_time >= warning_deadline and not self._warning_sent:
+            self._warning_sent = True
+            self.logger.warning(
+                f"⚠️  プロセス実行警告: {elapsed:.1f}秒経過 (PID: {monitored_process.process.pid})\n"
+                f"   - 警告タイムアウト: {self.warning_timeout}秒\n"
+                f"   - 最終タイムアウトまで: {final_deadline - current_time:.1f}秒\n"
+                f"   - プロセスが長時間実行されています。Docker通信やリソース不足の可能性があります。"
+            )
+
+            # 警告時の詳細診断
+            self._perform_warning_diagnostics(monitored_process)
+
+        # エスカレーション段階
+        if escalation_deadline and current_time >= escalation_deadline and not self._escalation_started:
+            self._escalation_started = True
+            self.logger.error(
+                f"🚨 プロセス実行エスカレーション: {elapsed:.1f}秒経過 (PID: {monitored_process.process.pid})\n"
+                f"   - エスカレーションタイムアウト: {self.escalation_timeout}秒\n"
+                f"   - 最終タイムアウトまで: {final_deadline - current_time:.1f}秒\n"
+                f"   - 強制終了の準備を開始します。"
+            )
+
+            # エスカレーション時の詳細診断
+            self._perform_escalation_diagnostics(monitored_process)
+
+        # 最終タイムアウト
+        if final_deadline and current_time >= final_deadline:
+            self.logger.error(
+                f"💀 プロセス実行最終タイムアウト: {elapsed:.1f}秒経過 (PID: {monitored_process.process.pid})\n"
+                f"   - プロセスを強制終了します。"
+            )
+            return True, monitored_process.deadlock_indicators
+
+        return None
+
+    def _log_enhanced_heartbeat(self, monitored_process: MonitoredProcess, elapsed: float) -> None:
+        """
+        改良されたハートビートログを出力
+
+        Args:
+            monitored_process: 監視対象プロセス
+            elapsed: 経過時間
+        """
+        # 基本プロセス情報
+        process_info = {
+            "pid": monitored_process.process.pid,
+            "elapsed_seconds": round(elapsed, 1),
+            "return_code": monitored_process.process.poll(),
+            "stdout_lines": len(monitored_process.stdout_lines),
+            "stderr_lines": len(monitored_process.stderr_lines),
+            "deadlock_indicators": len(monitored_process.deadlock_indicators),
+            "force_killed": monitored_process.force_killed
+        }
+
+        # リソース情報を追加
+        try:
+            import psutil
+            process = psutil.Process(monitored_process.process.pid)
+            process_info.update({
+                "cpu_percent": round(process.cpu_percent(), 2),
+                "memory_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+                "threads": process.num_threads(),
+                "status": process.status()
+            })
+        except (ImportError, psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+        # 段階的な詳細レベル
+        if elapsed < 60:
+            # 最初の1分は簡潔に
+            self.logger.info(f"💓 プロセス監視: {elapsed:.0f}秒経過 | PID: {process_info['pid']}")
+        elif elapsed < 300:
+            # 5分まではやや詳細に
+            self.logger.info(
+                f"💓 プロセス監視: {elapsed:.0f}秒経過 | "
+                f"PID: {process_info['pid']} | "
+                f"出力: {process_info['stdout_lines']}行"
+            )
+        else:
+            # 5分以降は詳細に
+            self.logger.info(
+                f"💓 プロセス監視ハートビート: {elapsed:.1f}秒経過\n"
+                f"   📊 プロセス情報: {json.dumps(process_info, ensure_ascii=False)}"
+            )
+
+        # 長時間実行の場合は追加情報
+        if elapsed > 300:  # 5分以上
+            self._log_long_running_analysis(monitored_process, elapsed)
+
+    def _check_resource_usage(self, monitored_process: MonitoredProcess) -> None:
+        """
+        リソース使用量をチェックして異常を検出
+
+        Args:
+            monitored_process: 監視対象プロセス
+        """
+        try:
+            import psutil
+            process = psutil.Process(monitored_process.process.pid)
+
+            # リソース情報を取得
+            cpu_percent = process.cpu_percent()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / (1024 * 1024)
+            memory_percent = process.memory_percent()
+
+            # スナップショットを保存
+            snapshot = {
+                "timestamp": time.time(),
+                "cpu_percent": cpu_percent,
+                "memory_mb": memory_mb,
+                "memory_percent": memory_percent,
+                "threads": process.num_threads()
+            }
+            self._resource_snapshots.append(snapshot)
+
+            # 古いスナップショットを削除（最新20個のみ保持）
+            if len(self._resource_snapshots) > 20:
+                self._resource_snapshots = self._resource_snapshots[-20:]
+
+            # 異常検出
+            if memory_percent > 80.0:
+                self.logger.warning(f"⚠️  高メモリ使用量を検出: {memory_percent:.1f}% ({memory_mb:.1f}MB)")
+
+            if cpu_percent > 90.0:
+                self.logger.warning(f"⚠️  高CPU使用量を検出: {cpu_percent:.1f}%")
+
+            # メモリリークの検出（過去5分間で50%以上増加）
+            if len(self._resource_snapshots) >= 10:
+                old_memory = self._resource_snapshots[-10]["memory_mb"]
+                if memory_mb > old_memory * 1.5:
+                    self.logger.warning(
+                        f"⚠️  メモリリークの可能性: {old_memory:.1f}MB → {memory_mb:.1f}MB"
+                    )
+
+        except (ImportError, psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    def _perform_warning_diagnostics(self, monitored_process: MonitoredProcess) -> None:
+        """
+        警告段階での詳細診断
+
+        Args:
+            monitored_process: 監視対象プロセス
+        """
+        self.logger.info("🔍 警告段階診断を実行中...")
+
+        # スレッド状態の確認
+        if monitored_process.stdout_thread:
+            self.logger.info(f"   - 標準出力スレッド: {'生存' if monitored_process.stdout_thread.is_alive() else '停止'}")
+        if monitored_process.stderr_thread:
+            self.logger.info(f"   - 標準エラースレッド: {'生存' if monitored_process.stderr_thread.is_alive() else '停止'}")
+
+        # 最近の出力活動
+        recent_stdout = len(monitored_process.stdout_lines)
+        recent_stderr = len(monitored_process.stderr_lines)
+        self.logger.info(f"   - 出力行数: stdout={recent_stdout}, stderr={recent_stderr}")
+
+        # 最後の活動からの経過時間
+        inactive_duration = time.time() - monitored_process.last_activity
+        self.logger.info(f"   - 最後の活動からの経過時間: {inactive_duration:.1f}秒")
+
+    def _perform_escalation_diagnostics(self, monitored_process: MonitoredProcess) -> None:
+        """
+        エスカレーション段階での詳細診断
+
+        Args:
+            monitored_process: 監視対象プロセス
+        """
+        self.logger.error("🚨 エスカレーション段階診断を実行中...")
+
+        # プロセス詳細情報
+        try:
+            import psutil
+            process = psutil.Process(monitored_process.process.pid)
+
+            self.logger.error(f"   - プロセス状態: {process.status()}")
+            self.logger.error(f"   - CPU使用率: {process.cpu_percent():.2f}%")
+            self.logger.error(f"   - メモリ使用量: {process.memory_info().rss / (1024 * 1024):.2f}MB")
+            self.logger.error(f"   - スレッド数: {process.num_threads()}")
+
+            # 子プロセスの確認
+            children = process.children(recursive=True)
+            if children:
+                self.logger.error(f"   - 子プロセス数: {len(children)}")
+                for child in children[:5]:  # 最初の5個のみ表示
+                    try:
+                        self.logger.error(f"     - 子PID {child.pid}: {child.status()}")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+        except (ImportError, psutil.NoSuchProcess, psutil.AccessDenied):
+            self.logger.error("   - プロセス詳細情報の取得に失敗")
+
+        # デッドロック指標の詳細
+        if monitored_process.deadlock_indicators:
+            self.logger.error(f"   - デッドロック指標数: {len(monitored_process.deadlock_indicators)}")
+            for indicator in monitored_process.deadlock_indicators[-3:]:  # 最新3個
+                self.logger.error(f"     - {indicator.deadlock_type.value}: {indicator.details}")
+
+    def _log_long_running_analysis(self, monitored_process: MonitoredProcess, elapsed: float) -> None:
+        """
+        長時間実行プロセスの分析ログ
+
+        Args:
+            monitored_process: 監視対象プロセス
+            elapsed: 経過時間
+        """
+        if self.detailed_logging:
+            analysis = []
+
+            # 実行時間の分析
+            if elapsed > 600:  # 10分以上
+                analysis.append("⏰ 長時間実行中 - Docker通信やネットワークの問題の可能性")
+            elif elapsed > 300:  # 5分以上
+                analysis.append("⏱️  通常より長い実行時間")
+
+            # 出力活動の分析
+            if len(monitored_process.stdout_lines) == 0 and len(monitored_process.stderr_lines) == 0:
+                analysis.append("🔇 出力なし - プロセスがハングしている可能性")
+            elif time.time() - monitored_process.last_activity > 120:  # 2分間活動なし
+                analysis.append("💤 長時間非アクティブ")
+
+            if analysis:
+                self.logger.info(f"   📈 長時間実行分析: {'; '.join(analysis)}")
+
+    def _record_final_metrics(self, monitored_process: MonitoredProcess, total_duration: float) -> None:
+        """
+        最終的なパフォーマンスメトリクスを記録
+
+        Args:
+            monitored_process: 監視対象プロセス
+            total_duration: 総実行時間
+        """
+        self._performance_metrics.update({
+            "total_duration_seconds": total_duration,
+            "stdout_lines_total": len(monitored_process.stdout_lines),
+            "stderr_lines_total": len(monitored_process.stderr_lines),
+            "deadlock_indicators_count": len(monitored_process.deadlock_indicators),
+            "force_killed": monitored_process.force_killed,
+            "resource_snapshots_count": len(self._resource_snapshots)
+        })
+
+        if self.detailed_logging:
+            self.logger.info(
+                f"📊 最終パフォーマンスメトリクス: "
+                f"{json.dumps(self._performance_metrics, ensure_ascii=False)}"
+            )
+
+    def _clear_output_buffers(self, monitored_process: MonitoredProcess) -> None:
+        """
+        出力バッファをクリア
+
+        Args:
+            monitored_process: 監視対象プロセス
+        """
+        try:
+            # パイプが残っている場合はクローズ
+            if monitored_process.process.stdout and not monitored_process.process.stdout.closed:
+                monitored_process.process.stdout.close()
+            if monitored_process.process.stderr and not monitored_process.process.stderr.closed:
+                monitored_process.process.stderr.close()
+
+            self.logger.debug("出力バッファをクリアしました")
+        except Exception as e:
+            self.logger.debug(f"出力バッファクリア中にエラー: {e}")
+
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """
+        パフォーマンスメトリクスを取得
+
+        Returns:
+            Dict[str, Any]: パフォーマンスメトリクス
+        """
+        return {
+            "performance_metrics": self._performance_metrics.copy(),
+            "resource_snapshots": self._resource_snapshots.copy(),
+            "monitoring_config": {
+                "deadlock_detection_interval": self.deadlock_detection_interval,
+                "activity_timeout": self.activity_timeout,
+                "warning_timeout": self.warning_timeout,
+                "escalation_timeout": self.escalation_timeout,
+                "heartbeat_interval": self.heartbeat_interval
+            }
+        }
 
     def _start_deadlock_detection(self, monitored_process: MonitoredProcess) -> None:
         """デッドロック検出スレッドを開始"""
