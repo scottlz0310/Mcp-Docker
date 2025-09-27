@@ -31,6 +31,7 @@ from .output import (
     save_json_payload,
     write_log,
 )
+from .diagnostic import DiagnosticService, DiagnosticStatus
 
 
 class CLIContext:
@@ -311,6 +312,135 @@ def run_list_jobs(
     return 0
 
 
+def run_diagnose(
+    logger: ActionsLogger,
+    console: Console,
+    output_format: str,
+    output_file: Path | None,
+) -> int:
+    """システム診断コマンドの処理"""
+
+    logger.info("GitHub Actions Simulatorのシステム診断を開始します...")
+
+    # 診断サービスを初期化
+    diagnostic_service = DiagnosticService(logger=logger)
+
+    # 包括的なヘルスチェックを実行
+    health_report = diagnostic_service.run_comprehensive_health_check()
+
+    # ハングアップの潜在的原因を特定
+    hangup_causes = diagnostic_service.identify_hangup_causes()
+
+    # 結果の出力
+    if output_format.lower() == 'json':
+        # JSON形式での出力
+        json_data = {
+            "overall_status": health_report.overall_status.value,
+            "summary": health_report.summary,
+            "timestamp": health_report.timestamp,
+            "results": [
+                {
+                    "component": result.component,
+                    "status": result.status.value,
+                    "message": result.message,
+                    "details": result.details,
+                    "recommendations": result.recommendations,
+                    "timestamp": result.timestamp
+                }
+                for result in health_report.results
+            ],
+            "potential_hangup_causes": hangup_causes
+        }
+
+        if output_file:
+            output_file.write_text(
+                json.dumps(json_data, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+            logger.info(f"診断結果を {output_file} に保存しました")
+
+        console.print_json(data=json_data)
+    else:
+        # テーブル形式での出力
+        console.print(Rule("システム診断結果"))
+
+        # 全体的なステータス表示
+        status_icon = {
+            DiagnosticStatus.OK: "✅",
+            DiagnosticStatus.WARNING: "⚠️",
+            DiagnosticStatus.ERROR: "❌"
+        }.get(health_report.overall_status, "❓")
+
+        console.print(f"{status_icon} 全体的なステータス: {health_report.overall_status.value}")
+        console.print(f"📋 {health_report.summary}")
+        console.print()
+
+        # 詳細結果のテーブル
+        table = Table(title="詳細診断結果", show_lines=True)
+        table.add_column("コンポーネント", style="cyan", no_wrap=True)
+        table.add_column("ステータス", style="bold")
+        table.add_column("メッセージ", style="white")
+        table.add_column("推奨事項", style="yellow")
+
+        for result in health_report.results:
+            status_style = {
+                DiagnosticStatus.OK: "green",
+                DiagnosticStatus.WARNING: "yellow",
+                DiagnosticStatus.ERROR: "red"
+            }.get(result.status, "white")
+
+            recommendations_text = "\n".join(result.recommendations) if result.recommendations else "-"
+
+            table.add_row(
+                result.component,
+                f"[{status_style}]{result.status.value}[/]",
+                result.message,
+                recommendations_text
+            )
+
+        console.print(table)
+
+        # ハングアップの潜在的原因
+        if hangup_causes:
+            console.print()
+            console.print(Rule("ハングアップの潜在的原因"))
+            for i, cause in enumerate(hangup_causes, 1):
+                console.print(f"{i}. {cause}")
+
+        # ファイル出力
+        if output_file:
+            json_data = {
+                "overall_status": health_report.overall_status.value,
+                "summary": health_report.summary,
+                "timestamp": health_report.timestamp,
+                "results": [
+                    {
+                        "component": result.component,
+                        "status": result.status.value,
+                        "message": result.message,
+                        "details": result.details,
+                        "recommendations": result.recommendations,
+                        "timestamp": result.timestamp
+                    }
+                    for result in health_report.results
+                ],
+                "potential_hangup_causes": hangup_causes
+            }
+            output_file.write_text(
+                json.dumps(json_data, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+            logger.info(f"診断結果を {output_file} に保存しました")
+
+    # 終了コードの決定
+    if health_report.overall_status == DiagnosticStatus.ERROR:
+        return 1
+    elif health_report.overall_status == DiagnosticStatus.WARNING:
+        return 2
+    else:
+        return 0
+
+
 @click.group(
     cls=click.Group,
     context_settings={
@@ -325,6 +455,7 @@ GitHub Actions ワークフローをローカルでシミュレート/検証す�
   - simulate   ワークフローを実行する
   - validate   ワークフローの構文をチェックする
   - list-jobs  ジョブ一覧を表示する
+  - diagnose   システムヘルスチェックを実行する
 """,
 )
 @click.option("-v", "--verbose", is_flag=True, help="詳細ログを表示")
@@ -789,6 +920,41 @@ def list_jobs(
         output_format=output_format,
         logger=logger,
         console=context.console,
+    )
+    raise SystemExit(status)
+
+
+@cli.command(short_help="システムヘルスチェックを実行")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json"], case_sensitive=False),
+    default="table",
+    show_default=True,
+    help="出力形式",
+)
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="診断結果を保存するファイルパス",
+)
+@click.pass_context
+def diagnose(
+    ctx: click.Context,
+    output_format: str,
+    output_file: Path | None,
+) -> None:
+    """システムヘルスチェックを実行してハングアップ問題を診断するサブコマンド"""
+
+    context = _build_context(ctx)
+    logger = context.logger
+    assert logger is not None
+
+    status = run_diagnose(
+        logger=logger,
+        console=context.console,
+        output_format=output_format,
+        output_file=output_file,
     )
     raise SystemExit(status)
 

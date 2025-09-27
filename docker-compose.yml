@@ -42,9 +42,7 @@ services:
       - NET_BIND_SERVICE  # 必要最小限の権限のみ
 
   actions-simulator:
-    build:
-      context: .
-      dockerfile: Dockerfile.actions
+    build: .
     container_name: mcp-actions-simulator
     volumes:
       - ./.github:/app/.github:ro      # ワークフローファイル（読み取り専用）
@@ -57,7 +55,7 @@ services:
       - PORT=8000
     profiles:
       - tools
-    command: ["uv", "run", "python", "main.py", "actions", "--help"]
+    command: ["bash", "-c", "uv run python main.py actions --help"]
     networks:
       - mcp-network
     # セキュリティ: リソース制限

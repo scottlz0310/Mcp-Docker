@@ -2,8 +2,10 @@
 FROM node:24-alpine AS base
 
 # Security: create non-root user early to avoid UID reuse surprises
-RUN addgroup -g 1001 -S mcp && \
-    adduser -S mcp -u 1001 -G mcp
+RUN addgroup -S docker && \
+    addgroup -g 1001 -S mcp && \
+    adduser -S mcp -u 1001 -G mcp && \
+    addgroup mcp docker
 
 # Install required system packages
 RUN apk add --no-cache \
@@ -11,7 +13,8 @@ RUN apk add --no-cache \
     curl \
     git \
     python3 \
-    py3-pip && \
+    py3-pip \
+    docker-cli && \
     apk cache clean
 
 # Builder stage: install tooling and Python dependencies via uv

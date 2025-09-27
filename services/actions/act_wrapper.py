@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import time
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, cast
@@ -119,6 +120,12 @@ class ActWrapper:
         except ValueError:
             self._mock_delay_seconds = 0.0
 
+        self._timeout_seconds = self._resolve_timeout_seconds(config)
+        if self._timeout_seconds != 600:
+            self.logger.info(
+                f"act 実行タイムアウトを {self._timeout_seconds} 秒に設定しました",
+            )
+
         if self._mock_mode:
             self.act_binary = "mock-act"
             self.logger.debug(
@@ -188,6 +195,59 @@ class ActWrapper:
             env.update({str(k): str(v) for k, v in overrides.items()})
         return env
 
+    def _resolve_timeout_seconds(
+        self,
+        config: Mapping[str, Any] | None,
+    ) -> int:
+        default_timeout = 600
+        timeout_value = default_timeout
+
+        if isinstance(config, Mapping):
+            timeouts_section = config.get("timeouts")
+            if isinstance(timeouts_section, Mapping):
+                candidate = timeouts_section.get("act_seconds")
+                parsed = self._coerce_timeout(candidate, "configuration")
+                if parsed is not None:
+                    timeout_value = parsed
+
+        env_candidate = os.getenv("ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS")
+        parsed_env = self._coerce_timeout(
+            env_candidate,
+            "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS",
+        )
+        if parsed_env is not None:
+            timeout_value = parsed_env
+
+        return timeout_value
+
+    def _coerce_timeout(
+        self,
+        raw_value: Any,
+        source: str,
+    ) -> int | None:
+        if raw_value is None:
+            return None
+
+        try:
+            if isinstance(raw_value, (int, float)):
+                seconds = int(raw_value)
+            else:
+                seconds = int(float(str(raw_value).strip()))
+        except (ValueError, TypeError):
+            self.logger.warning(
+                f"無効なタイムアウト値を無視します ({source}): {raw_value}",
+            )
+            return None
+
+        if seconds <= 0:
+            self.logger.warning(
+                "タイムアウト値は正の秒数である必要があります "
+                f"({source}): {raw_value}",
+            )
+            return None
+
+        return seconds
+
     def list_workflows(self) -> list[Dict[str, Any]]:
         """Return available workflows/jobs from act."""
 
@@ -256,25 +316,34 @@ class ActWrapper:
 
         self.logger.info(f"actコマンド実行: {' '.join(cmd)}")
 
+        stdout_lines: list[str] = []
+        stderr_lines: list[str] = []
+
+        def _stream_output(
+            pipe: Any,
+            collector: list[str],
+            label: str,
+        ) -> None:
+            if pipe is None:
+                return
+            with pipe:
+                for raw_line in pipe:
+                    collector.append(raw_line)
+                    line = raw_line.rstrip("\n")
+                    if not line:
+                        continue
+                    if self.logger.verbose:
+                        self.logger.debug(f"[{label}] {line}")
+
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 cmd,
                 cwd=self.working_directory,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=600,
                 env=process_env,
-                check=False,
             )
-        except subprocess.TimeoutExpired:
-            self.logger.error("actの実行がタイムアウトしました")
-            return {
-                "success": False,
-                "returncode": -1,
-                "stdout": "",
-                "stderr": "Execution timeout",
-                "command": " ".join(cmd),
-            }
         except (OSError, subprocess.SubprocessError) as exc:
             self.logger.error(f"act実行エラー: {exc}")
             return {
@@ -285,16 +354,85 @@ class ActWrapper:
                 "command": " ".join(cmd),
             }
 
-        if result.returncode != 0:
+        threads: list[threading.Thread] = []
+        if process.stdout:
+            t_out = threading.Thread(
+                target=_stream_output,
+                args=(process.stdout, stdout_lines, "act stdout"),
+                daemon=True,
+            )
+            t_out.start()
+            threads.append(t_out)
+        if process.stderr:
+            t_err = threading.Thread(
+                target=_stream_output,
+                args=(process.stderr, stderr_lines, "act stderr"),
+                daemon=True,
+            )
+            t_err.start()
+            threads.append(t_err)
+
+        start_time = time.time()
+        heartbeat_interval = 30
+        next_heartbeat = start_time + heartbeat_interval
+        deadline = (
+            start_time + self._timeout_seconds
+            if self._timeout_seconds
+            else None
+        )
+        timed_out = False
+
+        while True:
+            return_code = process.poll()
+            if return_code is not None:
+                break
+
+            now = time.time()
+            if deadline and now >= deadline:
+                timed_out = True
+                self.logger.error("actの実行がタイムアウトしました")
+                process.kill()
+                break
+
+            if now >= next_heartbeat:
+                elapsed = int(now - start_time)
+                self.logger.info(
+                    f"act 実行中... {elapsed} 秒経過 (PID: {process.pid})"
+                )
+                next_heartbeat = now + heartbeat_interval
+
+            time.sleep(1)
+
+        if process.poll() is None:
+            process.wait()
+
+        for thread in threads:
+            thread.join(timeout=2)
+
+        stdout_text = "".join(stdout_lines)
+        stderr_text = "".join(stderr_lines)
+
+        if timed_out:
+            return {
+                "success": False,
+                "returncode": -1,
+                "stdout": stdout_text,
+                "stderr": stderr_text or "Execution timeout",
+                "command": " ".join(cmd),
+            }
+
+        exit_code = process.returncode or 0
+
+        if exit_code != 0:
             self.logger.error(
-                f"act 実行が失敗しました (returncode={result.returncode})"
+                f"act 実行が失敗しました (returncode={exit_code})"
             )
 
         return {
-            "success": result.returncode == 0,
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "success": exit_code == 0,
+            "returncode": exit_code,
+            "stdout": stdout_text,
+            "stderr": stderr_text,
             "command": " ".join(cmd),
         }
 
@@ -323,7 +461,7 @@ class ActWrapper:
 
         try:
             with workflow_path.open("r", encoding="utf-8") as handle:
-                workflow_raw = yaml.safe_load(handle) or {}
+                workflow_raw: Any = yaml.safe_load(handle) or {}
         except (
             OSError,
             yaml.YAMLError,
