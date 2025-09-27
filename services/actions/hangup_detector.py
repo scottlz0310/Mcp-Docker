@@ -169,7 +169,7 @@ class HangupDetector:
                     text=True,
                     timeout=5
                 )
-                
+
                 # 次にバージョン情報を取得
                 result = subprocess.run(
                     ["docker", "version", "--format", "json"],
@@ -469,17 +469,16 @@ class HangupDetector:
                 for process_trace in execution_trace.process_traces:
                     if hasattr(process_trace, 'start_time'):
                         from datetime import datetime, timezone, timedelta
-                        import time
-                        
+
                         # start_timeが文字列の場合はdatetimeに変換
                         if isinstance(process_trace.start_time, str):
                             start_time = datetime.fromisoformat(process_trace.start_time.replace('Z', '+00:00'))
                         else:
                             start_time = process_trace.start_time
-                        
+
                         current_time = datetime.now(timezone.utc)
                         duration = current_time - start_time
-                        
+
                         # 5分以上実行されているプロセスを検出
                         if duration > timedelta(minutes=5):
                             issues.append(HangupIssue(
@@ -528,7 +527,7 @@ class HangupDetector:
             if timeout_env:
                 try:
                     timeout_value = int(timeout_env)
-                    
+
                     if timeout_value < 0:
                         issues.append(HangupIssue(
                             issue_type=HangupType.TIMEOUT_PROBLEM,
@@ -557,7 +556,7 @@ class HangupDetector:
                             ],
                             confidence_score=0.7
                         ))
-                        
+
                 except ValueError:
                     issues.append(HangupIssue(
                         issue_type=HangupType.TIMEOUT_PROBLEM,
@@ -617,7 +616,7 @@ class HangupDetector:
                     text=True,
                     timeout=5
                 )
-                
+
                 if result.returncode == 0:
                     groups = result.stdout.strip().split()
                     if "docker" not in groups:
@@ -635,7 +634,7 @@ class HangupDetector:
                             ],
                             confidence_score=0.9
                         ))
-                        
+
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
 
@@ -666,26 +665,26 @@ class HangupDetector:
     def _collect_detailed_system_info(self) -> Dict[str, Any]:
         """詳細なシステム情報を収集"""
         system_info = {}
-        
+
         try:
             # OS情報
             system_info["os"] = os.name
             system_info["platform"] = os.uname() if hasattr(os, 'uname') else "unknown"
-            
+
             # 環境変数
             relevant_vars = ["DOCKER_HOST", "PATH", "HOME", "USER", "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS"]
             system_info["environment"] = {var: os.environ.get(var, "") for var in relevant_vars}
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"システム情報収集中にエラー: {e}")
-                
+
         return system_info
 
     def _collect_docker_status(self) -> Dict[str, Any]:
         """Docker状態情報を収集"""
         docker_status = {}
-        
+
         try:
             # Docker version
             result = subprocess.run(
@@ -696,7 +695,7 @@ class HangupDetector:
             )
             if result.returncode == 0:
                 docker_status["version"] = result.stdout.strip()
-                
+
             # Docker info
             result = subprocess.run(
                 ["docker", "info", "--format", "json"],
@@ -709,26 +708,26 @@ class HangupDetector:
                     docker_status["info"] = json.loads(result.stdout)
                 except json.JSONDecodeError:
                     docker_status["info"] = {"raw": result.stdout}
-                    
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"Docker状態収集中にエラー: {e}")
-                
+
         return docker_status
 
     def _collect_process_information(self) -> Dict[str, Any]:
         """プロセス情報を収集"""
         process_info = {}
-        
+
         try:
             # 現在のプロセス情報
             process_info["pid"] = os.getpid()
             process_info["ppid"] = os.getppid() if hasattr(os, 'getppid') else None
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"プロセス情報収集中にエラー: {e}")
-                
+
         return process_info
 
     def _collect_system_state(self) -> Dict[str, Any]:
@@ -750,63 +749,63 @@ class HangupDetector:
             "troubleshooting_guide": report.troubleshooting_guide,
             "next_steps": report.next_steps
         }
-        
+
         if report.hangup_analysis:
             result["hangup_analysis"] = {
                 "analysis_id": report.hangup_analysis.analysis_id,
                 "issues_count": len(report.hangup_analysis.issues),
                 "primary_cause": report.hangup_analysis.primary_cause.title if report.hangup_analysis.primary_cause else None
             }
-            
+
         return result
 
     def _generate_recovery_suggestions(self, analysis) -> List[str]:
         """復旧提案を生成"""
         suggestions = []
-        
+
         if analysis.primary_cause:
             suggestions.extend(analysis.primary_cause.recommendations)
-            
+
         # 一般的な復旧提案を追加
         suggestions.extend([
             "Docker Desktopまたは Docker Engineを再起動してください",
             "システムリソース（CPU、メモリ、ディスク容量）を確認してください",
             "実行中のコンテナを確認し、不要なものを停止してください"
         ])
-        
+
         return list(set(suggestions))  # 重複を除去
 
     def _generate_prevention_measures(self, analysis) -> List[str]:
         """予防策を生成"""
         measures = []
-        
+
         # 問題タイプに基づいた予防策
         issue_types = [issue.issue_type for issue in analysis.issues]
-        
+
         if HangupType.PERMISSION_ISSUE in issue_types:
             measures.extend([
                 "ユーザーをdockerグループに追加してください",
                 "適切なディレクトリ権限を設定してください"
             ])
-            
+
         if HangupType.RESOURCE_EXHAUSTION in issue_types:
             measures.extend([
                 "定期的にシステムリソースを監視してください",
                 "不要なコンテナやイメージを定期的に削除してください"
             ])
-            
+
         if HangupType.DOCKER_SOCKET_ISSUE in issue_types:
             measures.extend([
                 "Docker daemonの自動起動を設定してください",
                 "Docker設定を定期的に確認してください"
             ])
-            
+
         # 一般的な予防策
         measures.extend([
             "定期的にDocker system pruneを実行してください",
             "システムの監視とログ確認を習慣化してください"
         ])
-        
+
         return list(set(measures))  # 重複を除去
 
     def _add_system_info_to_bundle(self, zipf, bundle_id: str, system_info: Dict[str, Any]) -> None:
