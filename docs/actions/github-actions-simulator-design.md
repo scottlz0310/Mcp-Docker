@@ -117,10 +117,10 @@ GITHUB_USER = "local-runner"
 
 ## pre-commit / CI 連携
 
-- `.pre-commit-config.yaml` に以下のフックを定義:
-  - `uv run pytest` (差分対象のみ)
-  - `uv run bats tests/test_actions_simulator.bats`
-  - MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) のローカル実行ラッパー
+- `.pre-commit-config.yaml` には以下のフックを定義:
+     - `uv run pytest` (差分対象のみ)
+     - MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) のローカル実行ラッパー
+- Bats は `make test` / `scripts/run_bats.py` / CI の定期ジョブで実行し、コミット前チェックでは呼び出さない。
 - CI では同じスクリプトを `make lint` / `make test` / `make security` で呼び出す。
 - act 実行は手動トリガーまたは nightly ジョブで実施し、CI 時間を最小化。
 
@@ -144,7 +144,7 @@ GITHUB_USER = "local-runner"
 1. **Unit**: Parser / ExpressionEvaluator / ActWrapper (引数生成) を pytest で検証。
 2. **CLI**: Bats で `simulate`, `validate`, `list-jobs`, `make actions` 経路を検証。
 3. **Integration**: Docker 内で `scripts/run-actions.sh sample.yml` を実行し exit code を確認。
-4. **Regression**: `uv run pytest` + `uv run bats` を pre-commit と CI で共通化。
+4. **Regression**: pre-commit では `uv run pytest` を必須化し、Bats は `make test` / CI (必要に応じ `scripts/run_bats.py`) で共通化。
 
 ## 将来拡張 (任意)
 

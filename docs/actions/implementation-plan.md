@@ -35,7 +35,7 @@ Mcp-Docker プロジェクトに「軽量 GitHub Actions 事前チェック体�
 
 ### フェーズB: 品質ゲートと自動化 (1 週間)
 
-- ✅ **B1.** pre-commit 経由で `uv run pytest` / `uv run bats` / MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) を統合。（`scripts/run_bats.py` と `.pre-commit-config.yaml` 更新済み）
+- ✅ **B1.** pre-commit 経由で `uv run pytest` と MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) を統合し、Bats は `scripts/run_bats.py` や CI (`make test`) から実行する方針へ整理。
 - ✅ **B2.** 軽量 Trivy スキャンを `uv run security-scan` に集約し、`Makefile` の `security` ターゲットからオプション実行可能にした（デフォルト 3 分以内、結果は `output/security/trivy` に保存）。
 - ✅ **B3.** 実行ログと JSON サマリーを `output/actions` に保存し、CLI `actions summary` コマンドで最新結果を閲覧可能にした。
 
@@ -100,7 +100,7 @@ scripts/
 - **単体テスト**: `pytest` で Parser / Simulator / ExpressionEvaluator を継続カバー。
 - **CLI/Bats テスト**: Click CLI の主要経路 (`simulate`, `validate`, `list-jobs`) のドライランを網羅。
 - **統合テスト**: Docker コンテナ内で `scripts/run-actions.sh` を実行する簡易 E2E (CI で nightly)。
-- **品質ゲート**: pre-commit & CI で MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) と `uv run pytest`, `uv run bats`。
+- **品質ゲート**: pre-commit では MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) と `uv run pytest`、Bats は `make test` / `scripts/run_bats.py` / CI で定期的に実行。
 - **セキュリティ (任意)**: Trivy を `make security` で呼び出し、主要イメージをスキャン。
 
 ## リスクと対応

@@ -38,8 +38,3 @@ repos:
         entry: uv run pytest
         language: system
         pass_filenames: false
-      - id: uv-bats
-        name: bats test suite via uv
-        entry: uv run bats
-        language: system
-        pass_filenames: false

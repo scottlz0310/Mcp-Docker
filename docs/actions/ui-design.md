@@ -103,8 +103,8 @@ WORKFLOW=.github/workflows/ci.yml JSON=1 make actions
 
 | フェーズ | コマンド | 備考 |
 | --- | --- | --- |
-| pre-commit | `uv run pytest`, `uv run bats`, MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) | 差分対象のみ実行 |
-| optional | `make actions WORKFLOW=.github/workflows/ci.yml` | 大きな変更時に手動で実行 |
+| pre-commit | `uv run pytest`, MegaLinter (Ruff/ShellCheck/Hadolint/Yamllint) | 差分対象のみ実行 |
+| optional | `scripts/run_bats.py` / `make actions WORKFLOW=.github/workflows/ci.yml` | Bats や act 実行は必要に応じて手動で実行 |
 | security (選択) | `uv run security-scan --skip-build` | `output/security/trivy` に JSON サマリーを保存 |
 | CI | `make lint`, `make test`, `make actions WORKFLOW=... JSON=1` | 同じコマンドで再利用 |
 

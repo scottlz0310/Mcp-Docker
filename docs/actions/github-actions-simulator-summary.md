@@ -70,7 +70,7 @@ uv run python main.py actions simulate .github/workflows/ci.yml --json
 
 ## 🔒 品質とセキュリティ
 
-- pre-commit フックで `uv run pytest` / `uv run bats` / MegaLinter を自動実行。
+- pre-commit フックで `uv run pytest` と MegaLinter を自動実行。Bats は `make test` や `scripts/run_bats.py`、CI ワークフローから呼び出す運用とする。
 - 軽量 Trivy スキャンを `uv run security-scan` で呼び出し、JSON サマリーを `output/security/trivy` に保存。
 - act 実行ログとサマリーを `output/actions/logs` / `output/actions/summaries` に整理し、`actions summary` コマンドで閲覧可能。
 
