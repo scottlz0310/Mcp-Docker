@@ -255,9 +255,9 @@ def run_simulate(
         )
 
     if result.stdout:
-        console.print(result.stdout.rstrip("\n"))
+        console.print(result.stdout.rstrip("\n"), markup=False)
     if result.stderr:
-        console.print(result.stderr.rstrip("\n"), style="red")
+        console.print(result.stderr.rstrip("\n"), style="red", markup=False)
 
     return result
 
@@ -1096,11 +1096,11 @@ def trace_test(
 
         if result.stdout:
             console.print("\n[bold]標準出力:[/bold]")
-            console.print(result.stdout)
+            console.print(result.stdout, markup=False)
 
         if result.stderr:
             console.print("\n[bold red]標準エラー:[/bold red]")
-            console.print(result.stderr)
+            console.print(result.stderr, markup=False)
 
         # トレース情報をエクスポート
         if output_file:

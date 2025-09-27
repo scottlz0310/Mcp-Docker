@@ -1,0 +1,15 @@
+name: Simple Test Workflow
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simple echo
+        run: echo "Hello World"
+      - name: List files
+        run: ls -la
+      - name: Show environment
+        run: env | head -10

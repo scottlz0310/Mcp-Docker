@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .act_wrapper import ActWrapper
+from .auto_recovery import AutoRecovery, RecoverySession, FallbackExecutionResult
 from .diagnostic import DiagnosticService, DiagnosticResult, DiagnosticStatus
 from .docker_integration_checker import DockerIntegrationChecker, DockerConnectionStatus
 from .execution_tracer import ExecutionTracer, ExecutionStage
@@ -832,6 +833,15 @@ class EnhancedActWrapper(ActWrapper):
             execution_tracer=execution_tracer
         )
 
+        # 自動復旧メカニズムを追加
+        self.auto_recovery = AutoRecovery(
+            logger=self.logger,
+            docker_checker=self.docker_integration_checker,
+            max_recovery_attempts=3,
+            recovery_timeout=60.0,
+            enable_fallback_mode=True
+        )
+
     def run_workflow_with_diagnostics(
         self,
         workflow_file: Optional[str] = None,
@@ -1419,3 +1429,253 @@ class EnhancedActWrapper(ActWrapper):
         """
         self._docker_connection_verified = False
         self.logger.debug("Docker接続キャッシュをリセットしました")
+
+    def run_workflow_with_auto_recovery(
+        self,
+        workflow_file: Optional[str] = None,
+        event: Optional[str] = None,
+        job: Optional[str] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+        env_vars: Optional[Dict[str, str]] = None,
+        enable_recovery: bool = True,
+        max_recovery_attempts: int = 2
+    ) -> DetailedResult:
+        """
+        自動復旧機能付きでワークフローを実行
+
+        Args:
+            workflow_file: ワークフローファイル
+            event: イベント名
+            job: ジョブ名
+            dry_run: ドライランモード
+            verbose: 詳細ログ
+            env_vars: 環境変数
+            enable_recovery: 自動復旧を有効にするかどうか
+            max_recovery_attempts: 最大復旧試行回数
+
+        Returns:
+            DetailedResult: 詳細な実行結果（復旧情報を含む）
+        """
+        self.logger.info("自動復旧機能付きワークフロー実行を開始...")
+
+        recovery_session: Optional[RecoverySession] = None
+        fallback_result: Optional[FallbackExecutionResult] = None
+        primary_execution_failed = False
+
+        # 最初に通常の実行を試行
+        try:
+            result = self.run_workflow_with_diagnostics(
+                workflow_file=workflow_file,
+                event=event,
+                job=job,
+                dry_run=dry_run,
+                verbose=verbose,
+                env_vars=env_vars
+            )
+
+            if result.success:
+                self.logger.success("プライマリ実行が成功しました")
+                return result
+            else:
+                primary_execution_failed = True
+                self.logger.warning("プライマリ実行が失敗しました - 自動復旧を開始します")
+
+        except Exception as e:
+            primary_execution_failed = True
+            self.logger.error(f"プライマリ実行中にエラーが発生しました: {str(e)} - 自動復旧を開始します")
+
+            # エラー時の基本結果を作成
+            result = DetailedResult(
+                success=False,
+                returncode=-1,
+                stdout="",
+                stderr=f"プライマリ実行エラー: {str(e)}",
+                command="",
+                execution_time_ms=0
+            )
+
+        # 自動復旧が有効で、プライマリ実行が失敗した場合
+        if enable_recovery and primary_execution_failed:
+            self.logger.info("自動復旧処理を実行中...")
+
+            # 復旧試行回数のループ
+            for attempt in range(max_recovery_attempts):
+                self.logger.info(f"復旧試行 {attempt + 1}/{max_recovery_attempts}")
+
+                try:
+                    # 包括的復旧処理を実行
+                    workflow_path = Path(workflow_file) if workflow_file else None
+                    original_command = self._build_act_command(
+                        workflow_file=workflow_file,
+                        event=event,
+                        job=job,
+                        dry_run=dry_run,
+                        verbose=verbose,
+                        env_vars=env_vars
+                    )
+
+                    recovery_session = self.auto_recovery.run_comprehensive_recovery(
+                        failed_process=None,  # プロセス情報がない場合
+                        workflow_file=workflow_path,
+                        original_command=original_command
+                    )
+
+                    # 復旧後に再実行を試行
+                    if recovery_session.overall_success:
+                        self.logger.info("復旧が成功しました - 再実行を試行します")
+
+                        try:
+                            retry_result = self.run_workflow_with_diagnostics(
+                                workflow_file=workflow_file,
+                                event=event,
+                                job=job,
+                                dry_run=dry_run,
+                                verbose=verbose,
+                                env_vars=env_vars
+                            )
+
+                            if retry_result.success:
+                                self.logger.success("復旧後の再実行が成功しました")
+                                # 復旧情報を結果に追加
+                                retry_result.diagnostic_results.append(DiagnosticResult(
+                                    component="auto_recovery",
+                                    status=DiagnosticStatus.OK,
+                                    message=f"自動復旧成功 (試行 {attempt + 1}/{max_recovery_attempts})",
+                                    details={"recovery_session_id": recovery_session.session_id},
+                                    recommendations=["自動復旧により問題が解決されました"]
+                                ))
+                                return retry_result
+
+                        except Exception as e:
+                            self.logger.warning(f"復旧後の再実行でエラー: {str(e)}")
+
+                    # フォールバック実行を試行
+                    if workflow_path and self.auto_recovery.enable_fallback_mode:
+                        self.logger.info("フォールバック実行を試行します")
+                        fallback_result = self.auto_recovery.execute_fallback_mode(
+                            workflow_path, original_command
+                        )
+
+                        if fallback_result.success:
+                            self.logger.success("フォールバック実行が成功しました")
+                            # フォールバック結果を DetailedResult に変換
+                            result = DetailedResult(
+                                success=True,
+                                returncode=fallback_result.returncode,
+                                stdout=fallback_result.stdout,
+                                stderr=fallback_result.stderr,
+                                command=" ".join(original_command),
+                                execution_time_ms=fallback_result.execution_time_ms
+                            )
+                            result.diagnostic_results.append(DiagnosticResult(
+                                component="auto_recovery_fallback",
+                                status=DiagnosticStatus.OK,
+                                message=f"フォールバック実行成功: {fallback_result.fallback_method}",
+                                details={
+                                    "fallback_method": fallback_result.fallback_method,
+                                    "limitations": fallback_result.limitations,
+                                    "warnings": fallback_result.warnings
+                                },
+                                recommendations=["フォールバックモードで実行されました"]
+                            ))
+                            return result
+
+                except Exception as e:
+                    self.logger.error(f"復旧試行 {attempt + 1} でエラーが発生しました: {str(e)}")
+
+                # 最後の試行でない場合は少し待機
+                if attempt < max_recovery_attempts - 1:
+                    self.logger.info("次の復旧試行まで待機中...")
+                    time.sleep(5)
+
+            # 全ての復旧試行が失敗
+            self.logger.error("全ての自動復旧試行が失敗しました")
+
+        # 復旧情報を結果に追加
+        if recovery_session:
+            result.diagnostic_results.append(DiagnosticResult(
+                component="auto_recovery",
+                status=DiagnosticStatus.ERROR if not recovery_session.overall_success else DiagnosticStatus.WARNING,
+                message=f"自動復旧{'成功' if recovery_session.overall_success else '失敗'}: {len(recovery_session.attempts)}個の復旧操作実行",
+                details={
+                    "recovery_session_id": recovery_session.session_id,
+                    "total_attempts": len(recovery_session.attempts),
+                    "successful_attempts": sum(1 for a in recovery_session.attempts if a.status.value == "success"),
+                    "fallback_activated": recovery_session.fallback_mode_activated
+                },
+                recommendations=[
+                    "自動復旧が実行されましたが、問題が完全に解決されていない可能性があります",
+                    "手動での問題調査を推奨します"
+                ]
+            ))
+
+        if fallback_result:
+            result.diagnostic_results.append(DiagnosticResult(
+                component="fallback_execution",
+                status=DiagnosticStatus.WARNING if fallback_result.success else DiagnosticStatus.ERROR,
+                message=f"フォールバック実行{'成功' if fallback_result.success else '失敗'}: {fallback_result.fallback_method}",
+                details={
+                    "fallback_method": fallback_result.fallback_method,
+                    "limitations": fallback_result.limitations,
+                    "warnings": fallback_result.warnings
+                },
+                recommendations=["フォールバック実行の制限事項を確認してください"]
+            ))
+
+        return result
+
+    def _build_act_command(
+        self,
+        workflow_file: Optional[str] = None,
+        event: Optional[str] = None,
+        job: Optional[str] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+        env_vars: Optional[Dict[str, str]] = None
+    ) -> List[str]:
+        """
+        actコマンドを構築
+
+        Args:
+            workflow_file: ワークフローファイル
+            event: イベント名
+            job: ジョブ名
+            dry_run: ドライランモード
+            verbose: 詳細ログ
+            env_vars: 環境変数
+
+        Returns:
+            List[str]: actコマンドの引数リスト
+        """
+        cmd = ["act"]
+
+        if event:
+            cmd.append(event)
+
+        if job:
+            cmd.extend(["-j", job])
+
+        if workflow_file:
+            cmd.extend(["-W", workflow_file])
+
+        if dry_run:
+            cmd.append("--dry-run")
+
+        if verbose:
+            cmd.append("--verbose")
+
+        if env_vars:
+            for key, value in env_vars.items():
+                cmd.extend(["--env", f"{key}={value}"])
+
+        return cmd
+
+    def get_auto_recovery_statistics(self) -> Dict[str, Any]:
+        """
+        自動復旧統計情報を取得
+
+        Returns:
+            Dict[str, Any]: 自動復旧統計情報
+        """
+        return self.auto_recovery.get_recovery_statistics()
