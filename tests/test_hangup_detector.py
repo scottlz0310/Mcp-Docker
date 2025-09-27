@@ -163,7 +163,7 @@ class TestHangupDetector:
 
         timeout_issue = next((issue for issue in issues if issue.issue_type == HangupType.TIMEOUT_PROBLEM), None)
         assert timeout_issue is not None
-        assert "形式エラー" in timeout_issue.title
+        assert "無効なタイムアウト設定" in timeout_issue.title
         assert timeout_issue.confidence_score == 0.95
 
     def test_detect_timeout_problems_negative_value(self, hangup_detector):
@@ -325,14 +325,18 @@ class TestHangupDetector:
         """デバッグバンドル作成時のエラーハンドリングテスト"""
         report = ErrorReport(report_id="test_report")
 
-        # 存在しないディレクトリを指定してエラーを発生させる
-        with patch('zipfile.ZipFile', side_effect=Exception("Test error")):
-            bundle = hangup_detector.create_debug_bundle(
-                error_report=report,
-                output_directory=Path("/nonexistent/path")
-            )
+        # 一時ディレクトリを使用してエラーハンドリングをテスト
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            
+            # ZipFileでエラーを発生させる
+            with patch('zipfile.ZipFile', side_effect=Exception("Test error")):
+                bundle = hangup_detector.create_debug_bundle(
+                    error_report=report,
+                    output_directory=output_dir
+                )
 
-        assert bundle.bundle_path is None
+            assert bundle.bundle_path is None
 
     def test_confidence_threshold_filtering(self, hangup_detector):
         """信頼度閾値によるフィルタリングのテスト"""

@@ -104,7 +104,8 @@ class HangupDetector:
         logger=None,
         diagnostic_service=None,
         execution_tracer=None,
-        confidence_threshold: float = 0.7
+        confidence_threshold: float = 0.7,
+        max_log_lines: int = 1000
     ):
         """
         HangupDetectorを初期化
@@ -119,6 +120,9 @@ class HangupDetector:
         self.diagnostic_service = diagnostic_service
         self.execution_tracer = execution_tracer
         self.confidence_threshold = confidence_threshold
+        self.max_log_lines = max_log_lines
+        self._detection_patterns = self._initialize_detection_patterns()
+        self._known_issues_db = self._initialize_known_issues_db()
 
     def detect_docker_socket_issues(self) -> List[HangupIssue]:
         """
@@ -154,9 +158,19 @@ class HangupDetector:
                     ],
                     confidence_score=0.95
                 ))
+                return issues  # ソケットが存在しない場合は早期リターン
 
-            # Docker daemon接続テスト
+            # Docker daemon基本接続テスト
             try:
+                # 最初にDocker daemonの基本的な応答をテスト
+                result = subprocess.run(
+                    ["docker", "info"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                # 次にバージョン情報を取得
                 result = subprocess.run(
                     ["docker", "version", "--format", "json"],
                     capture_output=True,
@@ -234,6 +248,7 @@ class HangupDetector:
             self.logger.info(f"包括的なハングアップ分析を開始: {analysis_id}")
 
         analysis = HangupAnalysis(analysis_id=analysis_id)
+        start_time = time.time()
 
         try:
             # Docker関連問題を検出
@@ -265,7 +280,11 @@ class HangupDetector:
                 "システムリソース（CPU、メモリ、ディスク容量）を確認してください"
             ]
 
+            # 予防策の生成
+            analysis.prevention_measures = self._generate_prevention_measures(analysis)
+
             analysis.end_time = datetime.now(timezone.utc).isoformat()
+            analysis.duration_ms = (time.time() - start_time) * 1000
 
             if self.logger:
                 self.logger.info(f"ハングアップ分析完了: {len(filtered_issues)}個の問題を検出")
@@ -274,6 +293,7 @@ class HangupDetector:
             if self.logger:
                 self.logger.error(f"ハングアップ分析中にエラーが発生しました: {e}")
             analysis.end_time = datetime.now(timezone.utc).isoformat()
+            analysis.duration_ms = (time.time() - start_time) * 1000
 
         return analysis
 
@@ -424,3 +444,439 @@ class HangupDetector:
             bundle.bundle_path = None
 
         return bundle
+
+    def detect_subprocess_deadlock(self, execution_trace=None) -> List[HangupIssue]:
+        """
+        サブプロセスデッドロック関連の問題を検出
+
+        Args:
+            execution_trace: 実行トレース情報
+
+        Returns:
+            List[HangupIssue]: 検出されたサブプロセスデッドロック問題のリスト
+        """
+        if self.logger:
+            self.logger.debug("サブプロセスデッドロック問題を検出中...")
+
+        issues = []
+
+        if execution_trace is None:
+            return issues
+
+        try:
+            # 長時間実行プロセスの検出
+            if hasattr(execution_trace, 'process_traces'):
+                for process_trace in execution_trace.process_traces:
+                    if hasattr(process_trace, 'start_time'):
+                        from datetime import datetime, timezone, timedelta
+                        import time
+                        
+                        # start_timeが文字列の場合はdatetimeに変換
+                        if isinstance(process_trace.start_time, str):
+                            start_time = datetime.fromisoformat(process_trace.start_time.replace('Z', '+00:00'))
+                        else:
+                            start_time = process_trace.start_time
+                        
+                        current_time = datetime.now(timezone.utc)
+                        duration = current_time - start_time
+                        
+                        # 5分以上実行されているプロセスを検出
+                        if duration > timedelta(minutes=5):
+                            issues.append(HangupIssue(
+                                issue_type=HangupType.SUBPROCESS_DEADLOCK,
+                                severity=HangupSeverity.HIGH,
+                                title="長時間実行プロセスが応答しません",
+                                description=f"プロセス {process_trace.command} が {duration.total_seconds():.0f}秒間実行されています",
+                                evidence={
+                                    "command": process_trace.command,
+                                    "pid": getattr(process_trace, 'pid', None),
+                                    "duration_seconds": duration.total_seconds()
+                                },
+                                root_cause="プロセスがデッドロック状態またはハングアップしている可能性があります",
+                                impact_assessment="ワークフロー実行が完了しません",
+                                recommendations=[
+                                    "プロセスを強制終了してください",
+                                    "Docker daemonの状態を確認してください"
+                                ],
+                                confidence_score=0.8
+                            ))
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"サブプロセスデッドロック検出中にエラーが発生しました: {e}")
+
+        return issues
+
+    def detect_timeout_problems(self, execution_trace=None) -> List[HangupIssue]:
+        """
+        タイムアウト関連の問題を検出
+
+        Args:
+            execution_trace: 実行トレース情報
+
+        Returns:
+            List[HangupIssue]: 検出されたタイムアウト問題のリスト
+        """
+        if self.logger:
+            self.logger.debug("タイムアウト問題を検出中...")
+
+        issues = []
+
+        try:
+            # 環境変数のタイムアウト設定をチェック
+            timeout_env = os.environ.get('ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS')
+            if timeout_env:
+                try:
+                    timeout_value = int(timeout_env)
+                    
+                    if timeout_value < 0:
+                        issues.append(HangupIssue(
+                            issue_type=HangupType.TIMEOUT_PROBLEM,
+                            severity=HangupSeverity.MEDIUM,
+                            title="無効なタイムアウト設定",
+                            description=f"タイムアウト値が負の数です: {timeout_value}",
+                            evidence={"timeout_value": timeout_value, "env_var": timeout_env},
+                            root_cause="環境変数の設定が不正です",
+                            impact_assessment="タイムアウト処理が正常に動作しません",
+                            recommendations=[
+                                "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS環境変数を正の値に設定してください"
+                            ],
+                            confidence_score=0.95
+                        ))
+                    elif timeout_value < 120:  # 2分未満
+                        issues.append(HangupIssue(
+                            issue_type=HangupType.TIMEOUT_PROBLEM,
+                            severity=HangupSeverity.LOW,
+                            title="タイムアウト値が短すぎます",
+                            description=f"タイムアウト値が短すぎる可能性があります: {timeout_value}秒",
+                            evidence={"timeout_value": timeout_value},
+                            root_cause="タイムアウト値が短すぎてワークフローが完了できません",
+                            impact_assessment="正常なワークフローも途中で終了する可能性があります",
+                            recommendations=[
+                                "タイムアウト値を300秒以上に設定することを推奨します"
+                            ],
+                            confidence_score=0.7
+                        ))
+                        
+                except ValueError:
+                    issues.append(HangupIssue(
+                        issue_type=HangupType.TIMEOUT_PROBLEM,
+                        severity=HangupSeverity.HIGH,
+                        title="無効なタイムアウト設定",
+                        description=f"タイムアウト値が数値ではありません: {timeout_env}",
+                        evidence={"env_var": timeout_env},
+                        root_cause="環境変数の値が数値として解析できません",
+                        impact_assessment="タイムアウト処理が正常に動作しません",
+                        recommendations=[
+                            "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS環境変数を数値に設定してください"
+                        ],
+                        confidence_score=0.95
+                    ))
+
+            # 実行トレースからハングポイントを検出
+            if execution_trace and hasattr(execution_trace, 'hang_point') and execution_trace.hang_point:
+                issues.append(HangupIssue(
+                    issue_type=HangupType.TIMEOUT_PROBLEM,
+                    severity=HangupSeverity.HIGH,
+                    title="ハングアップを検出しました",
+                    description=f"実行がハングしています: {execution_trace.hang_point}",
+                    evidence={"hang_point": execution_trace.hang_point},
+                    root_cause="特定のポイントで実行が停止しています",
+                    impact_assessment="ワークフロー実行が完了しません",
+                    recommendations=[
+                        "ハングポイントでの処理を確認してください",
+                        "Docker daemonの状態を確認してください"
+                    ],
+                    confidence_score=0.85
+                ))
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"タイムアウト問題検出中にエラーが発生しました: {e}")
+
+        return issues
+
+    def detect_permission_issues(self) -> List[HangupIssue]:
+        """
+        権限関連の問題を検出
+
+        Returns:
+            List[HangupIssue]: 検出された権限問題のリスト
+        """
+        if self.logger:
+            self.logger.debug("権限問題を検出中...")
+
+        issues = []
+
+        try:
+            # Dockerグループの確認
+            try:
+                result = subprocess.run(
+                    ["groups"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode == 0:
+                    groups = result.stdout.strip().split()
+                    if "docker" not in groups:
+                        issues.append(HangupIssue(
+                            issue_type=HangupType.PERMISSION_ISSUE,
+                            severity=HangupSeverity.HIGH,
+                            title="dockerグループに属していません",
+                            description="現在のユーザーがdockerグループに属していません",
+                            evidence={"user_groups": groups},
+                            root_cause="Docker daemonへのアクセス権限がありません",
+                            impact_assessment="Docker操作が失敗します",
+                            recommendations=[
+                                "ユーザーをdockerグループに追加してください: sudo usermod -aG docker $USER",
+                                "ログアウト・ログインしてグループ変更を反映してください"
+                            ],
+                            confidence_score=0.9
+                        ))
+                        
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+
+            # 作業ディレクトリの書き込み権限確認
+            current_dir = Path.cwd()
+            if not os.access(current_dir, os.W_OK):
+                issues.append(HangupIssue(
+                    issue_type=HangupType.PERMISSION_ISSUE,
+                    severity=HangupSeverity.MEDIUM,
+                    title="作業ディレクトリへの書き込み権限がありません",
+                    description=f"現在のディレクトリ {current_dir} への書き込み権限がありません",
+                    evidence={"directory": str(current_dir), "writable": False},
+                    root_cause="ディレクトリの権限設定が不適切です",
+                    impact_assessment="一時ファイルの作成やログ出力が失敗する可能性があります",
+                    recommendations=[
+                        "ディレクトリの権限を確認してください",
+                        "書き込み可能なディレクトリに移動してください"
+                    ],
+                    confidence_score=0.8
+                ))
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"権限問題検出中にエラーが発生しました: {e}")
+
+        return issues
+
+    def _collect_detailed_system_info(self) -> Dict[str, Any]:
+        """詳細なシステム情報を収集"""
+        system_info = {}
+        
+        try:
+            # OS情報
+            system_info["os"] = os.name
+            system_info["platform"] = os.uname() if hasattr(os, 'uname') else "unknown"
+            
+            # 環境変数
+            relevant_vars = ["DOCKER_HOST", "PATH", "HOME", "USER", "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS"]
+            system_info["environment"] = {var: os.environ.get(var, "") for var in relevant_vars}
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"システム情報収集中にエラー: {e}")
+                
+        return system_info
+
+    def _collect_docker_status(self) -> Dict[str, Any]:
+        """Docker状態情報を収集"""
+        docker_status = {}
+        
+        try:
+            # Docker version
+            result = subprocess.run(
+                ["docker", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                docker_status["version"] = result.stdout.strip()
+                
+            # Docker info
+            result = subprocess.run(
+                ["docker", "info", "--format", "json"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                try:
+                    docker_status["info"] = json.loads(result.stdout)
+                except json.JSONDecodeError:
+                    docker_status["info"] = {"raw": result.stdout}
+                    
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"Docker状態収集中にエラー: {e}")
+                
+        return docker_status
+
+    def _collect_process_information(self) -> Dict[str, Any]:
+        """プロセス情報を収集"""
+        process_info = {}
+        
+        try:
+            # 現在のプロセス情報
+            process_info["pid"] = os.getpid()
+            process_info["ppid"] = os.getppid() if hasattr(os, 'getppid') else None
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"プロセス情報収集中にエラー: {e}")
+                
+        return process_info
+
+    def _collect_system_state(self) -> Dict[str, Any]:
+        """システム状態を収集"""
+        return {
+            "system_info": self._collect_detailed_system_info(),
+            "docker_status": self._collect_docker_status(),
+            "process_info": self._collect_process_information(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    def _error_report_to_dict(self, report) -> Dict[str, Any]:
+        """エラーレポートを辞書に変換"""
+        result = {
+            "report_id": report.report_id,
+            "timestamp": report.timestamp,
+            "system_information": report.system_information,
+            "environment_variables": report.environment_variables,
+            "troubleshooting_guide": report.troubleshooting_guide,
+            "next_steps": report.next_steps
+        }
+        
+        if report.hangup_analysis:
+            result["hangup_analysis"] = {
+                "analysis_id": report.hangup_analysis.analysis_id,
+                "issues_count": len(report.hangup_analysis.issues),
+                "primary_cause": report.hangup_analysis.primary_cause.title if report.hangup_analysis.primary_cause else None
+            }
+            
+        return result
+
+    def _generate_recovery_suggestions(self, analysis) -> List[str]:
+        """復旧提案を生成"""
+        suggestions = []
+        
+        if analysis.primary_cause:
+            suggestions.extend(analysis.primary_cause.recommendations)
+            
+        # 一般的な復旧提案を追加
+        suggestions.extend([
+            "Docker Desktopまたは Docker Engineを再起動してください",
+            "システムリソース（CPU、メモリ、ディスク容量）を確認してください",
+            "実行中のコンテナを確認し、不要なものを停止してください"
+        ])
+        
+        return list(set(suggestions))  # 重複を除去
+
+    def _generate_prevention_measures(self, analysis) -> List[str]:
+        """予防策を生成"""
+        measures = []
+        
+        # 問題タイプに基づいた予防策
+        issue_types = [issue.issue_type for issue in analysis.issues]
+        
+        if HangupType.PERMISSION_ISSUE in issue_types:
+            measures.extend([
+                "ユーザーをdockerグループに追加してください",
+                "適切なディレクトリ権限を設定してください"
+            ])
+            
+        if HangupType.RESOURCE_EXHAUSTION in issue_types:
+            measures.extend([
+                "定期的にシステムリソースを監視してください",
+                "不要なコンテナやイメージを定期的に削除してください"
+            ])
+            
+        if HangupType.DOCKER_SOCKET_ISSUE in issue_types:
+            measures.extend([
+                "Docker daemonの自動起動を設定してください",
+                "Docker設定を定期的に確認してください"
+            ])
+            
+        # 一般的な予防策
+        measures.extend([
+            "定期的にDocker system pruneを実行してください",
+            "システムの監視とログ確認を習慣化してください"
+        ])
+        
+        return list(set(measures))  # 重複を除去
+
+    def _add_system_info_to_bundle(self, zipf, bundle_id: str, system_info: Dict[str, Any]) -> None:
+        """システム情報をバンドルに追加"""
+        try:
+            content = json.dumps(system_info, ensure_ascii=False, indent=2)
+            zipf.writestr(f"{bundle_id}/system_info.json", content)
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"システム情報追加中にエラー: {e}")
+
+    def _add_docker_info_to_bundle(self, zipf, bundle_id: str, docker_info: Dict[str, Any]) -> None:
+        """Docker情報をバンドルに追加"""
+        try:
+            content = json.dumps(docker_info, ensure_ascii=False, indent=2)
+            zipf.writestr(f"{bundle_id}/docker_info.json", content)
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"Docker情報追加中にエラー: {e}")
+
+    def _add_logs_to_bundle(self, zipf, bundle_id: str) -> None:
+        """ログファイルをバンドルに追加"""
+        try:
+            # 簡単なログ情報を追加
+            log_content = "Log collection not implemented yet"
+            zipf.writestr(f"{bundle_id}/logs.txt", log_content)
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"ログ追加中にエラー: {e}")
+
+    def _initialize_detection_patterns(self) -> Dict[str, Any]:
+        """検出パターンを初期化"""
+        return {
+            "docker_socket_patterns": [
+                r"permission denied.*docker\.sock",
+                r"cannot connect to the docker daemon",
+                r"docker daemon.*not running"
+            ],
+            "timeout_patterns": [
+                r"timeout.*expired",
+                r"connection.*timed out",
+                r"no response.*timeout"
+            ],
+            "permission_patterns": [
+                r"permission denied",
+                r"access denied",
+                r"insufficient privileges"
+            ]
+        }
+
+    def _initialize_known_issues_db(self) -> Dict[str, Any]:
+        """既知の問題データベースを初期化"""
+        return {
+            "docker_issues": [
+                {
+                    "pattern": "docker daemon not running",
+                    "solution": "Docker Desktopを起動してください",
+                    "severity": "high"
+                },
+                {
+                    "pattern": "permission denied",
+                    "solution": "ユーザーをdockerグループに追加してください",
+                    "severity": "medium"
+                }
+            ],
+            "timeout_issues": [
+                {
+                    "pattern": "connection timeout",
+                    "solution": "ネットワーク接続を確認してください",
+                    "severity": "medium"
+                }
+            ]
+        }
