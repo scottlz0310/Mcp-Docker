@@ -6,10 +6,11 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Optional
 
 from .act_wrapper import ActWrapper
 from .logger import ActionsLogger
+from .execution_tracer import ExecutionTracer
 
 
 @dataclass(slots=True)
@@ -47,11 +48,13 @@ class SimulationService:
         self,
         logger_factory: Callable[[bool], ActionsLogger] | None = None,
         config: Mapping[str, Any] | None = None,
+        execution_tracer: Optional[ExecutionTracer] = None,
     ) -> None:
         self._logger_factory: Callable[[bool], ActionsLogger] = (
             logger_factory or self._default_logger_factory
         )
         self._config: dict[str, Any] = dict(config) if config else {}
+        self._execution_tracer = execution_tracer
 
     @staticmethod
     def _default_logger_factory(verbose: bool) -> ActionsLogger:
@@ -122,10 +125,14 @@ class SimulationService:
 
         wrapper_factory = ActWrapper
         try:
+            # ExecutionTracerを作成（まだ存在しない場合）
+            tracer = self._execution_tracer or ExecutionTracer(logger=logger)
+
             wrapper = wrapper_factory(
                 working_directory=str(workflow_path.parent),
                 config=self._config,
                 logger=logger,
+                execution_tracer=tracer,
             )
         except TypeError:
             try:
@@ -136,6 +143,8 @@ class SimulationService:
                 setattr(wrapper, "config", self._config)
             if hasattr(wrapper, "logger"):
                 setattr(wrapper, "logger", logger)
+            if hasattr(wrapper, "execution_tracer"):
+                setattr(wrapper, "execution_tracer", self._execution_tracer or ExecutionTracer(logger=logger))
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 

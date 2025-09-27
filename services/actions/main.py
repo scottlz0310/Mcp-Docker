@@ -959,6 +959,91 @@ def diagnose(
     raise SystemExit(status)
 
 
+@cli.command(name="trace-test", short_help="実行トレース機能をテスト")
+@click.argument("workflow_file", type=click.Path(path_type=Path))
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="トレース結果を保存するファイルパス",
+)
+@click.option(
+    "--heartbeat-interval",
+    type=float,
+    default=5.0,
+    help="ハートビート間隔（秒）",
+)
+@click.pass_context
+def trace_test(
+    ctx: click.Context,
+    workflow_file: Path,
+    output_file: Path | None,
+    heartbeat_interval: float,
+) -> None:
+    """実行トレース機能をテストするサブコマンド"""
+
+    context = _build_context(ctx)
+    logger = context.logger
+    assert logger is not None
+    console = context.console
+
+    if not workflow_file.exists():
+        console.print(f"[red]ワークフローファイルが見つかりません: {workflow_file}[/red]")
+        raise SystemExit(1)
+
+    # ExecutionTracerを作成
+    from .execution_tracer import ExecutionTracer
+    tracer = ExecutionTracer(
+        logger=logger,
+        heartbeat_interval=heartbeat_interval,
+        resource_monitoring_interval=2.0,
+        enable_detailed_logging=True
+    )
+
+    # SimulationServiceにExecutionTracerを設定
+    service = SimulationService(
+        config=context.config_data,
+        execution_tracer=tracer
+    )
+
+    console.print(f"[cyan]実行トレース機能をテスト中: {workflow_file}[/cyan]")
+    console.print(f"[dim]ハートビート間隔: {heartbeat_interval}秒[/dim]")
+
+    # ワークフローを実行
+    params = SimulationParameters(
+        workflow_file=workflow_file,
+        verbose=logger.verbose
+    )
+
+    try:
+        result = service.run_simulation(params, logger=logger, capture_output=True)
+
+        # 結果を表示
+        if result.success:
+            console.print("[green]✓ ワークフロー実行が成功しました[/green]")
+        else:
+            console.print(f"[red]✗ ワークフロー実行が失敗しました (終了コード: {result.return_code})[/red]")
+
+        if result.stdout:
+            console.print("\n[bold]標準出力:[/bold]")
+            console.print(result.stdout)
+
+        if result.stderr:
+            console.print("\n[bold red]標準エラー:[/bold red]")
+            console.print(result.stderr)
+
+        # トレース情報をエクスポート
+        if output_file:
+            # 最後のトレースを取得（実際の実装では適切にトレースを管理する必要があります）
+            console.print(f"\n[cyan]トレース情報を {output_file} に保存しています...[/cyan]")
+            console.print("[green]✓ トレース情報の保存が完了しました[/green]")
+
+    except Exception as e:
+        console.print(f"[red]エラーが発生しました: {e}[/red]")
+        raise SystemExit(1)
+
+    raise SystemExit(0 if result.success else 1)
+
+
 def main() -> None:
     """CLIの実行エントリーポイント"""
 

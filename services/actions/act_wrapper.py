@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, cast
 
 from .logger import ActionsLogger
+from .execution_tracer import ExecutionTracer, ExecutionStage, ThreadState
 
 try:
     import yaml  # type: ignore[import-untyped]
@@ -97,6 +98,7 @@ class ActWrapper:
         *,
         config: Mapping[str, Any] | None = None,
         logger: ActionsLogger | None = None,
+        execution_tracer: Optional[ExecutionTracer] = None,
     ) -> None:
         self.working_directory = Path(
             working_directory or os.getcwd()
@@ -106,6 +108,7 @@ class ActWrapper:
                 f"作業ディレクトリが存在しません: {self.working_directory}"
             )
         self.logger = logger or ActionsLogger(verbose=False)
+        self.execution_tracer = execution_tracer or ExecutionTracer(logger=self.logger)
         self.settings = ActRunnerSettings.from_mapping(config)
         engine_name = os.getenv("ACTIONS_SIMULATOR_ENGINE", "act").strip()
         self._engine = engine_name.lower() or "act"
@@ -288,153 +291,276 @@ class ActWrapper:
     ) -> Dict[str, Any]:
         """Execute a workflow through act and return structured output."""
 
-        if self._mock_mode:
-            return self._run_mock_workflow(
-                workflow_file=workflow_file,
-                job=job,
-                dry_run=dry_run,
-                verbose=verbose,
-                env_vars=env_vars,
-            )
-
-        cmd: list[str] = [self.act_binary]
-        cmd.extend(self._compose_runner_flags())
-
-        if workflow_file:
-            cmd.extend(["-W", workflow_file])
-        if job:
-            cmd.extend(["-j", job])
-        if dry_run:
-            cmd.append("--dryrun")
-        if verbose:
-            cmd.append("--verbose")
-
-        env_args = self._compose_env_args(env_vars)
-        cmd.extend(env_args)
-
-        process_env = self._build_process_env(event or None, env_vars)
-
-        self.logger.info(f"actコマンド実行: {' '.join(cmd)}")
-
-        stdout_lines: list[str] = []
-        stderr_lines: list[str] = []
-
-        def _stream_output(
-            pipe: Any,
-            collector: list[str],
-            label: str,
-        ) -> None:
-            if pipe is None:
-                return
-            with pipe:
-                for raw_line in pipe:
-                    collector.append(raw_line)
-                    line = raw_line.rstrip("\n")
-                    if not line:
-                        continue
-                    if self.logger.verbose:
-                        self.logger.debug(f"[{label}] {line}")
+        # 実行トレースを開始
+        trace_id = f"act_workflow_{int(time.time() * 1000)}"
+        self.execution_tracer.start_trace(trace_id)
 
         try:
-            process = subprocess.Popen(
-                cmd,
-                cwd=self.working_directory,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=process_env,
-            )
-        except (OSError, subprocess.SubprocessError) as exc:
-            self.logger.error(f"act実行エラー: {exc}")
-            return {
-                "success": False,
-                "returncode": -1,
-                "stdout": "",
-                "stderr": str(exc),
-                "command": " ".join(cmd),
-            }
+            # 初期化段階
+            self.execution_tracer.set_stage(ExecutionStage.INITIALIZATION, {
+                "workflow_file": workflow_file,
+                "job": job,
+                "dry_run": dry_run,
+                "verbose": verbose,
+                "mock_mode": self._mock_mode
+            })
 
-        threads: list[threading.Thread] = []
-        if process.stdout:
-            t_out = threading.Thread(
-                target=_stream_output,
-                args=(process.stdout, stdout_lines, "act stdout"),
-                daemon=True,
-            )
-            t_out.start()
-            threads.append(t_out)
-        if process.stderr:
-            t_err = threading.Thread(
-                target=_stream_output,
-                args=(process.stderr, stderr_lines, "act stderr"),
-                daemon=True,
-            )
-            t_err.start()
-            threads.append(t_err)
-
-        start_time = time.time()
-        heartbeat_interval = 30
-        next_heartbeat = start_time + heartbeat_interval
-        deadline = (
-            start_time + self._timeout_seconds
-            if self._timeout_seconds
-            else None
-        )
-        timed_out = False
-
-        while True:
-            return_code = process.poll()
-            if return_code is not None:
-                break
-
-            now = time.time()
-            if deadline and now >= deadline:
-                timed_out = True
-                self.logger.error("actの実行がタイムアウトしました")
-                process.kill()
-                break
-
-            if now >= next_heartbeat:
-                elapsed = int(now - start_time)
-                self.logger.info(
-                    f"act 実行中... {elapsed} 秒経過 (PID: {process.pid})"
+            if self._mock_mode:
+                result = self._run_mock_workflow(
+                    workflow_file=workflow_file,
+                    job=job,
+                    dry_run=dry_run,
+                    verbose=verbose,
+                    env_vars=env_vars,
                 )
-                next_heartbeat = now + heartbeat_interval
+                self.execution_tracer.set_stage(ExecutionStage.COMPLETED)
+                return result
 
-            time.sleep(1)
+            cmd: list[str] = [self.act_binary]
+            cmd.extend(self._compose_runner_flags())
 
-        if process.poll() is None:
-            process.wait()
+            if workflow_file:
+                cmd.extend(["-W", workflow_file])
+            if job:
+                cmd.extend(["-j", job])
+            if dry_run:
+                cmd.append("--dryrun")
+            if verbose:
+                cmd.append("--verbose")
 
-        for thread in threads:
-            thread.join(timeout=2)
+            env_args = self._compose_env_args(env_vars)
+            cmd.extend(env_args)
 
-        stdout_text = "".join(stdout_lines)
-        stderr_text = "".join(stderr_lines)
+            process_env = self._build_process_env(event or None, env_vars)
 
-        if timed_out:
+            self.logger.info(f"actコマンド実行: {' '.join(cmd)}")
+
+            # Docker通信監視を開始
+            docker_op = self.execution_tracer.monitor_docker_communication(
+                operation_type="act_execution",
+                command=cmd
+            )
+
+            stdout_lines: list[str] = []
+            stderr_lines: list[str] = []
+
+            def _stream_output(
+                pipe: Any,
+                collector: list[str],
+                label: str,
+                thread_trace,
+            ) -> None:
+                try:
+                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.RUNNING)
+                    if pipe is None:
+                        return
+                    with pipe:
+                        for raw_line in pipe:
+                            collector.append(raw_line)
+                            line = raw_line.rstrip("\n")
+                            if not line:
+                                continue
+                            if self.logger.verbose:
+                                self.logger.debug(f"[{label}] {line}")
+                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.TERMINATED)
+                except Exception as e:
+                    self.execution_tracer.update_thread_state(
+                        thread_trace, ThreadState.ERROR, str(e)
+                    )
+
+            # サブプロセス作成段階
+            self.execution_tracer.set_stage(ExecutionStage.SUBPROCESS_CREATION)
+
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=self.working_directory,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    env=process_env,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                self.logger.error(f"act実行エラー: {exc}")
+                self.execution_tracer.update_docker_operation(
+                    docker_op, success=False, error_message=str(exc)
+                )
+                self.execution_tracer.set_stage(ExecutionStage.FAILED)
+                return {
+                    "success": False,
+                    "returncode": -1,
+                    "stdout": "",
+                    "stderr": str(exc),
+                    "command": " ".join(cmd),
+                }
+
+            # プロセストレースを開始
+            process_trace = self.execution_tracer.trace_subprocess_execution(
+                cmd, process, str(self.working_directory)
+            )
+
+            # 出力ストリーミング段階
+            self.execution_tracer.set_stage(ExecutionStage.OUTPUT_STREAMING)
+
+            threads: list[threading.Thread] = []
+            thread_traces = []
+
+            if process.stdout:
+                t_out = threading.Thread(
+                    target=_stream_output,
+                    args=(process.stdout, stdout_lines, "act stdout", None),
+                    daemon=True,
+                    name="ActWrapper-StdoutStream"
+                )
+                thread_trace_out = self.execution_tracer.track_thread_lifecycle(
+                    t_out, "_stream_output"
+                )
+                # スレッド関数の引数を更新
+                t_out = threading.Thread(
+                    target=_stream_output,
+                    args=(process.stdout, stdout_lines, "act stdout", thread_trace_out),
+                    daemon=True,
+                    name="ActWrapper-StdoutStream"
+                )
+                t_out.start()
+                threads.append(t_out)
+                thread_traces.append(thread_trace_out)
+
+            if process.stderr:
+                t_err = threading.Thread(
+                    target=_stream_output,
+                    args=(process.stderr, stderr_lines, "act stderr", None),
+                    daemon=True,
+                    name="ActWrapper-StderrStream"
+                )
+                thread_trace_err = self.execution_tracer.track_thread_lifecycle(
+                    t_err, "_stream_output"
+                )
+                # スレッド関数の引数を更新
+                t_err = threading.Thread(
+                    target=_stream_output,
+                    args=(process.stderr, stderr_lines, "act stderr", thread_trace_err),
+                    daemon=True,
+                    name="ActWrapper-StderrStream"
+                )
+                t_err.start()
+                threads.append(t_err)
+                thread_traces.append(thread_trace_err)
+
+            # プロセス監視段階
+            self.execution_tracer.set_stage(ExecutionStage.PROCESS_MONITORING)
+
+            start_time = time.time()
+            heartbeat_interval = 30
+            next_heartbeat = start_time + heartbeat_interval
+            deadline = (
+                start_time + self._timeout_seconds
+                if self._timeout_seconds
+                else None
+            )
+            timed_out = False
+
+            while True:
+                return_code = process.poll()
+                if return_code is not None:
+                    break
+
+                now = time.time()
+                if deadline and now >= deadline:
+                    timed_out = True
+                    self.logger.error("actの実行がタイムアウトしました")
+
+                    # ハングアップ検出
+                    hang_info = self.execution_tracer.detect_hang_condition(self._timeout_seconds)
+                    if hang_info:
+                        self.logger.error(f"ハングアップを検出: {hang_info}")
+
+                    process.kill()
+                    self.execution_tracer.set_stage(ExecutionStage.TIMEOUT)
+                    break
+
+                if now >= next_heartbeat:
+                    elapsed = int(now - start_time)
+
+                    # ハートビートログを記録
+                    process_info = {
+                        "pid": process.pid,
+                        "elapsed_seconds": elapsed,
+                        "return_code": process.poll()
+                    }
+                    self.execution_tracer.log_heartbeat(
+                        f"act 実行中... {elapsed} 秒経過 (PID: {process.pid})",
+                        process_info
+                    )
+
+                    next_heartbeat = now + heartbeat_interval
+
+                time.sleep(1)
+
+            if process.poll() is None:
+                process.wait()
+
+            # クリーンアップ段階
+            self.execution_tracer.set_stage(ExecutionStage.CLEANUP)
+
+            for thread in threads:
+                thread.join(timeout=2)
+
+            stdout_text = "".join(stdout_lines)
+            stderr_text = "".join(stderr_lines)
+
+            # プロセストレースを更新
+            self.execution_tracer.update_process_trace(
+                process_trace,
+                return_code=process.returncode,
+                stdout_bytes=len(stdout_text.encode('utf-8')),
+                stderr_bytes=len(stderr_text.encode('utf-8')),
+                error_message="Execution timeout" if timed_out else None
+            )
+
+            # Docker操作を更新
+            self.execution_tracer.update_docker_operation(
+                docker_op,
+                success=not timed_out and (process.returncode == 0),
+                return_code=process.returncode,
+                stdout=stdout_text[:1000],  # 最初の1000文字のみ保存
+                stderr=stderr_text[:1000],
+                error_message="Execution timeout" if timed_out else None
+            )
+
+            if timed_out:
+                self.execution_tracer.set_stage(ExecutionStage.TIMEOUT)
+                return {
+                    "success": False,
+                    "returncode": -1,
+                    "stdout": stdout_text,
+                    "stderr": stderr_text or "Execution timeout",
+                    "command": " ".join(cmd),
+                }
+
+            exit_code = process.returncode or 0
+
+            if exit_code != 0:
+                self.logger.error(
+                    f"act 実行が失敗しました (returncode={exit_code})"
+                )
+                self.execution_tracer.set_stage(ExecutionStage.FAILED)
+            else:
+                self.execution_tracer.set_stage(ExecutionStage.COMPLETED)
+
             return {
-                "success": False,
-                "returncode": -1,
+                "success": exit_code == 0,
+                "returncode": exit_code,
                 "stdout": stdout_text,
-                "stderr": stderr_text or "Execution timeout",
+                "stderr": stderr_text,
                 "command": " ".join(cmd),
             }
 
-        exit_code = process.returncode or 0
-
-        if exit_code != 0:
-            self.logger.error(
-                f"act 実行が失敗しました (returncode={exit_code})"
-            )
-
-        return {
-            "success": exit_code == 0,
-            "returncode": exit_code,
-            "stdout": stdout_text,
-            "stderr": stderr_text,
-            "command": " ".join(cmd),
-        }
+        finally:
+            # トレースを終了
+            final_trace = self.execution_tracer.end_trace()
+            if final_trace and self.logger.verbose:
+                self.logger.debug(f"実行トレース完了: {final_trace.trace_id}, 実行時間: {final_trace.duration_ms:.2f}ms")
 
     def _run_mock_workflow(
         self,
