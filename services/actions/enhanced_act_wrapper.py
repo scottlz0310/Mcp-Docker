@@ -1016,7 +1016,7 @@ class EnhancedActWrapper(ActWrapper):
                 if self.enable_diagnostics:
                     health_report = self.diagnostic_service.run_comprehensive_health_check()
                     diagnostic_results = health_report.results
-                
+
                 error_report = self.hangup_detector.generate_detailed_error_report(
                     hangup_analysis=hang_analysis,
                     diagnostic_results=diagnostic_results,
