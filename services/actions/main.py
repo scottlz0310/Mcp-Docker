@@ -187,6 +187,8 @@ def run_simulate(
     env_vars: Dict[str, str] | None,
     *,
     service: SimulationService,
+    create_debug_bundle: bool = False,
+    debug_bundle_dir: Path | None = None,
 ) -> SimulationResult:
     """ワークフロー実行コマンドの処理"""
 
@@ -205,6 +207,45 @@ def run_simulate(
             logger=logger,
             capture_output=True,
         )
+
+        # ハングアップ検出とデバッグバンドル作成の処理
+        if hasattr(result, 'detailed_result') and result.detailed_result:
+            detailed_result = result.detailed_result
+
+            # ハングアップが検出された場合
+            if (detailed_result.hang_analysis or
+                (hasattr(detailed_result, 'error_report') and detailed_result.error_report)):
+
+                console.print("[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]")
+
+                if detailed_result.hang_analysis:
+                    console.print(f"[yellow]分析ID: {detailed_result.hang_analysis.analysis_id}[/yellow]")
+                    if detailed_result.hang_analysis.primary_cause:
+                        console.print(f"[red]主要な問題: {detailed_result.hang_analysis.primary_cause.title}[/red]")
+                        console.print(f"[red]説明: {detailed_result.hang_analysis.primary_cause.description}[/red]")
+
+                # デバッグバンドルの自動作成
+                if create_debug_bundle and hasattr(detailed_result, 'error_report') and detailed_result.error_report:
+                    try:
+                        from .enhanced_act_wrapper import EnhancedActWrapper
+                        if hasattr(service, 'act_wrapper') and isinstance(service.act_wrapper, EnhancedActWrapper):
+                            console.print("[blue]🔧 デバッグバンドルを作成中...[/blue]")
+
+                            debug_bundle = service.act_wrapper.create_debug_bundle_for_hangup(
+                                error_report=detailed_result.error_report,
+                                output_directory=debug_bundle_dir
+                            )
+
+                            if debug_bundle and debug_bundle.bundle_path:
+                                console.print(f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]")
+                                console.print(f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]")
+                                console.print(f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]")
+                            else:
+                                console.print("[red]❌ デバッグバンドルの作成に失敗しました[/red]")
+                    except Exception as e:
+                        logger.error(f"デバッグバンドル作成中にエラーが発生しました: {e}")
+                        console.print(f"[red]❌ デバッグバンドル作成エラー: {e}[/red]")
+
     except SimulationServiceError as exc:
         logger.error(str(exc))
         return SimulationResult(
@@ -571,6 +612,16 @@ def cli(
     is_flag=True,
     help="実行前にシステム診断を実行",
 )
+@click.option(
+    "--create-debug-bundle",
+    is_flag=True,
+    help="ハングアップ時にデバッグバンドルを自動作成",
+)
+@click.option(
+    "--debug-bundle-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    help="デバッグバンドルの出力ディレクトリ",
+)
 @click.pass_context
 def simulate(
     ctx: click.Context,
@@ -590,6 +641,8 @@ def simulate(
     output_file: Path | None,
     enhanced: bool,
     diagnose: bool,
+    create_debug_bundle: bool,
+    debug_bundle_dir: Path | None,
 ) -> None:
     """ワークフローを実行するサブコマンド"""
 
@@ -663,6 +716,8 @@ def simulate(
             console=console,
             env_vars=env_vars,
             service=service,
+            create_debug_bundle=create_debug_bundle,
+            debug_bundle_dir=debug_bundle_dir,
         )
 
         log_refs: Dict[str, str] = {}

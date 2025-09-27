@@ -14,12 +14,14 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .act_wrapper import ActWrapper
 from .diagnostic import DiagnosticService, DiagnosticResult, DiagnosticStatus
 from .docker_integration_checker import DockerIntegrationChecker, DockerConnectionStatus
 from .execution_tracer import ExecutionTracer, ExecutionStage
+from .hangup_detector import HangupDetector, HangupAnalysis, ErrorReport, DebugBundle
 from .logger import ActionsLogger
 
 
@@ -71,7 +73,8 @@ class DetailedResult:
     diagnostic_results: List[DiagnosticResult] = field(default_factory=list)
     deadlock_indicators: List[DeadlockIndicator] = field(default_factory=list)
     process_monitoring_data: Dict[str, Any] = field(default_factory=dict)
-    hang_analysis: Optional[Dict[str, Any]] = None
+    hang_analysis: Optional[HangupAnalysis] = None
+    error_report: Optional[ErrorReport] = None
 
 
 class ProcessMonitor:
@@ -822,6 +825,13 @@ class EnhancedActWrapper(ActWrapper):
         self._docker_connection_verified = False
         self._docker_retry_count = 3
 
+        # ハングアップ検出器を追加
+        self.hangup_detector = HangupDetector(
+            logger=self.logger,
+            diagnostic_service=self.diagnostic_service,
+            execution_tracer=execution_tracer
+        )
+
     def run_workflow_with_diagnostics(
         self,
         workflow_file: Optional[str] = None,
@@ -1001,6 +1011,18 @@ class EnhancedActWrapper(ActWrapper):
                 # ハングアップ分析
                 hang_analysis = self._analyze_hang_condition(monitored_process, deadlock_indicators)
 
+                # 詳細エラーレポートを生成
+                diagnostic_results = []
+                if self.enable_diagnostics:
+                    health_report = self.diagnostic_service.run_comprehensive_health_check()
+                    diagnostic_results = health_report.results
+                
+                error_report = self.hangup_detector.generate_detailed_error_report(
+                    hangup_analysis=hang_analysis,
+                    diagnostic_results=diagnostic_results,
+                    execution_trace=self.execution_tracer.get_current_trace()
+                )
+
                 return {
                     "success": False,
                     "returncode": -1,
@@ -1009,6 +1031,7 @@ class EnhancedActWrapper(ActWrapper):
                     "command": " ".join(cmd),
                     "deadlock_indicators": deadlock_indicators,
                     "hang_analysis": hang_analysis,
+                    "error_report": error_report,
                     "process_monitoring_data": {
                         "force_killed": monitored_process.force_killed,
                         "execution_time": time.time() - monitored_process.start_time
@@ -1219,72 +1242,123 @@ class EnhancedActWrapper(ActWrapper):
         self,
         monitored_process: MonitoredProcess,
         deadlock_indicators: List[DeadlockIndicator]
-    ) -> Dict[str, Any]:
+    ) -> HangupAnalysis:
         """
-        ハングアップ条件を分析
+        ハングアップ条件を包括的に分析
 
         Args:
             monitored_process: 監視対象プロセス
             deadlock_indicators: デッドロック指標
 
         Returns:
-            Dict[str, Any]: ハングアップ分析結果
+            HangupAnalysis: 包括的なハングアップ分析結果
         """
-        analysis = {
-            "hang_detected": True,
-            "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
-            "process_info": {
-                "pid": monitored_process.process.pid,
-                "command": " ".join(monitored_process.command),
-                "execution_time": time.time() - monitored_process.start_time,
-                "force_killed": monitored_process.force_killed
-            },
-            "deadlock_indicators": [
-                {
-                    "type": indicator.deadlock_type.value,
-                    "detected_at": indicator.detected_at,
-                    "severity": indicator.severity,
-                    "details": indicator.details,
-                    "recommendations": indicator.recommendations
+        self.logger.info("包括的なハングアップ分析を開始します...")
+
+        try:
+            # 現在の実行トレースを取得
+            current_trace = self.execution_tracer.get_current_trace()
+
+            # 診断結果を取得
+            diagnostic_results = []
+            if self.enable_diagnostics:
+                health_report = self.diagnostic_service.run_comprehensive_health_check()
+                diagnostic_results = health_report.results
+
+            # HangupDetectorを使用して包括的な分析を実行
+            hangup_analysis = self.hangup_detector.analyze_hangup_conditions(
+                execution_trace=current_trace,
+                diagnostic_results=diagnostic_results
+            )
+
+            # 従来のデッドロック指標を追加情報として含める
+            if deadlock_indicators:
+                legacy_info = {
+                    "legacy_deadlock_indicators": [
+                        {
+                            "type": indicator.deadlock_type.value,
+                            "detected_at": indicator.detected_at,
+                            "severity": indicator.severity,
+                            "details": indicator.details,
+                            "recommendations": indicator.recommendations
+                        }
+                        for indicator in deadlock_indicators
+                    ]
                 }
-                for indicator in deadlock_indicators
-            ],
-            "potential_causes": [],
-            "recommendations": []
-        }
+                hangup_analysis.system_state.update(legacy_info)
 
-        # 潜在的原因を分析
-        if any(indicator.deadlock_type == DeadlockType.DOCKER_COMMUNICATION for indicator in deadlock_indicators):
-            analysis["potential_causes"].append("Docker daemon通信の問題")
-            analysis["recommendations"].extend([
-                "Docker daemonが実行されているか確認してください",
-                "Docker socketの権限を確認してください"
-            ])
+            # プロセス情報を追加
+            process_info = {
+                "monitored_process": {
+                    "pid": monitored_process.process.pid,
+                    "command": " ".join(monitored_process.command),
+                    "execution_time": time.time() - monitored_process.start_time,
+                    "force_killed": monitored_process.force_killed,
+                    "stdout_lines": len(monitored_process.stdout_lines),
+                    "stderr_lines": len(monitored_process.stderr_lines)
+                }
+            }
+            hangup_analysis.execution_context.update(process_info)
 
-        if any(indicator.deadlock_type in [DeadlockType.STDOUT_THREAD, DeadlockType.STDERR_THREAD]
-               for indicator in deadlock_indicators):
-            analysis["potential_causes"].append("出力ストリーミングスレッドのデッドロック")
-            analysis["recommendations"].extend([
-                "出力バッファサイズを確認してください",
-                "プロセスの出力量が多すぎる可能性があります"
-            ])
+            self.logger.info(
+                f"ハングアップ分析完了: {len(hangup_analysis.issues)}個の問題を検出"
+            )
 
-        if any(indicator.deadlock_type == DeadlockType.RESOURCE_EXHAUSTION for indicator in deadlock_indicators):
-            analysis["potential_causes"].append("システムリソースの枯渇")
-            analysis["recommendations"].extend([
-                "システムのメモリとCPU使用量を確認してください",
-                "不要なプロセスを終了してください"
-            ])
+            return hangup_analysis
 
-        # 診断サービスからの追加分析
-        if self.enable_diagnostics:
-            try:
-                hangup_causes = self.diagnostic_service.identify_hangup_causes()
-                analysis["diagnostic_causes"] = hangup_causes
-            except Exception as e:
-                self.logger.debug(f"診断サービスでのハングアップ分析に失敗しました: {e}")
+        except Exception as e:
+            self.logger.error(f"ハングアップ分析中にエラーが発生しました: {e}")
 
-        return analysis
+            # フォールバック: 基本的な分析結果を返す
+            fallback_analysis = HangupAnalysis(
+                analysis_id=f"fallback_analysis_{int(time.time() * 1000)}"
+            )
+            fallback_analysis.system_state = {
+                "analysis_error": str(e),
+                "process_pid": monitored_process.process.pid,
+                "execution_time": time.time() - monitored_process.start_time
+            }
+            return fallback_analysis
+
+    def create_debug_bundle_for_hangup(
+        self,
+        error_report: ErrorReport,
+        output_directory: Optional[Path] = None
+    ) -> Optional[DebugBundle]:
+        """
+        ハングアップ問題用のデバッグバンドルを作成
+
+        Args:
+            error_report: エラーレポート
+            output_directory: 出力ディレクトリ
+
+        Returns:
+            Optional[DebugBundle]: 作成されたデバッグバンドル（失敗時はNone）
+        """
+        try:
+            self.logger.info("ハングアップ問題用のデバッグバンドルを作成中...")
+
+            debug_bundle = self.hangup_detector.create_debug_bundle(
+                error_report=error_report,
+                output_directory=output_directory,
+                include_logs=True,
+                include_system_info=True,
+                include_docker_info=True
+            )
+
+            if debug_bundle.bundle_path:
+                self.logger.info(
+                    f"デバッグバンドルが作成されました: {debug_bundle.bundle_path} "
+                    f"({debug_bundle.total_size_bytes} bytes)"
+                )
+            else:
+                self.logger.error("デバッグバンドルの作成に失敗しました")
+
+            return debug_bundle
+
+        except Exception as e:
+            self.logger.error(f"デバッグバンドル作成中にエラーが発生しました: {e}")
+            return None
 
     def _verify_docker_integration_with_retry(self) -> Dict[str, Any]:
         """
