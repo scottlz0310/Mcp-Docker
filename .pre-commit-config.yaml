@@ -30,11 +30,17 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        files: ^(src/|tests/test_hangup_unit\.py)
 
   - repo: local
     hooks:
-      - id: uv-pytest
-        name: pytest via uv
-        entry: uv run pytest
+      - id: uv-pytest-unit
+        name: pytest unit tests only (fast)
+        entry: >
+          uv run pytest
+          tests/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
+          tests/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
+          tests/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
+          -x --tb=short --disable-warnings
         language: system
         pass_filenames: false

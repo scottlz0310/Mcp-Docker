@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify
+.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all test-hangup test-hangup-unit test-hangup-integration test-hangup-e2e test-hangup-all test-hangup-bats security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -27,6 +27,16 @@ help:
 	@echo "  make test-all  - Run all test suites"
 	@echo "  make test-bats - Run Bats test suite"
 	@echo "  make install-bats - Install Bats testing framework"
+	@echo ""
+	@echo "Hangup Scenario Testing:"
+	@echo "  make test-hangup           - Run comprehensive hangup scenario tests"
+	@echo "  make test-hangup-unit      - Run hangup unit tests only"
+	@echo "  make test-hangup-integration - Run hangup integration tests only"
+	@echo "  make test-hangup-e2e       - Run hangup end-to-end tests only"
+	@echo "  make test-hangup-all       - Run all hangup tests with detailed reporting"
+	@echo "  make test-hangup-bats      - Run hangup BATS tests"
+	@echo ""
+	@echo "Security & Quality:"
 	@echo "  make security  - Run security scan"
 	@echo "  make sbom      - Generate SBOM"
 	@echo "  make audit-deps - Audit dependencies"
@@ -319,6 +329,10 @@ lint:
 pre-commit:
 	pipx run uv run pre-commit run --all-files
 
+pre-commit-fast:
+	@echo "⚡ 高速PreCommitチェック（unit testのみ）"
+	pipx run uv run pre-commit run --all-files
+
 version:
 	@./scripts/get-current-version.sh
 	@echo ""
@@ -425,3 +439,153 @@ health-network:
 
 health-act:
 	@./scripts/docker-health-check.sh --act-only
+
+# Hangup Scenario Testing Targets
+test-hangup:
+	@echo "🔧 ハングアップシナリオテスト実行"
+	@echo "📋 包括的なハングアップ条件をテストし、修正を検証します"
+	@echo ""
+	uv run python tests/run_hangup_tests.py --verbose
+
+test-hangup-unit:
+	@echo "🧪 ハングアップ単体テスト実行"
+	@echo "📋 DiagnosticService、ProcessMonitor、ExecutionTracerの単体テスト"
+	@echo ""
+	uv run python tests/run_hangup_tests.py --unit-only --verbose
+
+test-hangup-integration:
+	@echo "🔗 ハングアップ統合テスト実行"
+	@echo "📋 様々なハングアップ条件をシミュレートする統合テスト"
+	@echo ""
+	uv run python tests/run_hangup_tests.py --integration-only --verbose
+
+test-hangup-e2e:
+	@echo "🎯 ハングアップエンドツーエンドテスト実行"
+	@echo "📋 実際のワークフローファイルでの信頼性テスト"
+	@echo ""
+	uv run python tests/run_hangup_tests.py --e2e-only --verbose
+
+test-hangup-all:
+	@echo "🚀 全ハングアップテスト実行（詳細レポート付き）"
+	@echo "📋 単体・統合・E2E・パフォーマンス・ストレステストを実行"
+	@echo ""
+	uv run python tests/run_hangup_tests.py --verbose
+	@echo ""
+	@echo "📊 テスト結果サマリー:"
+	@echo "  - 単体テスト: DiagnosticService, ProcessMonitor, ExecutionTracer"
+	@echo "  - 統合テスト: ハングアップシナリオシミュレーション"
+	@echo "  - E2Eテスト: 実ワークフローファイルでの動作確認"
+	@echo "  - パフォーマンステスト: 応答時間とメモリ使用量"
+	@echo "  - ストレステスト: 並行実行時の安定性"
+
+test-hangup-bats: check-bats
+	@echo "🧪 ハングアップシナリオ BATS テスト実行"
+	@echo "📋 シェル環境でのハングアップ条件テスト"
+	@echo ""
+	bats tests/test_hangup_scenarios.bats
+
+test-hangup-quick:
+	@echo "⚡ ハングアップクイックテスト実行"
+	@echo "📋 主要なハングアップシナリオのみを高速実行"
+	@echo ""
+	uv run python -m pytest tests/test_hangup_scenarios_comprehensive.py::TestHangupScenariosComprehensive::test_docker_socket_hangup_scenario -v
+	uv run python -m pytest tests/test_hangup_scenarios_comprehensive.py::TestHangupScenariosComprehensive::test_subprocess_deadlock_hangup_scenario -v
+	uv run python -m pytest tests/test_hangup_scenarios_comprehensive.py::TestHangupScenariosComprehensive::test_auto_recovery_fallback_mode_scenario -v
+
+test-hangup-performance:
+	@echo "⚡ ハングアップパフォーマンステスト実行"
+	@echo "📋 診断・検出・復旧機能のパフォーマンス測定"
+	@echo ""
+	uv run python -c "
+from tests.run_hangup_tests import HangupTestRunner
+runner = HangupTestRunner(verbose=True)
+runner.run_performance_tests()
+runner.run_stress_tests()
+"
+
+test-hangup-stress:
+	@echo "💪 ハングアップストレステスト実行"
+	@echo "📋 高負荷・並行実行時の安定性テスト"
+	@echo ""
+	uv run python -c "
+from tests.run_hangup_tests import HangupTestRunner
+runner = HangupTestRunner(verbose=True)
+runner.run_stress_tests()
+"
+
+test-hangup-docker:
+	@echo "🐳 Docker環境ハングアップテスト実行"
+	@echo "📋 Docker統合環境でのハングアップシナリオテスト"
+	@echo ""
+	@echo "🔍 Docker環境チェック"
+	@make health-check
+	@echo ""
+	@echo "🧪 Docker環境でのハングアップテスト実行"
+	docker compose --profile tools run --rm actions-simulator \
+		uv run python tests/run_hangup_tests.py --verbose
+
+test-hangup-ci:
+	@echo "🤖 CI環境ハングアップテスト実行"
+	@echo "📋 CI/CD環境に適したハングアップテスト"
+	@echo ""
+	@# CI環境では並行実行を無効化し、タイムアウトを短縮
+	PYTEST_TIMEOUT=180 uv run python tests/run_hangup_tests.py
+
+test-hangup-debug:
+	@echo "🐛 ハングアップデバッグモードテスト実行"
+	@echo "📋 詳細なデバッグ情報付きでハングアップテストを実行"
+	@echo ""
+	ACTIONS_SIMULATOR_VERBOSE=true \
+	ACTIONS_SIMULATOR_DEBUG=true \
+	uv run python tests/run_hangup_tests.py --verbose
+
+test-hangup-mock:
+	@echo "🎭 モックモードハングアップテスト実行"
+	@echo "📋 モックエンジンを使用したハングアップシナリオテスト"
+	@echo ""
+	ACTIONS_SIMULATOR_ENGINE=mock \
+	uv run python tests/run_hangup_tests.py --verbose
+
+test-hangup-report:
+	@echo "📊 ハングアップテストレポート生成"
+	@echo "📋 詳細なテスト結果レポートを生成"
+	@echo ""
+	@mkdir -p output/test-reports
+	uv run python tests/run_hangup_tests.py --verbose > output/test-reports/hangup-test-report.txt 2>&1
+	@echo "✅ テストレポートを生成しました: output/test-reports/hangup-test-report.txt"
+	@echo ""
+	@echo "📋 レポート内容:"
+	@echo "  - 全テストカテゴリの実行結果"
+	@echo "  - パフォーマンスメトリクス"
+	@echo "  - エラー詳細とトラブルシューティング情報"
+	@echo "  - 推奨改善事項"
+
+# ハングアップテスト環境セットアップ
+setup-hangup-test-env:
+	@echo "🔧 ハングアップテスト環境セットアップ"
+	@echo "📋 テスト実行に必要な環境を準備"
+	@echo ""
+	@echo "🐍 Python依存関係チェック"
+	uv sync
+	@echo ""
+	@echo "🐳 Docker環境チェック"
+	@make health-check
+	@echo ""
+	@echo "🧪 テストフレームワーク確認"
+	@make check-bats
+	@echo ""
+	@echo "📁 テスト出力ディレクトリ作成"
+	@mkdir -p output/test-reports
+	@mkdir -p output/debug-bundles
+	@echo ""
+	@echo "✅ ハングアップテスト環境準備完了"
+
+# ハングアップテスト環境クリーンアップ
+cleanup-hangup-test-env:
+	@echo "🧹 ハングアップテスト環境クリーンアップ"
+	@echo "📋 テスト実行で生成されたファイルを削除"
+	@echo ""
+	@rm -rf output/test-reports/hangup-*
+	@rm -rf output/debug-bundles/*
+	@rm -rf /tmp/hangup_test_*
+	@echo "✅ ハングアップテスト環境クリーンアップ完了"
