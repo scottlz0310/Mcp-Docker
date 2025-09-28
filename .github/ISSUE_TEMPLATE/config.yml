@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/scottlz0310/mcp-docker/discussions
+    about: 一般的な質問、アイデア共有、コミュニティディスカッション
+  - name: 📚 ドキュメント
+    url: https://github.com/scottlz0310/mcp-docker/tree/main/docs
+    about: 包括的なドキュメントとトラブルシューティングガイド
+  - name: 🔍 診断ツール
+    url: https://github.com/scottlz0310/mcp-docker/blob/main/scripts/collect-support-info.sh
+    about: 問題報告前の自動診断情報収集スクリプト

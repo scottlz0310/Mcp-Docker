@@ -1,0 +1,1007 @@
+# =============================================================================
+# GitHub Actions Simulator - ローカルCI用ワークフローテンプレート
+# =============================================================================
+# このファイルは GitHub Actions Simulator でローカル実行するためのサンプルワークフローです。
+# 実際のプロジェクトに合わせてカスタマイズしてご利用ください。
+#
+# 使用方法:
+#   1. このファイルを .github/workflows/local-ci.yml にコピー
+#   2. プロジェクトに合わせて設定をカスタマイズ
+#   3. GitHub Actions Simulator で実行: make actions-run WORKFLOW=.github/workflows/local-ci.yml
+#
+# 注意: このテンプレートは軽量なactベースアーキテクチャに最適化されています
+# =============================================================================
+
+name: Local CI Pipeline
+
+# =============================================================================
+# トリガー設定
+# =============================================================================
+# ローカル実行では通常 push イベントをシミュレートします
+# 必要に応じて他のイベントも追加できます
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    # 特定のファイル変更時のみ実行する場合は paths を設定
+    # paths:
+    #   - 'src/**'
+    #   - 'tests/**'
+    #   - '*.py'
+    #   - 'pyproject.toml'
+    #   - 'Dockerfile'
+    #   - 'docker-compose.yml'
+
+  pull_request:
+    branches:
+      - main
+      - develop
+    # プルリクエスト時の実行対象ファイルを制限
+    # paths:
+    #   - 'src/**'
+    #   - 'tests/**'
+    #   - '*.py'
+
+  # 手動実行を有効にする場合
+  workflow_dispatch:
+    inputs:
+      run_security_scan:
+        description: 'セキュリティスキャンを実行'
+        required: false
+        default: 'true'
+        type: boolean
+      run_integration_tests:
+        description: '統合テストを実行'
+        required: false
+        default: 'true'
+        type: boolean
+      log_level:
+        description: 'ログレベル'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - debug
+          - info
+          - warning
+          - error
+
+# =============================================================================
+# 環境変数設定
+# =============================================================================
+# プロジェクト全体で使用する環境変数を定義
+env:
+  # Python設定
+  PYTHON_VERSION: '3.13'
+  UV_CACHE_DIR: /tmp/.uv-cache
+  PYTHONUNBUFFERED: 1
+
+  # Docker設定
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+  # GitHub Actions Simulator設定
+  ACTIONS_SIMULATOR_ENGINE: act
+  ACT_LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
+
+  # セキュリティ設定
+  SECURITY_SCAN_ENABLED: ${{ github.event.inputs.run_security_scan || 'true' }}
+
+  # テスト設定
+  TEST_MODE: true
+  PYTEST_TIMEOUT: 300
+
+# =============================================================================
+# 権限設定
+# =============================================================================
+# セキュリティのため最小限の権限のみ付与
+permissions:
+  contents: read          # リポジトリ内容の読み取り
+  security-events: write  # セキュリティイベントの書き込み（セキュリティスキャン用）
+  actions: read          # アクション実行状況の読み取り
+
+# =============================================================================
+# ジョブ定義
+# =============================================================================
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. 高速リント・基本チェック
+  # ---------------------------------------------------------------------------
+  # 最初に実行される軽量なチェックで、早期にエラーを検出
+  fast-checks:
+    name: 🚀 高速チェック
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # 高速チェックは10分以内で完了すべき
+
+    # ジョブレベルの環境変数
+    env:
+      LOG_LEVEL: ${{ github.event.inputs.log_level || 'info' }}
+
+    steps:
+      # ソースコードのチェックアウト
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+        with:
+          # 浅いクローンで高速化（必要に応じて fetch-depth を調整）
+          fetch-depth: 1
+
+      # Python環境のセットアップ
+      - name: 🐍 Python環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          # Pythonキャッシュを有効化してセットアップを高速化
+          cache: 'pip'
+
+      # uv（高速Pythonパッケージマネージャー）のインストール
+      - name: ⚡ uv インストール
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # システムツールのインストール
+      - name: 🔧 システムツール インストール
+        run: |
+          echo "📦 システムツールをインストール中..."
+
+          # タイムアウト付きでapt-getを実行
+          timeout 120 sudo apt-get update || {
+            echo "⚠️ apt-get update がタイムアウトしました"
+            exit 1
+          }
+
+          # 必要なツールをインストール
+          timeout 180 sudo apt-get install -y \
+            shellcheck \
+            yamllint \
+            hadolint \
+            curl \
+            jq || {
+            echo "⚠️ 一部のツールのインストールに失敗しました"
+            # 必須ツールのみチェック
+            command -v shellcheck >/dev/null || { echo "❌ shellcheck が必要です"; exit 1; }
+            command -v yamllint >/dev/null || { echo "❌ yamllint が必要です"; exit 1; }
+          }
+
+          echo "✅ システムツールのインストール完了"
+
+      # Python依存関係のインストール
+      - name: 📦 Python依存関係インストール
+        run: |
+          echo "📦 Python依存関係をインストール中..."
+
+          # pyproject.tomlの存在確認
+          if [ ! -f "pyproject.toml" ]; then
+            echo "⚠️ pyproject.toml が見つかりません。Pythonプロジェクトではない可能性があります。"
+            exit 0
+          fi
+
+          # uvを使用して依存関係をインストール
+          timeout 300 uv sync --locked || {
+            echo "⚠️ uv sync に失敗しました。pipでフォールバック..."
+            timeout 300 pip install -e . || {
+              echo "❌ 依存関係のインストールに失敗しました"
+              exit 1
+            }
+          }
+
+          echo "✅ Python依存関係のインストール完了"
+
+      # Pythonコードの静的解析（Ruff）
+      - name: 🔍 Python静的解析 (Ruff)
+        run: |
+          echo "🔍 Ruffによる静的解析を実行中..."
+
+          # Pythonファイルの存在確認
+          if ! find . -name "*.py" -type f | head -1 | grep -q .; then
+            echo "ℹ️ Pythonファイルが見つかりません。スキップします。"
+            exit 0
+          fi
+
+          # Ruffによるリント実行
+          if command -v uv >/dev/null 2>&1; then
+            echo "📋 uv経由でRuffを実行..."
+            timeout 120 uv run ruff check . --output-format=github || {
+              echo "⚠️ Ruffチェックで問題が検出されました"
+              # 重大なエラーのみで失敗させる場合は exit 1 をコメントアウト
+              exit 1
+            }
+
+            # フォーマットチェック
+            timeout 60 uv run ruff format --check . || {
+              echo "⚠️ フォーマットの問題が検出されました"
+              echo "💡 修正するには: uv run ruff format ."
+              exit 1
+            }
+          else
+            echo "❌ uvが利用できません"
+            exit 1
+          fi
+
+          echo "✅ Python静的解析完了"
+
+      # Shellスクリプトの静的解析
+      - name: 🐚 Shell静的解析 (ShellCheck)
+        run: |
+          echo "🔍 ShellCheckによる静的解析を実行中..."
+
+          # Shellスクリプトファイルの検索
+          shell_files=$(find . -name "*.sh" -type f | head -20)
+
+          if [ -z "$shell_files" ]; then
+            echo "ℹ️ Shellスクリプトが見つかりません。スキップします。"
+            exit 0
+          fi
+
+          echo "📋 検出されたShellスクリプト:"
+          echo "$shell_files"
+
+          # ShellCheckの実行
+          if command -v shellcheck >/dev/null 2>&1; then
+            timeout 120 find . -name "*.sh" -type f -exec shellcheck {} + || {
+              echo "⚠️ ShellCheckで問題が検出されました"
+              # 警告レベルの問題は無視する場合は exit 1 をコメントアウト
+              exit 1
+            }
+          else
+            echo "❌ shellcheckが利用できません"
+            exit 1
+          fi
+
+          echo "✅ Shell静的解析完了"
+
+      # YAML/YMLファイルの構文チェック
+      - name: 📄 YAML構文チェック (yamllint)
+        run: |
+          echo "🔍 yamllintによる構文チェックを実行中..."
+
+          # YAMLファイルの検索
+          yaml_files=$(find . -name "*.yml" -o -name "*.yaml" | head -20)
+
+          if [ -z "$yaml_files" ]; then
+            echo "ℹ️ YAMLファイルが見つかりません。スキップします。"
+            exit 0
+          fi
+
+          echo "📋 検出されたYAMLファイル:"
+          echo "$yaml_files"
+
+          # yamllintの実行
+          if command -v yamllint >/dev/null 2>&1; then
+            timeout 120 yamllint . || {
+              echo "⚠️ yamllintで問題が検出されました"
+              # 軽微な問題は無視する場合は exit 1 をコメントアウト
+              exit 1
+            }
+          else
+            echo "❌ yamllintが利用できません"
+            exit 1
+          fi
+
+          echo "✅ YAML構文チェック完了"
+
+      # Dockerfileの静的解析（hadolint）
+      - name: 🐳 Dockerfile静的解析 (hadolint)
+        run: |
+          echo "🔍 hadolintによるDockerfile解析を実行中..."
+
+          # Dockerfileの検索
+          dockerfile_files=$(find . -name "Dockerfile*" -type f | head -10)
+
+          if [ -z "$dockerfile_files" ]; then
+            echo "ℹ️ Dockerfileが見つかりません。スキップします。"
+            exit 0
+          fi
+
+          echo "📋 検出されたDockerfile:"
+          echo "$dockerfile_files"
+
+          # hadolintの実行
+          if command -v hadolint >/dev/null 2>&1; then
+            timeout 120 find . -name "Dockerfile*" -type f -exec hadolint {} + || {
+              echo "⚠️ hadolintで問題が検出されました"
+              # Dockerfileの問題は重要なので失敗させる
+              exit 1
+            }
+          else
+            echo "❌ hadolintが利用できません"
+            exit 1
+          fi
+
+          echo "✅ Dockerfile静的解析完了"
+
+  # ---------------------------------------------------------------------------
+  # 2. ビルド・コンパイル
+  # ---------------------------------------------------------------------------
+  # アプリケーションのビルドとDockerイメージの作成
+  build:
+    name: 🔨 ビルド
+    runs-on: ubuntu-latest
+    needs: fast-checks  # 高速チェックが成功した場合のみ実行
+    timeout-minutes: 20
+
+    # ビルド成果物を他のジョブで使用するための出力定義
+    outputs:
+      image-tag: ${{ steps.build-info.outputs.image-tag }}
+      build-success: ${{ steps.build-info.outputs.build-success }}
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      # Docker Buildxのセットアップ（マルチプラットフォームビルド対応）
+      - name: 🐳 Docker Buildx セットアップ
+        uses: docker/setup-buildx-action@v3
+        with:
+          # ビルドキャッシュを有効化
+          driver-opts: |
+            network=host
+
+      # Dockerレイヤーキャッシュの設定
+      - name: 💾 Dockerキャッシュ設定
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile', 'docker-compose.yml', 'pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Dockerイメージのビルド
+      - name: 🔨 Dockerイメージビルド
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # ローカル実行では通常 linux/amd64 のみ
+          platforms: linux/amd64
+          push: false  # ローカル実行ではプッシュしない
+          load: true   # ローカルのDocker daemonに読み込み
+          tags: |
+            local-ci:latest
+            local-ci:${{ github.sha }}
+          # ビルドキャッシュの活用
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # ビルド引数の設定（必要に応じて）
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      # キャッシュの更新
+      - name: 💾 キャッシュ更新
+        run: |
+          rm -rf /tmp/.buildx-cache
+          if [ -d /tmp/.buildx-cache-new ]; then
+            mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          fi
+
+      # ビルド情報の出力
+      - name: 📋 ビルド情報出力
+        id: build-info
+        run: |
+          echo "image-tag=local-ci:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "build-success=true" >> $GITHUB_OUTPUT
+
+          echo "✅ ビルド完了"
+          echo "📋 ビルドされたイメージ:"
+          docker images | grep local-ci
+
+      # ビルドされたイメージの基本テスト
+      - name: 🧪 イメージ基本テスト
+        run: |
+          echo "🧪 ビルドされたイメージの基本動作確認..."
+
+          # イメージの存在確認
+          docker inspect local-ci:latest >/dev/null || {
+            echo "❌ イメージが見つかりません"
+            exit 1
+          }
+
+          # 基本的なコマンド実行テスト
+          # プロジェクトに応じてテストコマンドをカスタマイズしてください
+
+          # 例1: Pythonアプリケーションの場合
+          if [ -f "main.py" ]; then
+            echo "🐍 Pythonアプリケーションテスト..."
+            docker run --rm local-ci:latest python --version || {
+              echo "❌ Python実行テストに失敗"
+              exit 1
+            }
+
+            # アプリケーション固有のテスト
+            docker run --rm local-ci:latest python main.py --version || {
+              echo "⚠️ アプリケーションバージョン確認に失敗（正常な場合もあります）"
+            }
+          fi
+
+          # 例2: Node.jsアプリケーションの場合
+          if [ -f "package.json" ]; then
+            echo "📦 Node.jsアプリケーションテスト..."
+            docker run --rm local-ci:latest node --version || {
+              echo "❌ Node.js実行テストに失敗"
+              exit 1
+            }
+          fi
+
+          # 例3: 汎用的なヘルスチェック
+          docker run --rm local-ci:latest echo "Hello, World!" || {
+            echo "❌ 基本的なコマンド実行に失敗"
+            exit 1
+          }
+
+          echo "✅ イメージ基本テスト完了"
+
+  # ---------------------------------------------------------------------------
+  # 3. 単体テスト・ユニットテスト
+  # ---------------------------------------------------------------------------
+  # アプリケーションの単体テストを実行
+  unit-tests:
+    name: 🧪 単体テスト
+    runs-on: ubuntu-latest
+    needs: fast-checks
+    timeout-minutes: 15
+
+    # テストマトリクス（複数のPythonバージョンでテストする場合）
+    strategy:
+      fail-fast: false  # 一つのバージョンで失敗しても他を続行
+      matrix:
+        python-version: ['3.13']  # 必要に応じて ['3.11', '3.12', '3.13'] など
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐍 Python ${{ matrix.python-version }} セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: ⚡ uv インストール
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: 📦 テスト依存関係インストール
+        run: |
+          echo "📦 テスト用依存関係をインストール中..."
+
+          if [ ! -f "pyproject.toml" ]; then
+            echo "ℹ️ pyproject.toml が見つかりません。Pythonプロジェクトではない可能性があります。"
+            exit 0
+          fi
+
+          # テスト用の依存関係をインストール
+          timeout 300 uv sync --group test --group dev || {
+            echo "⚠️ uv sync に失敗しました。pipでフォールバック..."
+            timeout 300 pip install -e ".[test,dev]" || {
+              echo "❌ テスト依存関係のインストールに失敗しました"
+              exit 1
+            }
+          }
+
+          echo "✅ テスト依存関係のインストール完了"
+
+      # pytest による単体テスト実行
+      - name: 🧪 pytest実行
+        run: |
+          echo "🧪 pytestによる単体テストを実行中..."
+
+          # テストファイルの存在確認
+          if [ ! -d "tests" ] && ! find . -name "test_*.py" -o -name "*_test.py" | head -1 | grep -q .; then
+            echo "ℹ️ テストファイルが見つかりません。スキップします。"
+            exit 0
+          fi
+
+          # pytest設定の確認
+          pytest_args=""
+          if [ -f "pytest.ini" ] || [ -f "pyproject.toml" ]; then
+            echo "📋 pytest設定ファイルが見つかりました"
+          fi
+
+          # カバレッジ測定を含むテスト実行
+          if command -v uv >/dev/null 2>&1; then
+            timeout ${{ env.PYTEST_TIMEOUT }} uv run pytest \
+              --verbose \
+              --tb=short \
+              --cov=. \
+              --cov-report=xml \
+              --cov-report=term-missing \
+              --junit-xml=test-results.xml \
+              $pytest_args || {
+              echo "❌ 単体テストに失敗しました"
+              exit 1
+            }
+          else
+            echo "❌ uvが利用できません"
+            exit 1
+          fi
+
+          echo "✅ 単体テスト完了"
+
+      # テスト結果のアップロード
+      - name: 📊 テスト結果アップロード
+        if: always()  # テストが失敗してもアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            test-results.xml
+            coverage.xml
+            .coverage
+          retention-days: 7
+
+      # カバレッジレポートの表示
+      - name: 📈 カバレッジサマリー
+        if: always()
+        run: |
+          echo "📈 テストカバレッジサマリー:"
+          if [ -f "coverage.xml" ]; then
+            # カバレッジ情報の簡易表示
+            grep -o 'line-rate="[^"]*"' coverage.xml | head -1 | sed 's/line-rate="\([^"]*\)"/カバレッジ: \1/' || echo "カバレッジ情報を取得できませんでした"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 4. 統合テスト
+  # ---------------------------------------------------------------------------
+  # Docker環境での統合テストを実行
+  integration-tests:
+    name: 🔗 統合テスト
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 25
+    if: ${{ github.event.inputs.run_integration_tests != 'false' }}
+
+    # サービス定義（必要に応じてデータベースなどを追加）
+    services:
+      # 例: PostgreSQLデータベース
+      # postgres:
+      #   image: postgres:15
+      #   env:
+      #     POSTGRES_PASSWORD: test
+      #     POSTGRES_DB: testdb
+      #   options: >-
+      #     --health-cmd pg_isready
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+
+      # 例: Redisキャッシュ
+      # redis:
+      #   image: redis:7
+      #   options: >-
+      #     --health-cmd "redis-cli ping"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
+      pass:
+        image: alpine:latest
+        options: --entrypoint=sh
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐳 Docker Compose セットアップ
+        run: |
+          echo "🐳 Docker Compose環境をセットアップ中..."
+
+          # docker-compose.ymlの存在確認
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "ℹ️ docker-compose.yml が見つかりません。統合テストをスキップします。"
+            exit 0
+          fi
+
+          # 環境変数の設定
+          export USER_ID=$(id -u)
+          export GROUP_ID=$(id -g)
+          export GITHUB_PERSONAL_ACCESS_TOKEN="dummy_token_for_ci"
+
+          echo "📋 環境変数:"
+          echo "USER_ID=$USER_ID"
+          echo "GROUP_ID=$GROUP_ID"
+
+          # Docker Composeサービスの起動
+          timeout 300 docker compose up -d || {
+            echo "❌ Docker Composeサービスの起動に失敗しました"
+            docker compose logs
+            exit 1
+          }
+
+          echo "✅ Docker Compose環境セットアップ完了"
+
+      - name: ⏳ サービス起動待機
+        run: |
+          echo "⏳ サービスの起動を待機中..."
+
+          # サービスのヘルスチェック
+          max_attempts=30
+          attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            if docker compose ps | grep -q "Up"; then
+              echo "✅ サービスが起動しました"
+              break
+            fi
+
+            attempt=$((attempt + 1))
+            echo "⏳ 待機中... ($attempt/$max_attempts)"
+            sleep 10
+          done
+
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ サービスの起動がタイムアウトしました"
+            docker compose ps
+            docker compose logs
+            exit 1
+          fi
+
+          # サービス状態の確認
+          echo "📋 サービス状態:"
+          docker compose ps
+
+      - name: 🧪 統合テスト実行
+        run: |
+          echo "🧪 統合テストを実行中..."
+
+          # 統合テストスクリプトの存在確認
+          if [ -f "tests/integration_test.sh" ]; then
+            echo "📋 統合テストスクリプトを実行..."
+            timeout 600 ./tests/integration_test.sh || {
+              echo "❌ 統合テストに失敗しました"
+              exit 1
+            }
+          elif [ -d "tests" ] && find tests -name "*integration*" -type f | grep -q .; then
+            echo "📋 Python統合テストを実行..."
+            if command -v uv >/dev/null 2>&1; then
+              timeout 600 uv run pytest tests/ -k "integration" --verbose || {
+                echo "❌ Python統合テストに失敗しました"
+                exit 1
+              }
+            fi
+          else
+            echo "ℹ️ 統合テストが見つかりません。基本的なサービス確認のみ実行します。"
+
+            # 基本的なサービス疎通確認
+            if docker compose ps | grep -q "Up"; then
+              echo "✅ サービスが正常に動作しています"
+            else
+              echo "❌ サービスに問題があります"
+              exit 1
+            fi
+          fi
+
+          echo "✅ 統合テスト完了"
+
+      - name: 📋 サービスログ収集
+        if: always()
+        run: |
+          echo "📋 サービスログを収集中..."
+          mkdir -p logs
+          docker compose logs > logs/integration-test-logs.txt 2>&1
+
+          echo "📋 コンテナ状態:"
+          docker compose ps > logs/container-status.txt 2>&1
+
+      - name: 📊 ログアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-logs
+          path: logs/
+          retention-days: 7
+
+      - name: 🧹 クリーンアップ
+        if: always()
+        run: |
+          echo "🧹 Docker環境をクリーンアップ中..."
+          docker compose down -v || true
+          docker system prune -f || true
+
+  # ---------------------------------------------------------------------------
+  # 5. セキュリティスキャン
+  # ---------------------------------------------------------------------------
+  # セキュリティ脆弱性の検出とスキャン
+  security-scan:
+    name: 🔒 セキュリティスキャン
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 15
+    if: ${{ env.SECURITY_SCAN_ENABLED == 'true' }}
+
+    # セキュリティイベントの書き込み権限が必要
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      # Trivyによる脆弱性スキャン（ファイルシステム）
+      - name: 🔍 ファイルシステム脆弱性スキャン (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'  # スキャン結果に関わらず継続
+          # 無視する脆弱性がある場合は .trivyignore ファイルを作成
+          trivyignores: '.trivyignore'
+
+      # Dockerイメージの脆弱性スキャン
+      - name: 🐳 Dockerイメージ脆弱性スキャン (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: 'local-ci:latest'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'  # 重大な脆弱性がある場合は失敗
+          trivyignores: '.trivyignore'
+          ignore-unfixed: true  # 修正不可能な脆弱性は無視
+
+      # セキュリティスキャン結果のアップロード
+      - name: 📊 セキュリティスキャン結果アップロード
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: |
+            trivy-fs-results.sarif
+            trivy-image-results.sarif
+
+      # 秘密情報スキャン（TruffleHog）
+      - name: 🔐 秘密情報スキャン (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      # 依存関係の脆弱性チェック
+      - name: 📦 依存関係脆弱性チェック
+        run: |
+          echo "📦 依存関係の脆弱性をチェック中..."
+
+          # Python依存関係のチェック
+          if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+            echo "🐍 Python依存関係をチェック..."
+
+            # uvを使用してセキュリティチェック
+            if command -v uv >/dev/null 2>&1; then
+              # pip-auditを使用した脆弱性チェック
+              uv tool install pip-audit || echo "⚠️ pip-audit のインストールに失敗"
+              uv tool run pip-audit --format=json --output=python-vulnerabilities.json || {
+                echo "⚠️ Python依存関係に脆弱性が検出されました"
+                # 重大な脆弱性のみで失敗させる場合は条件を追加
+              }
+            fi
+          fi
+
+          # Node.js依存関係のチェック（package.jsonがある場合）
+          if [ -f "package.json" ]; then
+            echo "📦 Node.js依存関係をチェック..."
+            if command -v npm >/dev/null 2>&1; then
+              npm audit --audit-level=high || {
+                echo "⚠️ Node.js依存関係に脆弱性が検出されました"
+              }
+            fi
+          fi
+
+          echo "✅ 依存関係脆弱性チェック完了"
+
+      # セキュリティレポートのアップロード
+      - name: 📊 セキュリティレポートアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            trivy-fs-results.sarif
+            trivy-image-results.sarif
+            python-vulnerabilities.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 6. パフォーマンステスト（オプション）
+  # ---------------------------------------------------------------------------
+  # アプリケーションのパフォーマンス測定
+  performance-test:
+    name: ⚡ パフォーマンステスト
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    timeout-minutes: 20
+    # パフォーマンステストは手動実行時のみ実行
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐳 パフォーマンステスト環境セットアップ
+        run: |
+          echo "⚡ パフォーマンステスト環境をセットアップ中..."
+
+          # 必要に応じてパフォーマンステスト用の環境を構築
+          # 例: 負荷テストツールのインストール
+
+          if command -v docker >/dev/null 2>&1; then
+            # Dockerを使用したパフォーマンステスト環境
+            docker run --rm -d --name perf-test-app -p 8080:8080 local-ci:latest || {
+              echo "⚠️ パフォーマンステスト用アプリの起動に失敗"
+              exit 0
+            }
+
+            # アプリケーションの起動待機
+            sleep 30
+          fi
+
+      - name: ⚡ パフォーマンス測定
+        run: |
+          echo "⚡ パフォーマンス測定を実行中..."
+
+          # 基本的なパフォーマンステスト
+          # プロジェクトに応じてカスタマイズしてください
+
+          # 例1: HTTP負荷テスト（curlを使用）
+          if curl -s http://localhost:8080/health >/dev/null 2>&1; then
+            echo "📊 HTTP応答時間測定..."
+            for i in {1..10}; do
+              response_time=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:8080/health)
+              echo "リクエスト $i: ${response_time}秒"
+            done
+          fi
+
+          # 例2: メモリ使用量測定
+          if docker ps | grep -q perf-test-app; then
+            echo "📊 メモリ使用量測定..."
+            docker stats --no-stream perf-test-app
+          fi
+
+          echo "✅ パフォーマンス測定完了"
+
+      - name: 🧹 パフォーマンステスト環境クリーンアップ
+        if: always()
+        run: |
+          docker stop perf-test-app || true
+          docker rm perf-test-app || true
+
+  # ---------------------------------------------------------------------------
+  # 7. 結果サマリー・レポート生成
+  # ---------------------------------------------------------------------------
+  # 全ジョブの結果をまとめてレポートを生成
+  summary:
+    name: 📊 結果サマリー
+    runs-on: ubuntu-latest
+    needs: [fast-checks, build, unit-tests, integration-tests, security-scan]
+    if: always()  # 他のジョブが失敗しても実行
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 📊 CI結果サマリー生成
+        run: |
+          echo "📊 GitHub Actions Simulator - CI実行結果サマリー"
+          echo "=============================================="
+          echo ""
+          echo "🕐 実行時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🔗 コミット: ${{ github.sha }}"
+          echo "🌿 ブランチ: ${{ github.ref_name }}"
+          echo ""
+
+          # ジョブ結果の確認
+          echo "📋 ジョブ実行結果:"
+          echo "  🚀 高速チェック: ${{ needs.fast-checks.result }}"
+          echo "  🔨 ビルド: ${{ needs.build.result }}"
+          echo "  🧪 単体テスト: ${{ needs.unit-tests.result }}"
+          echo "  🔗 統合テスト: ${{ needs.integration-tests.result }}"
+          echo "  🔒 セキュリティスキャン: ${{ needs.security-scan.result }}"
+          echo ""
+
+          # 全体的な成功/失敗判定
+          overall_status="success"
+
+          if [ "${{ needs.fast-checks.result }}" != "success" ]; then
+            overall_status="failure"
+            echo "❌ 高速チェックに失敗しました"
+          fi
+
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            overall_status="failure"
+            echo "❌ ビルドに失敗しました"
+          fi
+
+          if [ "${{ needs.unit-tests.result }}" != "success" ]; then
+            overall_status="failure"
+            echo "❌ 単体テストに失敗しました"
+          fi
+
+          if [ "${{ needs.integration-tests.result }}" == "failure" ]; then
+            overall_status="failure"
+            echo "❌ 統合テストに失敗しました"
+          fi
+
+          if [ "${{ needs.security-scan.result }}" == "failure" ]; then
+            overall_status="failure"
+            echo "❌ セキュリティスキャンで重大な問題が検出されました"
+          fi
+
+          echo ""
+          if [ "$overall_status" = "success" ]; then
+            echo "✅ 全体結果: 成功"
+            echo ""
+            echo "🎉 おめでとうございます！すべてのチェックが正常に完了しました。"
+            echo ""
+            echo "📋 次のステップ:"
+            echo "  1. 本番環境へのデプロイを検討"
+            echo "  2. 追加のテストケースの作成"
+            echo "  3. パフォーマンス最適化の検討"
+          else
+            echo "❌ 全体結果: 失敗"
+            echo ""
+            echo "🔧 トラブルシューティング:"
+            echo "  1. 失敗したジョブのログを確認"
+            echo "  2. アーティファクトをダウンロードして詳細を分析"
+            echo "  3. 必要に応じてコードを修正して再実行"
+            echo ""
+            echo "💡 ヘルプ:"
+            echo "  - GitHub Actions Simulator ドキュメント: docs/actions/"
+            echo "  - トラブルシューティングガイド: docs/TROUBLESHOOTING.md"
+          fi
+
+          echo ""
+          echo "=============================================="
+
+      - name: 📊 アーティファクト情報
+        run: |
+          echo "📊 生成されたアーティファクト:"
+          echo "  - test-results-*: 単体テスト結果"
+          echo "  - integration-test-logs: 統合テストログ"
+          echo "  - security-reports: セキュリティスキャン結果"
+          echo ""
+          echo "💡 アーティファクトのダウンロード方法:"
+          echo "  GitHub Actions の実行結果ページからダウンロードできます"
+
+# =============================================================================
+# カスタマイズガイド
+# =============================================================================
+# このテンプレートをプロジェクトに合わせてカスタマイズする方法:
+#
+# 1. 環境変数の調整:
+#    - PYTHON_VERSION: 使用するPythonバージョン
+#    - PYTEST_TIMEOUT: テストのタイムアウト時間
+#    - その他プロジェクト固有の環境変数
+#
+# 2. ジョブの有効化/無効化:
+#    - 不要なジョブは needs から削除するか if 条件で無効化
+#    - プロジェクトに応じてジョブを追加
+#
+# 3. テストコマンドの調整:
+#    - pytest の引数やオプション
+#    - 統合テストのスクリプトパス
+#    - パフォーマンステストの内容
+#
+# 4. セキュリティスキャンの設定:
+#    - Trivy の重要度レベル
+#    - 無視する脆弱性の設定（.trivyignore）
+#    - 追加のセキュリティツール
+#
+# 5. Docker設定の調整:
+#    - イメージ名とタグ
+#    - ビルド引数
+#    - マルチプラットフォームビルド
+#
+# 6. 通知設定の追加:
+#    - Slack/Teams通知
+#    - メール通知
+#    - GitHub Issues作成
+#
+# 詳細なカスタマイズ方法については docs/actions/USER_GUIDE.md を参照してください。
+# =============================================================================

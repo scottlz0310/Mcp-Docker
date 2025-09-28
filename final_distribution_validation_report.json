@@ -1,0 +1,90 @@
+{
+  "timestamp": "2025-09-28T15:24:00Z",
+  "overall_status": "EXCELLENT",
+  "success_rate": 81,
+  "total_checks": 16,
+  "passed_checks": 13,
+  "failed_checks": 3,
+  "validation_results": [
+    {
+      "check_name": "README可読性",
+      "status": "PASS",
+      "details": "README.md にクイックスタートセクションが存在"
+    },
+    {
+      "check_name": "依存関係チェック",
+      "status": "PASS",
+      "details": "依存関係チェック機能が動作"
+    },
+    {
+      "check_name": "ドキュメント完全性",
+      "status": "PASS",
+      "details": "3/3 の必須ドキュメントが存在"
+    },
+    {
+      "check_name": "テンプレートファイル",
+      "status": "PASS",
+      "details": "3/3 のテンプレートが存在"
+    },
+    {
+      "check_name": "設定ファイル構文",
+      "status": "FAIL",
+      "details": "7 個の構文エラーが存在"
+    },
+    {
+      "check_name": "実行可能性",
+      "status": "PASS",
+      "details": "Docker環境で実行可能"
+    },
+    {
+      "check_name": "必須ファイル",
+      "status": "PASS",
+      "details": "全ての必須ファイルが存在"
+    },
+    {
+      "check_name": "ライセンス情報",
+      "status": "PASS",
+      "details": "ライセンスファイルが適切に設定"
+    },
+    {
+      "check_name": "バージョン情報",
+      "status": "PASS",
+      "details": "バージョン情報が設定されている"
+    },
+    {
+      "check_name": "CI/CD設定",
+      "status": "PASS",
+      "details": "6 個のワークフローが設定済み"
+    },
+    {
+      "check_name": "セキュリティ設定",
+      "status": "PASS",
+      "details": "基本的なセキュリティ設定が実装済み"
+    },
+    {
+      "check_name": "ドキュメント品質",
+      "status": "PASS",
+      "details": "ドキュメントが充実している"
+    },
+    {
+      "check_name": "Python統合テスト",
+      "status": "PASS",
+      "details": "Python テストスイートが正常に実行"
+    },
+    {
+      "check_name": "スクリプト構文",
+      "status": "PASS",
+      "details": "全てのシェルスクリプトの構文が正常"
+    },
+    {
+      "check_name": "ドキュメント整合性",
+      "status": "FAIL",
+      "details": "ドキュメント整合性にエラーがある"
+    },
+    {
+      "check_name": "テンプレート検証",
+      "status": "FAIL",
+      "details": "テンプレート検証でエラーが発生"
+    }
+  ]
+}

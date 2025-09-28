@@ -1,5 +1,10 @@
 # API仕様書
 
+> **注意**: このドキュメントは簡易版です。完全なAPIリファレンスについては以下をご参照ください：
+> - [CLI_REFERENCE.md](./CLI_REFERENCE.md) - 完全なCLIリファレンス
+> - [API_REFERENCE.md](./API_REFERENCE.md) - 詳細なAPIドキュメント
+> - [COMMAND_USAGE_GUIDE.md](./COMMAND_USAGE_GUIDE.md) - コマンド使い分けガイド
+
 ## GitHub Actions Simulator CLI API
 
 ### 診断・トラブルシューティング API

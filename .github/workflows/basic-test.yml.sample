@@ -1,0 +1,97 @@
+# =============================================================================
+# GitHub Actions Simulator - 基本テスト用ワークフローテンプレート
+# =============================================================================
+# このファイルは軽量なテスト実行に特化したサンプルワークフローです。
+# 高速な実行を重視し、必要最小限のテストのみを実行します。
+#
+# 使用方法:
+#   1. このファイルを .github/workflows/basic-test.yml にコピー
+#   2. プロジェクトに合わせてテスト設定をカスタマイズ
+#   3. GitHub Actions Simulator で実行: make actions-run WORKFLOW=.github/workflows/basic-test.yml
+#
+# 特徴:
+#   - 高速実行（5-10分以内）
+#   - 基本的なリントとユニットテストのみ
+#   - 軽量なactベースアーキテクチャに最適化
+# =============================================================================
+
+name: Basic Test Pipeline
+
+# トリガー設定 - プルリクエスト時の高速チェック用
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 環境変数
+env:
+  PYTHON_VERSION: '3.13'
+  PYTHONUNBUFFERED: 1
+  UV_CACHE_DIR: /tmp/.uv-cache
+
+# 権限設定
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 基本チェック（リント + 単体テスト）
+  # ---------------------------------------------------------------------------
+  basic-test:
+    name: 🧪 基本テスト
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐍 Python環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: ⚡ uv インストール
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: 📦 依存関係インストール
+        run: |
+          if [ -f "pyproject.toml" ]; then
+            uv sync --locked
+          else
+            echo "ℹ️ pyproject.toml が見つかりません"
+          fi
+
+      - name: 🔍 コード品質チェック (Ruff)
+        run: |
+          if [ -f "pyproject.toml" ] && find . -name "*.py" -type f | head -1 | grep -q .; then
+            echo "🔍 Ruffによるコード品質チェック..."
+            uv run ruff check . --output-format=github
+            uv run ruff format --check .
+          else
+            echo "ℹ️ Pythonファイルが見つかりません"
+          fi
+
+      - name: 🧪 単体テスト実行
+        run: |
+          if [ -d "tests" ] || find . -name "test_*.py" | head -1 | grep -q .; then
+            echo "🧪 pytestによる単体テスト..."
+            uv run pytest --tb=short --maxfail=5
+          else
+            echo "ℹ️ テストファイルが見つかりません"
+          fi
+
+      - name: ✅ 結果サマリー
+        if: always()
+        run: |
+          echo "📊 基本テスト完了"
+          echo "  - コード品質チェック: 完了"
+          echo "  - 単体テスト: 完了"
+          echo ""
+          echo "💡 次のステップ: 統合テストやセキュリティスキャンを実行"

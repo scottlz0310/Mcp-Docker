@@ -1,0 +1,475 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # 毎日午前2時（UTC）に実行
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - quick
+          - full
+          - report-only
+      generate_report:
+        description: 'Generate detailed report'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  UV_VERSION: '0.4.18'
+  COMPREHENSIVE_TEST_TIMEOUT: 1800  # 30分
+
+jobs:
+  # 基本的な環境チェック
+  environment-check:
+    name: Environment Check
+    runs-on: ubuntu-latest
+    outputs:
+      python-version: ${{ steps.setup.outputs.python-version }}
+      uv-version: ${{ steps.setup.outputs.uv-version }}
+      docker-version: ${{ steps.setup.outputs.docker-version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Check environment
+        id: setup
+        run: |
+          echo "python-version=$(python --version)" >> $GITHUB_OUTPUT
+          echo "uv-version=$(uv --version)" >> $GITHUB_OUTPUT
+          echo "docker-version=$(docker --version)" >> $GITHUB_OUTPUT
+
+          # 基本的な依存関係チェック
+          python --version
+          uv --version
+          docker --version
+
+          # プロジェクト構造チェック
+          ls -la
+          test -f pyproject.toml
+          test -d tests/
+          test -f scripts/run-comprehensive-tests.sh
+
+  # 配布スクリプト包括的テスト
+  distribution-tests:
+    name: Distribution Script Tests
+    runs-on: ${{ matrix.os }}
+    needs: environment-check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        test-type: [basic, extended]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python -m pip install pytest pytest-timeout
+
+      - name: Run distribution script tests
+        timeout-minutes: 15
+        run: |
+          # 配布スクリプトの基本テスト
+          uv run python -m pytest tests/test_comprehensive_distribution.py -v \
+            --timeout=300 \
+            --tb=short \
+            -k "not (slow or integration)"
+
+      - name: Run extended distribution tests
+        if: matrix.test-type == 'extended'
+        timeout-minutes: 20
+        run: |
+          # 拡張配布スクリプトテスト
+          uv run python -m pytest tests/test_comprehensive_distribution.py -v \
+            --timeout=600 \
+            --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution-test-results-${{ matrix.os }}-${{ matrix.test-type }}
+          path: |
+            logs/
+            output/test-reports/
+          retention-days: 7
+
+  # ドキュメント整合性テスト
+  documentation-tests:
+    name: Documentation Consistency Tests
+    runs-on: ubuntu-latest
+    needs: environment-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python -m pip install pytest pytest-timeout requests pyyaml
+
+      - name: Install additional tools
+        run: |
+          # shellcheck for shell script validation
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run documentation consistency tests
+        timeout-minutes: 10
+        run: |
+          uv run python -m pytest tests/test_documentation_consistency.py -v \
+            --timeout=300 \
+            --tb=short
+
+      - name: Upload documentation test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-test-results
+          path: |
+            logs/
+            output/test-reports/
+          retention-days: 7
+
+  # エンドツーエンドユーザー体験テスト
+  user-experience-tests:
+    name: End-to-End User Experience Tests
+    runs-on: ${{ matrix.os }}
+    needs: environment-check
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        scenario: [new-user, existing-user, error-scenarios]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python -m pip install pytest pytest-timeout
+
+      - name: Run user experience tests
+        timeout-minutes: 25
+        env:
+          NON_INTERACTIVE: '1'
+          CI: 'true'
+        run: |
+          case "${{ matrix.scenario }}" in
+            "new-user")
+              uv run python -m pytest tests/test_end_to_end_user_experience.py::TestNewUserExperience -v \
+                --timeout=600 --tb=short
+              ;;
+            "existing-user")
+              uv run python -m pytest tests/test_end_to_end_user_experience.py::TestUserExperienceEdgeCases -v \
+                --timeout=600 --tb=short
+              ;;
+            "error-scenarios")
+              uv run python -m pytest tests/test_end_to_end_user_experience.py::TestUserExperienceAccessibility -v \
+                --timeout=300 --tb=short
+              ;;
+          esac
+
+      - name: Upload user experience test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-experience-test-results-${{ matrix.os }}-${{ matrix.scenario }}
+          path: |
+            logs/
+            output/test-reports/
+          retention-days: 7
+
+  # 統合テスト
+  integration-tests:
+    name: Comprehensive Integration Tests
+    runs-on: ubuntu-latest
+    needs: [environment-check, distribution-tests, documentation-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python -m pip install pytest pytest-timeout
+
+      - name: Run integration tests
+        timeout-minutes: 30
+        env:
+          NON_INTERACTIVE: '1'
+          CI: 'true'
+          COMPREHENSIVE_TEST_TIMEOUT: 1800
+        run: |
+          uv run python -m pytest tests/test_comprehensive_integration_suite.py -v \
+            --timeout=900 \
+            --tb=short
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            logs/
+            output/test-reports/
+          retention-days: 7
+
+  # 包括的テストスイート実行
+  comprehensive-test-suite:
+    name: Full Comprehensive Test Suite
+    runs-on: ubuntu-latest
+    needs: [distribution-tests, documentation-tests, user-experience-tests, integration-tests]
+    if: github.event_name == 'schedule' || github.event.inputs.test_mode == 'full'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python -m pip install pytest pytest-timeout
+
+      - name: Run comprehensive test suite
+        timeout-minutes: 45
+        env:
+          NON_INTERACTIVE: '1'
+          CI: 'true'
+          COMPREHENSIVE_TEST_TIMEOUT: 2700  # 45分
+        run: |
+          chmod +x scripts/run-comprehensive-tests.sh
+          ./scripts/run-comprehensive-tests.sh --ci --report --output comprehensive-test-report.txt
+
+      - name: Upload comprehensive test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-test-report
+          path: |
+            comprehensive-test-report.txt
+            logs/
+            output/test-reports/
+          retention-days: 30
+
+  # テスト結果サマリー
+  test-summary:
+    name: Test Results Summary
+    runs-on: ubuntu-latest
+    needs: [distribution-tests, documentation-tests, user-experience-tests, integration-tests]
+    if: always()
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results/
+
+      - name: Generate test summary
+        run: |
+          echo "# 包括的テストスイート実行結果" > test-summary.md
+          echo "" >> test-summary.md
+          echo "## 実行情報" >> test-summary.md
+          echo "- 実行時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> test-summary.md
+          echo "- ワークフロー: ${{ github.workflow }}" >> test-summary.md
+          echo "- トリガー: ${{ github.event_name }}" >> test-summary.md
+          echo "- ブランチ: ${{ github.ref_name }}" >> test-summary.md
+          echo "- コミット: ${{ github.sha }}" >> test-summary.md
+          echo "" >> test-summary.md
+
+          echo "## テスト結果" >> test-summary.md
+          echo "" >> test-summary.md
+
+          # 各ジョブの結果を確認
+          echo "### 配布スクリプトテスト" >> test-summary.md
+          if [ "${{ needs.distribution-tests.result }}" = "success" ]; then
+            echo "✅ 成功" >> test-summary.md
+          else
+            echo "❌ 失敗 (${{ needs.distribution-tests.result }})" >> test-summary.md
+          fi
+          echo "" >> test-summary.md
+
+          echo "### ドキュメント整合性テスト" >> test-summary.md
+          if [ "${{ needs.documentation-tests.result }}" = "success" ]; then
+            echo "✅ 成功" >> test-summary.md
+          else
+            echo "❌ 失敗 (${{ needs.documentation-tests.result }})" >> test-summary.md
+          fi
+          echo "" >> test-summary.md
+
+          echo "### ユーザー体験テスト" >> test-summary.md
+          if [ "${{ needs.user-experience-tests.result }}" = "success" ]; then
+            echo "✅ 成功" >> test-summary.md
+          else
+            echo "❌ 失敗 (${{ needs.user-experience-tests.result }})" >> test-summary.md
+          fi
+          echo "" >> test-summary.md
+
+          echo "### 統合テスト" >> test-summary.md
+          if [ "${{ needs.integration-tests.result }}" = "success" ]; then
+            echo "✅ 成功" >> test-summary.md
+          else
+            echo "❌ 失敗 (${{ needs.integration-tests.result }})" >> test-summary.md
+          fi
+          echo "" >> test-summary.md
+
+          # 全体結果の判定
+          if [ "${{ needs.distribution-tests.result }}" = "success" ] && \
+             [ "${{ needs.documentation-tests.result }}" = "success" ] && \
+             [ "${{ needs.user-experience-tests.result }}" = "success" ] && \
+             [ "${{ needs.integration-tests.result }}" = "success" ]; then
+            echo "## 🎉 全体結果: 成功" >> test-summary.md
+            echo "" >> test-summary.md
+            echo "すべての包括的テストが正常に完了しました。" >> test-summary.md
+          else
+            echo "## ⚠️ 全体結果: 一部失敗" >> test-summary.md
+            echo "" >> test-summary.md
+            echo "一部のテストで問題が発生しました。詳細は各テスト結果を確認してください。" >> test-summary.md
+          fi
+
+          echo "" >> test-summary.md
+          echo "## アーティファクト" >> test-summary.md
+          echo "- テスト結果の詳細はアーティファクトからダウンロードできます" >> test-summary.md
+          echo "- ログファイルとレポートが含まれています" >> test-summary.md
+
+      - name: Upload test summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-summary
+          path: test-summary.md
+          retention-days: 30
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('test-summary.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # 失敗時の通知
+  notify-failure:
+    name: Notify Test Failure
+    runs-on: ubuntu-latest
+    needs: [distribution-tests, documentation-tests, user-experience-tests, integration-tests]
+    if: failure() && (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
+    steps:
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `包括的テストスイート失敗 - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## 包括的テストスイートが失敗しました
+
+            **実行情報:**
+            - ワークフロー: ${{ github.workflow }}
+            - 実行ID: ${{ github.run_id }}
+            - ブランチ: ${{ github.ref_name }}
+            - コミット: ${{ github.sha }}
+            - トリガー: ${{ github.event_name }}
+
+            **失敗したジョブ:**
+            - 配布スクリプトテスト: ${{ needs.distribution-tests.result }}
+            - ドキュメント整合性テスト: ${{ needs.documentation-tests.result }}
+            - ユーザー体験テスト: ${{ needs.user-experience-tests.result }}
+            - 統合テスト: ${{ needs.integration-tests.result }}
+
+            **対応が必要な項目:**
+            1. 失敗したテストの詳細を確認
+            2. ログとアーティファクトを分析
+            3. 必要に応じて修正を実施
+            4. テストを再実行して確認
+
+            **関連リンク:**
+            - [ワークフロー実行](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [コミット詳細](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            `;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'test-failure', 'comprehensive-tests']
+            });

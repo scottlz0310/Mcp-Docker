@@ -1,0 +1,305 @@
+# =============================================================================
+# GitHub Actions Simulator - セキュリティスキャン用ワークフローテンプレート
+# =============================================================================
+# このファイルはセキュリティスキャンに特化したサンプルワークフローです。
+# 脆弱性検出、秘密情報スキャン、依存関係チェックを実行します。
+#
+# 使用方法:
+#   1. このファイルを .github/workflows/security-scan.yml にコピー
+#   2. プロジェクトに合わせてセキュリティ設定をカスタマイズ
+#   3. GitHub Actions Simulator で実行: make actions-run WORKFLOW=.github/workflows/security-scan.yml
+#
+# 特徴:
+#   - 包括的なセキュリティチェック
+#   - Trivy、TruffleHog、pip-auditを使用
+#   - SARIF形式でのレポート出力
+# =============================================================================
+
+name: Security Scan Pipeline
+
+# トリガー設定 - セキュリティチェック用
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 毎週月曜日の午前6時（UTC）に定期実行
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      scan_severity:
+        description: 'スキャン重要度レベル'
+        required: false
+        default: 'HIGH'
+        type: choice
+        options:
+          - CRITICAL
+          - HIGH
+          - MEDIUM
+          - LOW
+      include_unfixed:
+        description: '修正不可能な脆弱性も含める'
+        required: false
+        default: false
+        type: boolean
+
+# 環境変数
+env:
+  SCAN_SEVERITY: ${{ github.event.inputs.scan_severity || 'HIGH' }}
+  INCLUDE_UNFIXED: ${{ github.event.inputs.include_unfixed || 'false' }}
+
+# 権限設定
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # ファイルシステム脆弱性スキャン
+  # ---------------------------------------------------------------------------
+  filesystem-scan:
+    name: 📁 ファイルシステムスキャン
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # 全履歴を取得（秘密情報スキャン用）
+
+      - name: 🔍 ファイルシステム脆弱性スキャン (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+          severity: ${{ env.SCAN_SEVERITY }},CRITICAL
+          exit-code: '0'
+          trivyignores: '.trivyignore'
+
+      - name: 📊 ファイルシステムスキャン結果アップロード
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+
+      - name: 🔐 秘密情報スキャン (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified --no-verification
+
+      - name: 📋 スキャン結果サマリー
+        if: always()
+        run: |
+          echo "📊 ファイルシステムスキャン完了"
+          echo "  - 脆弱性スキャン: 完了"
+          echo "  - 秘密情報スキャン: 完了"
+          echo "  - 重要度レベル: ${{ env.SCAN_SEVERITY }}"
+
+  # ---------------------------------------------------------------------------
+  # 依存関係脆弱性スキャン
+  # ---------------------------------------------------------------------------
+  dependency-scan:
+    name: 📦 依存関係スキャン
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐍 Python環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: ⚡ uv インストール
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: 📦 Python依存関係脆弱性チェック
+        run: |
+          if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+            echo "🐍 Python依存関係の脆弱性をチェック中..."
+
+            # pip-auditを使用した脆弱性チェック
+            uv tool install pip-audit
+            uv tool run pip-audit \
+              --format=json \
+              --output=python-vulnerabilities.json \
+              --progress-spinner=off || {
+              echo "⚠️ Python依存関係に脆弱性が検出されました"
+              # 重大な脆弱性のみで失敗させる
+              uv tool run pip-audit --format=text | grep -i "critical\|high" && exit 1 || true
+            }
+          else
+            echo "ℹ️ Python依存関係ファイルが見つかりません"
+          fi
+
+      - name: 📦 Node.js依存関係脆弱性チェック
+        if: hashFiles('package.json') != ''
+        run: |
+          echo "📦 Node.js依存関係の脆弱性をチェック中..."
+
+          # Node.jsのセットアップ
+          curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+          # npm auditの実行
+          npm audit --audit-level=high --json > node-vulnerabilities.json || {
+            echo "⚠️ Node.js依存関係に脆弱性が検出されました"
+            npm audit --audit-level=high
+          }
+
+      - name: 📊 依存関係スキャン結果アップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-scan-results
+          path: |
+            python-vulnerabilities.json
+            node-vulnerabilities.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Dockerイメージ脆弱性スキャン
+  # ---------------------------------------------------------------------------
+  container-scan:
+    name: 🐳 コンテナスキャン
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: hashFiles('Dockerfile') != ''
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 🐳 Docker Buildx セットアップ
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔨 Dockerイメージビルド
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: security-scan:latest
+
+      - name: 🔍 Dockerイメージ脆弱性スキャン (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: 'security-scan:latest'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: ${{ env.SCAN_SEVERITY }},CRITICAL
+          exit-code: '1'
+          trivyignores: '.trivyignore'
+          ignore-unfixed: ${{ env.INCLUDE_UNFIXED == 'false' }}
+
+      - name: 📊 コンテナスキャン結果アップロード
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-image-results.sarif'
+
+      - name: 🐳 イメージ情報表示
+        if: always()
+        run: |
+          echo "📊 Dockerイメージ情報:"
+          docker images security-scan:latest
+          docker history security-scan:latest --no-trunc
+
+  # ---------------------------------------------------------------------------
+  # セキュリティレポート生成
+  # ---------------------------------------------------------------------------
+  security-report:
+    name: 📊 セキュリティレポート
+    runs-on: ubuntu-latest
+    needs: [filesystem-scan, dependency-scan, container-scan]
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 ソースコード取得
+        uses: actions/checkout@v5
+
+      - name: 📊 セキュリティレポート生成
+        run: |
+          echo "📊 セキュリティスキャン結果サマリー"
+          echo "=================================="
+          echo ""
+          echo "🕐 スキャン実行時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🔗 コミット: ${{ github.sha }}"
+          echo "🌿 ブランチ: ${{ github.ref_name }}"
+          echo "⚙️ 重要度レベル: ${{ env.SCAN_SEVERITY }}"
+          echo ""
+
+          # スキャン結果の確認
+          echo "📋 スキャン実行結果:"
+          echo "  📁 ファイルシステムスキャン: ${{ needs.filesystem-scan.result }}"
+          echo "  📦 依存関係スキャン: ${{ needs.dependency-scan.result }}"
+          echo "  🐳 コンテナスキャン: ${{ needs.container-scan.result }}"
+          echo ""
+
+          # 全体的なセキュリティ状態の判定
+          security_status="secure"
+
+          if [ "${{ needs.filesystem-scan.result }}" == "failure" ]; then
+            security_status="vulnerable"
+            echo "❌ ファイルシステムに脆弱性が検出されました"
+          fi
+
+          if [ "${{ needs.dependency-scan.result }}" == "failure" ]; then
+            security_status="vulnerable"
+            echo "❌ 依存関係に脆弱性が検出されました"
+          fi
+
+          if [ "${{ needs.container-scan.result }}" == "failure" ]; then
+            security_status="vulnerable"
+            echo "❌ コンテナイメージに脆弱性が検出されました"
+          fi
+
+          echo ""
+          if [ "$security_status" = "secure" ]; then
+            echo "✅ セキュリティ状態: 良好"
+            echo ""
+            echo "🎉 重大な脆弱性は検出されませんでした。"
+            echo ""
+            echo "📋 推奨事項:"
+            echo "  1. 定期的なセキュリティスキャンの継続"
+            echo "  2. 依存関係の定期更新"
+            echo "  3. セキュリティベストプラクティスの遵守"
+          else
+            echo "⚠️ セキュリティ状態: 要注意"
+            echo ""
+            echo "🔧 対応が必要な項目:"
+            echo "  1. 検出された脆弱性の確認と修正"
+            echo "  2. 依存関係の更新"
+            echo "  3. セキュリティパッチの適用"
+            echo ""
+            echo "💡 ヘルプ:"
+            echo "  - セキュリティガイド: docs/SECURITY.md"
+            echo "  - 脆弱性対応手順: docs/VULNERABILITY_RESPONSE.md"
+          fi
+
+          echo ""
+          echo "=================================="
+
+      - name: 📊 アーティファクト情報
+        run: |
+          echo "📊 生成されたセキュリティレポート:"
+          echo "  - trivy-fs-results.sarif: ファイルシステムスキャン結果"
+          echo "  - trivy-image-results.sarif: コンテナイメージスキャン結果"
+          echo "  - dependency-scan-results: 依存関係スキャン結果"
+          echo ""
+          echo "💡 レポートの確認方法:"
+          echo "  1. GitHub Security タブでSARIFレポートを確認"
+          echo "  2. Actions の Artifacts からJSONレポートをダウンロード"
+          echo "  3. 詳細な分析が必要な場合はローカルでTrivyを実行"

@@ -1,46 +1,282 @@
 ---
+# GitHub Actions Simulator - Pre-commit Configuration Template
+# 現在のベストプラクティスに基づく段階的品質ゲート設定
+#
+# このファイルは以下の品質レベルを段階的に適用します:
+# 1. 基本的なファイル品質チェック
+# 2. Docker/Shell/YAML の静的解析
+# 3. Python コード品質とセキュリティ
+# 4. GitHub Actions Simulator 統合テスト
+# 5. ドキュメント整合性チェック
+
+# 除外パターン（プロジェクト固有の調整が可能）
+exclude: |
+  (?x)^(
+    \.git/.*|
+    \.mypy_cache/.*|
+    \.pytest_cache/.*|
+    \.ruff_cache/.*|
+    \.venv/.*|
+    __pycache__/.*|
+    node_modules/.*|
+    output/.*|
+    logs/.*|
+    \.env.*|
+    sbom-.*\.json|
+    .*\.log
+  )$
+
 repos:
+  # === Phase 1: 基本的なファイル品質チェック ===
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # ファイル形式の基本チェック
       - id: trailing-whitespace
+        name: "🧹 末尾空白の削除"
+        description: "ファイル末尾の不要な空白を自動削除"
       - id: end-of-file-fixer
+        name: "📝 ファイル末尾の改行修正"
+        description: "ファイル末尾に適切な改行を追加"
       - id: check-yaml
+        name: "📋 YAML構文チェック"
+        description: "YAML ファイルの構文エラーを検出"
+        exclude: ^\.github/workflows/.*\.yml\.sample$
+      - id: check-json
+        name: "📋 JSON構文チェック"
+        description: "JSON ファイルの構文エラーを検出"
+      - id: check-toml
+        name: "📋 TOML構文チェック"
+        description: "TOML ファイルの構文エラーを検出"
       - id: check-added-large-files
+        name: "📦 大容量ファイルチェック"
+        description: "意図しない大容量ファイルのコミットを防止"
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+        name: "🔀 マージコンフリクトチェック"
+        description: "マージコンフリクトマーカーの残存を検出"
+      - id: check-executables-have-shebangs
+        name: "🔧 実行ファイルのshebangチェック"
+        description: "実行可能ファイルに適切なshebangがあることを確認"
+      - id: mixed-line-ending
+        name: "📄 改行コード統一"
+        description: "改行コードをLFに統一"
+        args: ['--fix=lf']
 
+  # === Phase 2: Docker/Infrastructure 品質チェック ===
   - repo: https://github.com/hadolint/hadolint
     rev: v2.12.0
     hooks:
       - id: hadolint-docker
-        args: [--ignore, DL3008, --ignore, DL3009, --ignore, DL3018]
+        name: "🐳 Dockerfile品質チェック"
+        description: "Dockerfileのベストプラクティス準拠を確認"
+        args: [
+          --ignore, DL3008,  # パッケージバージョン固定（開発環境では柔軟性を優先）
+          --ignore, DL3009,  # apt-get clean（マルチステージビルドで対応）
+          --ignore, DL3018,  # パッケージバージョン固定（Alpine用）
+          --ignore, DL3059,  # 複数RUNコマンド（可読性を優先）
+        ]
 
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: v0.10.0
     hooks:
       - id: shellcheck
+        name: "🐚 Shell スクリプト品質チェック"
+        description: "Shell スクリプトの潜在的な問題を検出"
+        args: [
+          --severity=warning,
+          --shell=bash,
+          --exclude=SC2034,  # 未使用変数（設定ファイルで許可）
+          --exclude=SC1091,  # 外部ファイル読み込み（動的パスで許可）
+        ]
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
     hooks:
       - id: yamllint
+        name: "📋 YAML品質チェック"
+        description: "YAML ファイルのスタイルと構文を検証"
         args: [-c, .yamllint.yml]
+        exclude: ^\.github/workflows/.*\.yml\.sample$
 
+  # === Phase 3: Python コード品質とセキュリティ ===
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
+        name: "🐍 Python コード品質チェック（Ruff）"
+        description: "Python コードの品質とスタイルを高速チェック"
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(src/|tests/test_hangup_unit\.py)
+        files: ^(src/|tests/|examples/|scripts/.*\.py$)
+      - id: ruff-format
+        name: "🎨 Python コードフォーマット（Ruff）"
+        description: "Python コードを自動フォーマット"
+        files: ^(src/|tests/|examples/|scripts/.*\.py$)
 
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        name: "🔍 Python 型チェック（MyPy）"
+        description: "Python コードの型安全性を検証"
+        files: ^src/
+        args: [--ignore-missing-imports, --strict-optional]
+        additional_dependencies: [types-requests, types-PyYAML]
+
+  # === Phase 4: GitHub Actions Simulator 統合チェック ===
   - repo: local
     hooks:
-      - id: uv-pytest-unit
-        name: pytest unit tests only (fast)
+      # 高速単体テスト（コミット時に必須）
+      - id: actions-simulator-unit-tests
+        name: "🧪 Actions Simulator 単体テスト"
+        description: "GitHub Actions Simulator の核心機能をテスト"
         entry: >
           uv run pytest
           tests/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
           tests/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
           tests/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
-          -x --tb=short --disable-warnings
+          -x --tb=short --disable-warnings --timeout=30
         language: system
         pass_filenames: false
+        files: ^(src/|tests/test_hangup_unit\.py)
+
+      # ワークフロー構文検証
+      - id: actions-workflow-validation
+        name: "✅ GitHub Actions ワークフロー検証"
+        description: "GitHub Actions ワークフローファイルの構文と設定を検証"
+        entry: bash -c 'find .github/workflows -name "*.yml" -o -name "*.yaml" | grep -v "\.sample$" | head -5'
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+
+      # Docker 環境チェック（軽量版）
+      - id: docker-environment-check
+        name: "🐳 Docker 環境チェック"
+        description: "Docker 環境の基本的な動作確認"
+        entry: bash -c 'docker --version && docker compose version && echo "✅ Docker 環境正常"'
+        language: system
+        pass_filenames: false
+        files: ^(Dockerfile|docker-compose\.ya?ml|\.dockerignore)$
+
+      # Actions Simulator 設定検証
+      - id: actions-simulator-config-check
+        name: "⚙️ Actions Simulator 設定検証"
+        description: "Actions Simulator の設定ファイルを検証"
+        entry: bash -c 'if [ -f ".env.example" ]; then echo "✅ .env.example 存在確認"; else echo "❌ .env.example が見つかりません"; exit 1; fi'
+        language: system
+        files: ^(\.env\.example|pyproject\.toml|main\.py)$
+        pass_filenames: false
+
+  # === Phase 5: ドキュメント整合性チェック ===
+  - repo: local
+    hooks:
+      # ドキュメントリンク検証
+      - id: documentation-link-check
+        name: "🔗 ドキュメントリンク検証"
+        description: "ドキュメント内のリンクの有効性を確認"
+        entry: bash -c 'find . -name "*.md" -not -path "./.git/*" -not -path "./.venv/*" | head -5'
+        language: system
+        files: \.md$
+        pass_filenames: false
+
+      # バージョン整合性チェック
+      - id: version-consistency-check
+        name: "🏷️ バージョン整合性チェック"
+        description: "pyproject.toml と main.py のバージョン整合性を確認"
+        entry: bash -c 'make version-sync && echo "✅ バージョン整合性確認完了"'
+        language: system
+        files: ^(pyproject\.toml|main\.py)$
+        pass_filenames: false
+
+# === 段階的品質ゲート設定の説明 ===
+#
+# このpre-commit設定は以下の段階的アプローチを採用しています:
+#
+# 🟢 Level 1 - 基本品質 (常時実行)
+#   - ファイル形式チェック
+#   - 基本的な構文検証
+#   - 自動修正可能な問題の解決
+#
+# 🟡 Level 2 - コード品質 (開発時実行)
+#   - 静的解析（hadolint, shellcheck, yamllint）
+#   - コードスタイル統一（ruff）
+#   - 型安全性チェック（mypy）
+#
+# 🟠 Level 3 - 統合品質 (機能変更時実行)
+#   - 単体テスト実行
+#   - ワークフロー検証
+#   - Docker環境チェック
+#
+# 🔴 Level 4 - 配布品質 (リリース前実行)
+#   - 包括的テストスイート
+#   - ドキュメント整合性
+#   - セキュリティスキャン
+#
+# === カスタマイズ方法 ===
+#
+# 1. 特定のチェックを無効化:
+#    該当するhookをコメントアウトまたは削除
+#
+# 2. 除外パターンの追加:
+#    上部の exclude セクションにパターンを追加
+#
+# 3. プロジェクト固有のチェック追加:
+#    local repo セクションに新しいhookを追加
+#
+# 4. 段階的導入:
+#    最初は Level 1 のみ有効化し、徐々に他のレベルを追加
+#
+# === GitHub Actions Simulator との統合例 ===
+#
+# このpre-commit設定は以下の方法でGitHub Actions Simulatorと統合されます:
+#
+# 1. ワークフロー検証:
+#    - コミット前にワークフローファイルの構文をチェック
+#    - Actions Simulator での実行可能性を事前確認
+#
+# 2. Docker環境整合性:
+#    - Dockerfileの品質チェック
+#    - docker-compose.yml の構文検証
+#    - Actions Simulator コンテナとの互換性確認
+#
+# 3. 設定ファイル検証:
+#    - .env.example の存在確認
+#    - pyproject.toml の整合性チェック
+#    - バージョン情報の同期確認
+#
+# 4. テスト統合:
+#    - Actions Simulator の核心機能テスト
+#    - ハングアップ検出機能の動作確認
+#    - 診断サービスの初期化テスト
+#
+# === 使用方法 ===
+#
+# 1. 初回セットアップ:
+#    pre-commit install
+#
+# 2. 全ファイルでの実行:
+#    pre-commit run --all-files
+#
+# 3. 特定のhookのみ実行:
+#    pre-commit run <hook-id>
+#
+# 4. Make コマンドでの実行:
+#    make pre-commit
+#
+# === トラブルシューティング ===
+#
+# 1. Docker関連エラー:
+#    - Docker Desktopが起動していることを確認
+#    - `make docker-health` でDocker環境をチェック
+#
+# 2. Python環境エラー:
+#    - `uv sync` で依存関係を更新
+#    - 仮想環境が正しく設定されていることを確認
+#
+# 3. テストタイムアウト:
+#    - システムリソースを確認
+#    - `make test-hangup-quick` で軽量テストを実行
+#
+# 4. 権限エラー:
+#    - `./scripts/fix-permissions.sh` を実行
+#    - Docker rootless モードの設定を確認

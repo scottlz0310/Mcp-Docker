@@ -1,4 +1,4 @@
-.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all test-hangup test-hangup-unit test-hangup-integration test-hangup-e2e test-hangup-all test-hangup-bats security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify test-hangup-ci test-hangup-ci-full test-hangup-ci-matrix test-hangup-regression
+.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all test-hangup test-hangup-unit test-hangup-integration test-hangup-e2e test-hangup-all test-hangup-bats security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify test-hangup-ci test-hangup-ci-full test-hangup-ci-matrix test-hangup-regression check-docs docs-consistency docker-override-setup docker-override-validate docker-override-dev docker-override-prod docker-override-monitoring docker-override-security validate-templates validate-templates-syntax validate-templates-functionality validate-templates-ci validate-templates-report test-comprehensive test-comprehensive-quick test-comprehensive-full test-comprehensive-report test-comprehensive-ci
 
 help:
 	@echo "MCP Docker Environment Commands:"
@@ -24,6 +24,14 @@ help:
 	@echo "  make actions-setup     - Setup Actions Simulator environment"
 	@echo "  make actions-verify    - Verify Actions Simulator container"
 	@echo ""
+	@echo "Docker Customization:"
+	@echo "  make docker-override-setup      - Setup Docker override configuration"
+	@echo "  make docker-override-validate   - Validate Docker override settings"
+	@echo "  make docker-override-dev        - Start development environment"
+	@echo "  make docker-override-prod       - Start production environment"
+	@echo "  make docker-override-monitoring - Start with monitoring stack"
+	@echo "  make docker-override-security   - Run security scanning"
+	@echo ""
 	@echo "Testing:"
 	@echo "  make test      - Run integration tests"
 	@echo "  make test-all  - Run all test suites"
@@ -45,12 +53,22 @@ help:
 	@echo "  make security  - Run security scan"
 	@echo "  make sbom      - Generate SBOM"
 	@echo "  make audit-deps - Audit dependencies"
+	@echo "  make check-docs - Check documentation consistency"
+	@echo "  make validate-templates - Validate all template files"
+	@echo "  make test-comprehensive - Run comprehensive test suite"
 	@echo ""
 	@echo "Release Management:"
 	@echo "  make version           - Show current version"
 	@echo "  make version-sync      - Sync versions between pyproject.toml and main.py"
 	@echo "  make release-check     - Check release readiness"
 	@echo "  make setup-branch-protection - Setup branch protection"
+	@echo ""
+	@echo "CHANGELOG Management:"
+	@echo "  make changelog-add TYPE=<type> DESC='<description>' - Add new entry"
+	@echo "  make changelog-release VERSION=<version>           - Prepare release"
+	@echo "  make changelog-validate                            - Validate format"
+	@echo "  make changelog-show                                - Show unreleased"
+	@echo "  make changelog-generate FROM=<ref> TO=<ref>        - Generate from commits"
 	@echo ""
 	@echo "GitHub Actions Simulator:"
 	@echo "  make actions             - Interactive workflow selection (Docker)"
@@ -307,6 +325,10 @@ lint:
 pre-commit:
 	uv run pre-commit run --all-files
 
+validate-precommit:
+	@echo "🔍 Pre-commit設定検証"
+	@./scripts/validate-precommit-config.sh
+
 version:
 	@./scripts/get-current-version.sh
 	@echo ""
@@ -336,6 +358,8 @@ release-check:
 	@git status --porcelain
 	@echo "Last commit:"
 	@git log -1 --oneline
+	@echo "Documentation:"
+	@make check-docs
 	@echo "Tests:"
 	@make test-all
 	@echo "Security:"
@@ -345,6 +369,38 @@ release-check:
 setup-branch-protection:
 	@echo "🛡️ ブランチ保護設定"
 	@./scripts/setup-branch-protection.sh
+
+# CHANGELOG管理
+changelog-add:
+	@if [ -z "$(TYPE)" ] || [ -z "$(DESC)" ]; then \
+		echo "使用方法: make changelog-add TYPE=<type> DESC='<description>'"; \
+		echo "例: make changelog-add TYPE=added DESC='新しい診断機能を追加'"; \
+		echo "TYPE: added, changed, deprecated, removed, fixed, security"; \
+		exit 1; \
+	fi
+	@./scripts/manage-changelog.sh add-entry $(TYPE) "$(DESC)"
+
+changelog-release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "使用方法: make changelog-release VERSION=<version>"; \
+		echo "例: make changelog-release VERSION=1.2.0"; \
+		exit 1; \
+	fi
+	@./scripts/manage-changelog.sh prepare-release $(VERSION)
+
+changelog-validate:
+	@./scripts/manage-changelog.sh validate
+
+changelog-show:
+	@./scripts/manage-changelog.sh show-unreleased
+
+changelog-generate:
+	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then \
+		echo "使用方法: make changelog-generate FROM=<ref> TO=<ref>"; \
+		echo "例: make changelog-generate FROM=v1.1.0 TO=HEAD"; \
+		exit 1; \
+	fi
+	@./scripts/manage-changelog.sh generate-from-commits $(FROM) $(TO)
 
 sbom:
 	@echo "📋 SBOM生成"
@@ -356,6 +412,13 @@ audit-deps:
 	@echo "🔍 依存関係監査"
 	uv run python scripts/audit-dependencies.py --output audit-report.json || echo "⚠️  監査完了（一部ツール不可）"
 	@echo "✅ 監査レポート: audit-report.json"
+
+check-docs:
+	@echo "📚 ドキュメント整合性チェック"
+	uv run python scripts/check-docs-consistency.py --verbose
+	@echo "✅ ドキュメント整合性チェック完了"
+
+docs-consistency: check-docs
 
 validate-security:
 	@echo "🛡️  セキュリティバリデーション"
@@ -676,3 +739,593 @@ cleanup-hangup-test-env:
 	@rm -rf output/debug-bundles/*
 	@rm -rf /tmp/hangup_test_*
 	@echo "✅ ハングアップテスト環境クリーンアップ完了"
+# =============================================================================
+# Docker Customization Targets
+# =============================================================================
+
+# Docker Override Setup
+docker-override-setup:
+	@echo "🐳 Docker Override設定セットアップ"
+	@echo "📋 カスタマイズテンプレートから設定ファイルを作成します"
+	@echo ""
+	@if [ ! -f docker-compose.override.yml ]; then \
+		echo "📄 docker-compose.override.yml を作成中..."; \
+		if [ "$(FULL)" = "1" ]; then \
+			cp docker-compose.override.yml.sample docker-compose.override.yml; \
+			echo "✅ フル機能Override設定ファイルを作成しました"; \
+		else \
+			cp docker-compose.override.yml.simple docker-compose.override.yml; \
+			echo "✅ シンプルOverride設定ファイルを作成しました"; \
+			echo "💡 フル機能版が必要な場合: make docker-override-setup FULL=1"; \
+		fi; \
+	else \
+		echo "ℹ️  docker-compose.override.yml は既に存在します"; \
+	fi
+	@echo ""
+	@if [ ! -f .env ]; then \
+		echo "📄 .env ファイルを作成中..."; \
+		cp .env.example .env; \
+		echo "✅ 環境変数ファイルを作成しました"; \
+		echo "⚠️  .env ファイルの設定を確認してください"; \
+	else \
+		echo "ℹ️  .env ファイルは既に存在します"; \
+	fi
+	@echo ""
+	@echo "📚 次のステップ:"
+	@echo "  1. vi docker-compose.override.yml  # 設定をカスタマイズ"
+	@echo "  2. vi .env                          # 環境変数を設定"
+	@echo "  3. make docker-override-validate    # 設定を検証"
+	@echo "  4. make docker-override-dev         # 開発環境で起動"
+
+# Docker Override Validation
+docker-override-validate:
+	@echo "🔍 Docker Override設定検証"
+	@echo "📋 設定ファイルの妥当性をチェックします"
+	@echo ""
+	@./scripts/validate-docker-override.sh --verbose
+	@echo ""
+	@echo "📊 設定サマリー:"
+	@docker-compose config --services | sed 's/^/  - /'
+	@echo ""
+	@echo "💡 ヒント:"
+	@echo "  - 詳細な検証: make docker-override-validate VERBOSE=1"
+	@echo "  - 自動修正: ./scripts/validate-docker-override.sh --fix"
+
+# Development Environment
+docker-override-dev:
+	@echo "🚀 開発環境起動 (Docker Override)"
+	@echo "📋 開発用設定でサービスを起動します"
+	@echo ""
+	@echo "🔧 起動するサービス:"
+	@echo "  - actions-simulator (開発モード)"
+	@echo "  - actions-shell (デバッグシェル)"
+	@echo ""
+	@docker-compose up -d actions-simulator actions-shell
+	@echo ""
+	@echo "✅ 開発環境が起動しました"
+	@echo ""
+	@echo "📋 利用可能なコマンド:"
+	@echo "  - ログ確認: docker-compose logs -f actions-simulator"
+	@echo "  - シェル接続: docker-compose exec actions-shell bash"
+	@echo "  - サービス停止: docker-compose down"
+	@echo "  - 状態確認: docker-compose ps"
+
+# Production Environment
+docker-override-prod:
+	@echo "🏭 本番環境起動 (Docker Override)"
+	@echo "📋 本番用設定でサービスを起動します"
+	@echo ""
+	@echo "🔧 起動するサービス:"
+	@echo "  - actions-server (本番モード)"
+	@echo ""
+	@docker-compose up -d actions-server
+	@echo ""
+	@echo "✅ 本番環境が起動しました"
+	@echo ""
+	@echo "📋 利用可能なコマンド:"
+	@echo "  - ヘルスチェック: curl http://localhost:8000/health"
+	@echo "  - メトリクス確認: curl http://localhost:8000/metrics"
+	@echo "  - ログ確認: docker-compose logs -f actions-server"
+	@echo "  - サービス停止: docker-compose down"
+
+# Monitoring Stack
+docker-override-monitoring:
+	@echo "📊 監視スタック起動 (Docker Override)"
+	@echo "📋 Prometheus + Grafana 監視環境を起動します"
+	@echo ""
+	@echo "🔧 起動するサービス:"
+	@echo "  - actions-server (メトリクス有効)"
+	@echo "  - prometheus (メトリクス収集)"
+	@echo "  - grafana (ダッシュボード)"
+	@echo ""
+	@docker-compose --profile monitoring up -d
+	@echo ""
+	@echo "✅ 監視スタックが起動しました"
+	@echo ""
+	@echo "📋 アクセス情報:"
+	@echo "  - Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  - Prometheus: http://localhost:9090"
+	@echo "  - Actions Server: http://localhost:8000"
+	@echo ""
+	@echo "📊 監視コマンド:"
+	@echo "  - リソース監視: docker stats"
+	@echo "  - ログ監視: docker-compose logs -f"
+	@echo "  - 停止: docker-compose --profile monitoring down"
+
+# =============================================================================
+# Quality Gates Integration (Task 19)
+# =============================================================================
+
+# 品質ゲート関連
+quality-gates: quality-check-docs quality-check-templates quality-check-distribution quality-check-comprehensive
+
+quality-check: automated-quality-check
+
+automated-quality-check:
+	@echo "🛡️ 自動品質チェックを実行中..."
+	./scripts/automated-quality-check.sh
+
+quality-check-quick:
+	@echo "⚡ クイック品質チェックを実行中..."
+	./scripts/automated-quality-check.sh --quick
+
+quality-check-strict:
+	@echo "🔒 厳格品質チェックを実行中..."
+	./scripts/automated-quality-check.sh --strict
+
+quality-check-docs:
+	@echo "📚 ドキュメント品質チェックを実行中..."
+	./scripts/automated-quality-check.sh --docs-only
+
+quality-check-templates:
+	@echo "📋 テンプレート品質チェックを実行中..."
+	./scripts/automated-quality-check.sh --templates-only
+
+quality-check-distribution:
+	@echo "📦 配布スクリプト品質チェックを実行中..."
+	uv run pytest tests/test_comprehensive_distribution.py -v
+
+quality-check-comprehensive:
+	@echo "🧪 包括的品質チェックを実行中..."
+	./scripts/run-comprehensive-tests.sh
+
+quality-report:
+	@echo "📊 品質レポートを生成中..."
+	./scripts/automated-quality-check.sh --output-format json --output-file quality-report.json
+	@echo "📄 品質レポートが生成されました: quality-report.json"
+
+quality-ci:
+	@echo "🤖 CI環境での品質チェックを実行中..."
+	./scripts/automated-quality-check.sh --ci --output-format json --output-file ci-quality-report.json
+
+# CI/CD品質ゲート統合
+ci-quality-gates:
+	@echo "🛡️ CI/CD品質ゲート統合実行中..."
+	@echo "📋 配布品質チェック、ドキュメント検証、テンプレート検証を実行"
+	@echo ""
+	@echo "1️⃣ 配布スクリプト品質チェック"
+	@make quality-check-distribution
+	@echo ""
+	@echo "2️⃣ ドキュメント整合性検証"
+	@make quality-check-docs
+	@echo ""
+	@echo "3️⃣ テンプレート検証"
+	@make quality-check-templates
+	@echo ""
+	@echo "4️⃣ 包括的品質検証"
+	@make quality-check-comprehensive
+	@echo ""
+	@echo "✅ CI/CD品質ゲート統合完了"
+
+# リリース品質確認
+release-quality-gates:
+	@echo "🚀 リリース品質ゲート実行中..."
+	@echo "📋 リリース前の厳格な品質確認を実行"
+	@echo ""
+	@echo "🔒 厳格モードで品質チェック実行"
+	@make quality-check-strict
+	@echo ""
+	@echo "🧪 包括的テストスイート実行"
+	@make test-comprehensive-full
+	@echo ""
+	@echo "🔒 セキュリティ検証"
+	@make security
+	@echo ""
+	@echo "📊 品質レポート生成"
+	@make quality-report
+	@echo ""
+	@echo "✅ リリース品質ゲート完了"
+
+# 品質メトリクス収集
+quality-metrics:
+	@echo "📊 品質メトリクス収集中..."
+	@mkdir -p output/quality-metrics
+	@echo "📈 配布スクリプトメトリクス"
+	@find scripts/ -name "*.sh" -exec wc -l {} + > output/quality-metrics/script-lines.txt
+	@echo "📈 ドキュメントメトリクス"
+	@find . -name "*.md" -not -path "./.git/*" -exec wc -l {} + > output/quality-metrics/doc-lines.txt
+	@echo "📈 テンプレートメトリクス"
+	@find . \( -name "*.sample" -o -name "*.example" -o -name "*.template" \) -exec wc -l {} + > output/quality-metrics/template-lines.txt
+	@echo "📈 テストカバレッジメトリクス"
+	@find tests/ -name "*.py" -exec wc -l {} + > output/quality-metrics/test-lines.txt
+	@echo "✅ 品質メトリクス収集完了: output/quality-metrics/"
+
+# 品質ダッシュボード
+quality-dashboard:
+	@echo "📊 品質ダッシュボード表示"
+	@echo "=================================="
+	@echo "📦 配布スクリプト品質:"
+	@find scripts/ -name "*.sh" | wc -l | xargs echo "  スクリプト数:"
+	@find scripts/ -name "*.sh" -exec wc -l {} + | tail -1 | awk '{print "  総行数: " $$1}'
+	@echo ""
+	@echo "📚 ドキュメント品質:"
+	@find . -name "*.md" -not -path "./.git/*" | wc -l | xargs echo "  ドキュメント数:"
+	@find . -name "*.md" -not -path "./.git/*" -exec wc -l {} + | tail -1 | awk '{print "  総行数: " $$1}' 2>/dev/null || echo "  総行数: 0"
+	@echo ""
+	@echo "📋 テンプレート品質:"
+	@find . \( -name "*.sample" -o -name "*.example" -o -name "*.template" \) | wc -l | xargs echo "  テンプレート数:"
+	@find . \( -name "*.sample" -o -name "*.example" -o -name "*.template" \) -exec wc -l {} + | tail -1 | awk '{print "  総行数: " $$1}' 2>/dev/null || echo "  総行数: 0"
+	@echo ""
+	@echo "🧪 テスト品質:"
+	@find tests/ -name "*.py" | wc -l | xargs echo "  テストファイル数:"
+	@find tests/ -name "*.py" -exec wc -l {} + | tail -1 | awk '{print "  総行数: " $$1}' 2>/dev/null || echo "  総行数: 0"
+	@echo ""
+	@echo "🛡️ 品質ゲート状態:"
+	@if [ -f "quality-report.json" ]; then \
+		echo "  最新レポート: 利用可能"; \
+		if command -v jq >/dev/null 2>&1; then \
+			jq -r '"  全体品質スコア: " + (.overall_summary.quality_score | tostring) + "%"' quality-report.json 2>/dev/null || echo "  全体品質スコア: 解析不可"; \
+		fi; \
+	else \
+		echo "  最新レポート: 未生成"; \
+		echo "  💡 make quality-report で生成してください"; \
+	fi
+	@echo "=================================="
+
+# Security Scanning
+docker-override-security:
+	@echo "🔒 セキュリティスキャン実行 (Docker Override)"
+	@echo "📋 コンテナイメージのセキュリティ検査を実行します"
+	@echo ""
+	@echo "🔍 実行するスキャン:"
+	@echo "  - Trivy (脆弱性スキャン)"
+	@echo "  - Grype (依存関係スキャン)"
+	@echo "  - Docker Bench (設定チェック)"
+	@echo ""
+	@make security
+	@echo ""
+	@echo "✅ セキュリティスキャン完了"
+
+# =============================================================================
+# Comprehensive Test Suite Targets (Task 18)
+# =============================================================================
+
+# Comprehensive Test Suite - Main targets
+test-comprehensive:
+	@echo "🚀 包括的テストスイート実行"
+	@echo "📋 配布スクリプト、ドキュメント、テンプレート、エンドツーエンドテストを実行"
+	@echo ""
+	@./scripts/run-comprehensive-tests.sh --full --report
+
+test-comprehensive-quick:
+	@echo "⚡ 包括的テストスイート（クイック）実行"
+	@echo "📋 必須テストのみを高速実行"
+	@echo ""
+	@./scripts/run-comprehensive-tests.sh --quick
+
+test-comprehensive-full:
+	@echo "🔍 包括的テストスイート（フル）実行"
+	@echo "📋 全テストカテゴリを詳細実行"
+	@echo ""
+	@./scripts/run-comprehensive-tests.sh --full --verbose
+
+test-comprehensive-report:
+	@echo "📊 包括的テストレポート生成"
+	@echo "📋 詳細なテスト結果レポートを生成"
+	@echo ""
+	@mkdir -p output/test-reports
+	@./scripts/run-comprehensive-tests.sh --full --report --output output/test-reports/comprehensive-test-report.txt
+	@echo ""
+	@echo "✅ レポートを生成しました: output/test-reports/comprehensive-test-report.txt"
+
+test-comprehensive-ci:
+	@echo "🤖 CI環境包括的テスト実行"
+	@echo "📋 CI/CD環境に適した包括的テスト"
+	@echo ""
+	@./scripts/run-comprehensive-tests.sh --ci --report
+
+# Individual comprehensive test components
+test-distribution-comprehensive:
+	@echo "📦 配布スクリプト包括的テスト"
+	@echo "📋 配布スクリプトの全機能をテスト"
+	@echo ""
+	uv run python -m pytest tests/test_comprehensive_distribution.py -v
+
+test-documentation-comprehensive:
+	@echo "📚 ドキュメント整合性包括的テスト"
+	@echo "📋 ドキュメント間の整合性とテンプレート動作を検証"
+	@echo ""
+	uv run python -m pytest tests/test_documentation_consistency.py -v
+
+test-user-experience-comprehensive:
+	@echo "👤 ユーザー体験包括的テスト"
+	@echo "📋 エンドツーエンドの新規ユーザー体験をテスト"
+	@echo ""
+	uv run python -m pytest tests/test_end_to_end_user_experience.py -v
+
+test-integration-comprehensive:
+	@echo "🔗 統合包括的テスト"
+	@echo "📋 全コンポーネントの統合動作をテスト"
+	@echo ""
+	uv run python -m pytest tests/test_comprehensive_integration_suite.py -v
+
+# Comprehensive test utilities
+test-comprehensive-setup:
+	@echo "🔧 包括的テスト環境セットアップ"
+	@echo "📋 テスト実行に必要な環境を準備"
+	@echo ""
+	@echo "🐍 Python依存関係チェック"
+	uv sync
+	@echo ""
+	@echo "📁 テスト出力ディレクトリ作成"
+	@mkdir -p output/test-reports
+	@mkdir -p logs
+	@echo ""
+	@echo "🧪 テストフレームワーク確認"
+	@uv run python -m pytest --version
+	@echo ""
+	@echo "✅ 包括的テスト環境準備完了"
+
+test-comprehensive-cleanup:
+	@echo "🧹 包括的テスト環境クリーンアップ"
+	@echo "📋 テスト実行で生成されたファイルを削除"
+	@echo ""
+	@rm -rf output/test-reports/comprehensive-*
+	@rm -rf logs/comprehensive-tests.log
+	@rm -rf /tmp/comprehensive_test_*
+	@echo "✅ 包括的テスト環境クリーンアップ完了"
+
+test-comprehensive-debug:
+	@echo "🐛 包括的テストデバッグモード実行"
+	@echo "📋 詳細なデバッグ情報付きで包括的テストを実行"
+	@echo ""
+	@./scripts/run-comprehensive-tests.sh --full --verbose
+
+test-comprehensive-parallel:
+	@echo "⚡ 包括的テスト並列実行"
+	@echo "📋 複数のテストスイートを並列で実行"
+	@echo ""
+	uv run python tests/run_comprehensive_test_suite.py --full --verbose
+
+# Comprehensive test validation
+validate-comprehensive-tests:
+	@echo "✅ 包括的テストスイート検証"
+	@echo "📋 テストスイート自体の妥当性を確認"
+	@echo ""
+	@echo "🔍 テストファイル存在確認"
+	@test -f tests/test_comprehensive_distribution.py || (echo "❌ 配布スクリプトテストが見つかりません" && exit 1)
+	@test -f tests/test_documentation_consistency.py || (echo "❌ ドキュメント整合性テストが見つかりません" && exit 1)
+	@test -f tests/test_end_to_end_user_experience.py || (echo "❌ ユーザー体験テストが見つかりません" && exit 1)
+	@test -f tests/test_comprehensive_integration_suite.py || (echo "❌ 統合テストが見つかりません" && exit 1)
+	@test -f tests/run_comprehensive_test_suite.py || (echo "❌ テストランナーが見つかりません" && exit 1)
+	@test -f scripts/run-comprehensive-tests.sh || (echo "❌ 実行スクリプトが見つかりません" && exit 1)
+	@echo "✅ 全テストファイルが存在します"
+	@echo ""
+	@echo "🧪 テスト構文チェック"
+	@uv run python -m py_compile tests/test_comprehensive_distribution.py
+	@uv run python -m py_compile tests/test_documentation_consistency.py
+	@uv run python -m py_compile tests/test_end_to_end_user_experience.py
+	@uv run python -m py_compile tests/test_comprehensive_integration_suite.py
+	@uv run python -m py_compile tests/run_comprehensive_test_suite.py
+	@echo "✅ 全テストファイルの構文が正常です"
+	@echo ""
+	@echo "📋 実行スクリプト権限チェック"
+	@test -x scripts/run-comprehensive-tests.sh || (echo "❌ 実行スクリプトに実行権限がありません" && exit 1)
+	@echo "✅ 実行スクリプトの権限が正常です"
+	@echo ""
+	@echo "✅ 包括的テストスイート検証完了")"
+	@echo "  - 設定検証"
+	@echo "  - 権限チェック"
+	@echo ""
+	@docker-compose --profile security up security-scanner
+	@echo ""
+	@echo "📋 セキュリティレポート:"
+	@echo "  - 詳細レポート: ./security-reports/"
+	@echo "  - 設定検証: ./scripts/validate-docker-override.sh"
+	@echo ""
+	@echo "🛡️  セキュリティ推奨事項:"
+	@echo "  - 定期的なベースイメージ更新"
+	@echo "  - 最小権限の原則遵守"
+	@echo "  - シークレット管理の適切な実装"
+
+# Docker Override Status
+docker-override-status:
+	@echo "📊 Docker Override環境状態"
+	@echo "📋 現在の設定と実行状況を表示します"
+	@echo ""
+	@echo "📄 設定ファイル:"
+	@if [ -f docker-compose.override.yml ]; then \
+		echo "  ✅ docker-compose.override.yml"; \
+	else \
+		echo "  ❌ docker-compose.override.yml (未作成)"; \
+	fi
+	@if [ -f .env ]; then \
+		echo "  ✅ .env"; \
+	else \
+		echo "  ❌ .env (未作成)"; \
+	fi
+	@echo ""
+	@echo "🐳 実行中のサービス:"
+	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  (サービスが起動していません)"
+	@echo ""
+	@echo "💾 ボリューム使用量:"
+	@docker system df --format "table {{.Type}}\t{{.TotalCount}}\t{{.Size}}\t{{.Reclaimable}}" 2>/dev/null || echo "  (Docker情報を取得できません)"
+	@echo ""
+	@echo "📋 利用可能なプロファイル:"
+	@echo "  - default: 基本サービス"
+	@echo "  - debug: デバッグ用サービス"
+	@echo "  - monitoring: 監視スタック"
+	@echo "  - security: セキュリティツール"
+
+# Docker Override Cleanup
+docker-override-cleanup:
+	@echo "🧹 Docker Override環境クリーンアップ"
+	@echo "📋 コンテナ、ボリューム、ネットワークを削除します"
+	@echo ""
+	@echo "⚠️  この操作は以下を削除します:"
+	@echo "  - 全てのコンテナ"
+	@echo "  - 全てのボリューム"
+	@echo "  - カスタムネットワーク"
+	@echo "  - 未使用のイメージ"
+	@echo ""
+	@read -p "続行しますか? [y/N]: " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "🗑️  クリーンアップ実行中..."; \
+		docker-compose --profile monitoring --profile security --profile debug down -v --remove-orphans; \
+		docker system prune -f; \
+		echo "✅ クリーンアップ完了"; \
+	else \
+		echo "❌ クリーンアップをキャンセルしました"; \
+	fi
+
+# Docker Override Help
+docker-override-help:
+	@echo "🐳 Docker Override カスタマイズヘルプ"
+	@echo "=================================================="
+	@echo ""
+	@echo "📋 基本的な使用方法:"
+	@echo "  1. make docker-override-setup      # 初期設定"
+	@echo "  2. vi docker-compose.override.yml  # カスタマイズ"
+	@echo "  3. make docker-override-validate   # 設定検証"
+	@echo "  4. make docker-override-dev        # 開発環境起動"
+	@echo ""
+	@echo "🚀 環境別起動コマンド:"
+	@echo "  make docker-override-dev        # 開発環境"
+	@echo "  make docker-override-prod       # 本番環境"
+	@echo "  make docker-override-monitoring # 監視環境"
+	@echo "  make docker-override-security   # セキュリティスキャン"
+	@echo ""
+	@echo "🔧 管理コマンド:"
+	@echo "  make docker-override-status     # 状態確認"
+	@echo "  make docker-override-validate   # 設定検証"
+	@echo "  make docker-override-cleanup    # 環境削除"
+	@echo ""
+	@echo "📚 詳細ドキュメント:"
+	@echo "  - カスタマイズガイド: docs/DOCKER_CUSTOMIZATION_GUIDE.md"
+	@echo "  - 設定テンプレート: docker-compose.override.yml.sample"
+	@echo "  - 環境変数例: .env.example"
+	@echo ""
+	@echo "💡 ヒント:"
+	@echo "  - 設定の確認: docker-compose config"
+	@echo "  - ログの監視: docker-compose logs -f"
+	@echo "  - リソース監視: docker stats"
+# =============================================================================
+# Template Validation Targets
+# =============================================================================
+
+# Complete template validation
+validate-templates:
+	@echo "🔍 テンプレートファイル検証"
+	@echo "📋 全テンプレートファイルの構文・機能・セキュリティチェックを実行"
+	@echo ""
+	@./scripts/ci-validate-templates.sh --verbose
+
+# Syntax check only
+validate-templates-syntax:
+	@echo "🔍 テンプレート構文チェック"
+	@echo "📋 構文エラーのみをチェック（高速実行）"
+	@echo ""
+	@./scripts/ci-validate-templates.sh --check-only --verbose
+
+# Functionality test only
+validate-templates-functionality:
+	@echo "🧪 テンプレート機能テスト"
+	@echo "📋 テンプレートの実際の動作確認"
+	@echo ""
+	@./scripts/ci-validate-templates.sh --test-only --verbose
+
+# CI-optimized validation
+validate-templates-ci:
+	@echo "🤖 CI用テンプレート検証"
+	@echo "📋 CI/CD環境に最適化された検証を実行"
+	@echo ""
+	@./scripts/ci-validate-templates.sh --format json --output template-validation-report.json
+
+# Generate detailed report
+validate-templates-report:
+	@echo "📊 テンプレート検証レポート生成"
+	@echo "📋 詳細な検証結果レポートを生成"
+	@echo ""
+	@mkdir -p output/validation-reports
+	@./scripts/ci-validate-templates.sh --format json --output output/validation-reports/template-validation-$(shell date +%Y%m%d-%H%M%S).json --verbose
+	@echo ""
+	@echo "✅ 検証レポートを生成しました: output/validation-reports/"
+	@echo "📋 レポート内容:"
+	@echo "  - 全テンプレートファイルの検証結果"
+	@echo "  - 構文エラーと機能問題の詳細"
+	@echo "  - セキュリティ問題の検出結果"
+	@echo "  - 推奨改善事項"
+
+# Template validation with specific format
+validate-templates-json:
+	@echo "📊 JSON形式テンプレート検証"
+	@./scripts/ci-validate-templates.sh --format json
+
+validate-templates-text:
+	@echo "📄 テキスト形式テンプレート検証"
+	@./scripts/ci-validate-templates.sh --format text
+
+# Quick template validation (fail-fast)
+validate-templates-quick:
+	@echo "⚡ クイックテンプレート検証"
+	@echo "📋 最初のエラーで即座に停止する高速検証"
+	@echo ""
+	@./scripts/ci-validate-templates.sh --check-only --fail-fast
+
+# Template validation with timeout
+validate-templates-timeout:
+	@echo "⏱️ タイムアウト付きテンプレート検証"
+	@echo "📋 指定時間内での検証実行"
+	@echo ""
+	@TEMPLATE_VALIDATION_TIMEOUT=$(TIMEOUT) ./scripts/ci-validate-templates.sh --verbose
+
+# Template validation test suite
+test-template-validation:
+	@echo "🧪 テンプレート検証システムのテスト"
+	@echo "📋 検証システム自体の動作確認"
+	@echo ""
+	@uv run pytest tests/test_template_validation.py -v
+
+# Template validation setup
+setup-template-validation:
+	@echo "🔧 テンプレート検証環境セットアップ"
+	@echo "📋 検証に必要な依存関係をインストール"
+	@echo ""
+	@echo "🐍 Python依存関係チェック"
+	@uv sync --group test --group dev
+	@echo ""
+	@echo "🔧 オプショナルツールチェック"
+	@if ! command -v shellcheck >/dev/null 2>&1; then \
+		echo "⚠️  shellcheck が見つかりません"; \
+		echo "💡 インストール: sudo apt-get install shellcheck (Ubuntu) / brew install shellcheck (macOS)"; \
+	fi
+	@if ! command -v yamllint >/dev/null 2>&1; then \
+		echo "⚠️  yamllint が見つかりません"; \
+		echo "💡 インストール: pip install yamllint"; \
+	fi
+	@if ! command -v hadolint >/dev/null 2>&1; then \
+		echo "⚠️  hadolint が見つかりません"; \
+		echo "💡 インストール: https://github.com/hadolint/hadolint#install"; \
+	fi
+	@echo ""
+	@echo "✅ テンプレート検証環境セットアップ完了"
+
+# Template validation cleanup
+cleanup-template-validation:
+	@echo "🧹 テンプレート検証クリーンアップ"
+	@echo "📋 検証で生成されたファイルを削除"
+	@echo ""
+	@rm -rf output/validation-reports/template-validation-*
+	@rm -f template-validation-report.json
+	@rm -f template-validation-summary.txt
+	@echo "✅ テンプレート検証クリーンアップ完了"

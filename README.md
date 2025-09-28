@@ -1,214 +1,305 @@
-# MCP Docker Environment
+# GitHub Actions Simulator
 
-Model Context Protocol（MCP）サーバーのためのプロダクション対応Docker環境
+軽量で使いやすいGitHub Actionsワークフローのローカルシミュレーター
 
 [![CI Status](https://github.com/scottlz0310/mcp-docker/workflows/CI/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 [![Security Scan](https://github.com/scottlz0310/mcp-docker/workflows/Security/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
+
+## 🎯 主要な価値提案
+
+**5分で始められる軽量GitHub Actionsシミュレーション**
+
+- 🚀 **ワンショット実行**: 複雑な設定不要、単一コマンドで即座に開始
+- 🐳 **軽量actベース**: Dockerコンテナ内でactを使用した高速シミュレーション
+- 🔧 **自動依存関係管理**: Docker、uv、gitの自動チェックとガイダンス
+- 📊 **包括的診断**: 実行前チェック、エラー検出、自動復旧機能
+- 🎛️ **柔軟な実行方式**: 対話モード、非対話モード、CI/CD統合対応
 
 ## 📦 バージョン情報
 
 - **現在のバージョン**: v1.0.1
 - **最終更新**: 2025年09月24日
-- **サポート**: Python 3.13+
+- **サポート**: Python 3.13+、Docker 20.10+、act 0.2.40+
 
-## 📊 プロジェクト統計
-
-- **ファイル数**: 1313個のソースファイル
-- **テスト数**: 4個のテストファイル
-- **Dockerサービス**: 3個の定義済みサービス
-- **最新コミット**: `bbbef3e chore: bump version to 1.0.1...`
-
-## 📁 構成
+## 📁 軽量アーキテクチャ構成
 
 ```text
-mcp-docker/
-├── services/           # サービス別設定
-│   ├── github/         # GitHub MCP設定
-│   ├── datetime/       # 日付検証スクリプト
-│   └── (archived)      # CodeQL設定は archive/services/codeql/ へ移動
-├── scripts/            # 管理スクリプト
-├── docs/              # 運用ドキュメント (Markdown)
-├── tests/             # テストスイート
-├── Dockerfile          # 統合イメージ
-├── docker-compose.yml  # サービス定義
-├── Makefile           # 簡単コマンド
-└── .env.template      # 環境変数テンプレート
+github-actions-simulator/
+├── scripts/
+│   └── run-actions.sh     # ワンショット実行スクリプト（メインエントリーポイント）
+├── src/                   # 軽量シミュレーターコア
+│   ├── diagnostic_service.py    # 診断・トラブルシューティング
+│   ├── execution_tracer.py      # 実行トレース機能
+│   └── performance_monitor.py   # パフォーマンス監視
+├── main.py               # CLI エントリーポイント
+├── Dockerfile            # 軽量actベースイメージ
+├── docker-compose.yml    # シンプルなサービス定義
+├── Makefile             # 開発者向けコマンド
+└── .env.template        # 設定テンプレート
 ```
 
-## ✨ 特徴
+## ✨ 軽量actベースアーキテクチャの利点
 
-- **統合イメージ**: 1つのDockerイメージで全機能提供
-- **サービス分離**: 同じイメージから異なるコマンドで起動
-- **軽量運用**: 必要なサービスのみ選択起動
-- **セキュリティ強化**: 非root実行、読み取り専用マウント
-- **自動化**: CI/CD、リリース管理、テスト完全自動化
+### 🎯 **シンプルで高速**
 
-### 🚀 提供サービス
+- **最小限の依存関係**: Docker + act のみでフル機能
+- **高速起動**: 軽量コンテナで数秒での実行開始
+- **メモリ効率**: 必要最小限のリソース使用
 
-| サービス名 | ポート | 説明 |
-|-----------|--------|------|
-| GitHub MCP | 8080 | GitHub API連携のMCPサーバー |
-| DateTime Validator | - | 日付検証・自動修正サービス |
-| Actions Simulator API | 8000 | FastAPI ベースのワークフローシミュレーター REST サービス |
+### 🔧 **開発者フレンドリー**
 
-> ℹ️ CodeQL ベースのローカル静的解析サービスは 2025-09-27 に撤去されました。過去の設定は `archive/services/codeql/` に保管されており、GitHub Actions のセキュリティワークフローでは Trivy を中心としたスキャンを継続しています。
+- **ゼロ設定**: 依存関係の自動チェックと環境セットアップ
+- **インテリジェントエラー処理**: プラットフォーム別の詳細ガイダンス
+- **段階的復旧**: 自動復旧提案と手動修正支援
 
-## 🚀 クイックスタート
+### 🚀 **プロダクション対応**
 
-### 1. 初期設定
+- **CI/CD統合**: 非対話モードでの自動化対応
+- **包括的診断**: システム健康状態の詳細チェック
+- **セキュリティ強化**: 非root実行、最小権限の原則
+
+## 🚀 5分クイックスタート
+
+### ステップ1: 前提条件の確認（1分）
 
 ```bash
-# 環境変数設定
-echo 'export GITHUB_PERSONAL_ACCESS_TOKEN="your_token_here"' >> ~/.bashrc
-source ~/.bashrc
-
-# セットアップ実行
-./scripts/setup.sh
+# 必要なツールの確認（自動チェック機能付き）
+./scripts/run-actions.sh --check-deps
 ```
 
-### 2. 使用方法
+**必要な環境:**
 
-#### GitHub Actions Simulator CLI
+- Docker 20.10+ & Docker Compose 2.0+
+- Git 2.20+
+- uv（推奨、なくても動作）
+
+### ステップ2: ワンショット実行（30秒）
 
 ```bash
+# 最もシンプルな実行方法
+./scripts/run-actions.sh
+
+# または特定のワークフローを直接実行
+./scripts/run-actions.sh .github/workflows/ci.yml
+```
+
+### ステップ3: 高度な機能を試す（3分）
+
+```bash
+# 診断機能付きで実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- --diagnose --enhanced
+
+# 自動復旧機能を有効化
+./scripts/run-actions.sh .github/workflows/ci.yml -- --auto-recovery
+
+# パフォーマンス監視付きで実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- --show-performance-metrics
+```
+
+### 🎯 即座に使える実行パターン
+
+```bash
+# 🔍 対話的選択（初心者向け）
+./scripts/run-actions.sh
+
+# 🤖 非対話モード（CI/CD向け）
+NON_INTERACTIVE=1 ./scripts/run-actions.sh .github/workflows/ci.yml
+
+# 📊 包括的診断付き実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --diagnose --enhanced --auto-recovery --show-performance-metrics
+
+# ⚡ 高速実行（最小オプション）
+./scripts/run-actions.sh .github/workflows/ci.yml -- --job test
+```
+
+## 🎛️ 使用方法
+
+### 🎯 メイン実行方式
+
+#### 1. ワンショットスクリプト（推奨）
+
+```bash
+# 基本実行
+./scripts/run-actions.sh [ワークフローファイル] [-- <追加オプション>]
+
+# 例：対話的選択
+./scripts/run-actions.sh
+
+# 例：特定ワークフロー実行
+./scripts/run-actions.sh .github/workflows/ci.yml
+
+# 例：高度なオプション付き
+./scripts/run-actions.sh .github/workflows/ci.yml -- --job test --enhanced
+```
+
+#### 2. Make コマンド（開発者向け）
+
+```bash
+# 対話的ワークフロー選択
+make actions
+
+# 特定ワークフロー実行
+make actions WORKFLOW=.github/workflows/ci.yml
+
+# 環境変数付き実行
+ENV_VARS="NODE_ENV=dev" make actions WORKFLOW=.github/workflows/test.yml
+```
+
+#### 3. 直接CLI（上級者向け）
+
+```bash
+# Docker コンテナ内でCLI実行
+uv run python main.py actions simulate .github/workflows/ci.yml
+
+# 利用可能なオプション確認
 uv run python main.py actions --help
 ```
 
-グローバルオプションとして `-v/--verbose`, `-q/--quiet`, `--debug`, `--config <path>`, `--version` をサポートしています。設定ファイルは TOML 形式で、`[simulator]` や `[environment]` セクションからデフォルト値を読み込みます。
+### 🔧 軽量actベースの強化機能
 
-#### 🆕 強化機能概要
-
-**診断・デバッグ機能**
-- 包括的システム診断（Docker接続、act バイナリ、権限、リソース使用量）
-- 実行トレース機能（ワークフロー実行の詳細追跡）
-- パフォーマンス監視（リアルタイムリソース監視）
-- デバッグバンドル（ハングアップ時の詳細情報自動収集）
-
-**強化されたプロセス管理**
-- EnhancedActWrapper（デッドロック検出・プロセス監視）
-- 自動復旧機能（Docker再接続・プロセス再起動・バッファクリア）
-- 段階的タイムアウト管理（軽度→中度→重度の復旧アプローチ）
-
-**CLI統合オプション**
-- `--diagnose`: 実行前システム診断
-- `--enhanced`: 強化されたプロセス監視とエラー検出
-- `--auto-recovery`: 自動復旧機能の有効化
-- `--create-debug-bundle`: ハングアップ時のデバッグ情報自動収集
-- `--show-performance-metrics`: リアルタイムパフォーマンス監視
-- `--show-execution-trace`: 実行トレース表示
-
-#### 🔧 診断・トラブルシューティング機能
+#### **インテリジェント診断システム**
 
 ```bash
-# 包括的システム健康状態チェック
-uv run python main.py actions diagnose
+# 包括的システム診断
+./scripts/run-actions.sh --check-deps
 
-# 詳細診断（パフォーマンス分析・実行トレース含む）
-uv run python main.py actions diagnose --include-performance --include-trace
+# 実行前診断付きシミュレーション
+./scripts/run-actions.sh .github/workflows/ci.yml -- --diagnose
+```
 
-# JSON形式での診断結果保存
-uv run python main.py actions diagnose --output-format json --output-file diagnosis.json
+#### **自動復旧機能**
 
-# ワークフロー実行前の事前診断
-uv run python main.py actions simulate .github/workflows/ci.yml --diagnose
+```bash
+# Docker再接続・プロセス再起動・バッファクリア
+./scripts/run-actions.sh .github/workflows/ci.yml -- --auto-recovery
 
-# 強化されたプロセス監視とデッドロック検出
-uv run python main.py actions simulate .github/workflows/ci.yml --enhanced
+# 段階的タイムアウト管理
+./scripts/run-actions.sh .github/workflows/ci.yml -- --enhanced
+```
 
-# 自動復旧機能（Docker再接続・プロセス再起動・バッファクリア）
-uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
+#### **リアルタイム監視**
 
-# ハングアップ時のデバッグバンドル自動作成
-uv run python main.py actions simulate .github/workflows/ci.yml --create-debug-bundle
+```bash
+# パフォーマンス監視
+./scripts/run-actions.sh .github/workflows/ci.yml -- --show-performance-metrics
 
-# リアルタイムパフォーマンス監視
-uv run python main.py actions simulate .github/workflows/ci.yml --show-performance-metrics
+# 実行トレース
+./scripts/run-actions.sh .github/workflows/ci.yml -- --show-execution-trace
+```
 
-# 実行トレース表示
-uv run python main.py actions simulate .github/workflows/ci.yml --show-execution-trace
+### 📋 実用的な使用例
+
+#### **基本的なワークフロー実行**
+
+```bash
+# 最もシンプルな実行（対話的選択）
+./scripts/run-actions.sh
+
+# 特定のワークフローを直接実行
+./scripts/run-actions.sh .github/workflows/ci.yml
+
+# 特定のジョブのみ実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- --job test
+
+# 複数ワークフローの実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --event pull_request --ref refs/pull/42/head
+```
+
+#### **診断・トラブルシューティング**
+
+```bash
+# 依存関係チェックのみ実行
+./scripts/run-actions.sh --check-deps
+
+# 実行前診断付きシミュレーション
+./scripts/run-actions.sh .github/workflows/ci.yml -- --diagnose
+
+# 包括的診断（パフォーマンス・トレース含む）
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --diagnose --show-performance-metrics --show-execution-trace
+```
+
+#### **自動化・CI/CD統合**
+
+```bash
+# 非対話モード（CI/CD環境向け）
+NON_INTERACTIVE=1 ./scripts/run-actions.sh .github/workflows/ci.yml
+
+# インデックス指定で自動選択
+INDEX=1 ./scripts/run-actions.sh
+
+# 環境変数付きで実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --env GITHUB_ACTOR=ci-bot --env NODE_ENV=test
+
+# JSON出力でレポート生成
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --output-format json --output-file output/simulation-report.json
+```
+
+#### **高度な機能**
+
+```bash
+# 自動復旧機能付き実行
+./scripts/run-actions.sh .github/workflows/ci.yml -- --auto-recovery
+
+# 強化されたプロセス監視
+./scripts/run-actions.sh .github/workflows/ci.yml -- --enhanced
 
 # 全機能を有効化した包括的実行
-uv run python main.py actions simulate .github/workflows/ci.yml \
-  --enhanced --diagnose --auto-recovery --create-debug-bundle \
+./scripts/run-actions.sh .github/workflows/ci.yml -- \
+  --enhanced --diagnose --auto-recovery \
   --show-performance-metrics --show-execution-trace
 ```
 
-代表的な実行例:
+### 🛠️ 開発者向けMakeコマンド
 
 ```bash
-# 単一ワークフローをシミュレート
-uv run python main.py actions simulate .github/workflows/ci.yml --job test
-
-# 複数ワークフローをまとめて実行し、fail-fast で早期終了
-uv run python main.py actions simulate .github/workflows/ci.yml workflows/security.yml \
-  --fail-fast --event pull_request --ref refs/pull/42/head
-
-# 実行結果のサマリーを JSON で保存
-uv run python main.py actions simulate .github/workflows/ci.yml --output-format json \
-  --output-file output/simulation-summary.json
-
-# 追加の環境変数を上書きして実行
-uv run python main.py actions simulate .github/workflows/ci.yml \
-  --env GITHUB_ACTOR=local-dev --env NODE_ENV=development
-```
-
-検証用途には `validate`、ジョブ一覧確認には `list-jobs` サブコマンドを使用してください。複数のワークフローをまとめて検証する場合は `uv run python main.py actions validate .github/workflows --strict` のようにディレクトリを指定できます。
-
-#### make actions ターゲットの活用
-
-```bash
-# 対話モード（番号を選択、Enter だけで先頭を実行）
+# 対話的ワークフロー選択
 make actions
 
-# 非対話モード（AI/CI向け）
+# 特定ワークフロー実行
 make actions WORKFLOW=.github/workflows/ci.yml
 
-# インデックス指定で実行
-INDEX=2 make actions
+# 環境変数付き実行
+ENV_VARS="NODE_ENV=dev" make actions WORKFLOW=.github/workflows/test.yml
 
-# 追加オプションをCLIに伝達
-make actions WORKFLOW=.github/workflows/ci.yml \
-  CLI_ARGS="--event pull_request --ref refs/pull/42/head --output-format json"
-
-# 環境変数をまとめて注入
-ENV_VARS="NODE_ENV=dev FEATURE_FLAG=on" make actions WORKFLOW=.github/workflows/dev.yml
+# 追加CLI引数の指定
+make actions WORKFLOW=.github/workflows/ci.yml CLI_ARGS="--job test --enhanced"
 ```
 
-利用可能な変数: `WORKFLOW`（パス）、`INDEX`（一覧の番号）、`JOB`、`DRY_RUN`、`VERBOSE`/`QUIET`/`DEBUG`、`CONFIG`、`ENV_FILE`、`EVENT`、`REF`、`ACTOR`、`ENV_VARS`、`CLI_ARGS` など。人間は `make actions` の番号選択だけで実行でき、AI や自動化は変数指定で即座にワークフローを走らせられます。
-
-#### ワンショットスクリプト (`scripts/run-actions.sh`)
-
-```bash
-# 最新イメージを取得しつつワークフローをシミュレート
-./scripts/run-actions.sh .github/workflows/ci.yml -- --fail-fast
-
-# 引数なしでヘルプを確認
-./scripts/run-actions.sh
-```
-
-スクリプトは Docker / Docker Compose のバージョンを確認し、`actions-simulator` コンテナで Click CLI を起動します。追加の CLI 引数は `--` 区切りで渡せます（例: `-- --job build --output-format json`）。
+**利用可能な変数**: `WORKFLOW`, `INDEX`, `JOB`, `ENV_VARS`, `CLI_ARGS`など
 
 ### 📋 利用可能コマンド
 
+#### **メインコマンド**
+
 ```bash
-  make build     - Build unified image
-  make start     - Start DateTime validator
-  make stop      - Stop all services
-  make logs      - Show logs
-  make clean     - Clean up containers and images
-  make github    - Start GitHub MCP server
-  make datetime  - Start DateTime validator
-  make actions   - Interactive GitHub Actions Simulator (Docker)
-  make test      - Run integration tests
-  make test-all  - Run all test suites
-  make test-bats - Run Bats test suite
-  make security  - Run security scan
-  make sbom      - Generate SBOM
-  make audit-deps - Audit dependencies
-  make version           - Show current version
-  make version-sync      - Sync versions between pyproject.toml and main.py
-  make release-check     - Check release readiness
-  make setup-branch-protection - Setup branch protection
+make actions          - GitHub Actions Simulator（対話的）
+make build           - Docker イメージのビルド
+make test            - 統合テスト実行
+make clean           - 環境のクリーンアップ
+```
+
+#### **開発・保守コマンド**
+
+```bash
+make test-all        - 全テストスイート実行
+make security        - セキュリティスキャン
+make version         - バージョン情報表示
+make version-sync    - バージョン同期
+make sbom           - SBOM生成
+make audit-deps     - 依存関係監査
+```
+
+#### **レガシーサービス（参考）**
+
+```bash
+make github         - GitHub MCP server
+make datetime       - DateTime validator
+make start/stop/logs - サービス管理
 ```
 
 ## 📦 バージョン管理
@@ -260,98 +351,272 @@ git push origin v1.3.7
 
 ## 📚 ドキュメント体系
 
-### 🌐 オンラインリソース
+### 🚀 ユーザー向けガイド
 
-- **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
-- **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-- **🚨 ハングアップ問題対応**: [docs/HANGUP_TROUBLESHOOTING.md](docs/HANGUP_TROUBLESHOOTING.md)
-- **🔧 診断コマンド完全ガイド**: [docs/DIAGNOSTIC_COMMANDS.md](docs/DIAGNOSTIC_COMMANDS.md)
-- **🔒 セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md)
-- **📊 API仕様**: [docs/API.md](docs/API.md)
-- **🗂️ アーカイブ済み Sphinx プロジェクト**: `archive/docs/sphinx/` (HTML 生成に再利用する場合)
-- **🛡️ アーカイブ済み CodeQL 設定**: `archive/services/codeql/`
+- **📖 CLIリファレンス**: [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) - 全コマンドとオプションの完全ガイド
+- **🎯 コマンド使い分けガイド**: [docs/COMMAND_USAGE_GUIDE.md](docs/COMMAND_USAGE_GUIDE.md) - Make・スクリプト・CLIの使い分け
+- **📊 APIリファレンス**: [docs/API_REFERENCE.md](docs/API_REFERENCE.md) - 詳細なAPIドキュメント
+- **⚙️ スクリプトオプション**: [docs/SCRIPT_OPTIONS_REFERENCE.md](docs/SCRIPT_OPTIONS_REFERENCE.md) - 全スクリプトのオプション詳細
+- **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - 一般的な問題と解決方法
+- **🚨 ハングアップ対応**: [docs/HANGUP_TROUBLESHOOTING.md](docs/HANGUP_TROUBLESHOOTING.md) - 実行停止時の対処法
+- **📋 問題報告ガイド**: [docs/PROBLEM_REPORTING_GUIDE.md](docs/PROBLEM_REPORTING_GUIDE.md) - 効果的な問題報告方法
+- **🤝 コミュニティサポート**: [docs/COMMUNITY_SUPPORT_GUIDE.md](docs/COMMUNITY_SUPPORT_GUIDE.md) - コミュニティ活用ガイド
+- **🔧 診断コマンド**: [docs/DIAGNOSTIC_COMMANDS.md](docs/DIAGNOSTIC_COMMANDS.md) - 診断機能の詳細
+- **🔒 権限・セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md) - 権限問題の解決
+- **📊 API仕様**: [docs/API.md](docs/API.md) - REST API リファレンス（簡易版）
 
-### 🔧 実装詳細ドキュメント
+### 🛠️ 開発者向けドキュメント
 
+- **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md) - 自動リリース管理
 - **🐳 Docker統合**: [docs/docker-integration-implementation-summary.md](docs/docker-integration-implementation-summary.md)
 - **🔄 自動復旧**: [docs/auto_recovery_implementation_summary.md](docs/auto_recovery_implementation_summary.md)
 - **📈 パフォーマンス監視**: [docs/performance_monitoring_implementation.md](docs/performance_monitoring_implementation.md)
 
-## 🔧 サービス詳細
+### 📁 アーカイブ
 
-### GitHub MCP Server
+- **🗂️ Sphinx ドキュメント**: `archive/docs/sphinx/` - HTML生成用
+- **🛡️ CodeQL 設定**: `archive/services/codeql/` - 旧静的解析設定
 
-- ポート: 8080
-- GitHub API連携
-- 環境変数: `GITHUB_PERSONAL_ACCESS_TOKEN`
+## 🔧 軽量アーキテクチャの詳細
 
-### DateTime Validator
+### GitHub Actions Simulator（メインサービス）
 
-- ファイル監視による日付自動修正
-- 2025-01, 2024-12などの疑わしい日付を検出
+**軽量actベースエンジン**
 
-### Actions Simulator API
+- **実行環境**: Docker コンテナ内でact実行
+- **依存関係**: Docker + act のみ
+- **起動時間**: 数秒での高速起動
+- **メモリ使用量**: 最小限のリソース消費
 
-- ポート: 8000 (`make actions-api` または `docker compose --profile tools up actions-simulator`)
-- エンドポイント:
-  - `GET /actions/healthz`
-  - `POST /actions/simulate`
-- 利用例:
+**主要機能**
+
+- ワークフローシミュレーション
+- リアルタイム診断・監視
+- 自動復旧機能
+- プラットフォーム別エラーガイダンス
+
+**API エンドポイント**（オプション）
+
+- ポート: 8000
+- `GET /actions/healthz` - ヘルスチェック
+- `POST /actions/simulate` - ワークフロー実行
 
 ```bash
+# REST API使用例
 curl -X POST http://localhost:8000/actions/simulate \
   -H "Content-Type: application/json" \
-  -d '{"workflow_file": ".github/workflows/ci.yml", "engine": "builtin"}'
+  -d '{"workflow_file": ".github/workflows/ci.yml"}'
 ```
+
+### 補助サービス（レガシー）
+
+**GitHub MCP Server** (ポート: 8080)
+
+- GitHub API連携のMCPサーバー
+- 環境変数: `GITHUB_PERSONAL_ACCESS_TOKEN`
+
+**DateTime Validator**
+
+- ファイル監視による日付自動修正
+- 疑わしい日付パターンの検出・修正
 
 ## 🛡️ セキュリティ
 
-### セキュリティ機能
+### 軽量アーキテクチャのセキュリティ機能
 
-- **非root実行**: 動的UID/GIDマッピング
-- **読み取り専用マウント**: コンテナセキュリティ強化
-- **リソース制限**: メモリ・CPU使用量制限
-- **自動セキュリティスキャン**: TruffleHog, Trivy統合
+- **最小権限の原則**: 非root実行、必要最小限の権限
+- **コンテナ分離**: Docker による安全な実行環境
+- **依存関係管理**: 自動的な脆弱性チェック
+- **秘密情報保護**: 環境変数の適切な取り扱い
 
-### セキュリティテスト
+### セキュリティスキャン
 
 ```bash
-make security          # セキュリティスキャン実行
-make validate-security # セキュリティ設定検証
+make security     # 包括的セキュリティスキャン（Trivy統合）
+make audit-deps   # 依存関係の脆弱性監査
+make sbom        # SBOM（Software Bill of Materials）生成
 ```
+
+### セキュリティベストプラクティス
+
+- 環境変数ファイル（`.env`）をコミットしない
+- 定期的な依存関係更新
+- Docker イメージの定期的な更新
 
 ## 🧪 テスト
 
+### 軽量テストスイート
+
 ```bash
-make test              # 基本テスト
-make test-all          # 全テストスイート
-make test-security     # セキュリティテスト
-make test-integration  # 統合テスト
+make test             # 基本統合テスト
+make test-all         # 全テストスイート実行
+make security         # セキュリティテスト
 ```
+
+### テスト範囲
+
+- **統合テスト**: Docker環境での動作確認
+- **セキュリティテスト**: 脆弱性スキャン
+- **パフォーマンステスト**: リソース使用量監視
+- **エンドツーエンドテスト**: 実際のワークフロー実行
 
 ## 🤝 開発・貢献
 
-### 開発環境セットアップ
+### 軽量開発環境セットアップ
 
 ```bash
-# 開発依存関係インストール
+# 1. 依存関係の確認
+./scripts/run-actions.sh --check-deps
+
+# 2. 開発依存関係インストール
 uv sync --group dev
 
-# Pre-commitフック設定
-pre-commit install
+# 3. Pre-commitフック設定（GitHub Actions Simulator統合）
+cp .pre-commit-config.yaml.sample .pre-commit-config.yaml  # テンプレートをコピー
+pre-commit install                                          # フックをインストール
+
+# 4. 開発用Docker環境構築
+make build
 ```
+
+### 開発ワークフロー
+
+```bash
+# 開発サーバー起動
+make actions
+
+# 品質チェック（pre-commit統合）
+make pre-commit              # 全品質チェック実行
+pre-commit run --all-files   # 全ファイルでチェック
+
+# テスト実行
+make test                    # 基本テスト
+make test-hangup-quick      # 高速ハングアップテスト
+
+# セキュリティチェック
+make security
+
+# クリーンアップ
+make clean
+```
+
+#### Pre-commit統合による段階的品質ゲート
+
+GitHub Actions Simulatorは段階的な品質レベルを提供します:
+
+- **🟢 Basic**: 基本的なファイル品質チェック
+- **🟡 Standard**: コード品質 + Actions Simulator統合テスト（推奨）
+- **🔴 Strict**: 全品質チェック + セキュリティスキャン（CI/CD向け）
+
+詳細は [Pre-commit統合ガイド](docs/PRE_COMMIT_INTEGRATION.md) をご覧ください。
 
 ### 貢献方法
 
-1. リポジトリをフォーク
-2. 機能ブランチを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add amazing feature'`)
-4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
-5. Pull Requestを作成
+1. **フォーク**: リポジトリをフォーク
+2. **ブランチ作成**: `git checkout -b feature/lightweight-improvement`
+3. **開発**: 軽量アーキテクチャの原則に従って開発
+4. **テスト**: `make test-all` で全テスト実行
+5. **プルリクエスト**: 変更内容を説明してPR作成
 
 詳細は [CONTRIBUTING.md](CONTRIBUTING.md) をご覧ください。
+
+## 🌍 プラットフォーム対応
+
+### サポートプラットフォーム
+
+| プラットフォーム | 対応状況 | 推奨度 | 自動インストール |
+|----------------|----------|--------|------------------|
+| **Linux** (Ubuntu/Debian) | ✅ フル対応 | ⭐⭐⭐ | `./scripts/install.sh` |
+| **Linux** (Fedora/RHEL) | ✅ フル対応 | ⭐⭐⭐ | `./scripts/install.sh` |
+| **macOS** (12.0+) | ✅ フル対応 | ⭐⭐ | `./scripts/install.sh` |
+| **Windows** (WSL2) | ✅ フル対応 | ⭐⭐ | PowerShell スクリプト |
+
+### 自動インストール
+
+```bash
+# 統合インストーラー（推奨）
+./scripts/install.sh
+
+# 依存関係チェック
+./scripts/run-actions.sh --check-deps
+
+# 拡張チェック（プラットフォーム最適化情報を含む）
+./scripts/run-actions.sh --check-deps-extended
+```
+
+### プラットフォーム別インストール
+
+```bash
+# Linux
+./scripts/install-linux.sh
+
+# macOS
+./scripts/install-macos.sh
+
+# Windows (PowerShell を管理者として実行)
+.\scripts\install-windows.ps1
+```
+
+詳細なプラットフォームガイド: **[docs/PLATFORM_SUPPORT.md](docs/PLATFORM_SUPPORT.md)**
+
+## 🚀 次のステップ
+
+### 初回利用者向け
+
+1. **依存関係確認**: `./scripts/run-actions.sh --check-deps`
+2. **基本実行**: `./scripts/run-actions.sh`
+3. **ドキュメント確認**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
+### 既存ユーザー向け
+
+1. **高度な機能**: `./scripts/run-actions.sh .github/workflows/ci.yml -- --enhanced`
+2. **CI/CD統合**: `NON_INTERACTIVE=1 ./scripts/run-actions.sh`
+3. **カスタマイズ**: `.env.template` をコピーして設定
+
+### 開発者向け
+
+1. **開発環境**: `uv sync --group dev && pre-commit install`
+2. **貢献**: [CONTRIBUTING.md](CONTRIBUTING.md) を参照
+3. **拡張**: 軽量アーキテクチャの原則に従って機能追加
+
+## 📞 サポート・コミュニティ
+
+### 問題報告・質問
+
+- **GitHub Issues**: [バグ報告・機能要望](https://github.com/scottlz0310/mcp-docker/issues) - 構造化されたテンプレート付き
+- **GitHub Discussions**: [質問・アイデア共有](https://github.com/scottlz0310/mcp-docker/discussions) - コミュニティサポート
+- **包括的サポートガイド**: [docs/SUPPORT.md](docs/SUPPORT.md) - 全サポートチャネルの詳細
+- **問題報告ガイド**: [docs/PROBLEM_REPORTING_GUIDE.md](docs/PROBLEM_REPORTING_GUIDE.md) - 効果的な報告方法
+- **コミュニティガイド**: [docs/COMMUNITY_SUPPORT_GUIDE.md](docs/COMMUNITY_SUPPORT_GUIDE.md) - コミュニティ活用方法
+
+### 自動診断・トラブルシューティング
+
+```bash
+# 包括的診断情報収集（問題報告時に便利）
+./scripts/collect-support-info.sh
+
+# 自動トラブルシューティング付き診断
+./scripts/collect-support-info.sh --auto-troubleshoot
+
+# 特定問題の診断と自動修復
+./scripts/diagnostic-helper.sh --fix all
+
+# 手動での基本情報収集
+./scripts/run-actions.sh --check-deps
+make version
+```
+
+### アップグレード・保守
+
+- **アップグレードガイド**: [docs/UPGRADE_GUIDE.md](docs/UPGRADE_GUIDE.md)
+- **自動アップグレード**: `./scripts/upgrade.sh`
+- **価値提案詳細**: [docs/VALUE_PROPOSITION.md](docs/VALUE_PROPOSITION.md)
 
 ## 📄 ライセンス
 
 このプロジェクトは MIT ライセンスの下で公開されています。
 詳細は [LICENSE](LICENSE) ファイルをご覧ください。
+
+---
+
+**GitHub Actions Simulator** - 軽量で使いやすいローカルワークフローシミュレーション 🚀

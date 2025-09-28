@@ -116,13 +116,32 @@ jobs:
     name: Quality Assurance
     needs: version-check
     uses: ./.github/workflows/ci.yml
+    with:
+      quality_gate_mode: true
     permissions:
       contents: read
       security-events: write
+      checks: write
+
+  release-quality-gates:
+    name: 🛡️ リリース品質ゲート
+    needs: version-check
+    uses: ./.github/workflows/quality-gates.yml
+    with:
+      release_mode: true
+      quality_level: 'strict'
+      skip_slow_tests: false
+      generate_reports: true
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      pull-requests: write
+      checks: write
 
   prepare-release:
     runs-on: ubuntu-latest
-    needs: [version-check, quality-check]
+    needs: [version-check, quality-check, release-quality-gates]
     outputs:
       changes-made: ${{ steps.changelog.outputs.changes-made }}
     steps:
