@@ -30,7 +30,7 @@
   - 包括的なシステムヘルスチェック機能を完成
   - _Requirements: 1.2, 1.3, 1.4_
 
-- [ ] 6. EnhancedActWrapperクラスの実装
+- [x] 6. EnhancedActWrapperクラスの実装
   - 既存ActWrapperを拡張したEnhancedActWrapperクラスを作成
   - 診断機能とデッドロック検出メカニズムを統合
   - 安全なサブプロセス作成と出力ストリーミング機能を実装
