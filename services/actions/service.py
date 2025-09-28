@@ -11,7 +11,7 @@ import time
 import sys
 
 from .act_wrapper import ActWrapper
-from .enhanced_act_wrapper import EnhancedActWrapper, DetailedResult
+from .enhanced_act_wrapper import EnhancedActWrapper
 from .logger import ActionsLogger
 
 # 遅延インポートでサイクル依存を回避
@@ -20,7 +20,7 @@ try:
     from diagnostic_service import DiagnosticService, DiagnosticResult, DiagnosticStatus
     from execution_tracer import ExecutionTracer
     from performance_monitor import PerformanceMonitor
-except ImportError as e:
+except ImportError:
     DiagnosticService = None
     DiagnosticResult = None
     DiagnosticStatus = None

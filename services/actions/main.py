@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-import asyncio
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, cast
@@ -17,9 +17,8 @@ from rich.table import Table
 
 # サーバーモード用のインポート
 try:
-    from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+    from fastapi import FastAPI, HTTPException
     from fastapi.responses import JSONResponse, HTMLResponse
-    from fastapi.staticfiles import StaticFiles
     import uvicorn
     FASTAPI_AVAILABLE = True
 except ImportError:
@@ -1516,7 +1515,6 @@ def create_debug_bundle(
 
     try:
         from .hangup_detector import HangupDetector
-        from .enhanced_act_wrapper import EnhancedActWrapper
 
         # HangupDetectorを使用してデバッグバンドルを作成
         detector = HangupDetector(logger=logger)
@@ -1637,7 +1635,7 @@ def server(
     cli_ctx = cast(CLIContext, ctx.obj)
     console = Console()
 
-    console.print(f"[green]🚀 Actions Simulator Server 起動中...[/green]")
+    console.print("[green]🚀 Actions Simulator Server 起動中...[/green]")
     console.print(f"   ホスト: {host}")
     console.print(f"   ポート: {port}")
     console.print(f"   デバッグ: {'有効' if debug else '無効'}")

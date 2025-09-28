@@ -5,9 +5,11 @@
 [![CI Status](https://github.com/scottlz0310/mcp-docker/workflows/CI/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 [![Security Scan](https://github.com/scottlz0310/mcp-docker/workflows/Security/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 
-## 🎯 主要な価値提案
+## 概要
 
-**5分で始められる軽量GitHub Actionsシミュレーション**
+GitHub Actions Simulatorは、軽量で使いやすいGitHub Actionsワークフローのローカルシミュレーターです。Dockerコンテナ内でactを使用した高速シミュレーションにより、複雑な設定不要で即座にワークフローをテストできます。
+
+## 主要機能
 
 - 🚀 **ワンショット実行**: 複雑な設定不要、単一コマンドで即座に開始
 - 🐳 **軽量actベース**: Dockerコンテナ内でactを使用した高速シミュレーション
@@ -15,9 +17,46 @@
 - 📊 **包括的診断**: 実行前チェック、エラー検出、自動復旧機能
 - 🎛️ **柔軟な実行方式**: 対話モード、非対話モード、CI/CD統合対応
 
+## クイックスタート
+
+### 前提条件
+- Docker 20.10+
+- Python 3.13+
+- Git
+
+### インストール
+
+```bash
+# リポジトリのクローン
+git clone https://github.com/scottlz0310/mcp-docker.git
+cd mcp-docker
+
+# 環境設定
+cp .env.example .env
+# .envファイルを編集してGitHubトークンを設定
+
+# 依存関係のインストール
+uv sync
+```
+
+## 使用方法
+
+### 基本的な使用方法
+
+```bash
+# ワークフローの実行
+make actions-run WORKFLOW=.github/workflows/ci.yml
+
+# 対話モードでの実行
+make actions
+
+# 自動実行
+make actions-auto
+```
+
 ## 📦 バージョン情報
 
-- **現在のバージョン**: v1.0.1
+- **現在のバージョン**: v1.1.0
 - **最終更新**: 2025年09月24日
 - **サポート**: Python 3.13+、Docker 20.10+、act 0.2.40+
 
@@ -117,7 +156,7 @@ NON_INTERACTIVE=1 ./scripts/run-actions.sh .github/workflows/ci.yml
 
 ### 🎯 メイン実行方式
 
-#### 1. ワンショットスクリプト（推奨）
+**1. ワンショットスクリプト（推奨）**
 
 ```bash
 # 基本実行
@@ -133,7 +172,7 @@ NON_INTERACTIVE=1 ./scripts/run-actions.sh .github/workflows/ci.yml
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --job test --enhanced
 ```
 
-#### 2. Make コマンド（開発者向け）
+**2. Make コマンド（開発者向け）**
 
 ```bash
 # 対話的ワークフロー選択
@@ -146,7 +185,7 @@ make actions WORKFLOW=.github/workflows/ci.yml
 ENV_VARS="NODE_ENV=dev" make actions WORKFLOW=.github/workflows/test.yml
 ```
 
-#### 3. 直接CLI（上級者向け）
+**3. 直接CLI（上級者向け）**
 
 ```bash
 # Docker コンテナ内でCLI実行
@@ -158,7 +197,7 @@ uv run python main.py actions --help
 
 ### 🔧 軽量actベースの強化機能
 
-#### **インテリジェント診断システム**
+**インテリジェント診断システム**
 
 ```bash
 # 包括的システム診断
@@ -168,7 +207,7 @@ uv run python main.py actions --help
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --diagnose
 ```
 
-#### **自動復旧機能**
+**自動復旧機能**
 
 ```bash
 # Docker再接続・プロセス再起動・バッファクリア
@@ -178,7 +217,7 @@ uv run python main.py actions --help
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --enhanced
 ```
 
-#### **リアルタイム監視**
+**リアルタイム監視**
 
 ```bash
 # パフォーマンス監視
@@ -190,7 +229,7 @@ uv run python main.py actions --help
 
 ### 📋 実用的な使用例
 
-#### **基本的なワークフロー実行**
+**基本的なワークフロー実行**
 
 ```bash
 # 最もシンプルな実行（対話的選択）
@@ -207,7 +246,7 @@ uv run python main.py actions --help
   --event pull_request --ref refs/pull/42/head
 ```
 
-#### **診断・トラブルシューティング**
+**診断・トラブルシューティング**
 
 ```bash
 # 依存関係チェックのみ実行
@@ -221,7 +260,7 @@ uv run python main.py actions --help
   --diagnose --show-performance-metrics --show-execution-trace
 ```
 
-#### **自動化・CI/CD統合**
+**自動化・CI/CD統合**
 
 ```bash
 # 非対話モード（CI/CD環境向け）
@@ -239,7 +278,7 @@ INDEX=1 ./scripts/run-actions.sh
   --output-format json --output-file output/simulation-report.json
 ```
 
-#### **高度な機能**
+**高度な機能**
 
 ```bash
 # 自動復旧機能付き実行
@@ -274,7 +313,7 @@ make actions WORKFLOW=.github/workflows/ci.yml CLI_ARGS="--job test --enhanced"
 
 ### 📋 利用可能コマンド
 
-#### **メインコマンド**
+**メインコマンド**
 
 ```bash
 make actions          - GitHub Actions Simulator（対話的）
@@ -283,7 +322,7 @@ make test            - 統合テスト実行
 make clean           - 環境のクリーンアップ
 ```
 
-#### **開発・保守コマンド**
+**開発・保守コマンド**
 
 ```bash
 make test-all        - 全テストスイート実行
@@ -294,7 +333,7 @@ make sbom           - SBOM生成
 make audit-deps     - 依存関係監査
 ```
 
-#### **レガシーサービス（参考）**
+**レガシーサービス（参考）**
 
 ```bash
 make github         - GitHub MCP server
@@ -500,7 +539,7 @@ make security
 make clean
 ```
 
-#### Pre-commit統合による段階的品質ゲート
+**Pre-commit統合による段階的品質ゲート**
 
 GitHub Actions Simulatorは段階的な品質レベルを提供します:
 

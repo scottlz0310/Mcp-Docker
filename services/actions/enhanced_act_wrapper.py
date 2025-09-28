@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
-from services.actions.act_wrapper import ActWrapper, ActRunnerSettings
+from services.actions.act_wrapper import ActWrapper
 from services.actions.execution_tracer import ExecutionTracer, ExecutionStage, ThreadState
 from services.actions.logger import ActionsLogger
 
