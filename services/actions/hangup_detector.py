@@ -262,13 +262,19 @@ class HangupDetector:
         start_time = time.time()
 
         try:
-            # Docker関連問題を検出
+            # 各種問題を検出
             docker_issues = self.detect_docker_socket_issues()
+            subprocess_issues = self.detect_subprocess_deadlock(execution_trace)
+            timeout_issues = self.detect_timeout_problems(execution_trace)
+            permission_issues = self.detect_permission_issues()
+
+            # すべての問題を統合
+            all_issues = docker_issues + subprocess_issues + timeout_issues + permission_issues
 
             # 信頼度でフィルタリング
             filtered_issues = [
                 issue
-                for issue in docker_issues
+                for issue in all_issues
                 if issue.confidence_score >= self.confidence_threshold
             ]
 
@@ -284,9 +290,18 @@ class HangupDetector:
                 analysis.primary_cause = sorted_issues[0]
 
             # システム状態の収集
-            analysis.system_state = {
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+            analysis.system_state = self._collect_system_state()
+
+            # 実行コンテキストの設定
+            if execution_trace:
+                analysis.execution_context = {
+                    "trace_id": getattr(execution_trace, "trace_id", "unknown"),
+                    "current_stage": getattr(execution_trace, "current_stage", "unknown"),
+                    "hang_point": getattr(execution_trace, "hang_point", None),
+                }
+
+            if diagnostic_results:
+                analysis.execution_context["diagnostic_results_count"] = len(diagnostic_results)
 
             # 復旧提案の生成
             analysis.recovery_suggestions = [
@@ -343,13 +358,16 @@ class HangupDetector:
 
         try:
             # システム情報の収集
-            report.system_information = {"os": os.name}
+            report.system_information = self._collect_detailed_system_info()
 
             # 環境変数の収集
-            relevant_vars = ["DOCKER_HOST", "PATH", "HOME", "USER"]
+            relevant_vars = ["DOCKER_HOST", "PATH", "HOME", "USER", "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS"]
             report.environment_variables = {
                 var: os.environ.get(var, "") for var in relevant_vars
             }
+
+            # Docker状態の収集
+            report.docker_status = self._collect_docker_status()
 
             # トラブルシューティングガイドの生成
             report.troubleshooting_guide = [
@@ -701,6 +719,93 @@ class HangupDetector:
 
         return issues
 
+    def detect_resource_exhaustion(self) -> List[HangupIssue]:
+        """
+        リソース枯渇関連の問題を検出
+
+        Returns:
+            List[HangupIssue]: 検出されたリソース枯渇問題のリスト
+        """
+        if self.logger:
+            self.logger.debug("リソース枯渇問題を検出中...")
+
+        issues = []
+
+        try:
+            # psutilが利用可能な場合のみリソースチェックを実行
+            try:
+                import psutil
+
+                # CPU使用率チェック
+                cpu_percent = psutil.cpu_percent(interval=1)
+                if cpu_percent > 90:
+                    issues.append(
+                        HangupIssue(
+                            issue_type=HangupType.RESOURCE_EXHAUSTION,
+                            severity=HangupSeverity.HIGH,
+                            title="CPU使用率が高すぎます",
+                            description=f"CPU使用率が {cpu_percent:.1f}% です",
+                            evidence={"cpu_percent": cpu_percent},
+                            root_cause="システムのCPU負荷が高すぎます",
+                            impact_assessment="Docker操作やワークフロー実行が遅くなります",
+                            recommendations=[
+                                "実行中のプロセスを確認してください",
+                                "不要なアプリケーションを終了してください",
+                            ],
+                            confidence_score=0.85,
+                        )
+                    )
+
+                # メモリ使用率チェック
+                memory = psutil.virtual_memory()
+                if memory.percent > 85:
+                    issues.append(
+                        HangupIssue(
+                            issue_type=HangupType.RESOURCE_EXHAUSTION,
+                            severity=HangupSeverity.HIGH,
+                            title="メモリ使用率が高すぎます",
+                            description=f"メモリ使用率が {memory.percent:.1f}% です",
+                            evidence={"memory_percent": memory.percent, "available_gb": memory.available / (1024**3)},
+                            root_cause="システムのメモリ不足です",
+                            impact_assessment="Docker操作やワークフロー実行が失敗する可能性があります",
+                            recommendations=[
+                                "不要なアプリケーションを終了してください",
+                                "Docker コンテナの数を減らしてください",
+                            ],
+                            confidence_score=0.90,
+                        )
+                    )
+
+                # ディスク使用率チェック
+                disk = psutil.disk_usage("/")
+                if disk.percent > 90:
+                    issues.append(
+                        HangupIssue(
+                            issue_type=HangupType.RESOURCE_EXHAUSTION,
+                            severity=HangupSeverity.MEDIUM,
+                            title="ディスク使用率が高すぎます",
+                            description=f"ディスク使用率が {disk.percent:.1f}% です",
+                            evidence={"disk_percent": disk.percent, "free_gb": disk.free / (1024**3)},
+                            root_cause="ディスク容量不足です",
+                            impact_assessment="Docker イメージの作成やログ出力が失敗する可能性があります",
+                            recommendations=[
+                                "不要なファイルを削除してください",
+                                "docker system prune を実行してください",
+                            ],
+                            confidence_score=0.80,
+                        )
+                    )
+
+            except ImportError:
+                if self.logger:
+                    self.logger.debug("psutilが利用できないため、リソースチェックをスキップします")
+
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"リソース枯渇検出中にエラーが発生しました: {e}")
+
+        return issues
+
     def _collect_detailed_system_info(self) -> Dict[str, Any]:
         """詳細なシステム情報を収集"""
         system_info = {}
@@ -834,7 +939,17 @@ class HangupDetector:
             measures.extend(
                 [
                     "ユーザーをdockerグループに追加してください",
-                    "適切なディレクトリ権限を設定してください",
+                    "適切なファイル権限を設定してください",
+                    "定期的に権限設定を確認してください",
+                ]
+            )
+
+        if HangupType.DOCKER_SOCKET_ISSUE in issue_types:
+            measures.extend(
+                [
+                    "Docker Desktopの自動起動を設定してください",
+                    "Docker daemonの健全性を定期的に監視してください",
+                    "Docker設定ファイルをバックアップしてください",
                 ]
             )
 
@@ -843,99 +958,71 @@ class HangupDetector:
                 [
                     "定期的にシステムリソースを監視してください",
                     "不要なコンテナやイメージを定期的に削除してください",
+                    "定期的にDocker system pruneを実行してください",
                 ]
             )
 
-        if HangupType.DOCKER_SOCKET_ISSUE in issue_types:
+        if HangupType.TIMEOUT_PROBLEM in issue_types:
             measures.extend(
                 [
-                    "Docker daemonの自動起動を設定してください",
-                    "Docker設定を定期的に確認してください",
+                    "適切なタイムアウト値を設定してください",
+                    "ワークフローの複雑さを定期的に見直してください",
+                    "システムパフォーマンスを定期的に確認してください",
                 ]
             )
 
-        # 一般的な予防策
+        # 一般的な予防策を追加
         measures.extend(
             [
-                "定期的にDocker system pruneを実行してください",
-                "システムの監視とログ確認を習慣化してください",
+                "定期的にシステムの健全性チェックを実行してください",
+                "ログファイルを定期的に確認してください",
+                "システムアップデートを定期的に適用してください",
             ]
         )
 
         return list(set(measures))  # 重複を除去
 
-    def _add_system_info_to_bundle(
-        self, zipf, bundle_id: str, system_info: Dict[str, Any]
-    ) -> None:
-        """システム情報をバンドルに追加"""
-        try:
-            content = json.dumps(system_info, ensure_ascii=False, indent=2)
-            zipf.writestr(f"{bundle_id}/system_info.json", content)
-        except Exception as e:
-            if self.logger:
-                self.logger.debug(f"システム情報追加中にエラー: {e}")
-
-    def _add_docker_info_to_bundle(
-        self, zipf, bundle_id: str, docker_info: Dict[str, Any]
-    ) -> None:
-        """Docker情報をバンドルに追加"""
-        try:
-            content = json.dumps(docker_info, ensure_ascii=False, indent=2)
-            zipf.writestr(f"{bundle_id}/docker_info.json", content)
-        except Exception as e:
-            if self.logger:
-                self.logger.debug(f"Docker情報追加中にエラー: {e}")
-
-    def _add_logs_to_bundle(self, zipf, bundle_id: str) -> None:
-        """ログファイルをバンドルに追加"""
-        try:
-            # 簡単なログ情報を追加
-            log_content = "Log collection not implemented yet"
-            zipf.writestr(f"{bundle_id}/logs.txt", log_content)
-        except Exception as e:
-            if self.logger:
-                self.logger.debug(f"ログ追加中にエラー: {e}")
-
     def _initialize_detection_patterns(self) -> Dict[str, Any]:
         """検出パターンを初期化"""
         return {
             "docker_socket_patterns": [
-                r"permission denied.*docker\.sock",
-                r"cannot connect to the docker daemon",
-                r"docker daemon.*not running",
+                "Cannot connect to the Docker daemon",
+                "docker: command not found",
+                "permission denied while trying to connect",
+            ],
+            "subprocess_patterns": [
+                "process hung",
+                "deadlock detected",
+                "no response from subprocess",
             ],
             "timeout_patterns": [
-                r"timeout.*expired",
-                r"connection.*timed out",
-                r"no response.*timeout",
+                "timeout expired",
+                "operation timed out",
+                "execution timeout",
             ],
             "permission_patterns": [
-                r"permission denied",
-                r"access denied",
-                r"insufficient privileges",
+                "permission denied",
+                "access denied",
+                "insufficient privileges",
             ],
         }
 
     def _initialize_known_issues_db(self) -> Dict[str, Any]:
         """既知の問題データベースを初期化"""
         return {
-            "docker_issues": [
-                {
-                    "pattern": "docker daemon not running",
-                    "solution": "Docker Desktopを起動してください",
-                    "severity": "high",
-                },
-                {
-                    "pattern": "permission denied",
-                    "solution": "ユーザーをdockerグループに追加してください",
-                    "severity": "medium",
-                },
-            ],
-            "timeout_issues": [
-                {
-                    "pattern": "connection timeout",
-                    "solution": "ネットワーク接続を確認してください",
-                    "severity": "medium",
-                }
-            ],
+            "docker_not_running": {
+                "symptoms": ["Cannot connect to the Docker daemon"],
+                "solutions": ["Docker Desktopを起動してください"],
+                "confidence": 0.95,
+            },
+            "docker_permission": {
+                "symptoms": ["permission denied while trying to connect"],
+                "solutions": ["ユーザーをdockerグループに追加してください"],
+                "confidence": 0.90,
+            },
+            "act_timeout": {
+                "symptoms": ["act execution timeout", "process hung"],
+                "solutions": ["タイムアウト値を増加してください"],
+                "confidence": 0.80,
+            },
         }

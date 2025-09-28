@@ -36,13 +36,13 @@
   - 安全なサブプロセス作成と出力ストリーミング機能を実装
   - _Requirements: 1.3, 2.2, 2.3_
 
-- [ ] 7. DockerIntegrationCheckerの実装
+- [x] 7. DockerIntegrationCheckerの実装
   - Dockerソケットアクセスとコンテナ通信を検証するクラスを作成
   - Docker daemon接続テストと自動リトライメカニズムを実装
   - act-Docker互換性チェック機能を追加
   - _Requirements: 1.2, 2.4, 4.4_
 
-- [ ] 8. HangupDetectorクラスの実装
+- [x] 8. HangupDetectorクラスの実装
   - 特定のハングアップ条件を識別するクラスを作成
   - Docker、サブプロセス、タイムアウト、権限問題の検出機能を実装
   - 包括的なハングアップ分析とエラーレポート生成機能を追加
