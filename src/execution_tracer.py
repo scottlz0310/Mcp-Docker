@@ -89,16 +89,21 @@ class ExecutionTracer:
         """実行段階を設定（互換性のため）"""
         self.record_event("stage_change", {"stage": str(stage), "details": details})
 
-    def monitor_docker_communication(self, operation, success=True, error_message=None):
+    def monitor_docker_communication(
+        self, operation_type, command=None, success=True, error_message=None
+    ):
         """Docker通信を監視（互換性のため）"""
         self.record_event(
             "docker_communication",
             {
-                "operation": operation,
+                "operation_type": operation_type,
+                "command": command,
                 "success": success,
                 "error_message": error_message,
             },
         )
+        # 互換性のため、ダミーオブジェクトを返す
+        return self
 
     def is_tracing(self) -> bool:
         """トレース中かどうかを確認"""
