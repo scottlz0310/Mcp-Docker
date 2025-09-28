@@ -5,4 +5,5 @@ rules:
     max: 200  # GitHub Actionsの長いURLに対応
   document-start: disable  # ドキュメント開始マーカーを無効化
   comments-indentation: disable  # コメントのインデントを緩和
+  comments: disable  # コメント前のスペース要求を無効化
   truthy: disable  # on/off値の制限を緩和

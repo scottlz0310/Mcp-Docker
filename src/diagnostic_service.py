@@ -20,6 +20,7 @@ from enum import Enum
 
 class DiagnosticStatus(Enum):
     """診断結果のステータス"""
+
     OK = "OK"
     WARNING = "WARNING"
     ERROR = "ERROR"
@@ -39,6 +40,7 @@ class HealthMetrics:
 @dataclass
 class DiagnosticResult:
     """診断結果を表すデータクラス"""
+
     component: str
     status: DiagnosticStatus
     message: str
@@ -178,14 +180,18 @@ class DiagnosticService:
 
         # 基本システムヘルスチェック
         basic_health = self.check_system_health()
-        results.append(DiagnosticResult(
-            component="システムヘルス",
-            status=DiagnosticStatus.OK if basic_health.get("status") == "healthy" else DiagnosticStatus.WARNING,
-            message=f"CPU: {basic_health.get('cpu_usage', 0):.1f}%, メモリ: {basic_health.get('memory_usage', 0):.1f}%",
-            details=basic_health,
-            recommendations=[],
-            timestamp=time.time()
-        ))
+        results.append(
+            DiagnosticResult(
+                component="システムヘルス",
+                status=DiagnosticStatus.OK
+                if basic_health.get("status") == "healthy"
+                else DiagnosticStatus.WARNING,
+                message=f"CPU: {basic_health.get('cpu_usage', 0):.1f}%, メモリ: {basic_health.get('memory_usage', 0):.1f}%",
+                details=basic_health,
+                recommendations=[],
+                timestamp=time.time(),
+            )
+        )
 
         # Docker接続性チェック
         results.append(self.check_docker_connectivity())
@@ -199,14 +205,16 @@ class DiagnosticService:
         # ハングアップ条件検出
         hangup_conditions = self.detect_hangup_conditions()
         if hangup_conditions.get("detected", False):
-            results.append(DiagnosticResult(
-                component="ハングアップ検出",
-                status=DiagnosticStatus.WARNING,
-                message=f"{len(hangup_conditions.get('conditions', []))}個のハングアップ条件を検出",
-                details=hangup_conditions,
-                recommendations=["システムリソースの使用量を確認してください"],
-                timestamp=time.time()
-            ))
+            results.append(
+                DiagnosticResult(
+                    component="ハングアップ検出",
+                    status=DiagnosticStatus.WARNING,
+                    message=f"{len(hangup_conditions.get('conditions', []))}個のハングアップ条件を検出",
+                    details=hangup_conditions,
+                    recommendations=["システムリソースの使用量を確認してください"],
+                    timestamp=time.time(),
+                )
+            )
 
         # 全体的なステータスを決定
         error_count = sum(1 for r in results if r.status == DiagnosticStatus.ERROR)
@@ -214,7 +222,9 @@ class DiagnosticService:
 
         if error_count > 0:
             overall_status = DiagnosticStatus.ERROR
-            summary = f"{error_count}個の重大な問題と{warning_count}個の警告が見つかりました"
+            summary = (
+                f"{error_count}個の重大な問題と{warning_count}個の警告が見つかりました"
+            )
         elif warning_count > 0:
             overall_status = DiagnosticStatus.WARNING
             summary = f"{warning_count}個の警告が見つかりました"
@@ -232,11 +242,11 @@ class DiagnosticService:
                     "message": r.message,
                     "details": r.details,
                     "recommendations": r.recommendations,
-                    "timestamp": r.timestamp
+                    "timestamp": r.timestamp,
                 }
                 for r in results
             ],
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
     def check_docker_connectivity(self) -> DiagnosticResult:
@@ -259,17 +269,14 @@ class DiagnosticService:
                     details={"docker_path": None},
                     recommendations=[
                         "Docker Desktopまたは Docker Engineをインストールしてください",
-                        "PATHにDockerコマンドが含まれていることを確認してください"
+                        "PATHにDockerコマンドが含まれていることを確認してください",
                     ],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             # Dockerバージョン確認
             version_result = subprocess.run(
-                ["docker", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["docker", "--version"], capture_output=True, text=True, timeout=10
             )
 
             if version_result.returncode != 0:
@@ -277,20 +284,20 @@ class DiagnosticService:
                     component="Docker接続性",
                     status=DiagnosticStatus.ERROR,
                     message="Dockerコマンドの実行に失敗しました",
-                    details={"stderr": version_result.stderr, "docker_path": docker_path},
+                    details={
+                        "stderr": version_result.stderr,
+                        "docker_path": docker_path,
+                    },
                     recommendations=[
                         "Dockerが正しくインストールされているか確認してください",
-                        "Docker Desktopが起動しているか確認してください"
+                        "Docker Desktopが起動しているか確認してください",
                     ],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             # Docker daemon接続確認
             info_result = subprocess.run(
-                ["docker", "info"],
-                capture_output=True,
-                text=True,
-                timeout=15
+                ["docker", "info"], capture_output=True, text=True, timeout=15
             )
 
             if info_result.returncode != 0:
@@ -298,13 +305,16 @@ class DiagnosticService:
                     component="Docker接続性",
                     status=DiagnosticStatus.ERROR,
                     message="Docker daemonに接続できません",
-                    details={"stderr": info_result.stderr, "docker_version": version_result.stdout.strip()},
+                    details={
+                        "stderr": info_result.stderr,
+                        "docker_version": version_result.stdout.strip(),
+                    },
                     recommendations=[
                         "Docker Desktopを起動してください",
                         "Docker daemonが実行されているか確認してください",
-                        "ユーザーがdockerグループに属しているか確認してください"
+                        "ユーザーがdockerグループに属しているか確認してください",
                     ],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             # 成功時の詳細情報を取得
@@ -316,7 +326,7 @@ class DiagnosticService:
                 message="Docker接続は正常です",
                 details={"version": docker_version, "docker_path": docker_path},
                 recommendations=[],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
         except subprocess.TimeoutExpired:
@@ -327,9 +337,9 @@ class DiagnosticService:
                 details={"timeout": True},
                 recommendations=[
                     "Docker daemonの応答が遅い可能性があります",
-                    "システムリソースを確認してください"
+                    "システムリソースを確認してください",
                 ],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
         except Exception as e:
             return DiagnosticResult(
@@ -338,7 +348,7 @@ class DiagnosticService:
                 message=f"予期しないエラーが発生しました: {str(e)}",
                 details={"error": str(e)},
                 recommendations=["システム管理者に連絡してください"],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
     def check_act_binary(self) -> DiagnosticResult:
@@ -356,7 +366,7 @@ class DiagnosticService:
                 shutil.which("act"),
                 "/home/linuxbrew/.linuxbrew/bin/act",
                 "/usr/local/bin/act",
-                "/opt/homebrew/bin/act"
+                "/opt/homebrew/bin/act",
             ]
 
             act_path = None
@@ -374,17 +384,14 @@ class DiagnosticService:
                     recommendations=[
                         "以下のコマンドでactをインストールしてください:",
                         "curl -fsSL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash",
-                        "または: brew install act"
+                        "または: brew install act",
                     ],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             # actバージョン確認
             version_result = subprocess.run(
-                [act_path, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=10
+                [act_path, "--version"], capture_output=True, text=True, timeout=10
             )
 
             if version_result.returncode != 0:
@@ -395,17 +402,14 @@ class DiagnosticService:
                     details={"stderr": version_result.stderr, "act_path": act_path},
                     recommendations=[
                         "actバイナリが破損している可能性があります",
-                        "actを再インストールしてください"
+                        "actを再インストールしてください",
                     ],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             # actの基本機能テスト（--helpコマンド）
             help_result = subprocess.run(
-                [act_path, "--help"],
-                capture_output=True,
-                text=True,
-                timeout=10
+                [act_path, "--help"], capture_output=True, text=True, timeout=10
             )
 
             if help_result.returncode != 0:
@@ -413,9 +417,12 @@ class DiagnosticService:
                     component="actバイナリ",
                     status=DiagnosticStatus.WARNING,
                     message="actのヘルプコマンドが失敗しました",
-                    details={"stderr": help_result.stderr, "version": version_result.stdout.strip()},
+                    details={
+                        "stderr": help_result.stderr,
+                        "version": version_result.stdout.strip(),
+                    },
                     recommendations=["actの設定を確認してください"],
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
 
             act_version = version_result.stdout.strip()
@@ -427,7 +434,7 @@ class DiagnosticService:
                 message="actバイナリは正常に動作しています",
                 details={"version": act_version, "path": act_path},
                 recommendations=[],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
         except subprocess.TimeoutExpired:
@@ -437,7 +444,7 @@ class DiagnosticService:
                 message="actコマンドがタイムアウトしました",
                 details={"timeout": True},
                 recommendations=["システムリソースを確認してください"],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
         except Exception as e:
             return DiagnosticResult(
@@ -446,7 +453,7 @@ class DiagnosticService:
                 message=f"予期しないエラーが発生しました: {str(e)}",
                 details={"error": str(e)},
                 recommendations=["システム管理者に連絡してください"],
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
     def check_container_permissions(self) -> DiagnosticResult:
@@ -463,19 +470,16 @@ class DiagnosticService:
             user_id = os.getuid() if hasattr(os, "getuid") else None
             group_id = os.getgid() if hasattr(os, "getgid") else None
 
-            details = {
+            details: Dict[str, Any] = {
                 "user_id": user_id,
                 "group_id": group_id,
-                "is_root": user_id == 0 if user_id is not None else False
+                "is_root": user_id == 0 if user_id is not None else False,
             }
 
             # Dockerグループの確認
             try:
                 groups_result = subprocess.run(
-                    ["groups"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
+                    ["groups"], capture_output=True, text=True, timeout=5
                 )
                 if groups_result.returncode == 0:
                     groups = groups_result.stdout.strip().split()
@@ -517,15 +521,21 @@ class DiagnosticService:
 
             if not details.get("docker_socket_exists", False):
                 issues.append("Docker socketが見つかりません")
-                recommendations.append("Docker daemonが実行されているか確認してください")
+                recommendations.append(
+                    "Docker daemonが実行されているか確認してください"
+                )
 
             if not details.get("docker_socket_accessible", False):
                 issues.append("Docker socketにアクセスできません")
-                if not details.get("in_docker_group", False) and not details.get("is_root", False):
-                    recommendations.extend([
-                        "ユーザーをdockerグループに追加してください: sudo usermod -aG docker $USER",
-                        "ログアウト・ログインしてグループ変更を反映してください"
-                    ])
+                if not details.get("in_docker_group", False) and not details.get(
+                    "is_root", False
+                ):
+                    recommendations.extend(
+                        [
+                            "ユーザーをdockerグループに追加してください: sudo usermod -aG docker $USER",
+                            "ログアウト・ログインしてグループ変更を反映してください",
+                        ]
+                    )
 
             if issues:
                 status = DiagnosticStatus.ERROR
@@ -540,7 +550,7 @@ class DiagnosticService:
                 message=message,
                 details=details,
                 recommendations=recommendations,
-                timestamp=time.time()
+                timestamp=time.time(),
             )
 
         except Exception as e:
@@ -550,5 +560,5 @@ class DiagnosticService:
                 message=f"権限チェック中にエラーが発生しました: {str(e)}",
                 details={"error": str(e)},
                 recommendations=["システム管理者に連絡してください"],
-                timestamp=time.time()
+                timestamp=time.time(),
             )

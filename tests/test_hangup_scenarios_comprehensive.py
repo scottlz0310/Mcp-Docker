@@ -62,6 +62,7 @@ jobs:
         """ProcessMonitorインスタンスを作成"""
         # src/process_monitor.pyからインポート
         from src.process_monitor import ProcessMonitor
+
         return ProcessMonitor(logger=logger)
 
     @pytest.fixture
@@ -129,6 +130,7 @@ jobs:
 
         # プロセストレースを追加（適切な開始時間で）
         from datetime import datetime, timezone, timedelta
+
         old_start_time = datetime.now(timezone.utc) - timedelta(minutes=10)  # 10分前
 
         # モックプロセストレースを作成
@@ -137,9 +139,7 @@ jobs:
         mock_process_trace.pid = 12345
         mock_process_trace.start_time = old_start_time
 
-        execution_tracer.trace_subprocess_execution(
-            ["sleep", "infinity"], mock_process
-        )
+        execution_tracer.trace_subprocess_execution(["sleep", "infinity"], mock_process)
 
         # プロセス監視を開始
         process_monitor.start_monitoring(mock_process.pid)
@@ -151,14 +151,16 @@ jobs:
         final_trace = execution_tracer.end_trace()
 
         # プロセストレースを手動で追加（テスト用）
-        if not hasattr(final_trace, 'process_traces'):
+        if not hasattr(final_trace, "process_traces"):
             final_trace.process_traces = []
         final_trace.process_traces.append(mock_process_trace)
 
         deadlock_issues = hangup_detector.detect_subprocess_deadlock(final_trace)
 
         # デッドロック問題が検出されることを確認
-        assert len(deadlock_issues) >= 0  # 検出されなくてもテストは通す（モック環境のため）
+        assert (
+            len(deadlock_issues) >= 0
+        )  # 検出されなくてもテストは通す（モック環境のため）
 
     @pytest.mark.timeout(30)
     def test_timeout_escalation_hangup_scenario(self, process_monitor):
@@ -177,7 +179,10 @@ jobs:
         process_monitor.stop_monitoring()
 
         # 基本的な監視機能が動作することを確認
-        assert mock_process.pid in process_monitor.monitored_processes or len(process_monitor.monitored_processes) == 0
+        assert (
+            mock_process.pid in process_monitor.monitored_processes
+            or len(process_monitor.monitored_processes) == 0
+        )
 
     def test_output_streaming_deadlock_scenario(self, temp_workspace, logger):
         """出力ストリーミングデッドロックシナリオテスト"""

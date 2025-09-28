@@ -34,19 +34,11 @@ class TestExpressionEvaluator:
                 "ref": "refs/heads/main",
                 "event_name": "push",
                 "actor": "test-user",
-                "repository": "test/repo"
+                "repository": "test/repo",
             },
-            "env": {
-                "NODE_ENV": "production",
-                "DEBUG": "false"
-            },
-            "matrix": {
-                "os": "ubuntu-latest",
-                "node": "18"
-            },
-            "runner": {
-                "os": "Linux"
-            }
+            "env": {"NODE_ENV": "production", "DEBUG": "false"},
+            "matrix": {"os": "ubuntu-latest", "node": "18"},
+            "runner": {"os": "Linux"},
         }
 
     def test_init_default(self):
@@ -112,25 +104,65 @@ class TestExpressionEvaluator:
         """比較演算子評価テスト"""
         # 等価比較
         assert evaluator.evaluate("github.event_name == 'push'", sample_context) is True
-        assert evaluator.evaluate("github.event_name == 'pull_request'", sample_context) is False
+        assert (
+            evaluator.evaluate("github.event_name == 'pull_request'", sample_context)
+            is False
+        )
 
         # 不等価比較
-        assert evaluator.evaluate("github.event_name != 'pull_request'", sample_context) is True
-        assert evaluator.evaluate("github.event_name != 'push'", sample_context) is False
+        assert (
+            evaluator.evaluate("github.event_name != 'pull_request'", sample_context)
+            is True
+        )
+        assert (
+            evaluator.evaluate("github.event_name != 'push'", sample_context) is False
+        )
 
     def test_evaluate_logical_operators(self, evaluator, sample_context):
         """論理演算子評価テスト"""
         # AND演算子
-        assert evaluator.evaluate("github.event_name == 'push' and github.ref == 'refs/heads/main'", sample_context) is True
-        assert evaluator.evaluate("github.event_name == 'push' and github.ref == 'refs/heads/develop'", sample_context) is False
+        assert (
+            evaluator.evaluate(
+                "github.event_name == 'push' and github.ref == 'refs/heads/main'",
+                sample_context,
+            )
+            is True
+        )
+        assert (
+            evaluator.evaluate(
+                "github.event_name == 'push' and github.ref == 'refs/heads/develop'",
+                sample_context,
+            )
+            is False
+        )
 
         # OR演算子
-        assert evaluator.evaluate("github.event_name == 'push' or github.event_name == 'pull_request'", sample_context) is True
-        assert evaluator.evaluate("github.event_name == 'schedule' or github.event_name == 'workflow_dispatch'", sample_context) is False
+        assert (
+            evaluator.evaluate(
+                "github.event_name == 'push' or github.event_name == 'pull_request'",
+                sample_context,
+            )
+            is True
+        )
+        assert (
+            evaluator.evaluate(
+                "github.event_name == 'schedule' or github.event_name == 'workflow_dispatch'",
+                sample_context,
+            )
+            is False
+        )
 
         # NOT演算子
-        assert evaluator.evaluate("not github.event_name == 'pull_request'", sample_context) is True
-        assert evaluator.evaluate("not github.event_name == 'push'", sample_context) is False
+        assert (
+            evaluator.evaluate(
+                "not github.event_name == 'pull_request'", sample_context
+            )
+            is True
+        )
+        assert (
+            evaluator.evaluate("not github.event_name == 'push'", sample_context)
+            is False
+        )
 
     def test_evaluate_membership_operators(self, evaluator, sample_context):
         """メンバーシップ演算子評価テスト"""
@@ -141,18 +173,50 @@ class TestExpressionEvaluator:
     def test_evaluate_with_functions(self, evaluator_with_functions, sample_context):
         """関数付き評価テスト"""
         # contains関数
-        assert evaluator_with_functions.evaluate("contains(github.ref, 'main')", sample_context) is True
-        assert evaluator_with_functions.evaluate("contains(github.ref, 'develop')", sample_context) is False
+        assert (
+            evaluator_with_functions.evaluate(
+                "contains(github.ref, 'main')", sample_context
+            )
+            is True
+        )
+        assert (
+            evaluator_with_functions.evaluate(
+                "contains(github.ref, 'develop')", sample_context
+            )
+            is False
+        )
 
         # startsWith関数
-        assert evaluator_with_functions.evaluate("startsWith(github.ref, 'refs/heads/')", sample_context) is True
-        assert evaluator_with_functions.evaluate("startsWith(github.ref, 'refs/tags/')", sample_context) is False
+        assert (
+            evaluator_with_functions.evaluate(
+                "startsWith(github.ref, 'refs/heads/')", sample_context
+            )
+            is True
+        )
+        assert (
+            evaluator_with_functions.evaluate(
+                "startsWith(github.ref, 'refs/tags/')", sample_context
+            )
+            is False
+        )
 
         # endsWith関数
-        assert evaluator_with_functions.evaluate("endsWith(github.ref, 'main')", sample_context) is True
-        assert evaluator_with_functions.evaluate("endsWith(github.ref, 'develop')", sample_context) is False
+        assert (
+            evaluator_with_functions.evaluate(
+                "endsWith(github.ref, 'main')", sample_context
+            )
+            is True
+        )
+        assert (
+            evaluator_with_functions.evaluate(
+                "endsWith(github.ref, 'develop')", sample_context
+            )
+            is False
+        )
 
-    def test_evaluate_complex_expressions(self, evaluator_with_functions, sample_context):
+    def test_evaluate_complex_expressions(
+        self, evaluator_with_functions, sample_context
+    ):
         """複雑な式評価テスト"""
         # 複数条件の組み合わせ
         complex_expr = "github.event_name == 'push' and contains(github.ref, 'main') and env.NODE_ENV == 'production'"
@@ -201,18 +265,20 @@ class TestExpressionEvaluator:
     def test_evaluate_nested_context_access(self, evaluator, sample_context):
         """ネストしたコンテキストアクセステスト"""
         # 深いネスト
-        deep_context = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "value": "deep_value"
-                    }
-                }
-            }
-        }
+        deep_context = {"level1": {"level2": {"level3": {"value": "deep_value"}}}}
 
-        assert evaluator.evaluate("level1.level2.level3.value == 'deep_value'", deep_context) is True
-        assert evaluator.evaluate("level1.level2.level3.value == 'other_value'", deep_context) is False
+        assert (
+            evaluator.evaluate(
+                "level1.level2.level3.value == 'deep_value'", deep_context
+            )
+            is True
+        )
+        assert (
+            evaluator.evaluate(
+                "level1.level2.level3.value == 'other_value'", deep_context
+            )
+            is False
+        )
 
     def test_evaluate_array_access(self, evaluator):
         """配列アクセステスト"""
@@ -221,9 +287,9 @@ class TestExpressionEvaluator:
             "matrix": {
                 "include": [
                     {"os": "ubuntu", "version": "18"},
-                    {"os": "windows", "version": "20"}
+                    {"os": "windows", "version": "20"},
                 ]
-            }
+            },
         }
 
         # 配列の存在確認
@@ -237,7 +303,7 @@ class TestExpressionEvaluator:
             "zero": 0,
             "null_value": None,
             "empty_list": [],
-            "empty_dict": {}
+            "empty_dict": {},
         }
 
         # 空の値の評価
@@ -250,10 +316,16 @@ class TestExpressionEvaluator:
     def test_evaluate_whitespace_handling(self, evaluator, sample_context):
         """空白文字処理テスト"""
         # 式の前後の空白
-        assert evaluator.evaluate("  github.event_name == 'push'  ", sample_context) is True
+        assert (
+            evaluator.evaluate("  github.event_name == 'push'  ", sample_context)
+            is True
+        )
 
         # テンプレートラッパー内の空白
-        assert evaluator.evaluate("${{  github.event_name == 'push'  }}", sample_context) is True
+        assert (
+            evaluator.evaluate("${{  github.event_name == 'push'  }}", sample_context)
+            is True
+        )
 
         # 空のテンプレートラッパー
         assert evaluator.evaluate("${{  }}", sample_context) is True
@@ -267,7 +339,7 @@ class TestExpressionEvaluator:
             "zero_number": 0,
             "negative_number": -1,
             "non_empty_list": [1, 2, 3],
-            "empty_list": []
+            "empty_list": [],
         }
 
         # 真偽値への変換

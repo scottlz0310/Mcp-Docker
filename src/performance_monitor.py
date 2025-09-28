@@ -129,8 +129,6 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f"ベースライン測定エラー: {e}")
 
-
-
     def stop_monitoring(self):
         """パフォーマンス監視を停止"""
         with self.lock:
@@ -199,7 +197,9 @@ class PerformanceMonitor:
                 f"({self.current_stage.duration_ms:.2f}ms)"
             )
 
-    def record_docker_operation(self, operation_type: str, container_id: str = None):
+    def record_docker_operation(
+        self, operation_type: str, container_id: Optional[str] = None
+    ):
         """Docker操作を記録"""
         with self.lock:
             self.docker_operations_count += 1
@@ -397,7 +397,9 @@ class PerformanceMonitor:
         # 実行段階別ボトルネック検出
         for stage in self.execution_stages:
             if stage.duration_ms and stage.duration_ms > 30000:  # 30秒以上
-                severity = "HIGH" if stage.duration_ms > 120000 else "MEDIUM"  # 2分以上は高重要度
+                severity = (
+                    "HIGH" if stage.duration_ms > 120000 else "MEDIUM"
+                )  # 2分以上は高重要度
                 self.bottlenecks.append(
                     BottleneckAnalysis(
                         bottleneck_type="STAGE_SLOW_EXECUTION",
@@ -453,7 +455,9 @@ class PerformanceMonitor:
         # network_recv_values = [m.network_bytes_recv for m in metrics_list]  # 将来の使用のため保留
 
         if len(network_sent_values) > 1:
-            network_sent_rate = (max(network_sent_values) - min(network_sent_values)) / (
+            network_sent_rate = (
+                max(network_sent_values) - min(network_sent_values)
+            ) / (
                 (metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60
             )  # bytes/分
 
@@ -470,7 +474,10 @@ class PerformanceMonitor:
                             "データ圧縮の使用を検討してください",
                             "不要な通信の削減を検討してください",
                         ],
-                        metrics_evidence={"network_sent_rate_mb_per_min": network_sent_rate / (1024*1024)},
+                        metrics_evidence={
+                            "network_sent_rate_mb_per_min": network_sent_rate
+                            / (1024 * 1024)
+                        },
                     )
                 )
 
@@ -490,7 +497,10 @@ class PerformanceMonitor:
                             "バッチ処理の最適化を検討してください",
                             "リソース制限の設定を検討してください",
                         ],
-                        metrics_evidence={"cpu_volatility": cpu_volatility, "cpu_average": avg_cpu},
+                        metrics_evidence={
+                            "cpu_volatility": cpu_volatility,
+                            "cpu_average": avg_cpu,
+                        },
                     )
                 )
 
@@ -549,7 +559,9 @@ class PerformanceMonitor:
             s for s in self.execution_stages if s.duration_ms and s.duration_ms > 10000
         ]
         if len(long_stages) > 2:
-            total_long_stage_time = sum(s.duration_ms for s in long_stages)
+            total_long_stage_time = sum(
+                s.duration_ms for s in long_stages if s.duration_ms is not None
+            )
             self.optimization_opportunities.append(
                 OptimizationOpportunity(
                     opportunity_type="EXECUTION_TIME_OPTIMIZATION",
@@ -594,7 +606,8 @@ class PerformanceMonitor:
         # Docker最適化機会の詳細化
         if self.execution_stages:
             docker_heavy_stages = [
-                s for s in self.execution_stages
+                s
+                for s in self.execution_stages
                 if s.docker_operations > 10 and s.duration_ms and s.duration_ms > 5000
             ]
 
@@ -624,13 +637,18 @@ class PerformanceMonitor:
                 current_stage = self.execution_stages[i]
                 next_stage = self.execution_stages[i + 1]
 
-                if (current_stage.end_time and next_stage.start_time and
-                    next_stage.start_time > current_stage.end_time):
+                if (
+                    current_stage.end_time
+                    and next_stage.start_time
+                    and next_stage.start_time > current_stage.end_time
+                ):
                     gap_ms = (next_stage.start_time - current_stage.end_time) * 1000
                     if gap_ms > 1000:  # 1秒以上のギャップ
                         stage_gaps.append(gap_ms)
 
-            if stage_gaps and statistics.mean(stage_gaps) > 2000:  # 平均2秒以上のギャップ
+            if (
+                stage_gaps and statistics.mean(stage_gaps) > 2000
+            ):  # 平均2秒以上のギャップ
                 total_gap_time = sum(stage_gaps) / 1000
                 self.optimization_opportunities.append(
                     OptimizationOpportunity(
@@ -649,9 +667,13 @@ class PerformanceMonitor:
                 )
 
         # ワークフロー特有の最適化機会
-        workflow_stages = [s for s in self.execution_stages if "workflow" in s.stage_name.lower()]
+        workflow_stages = [
+            s for s in self.execution_stages if "workflow" in s.stage_name.lower()
+        ]
         if len(workflow_stages) > 1:
-            workflow_total_time = sum(s.duration_ms for s in workflow_stages if s.duration_ms)
+            workflow_total_time = sum(
+                s.duration_ms for s in workflow_stages if s.duration_ms is not None
+            )
             if workflow_total_time > 60000:  # 1分以上のワークフロー処理
                 self.optimization_opportunities.append(
                     OptimizationOpportunity(
@@ -686,7 +708,9 @@ class PerformanceMonitor:
             completed_stages = [
                 s for s in self.execution_stages if s.duration_ms is not None
             ]
-            total_duration = sum(s.duration_ms for s in completed_stages)
+            total_duration = sum(
+                s.duration_ms for s in completed_stages if s.duration_ms is not None
+            )
 
         return {
             "monitoring_duration_seconds": (
@@ -834,7 +858,7 @@ class PerformanceMonitor:
             self._identify_optimization_opportunities()
         return self.optimization_opportunities
 
-    def start_monitoring(self, stage_name: str = None):
+    def start_monitoring(self, stage_name: Optional[str] = None):
         """パフォーマンス監視を開始（オプションで初期段階名を指定）"""
         with self.lock:
             if self.monitoring_active:
@@ -868,8 +892,7 @@ class PerformanceMonitor:
 
             # 新しい段階を開始
             self.current_stage = ExecutionStage(
-                stage_name=f"{stage_type}:{stage_name}",
-                start_time=time.time()
+                stage_name=f"{stage_type}:{stage_name}", start_time=time.time()
             )
             self.execution_stages.append(self.current_stage)
 
@@ -882,23 +905,43 @@ class PerformanceMonitor:
             return {"error": "メトリクス取得に失敗しました"}
 
         # 最近のメトリクス履歴から傾向を分析
-        recent_metrics = list(self.metrics_history)[-10:] if len(self.metrics_history) >= 10 else list(self.metrics_history)
+        recent_metrics = (
+            list(self.metrics_history)[-10:]
+            if len(self.metrics_history) >= 10
+            else list(self.metrics_history)
+        )
 
         trends = {}
         if len(recent_metrics) >= 2:
             # CPU使用率の傾向
             cpu_values = [m.cpu_percent for m in recent_metrics]
-            cpu_trend = "increasing" if cpu_values[-1] > cpu_values[0] else "decreasing" if cpu_values[-1] < cpu_values[0] else "stable"
+            cpu_trend = (
+                "increasing"
+                if cpu_values[-1] > cpu_values[0]
+                else "decreasing"
+                if cpu_values[-1] < cpu_values[0]
+                else "stable"
+            )
 
             # メモリ使用率の傾向
             memory_values = [m.memory_percent for m in recent_metrics]
-            memory_trend = "increasing" if memory_values[-1] > memory_values[0] else "decreasing" if memory_values[-1] < memory_values[0] else "stable"
+            memory_trend = (
+                "increasing"
+                if memory_values[-1] > memory_values[0]
+                else "decreasing"
+                if memory_values[-1] < memory_values[0]
+                else "stable"
+            )
 
             trends = {
                 "cpu_trend": cpu_trend,
                 "memory_trend": memory_trend,
-                "cpu_change_percent": cpu_values[-1] - cpu_values[0] if len(cpu_values) >= 2 else 0,
-                "memory_change_percent": memory_values[-1] - memory_values[0] if len(memory_values) >= 2 else 0,
+                "cpu_change_percent": cpu_values[-1] - cpu_values[0]
+                if len(cpu_values) >= 2
+                else 0,
+                "memory_change_percent": memory_values[-1] - memory_values[0]
+                if len(memory_values) >= 2
+                else 0,
             }
 
         return {
@@ -916,9 +959,11 @@ class PerformanceMonitor:
             "monitoring_status": {
                 "is_active": self.monitoring_active,
                 "metrics_collected": len(self.metrics_history),
-                "current_stage": self.current_stage.stage_name if self.current_stage else None,
+                "current_stage": self.current_stage.stage_name
+                if self.current_stage
+                else None,
                 "total_stages": len(self.execution_stages),
-            }
+            },
         }
 
     def detect_performance_issues(self) -> List[Dict[str, Any]]:
@@ -927,66 +972,84 @@ class PerformanceMonitor:
         current_metrics = self.get_current_metrics()
 
         if not current_metrics:
-            return [{"type": "METRICS_UNAVAILABLE", "severity": "ERROR", "message": "メトリクス取得に失敗しました"}]
+            return [
+                {
+                    "type": "METRICS_UNAVAILABLE",
+                    "severity": "ERROR",
+                    "message": "メトリクス取得に失敗しました",
+                }
+            ]
 
         # 高CPU使用率の検出
         if current_metrics.cpu_percent > 90:
-            issues.append({
-                "type": "HIGH_CPU_USAGE",
-                "severity": "CRITICAL" if current_metrics.cpu_percent > 95 else "HIGH",
-                "message": f"CPU使用率が非常に高い状態です ({current_metrics.cpu_percent:.1f}%)",
-                "value": current_metrics.cpu_percent,
-                "threshold": 90,
-                "recommendations": [
-                    "CPU集約的なタスクの最適化を検討してください",
-                    "並列処理の見直しを行ってください"
-                ]
-            })
+            issues.append(
+                {
+                    "type": "HIGH_CPU_USAGE",
+                    "severity": "CRITICAL"
+                    if current_metrics.cpu_percent > 95
+                    else "HIGH",
+                    "message": f"CPU使用率が非常に高い状態です ({current_metrics.cpu_percent:.1f}%)",
+                    "value": current_metrics.cpu_percent,
+                    "threshold": 90,
+                    "recommendations": [
+                        "CPU集約的なタスクの最適化を検討してください",
+                        "並列処理の見直しを行ってください",
+                    ],
+                }
+            )
 
         # 高メモリ使用率の検出
         if current_metrics.memory_percent > 85:
-            issues.append({
-                "type": "HIGH_MEMORY_USAGE",
-                "severity": "CRITICAL" if current_metrics.memory_percent > 95 else "HIGH",
-                "message": f"メモリ使用率が非常に高い状態です ({current_metrics.memory_percent:.1f}%)",
-                "value": current_metrics.memory_percent,
-                "threshold": 85,
-                "recommendations": [
-                    "メモリリークの確認を行ってください",
-                    "不要なデータの解放を検討してください"
-                ]
-            })
+            issues.append(
+                {
+                    "type": "HIGH_MEMORY_USAGE",
+                    "severity": "CRITICAL"
+                    if current_metrics.memory_percent > 95
+                    else "HIGH",
+                    "message": f"メモリ使用率が非常に高い状態です ({current_metrics.memory_percent:.1f}%)",
+                    "value": current_metrics.memory_percent,
+                    "threshold": 85,
+                    "recommendations": [
+                        "メモリリークの確認を行ってください",
+                        "不要なデータの解放を検討してください",
+                    ],
+                }
+            )
 
         # Docker関連の問題検出
         if current_metrics.docker_cpu_usage > 80:
-            issues.append({
-                "type": "HIGH_DOCKER_CPU",
-                "severity": "MEDIUM",
-                "message": f"Dockerコンテナの CPU使用率が高い状態です ({current_metrics.docker_cpu_usage:.1f}%)",
-                "value": current_metrics.docker_cpu_usage,
-                "threshold": 80,
-                "recommendations": [
-                    "コンテナのリソース制限を見直してください",
-                    "不要なコンテナの停止を検討してください"
-                ]
-            })
+            issues.append(
+                {
+                    "type": "HIGH_DOCKER_CPU",
+                    "severity": "MEDIUM",
+                    "message": f"Dockerコンテナの CPU使用率が高い状態です ({current_metrics.docker_cpu_usage:.1f}%)",
+                    "value": current_metrics.docker_cpu_usage,
+                    "threshold": 80,
+                    "recommendations": [
+                        "コンテナのリソース制限を見直してください",
+                        "不要なコンテナの停止を検討してください",
+                    ],
+                }
+            )
 
         # 長時間実行段階の検出
         if self.current_stage and self.current_stage.start_time:
             stage_duration = time.time() - self.current_stage.start_time
             if stage_duration > 60:  # 60秒以上
-                issues.append({
-                    "type": "LONG_RUNNING_STAGE",
-                    "severity": "MEDIUM",
-                    "message": f"実行段階 '{self.current_stage.stage_name}' が長時間実行されています ({stage_duration:.1f}秒)",
-                    "value": stage_duration,
-                    "threshold": 60,
-                    "stage_name": self.current_stage.stage_name,
-                    "recommendations": [
-                        "この段階の処理内容を確認してください",
-                        "ハングアップの可能性を調査してください"
-                    ]
-                })
+                issues.append(
+                    {
+                        "type": "LONG_RUNNING_STAGE",
+                        "severity": "MEDIUM",
+                        "message": f"実行段階 '{self.current_stage.stage_name}' が長時間実行されています ({stage_duration:.1f}秒)",
+                        "value": stage_duration,
+                        "threshold": 60,
+                        "stage_name": self.current_stage.stage_name,
+                        "recommendations": [
+                            "この段階の処理内容を確認してください",
+                            "ハングアップの可能性を調査してください",
+                        ],
+                    }
+                )
 
         return issues
 
@@ -1023,8 +1086,10 @@ class PerformanceMonitor:
         docker_stats = {
             "total_operations": max(docker_ops_values) if docker_ops_values else 0,
             "operations_per_minute": (
-                max(docker_ops_values) / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
-                if len(metrics_list) > 1 and docker_ops_values else 0
+                max(docker_ops_values)
+                / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
+                if len(metrics_list) > 1 and docker_ops_values
+                else 0
             ),
             "peak_containers": max(m.active_containers for m in metrics_list),
         }
@@ -1034,8 +1099,11 @@ class PerformanceMonitor:
         for stage in self.execution_stages:
             if stage.duration_ms is not None:
                 stage_metrics = [
-                    m for m in metrics_list
-                    if stage.start_time <= m.timestamp <= (stage.end_time or time.time())
+                    m
+                    for m in metrics_list
+                    if stage.start_time
+                    <= m.timestamp
+                    <= (stage.end_time or time.time())
                 ]
 
                 stage_info = {
@@ -1049,24 +1117,33 @@ class PerformanceMonitor:
                 }
 
                 if stage_metrics:
-                    stage_cpu_avg = statistics.mean(m.cpu_percent for m in stage_metrics)
-                    stage_memory_avg = statistics.mean(m.memory_percent for m in stage_metrics)
-                    stage_info.update({
-                        "average_cpu": stage_cpu_avg,
-                        "average_memory": stage_memory_avg,
-                    })
+                    stage_cpu_avg = statistics.mean(
+                        m.cpu_percent for m in stage_metrics
+                    )
+                    stage_memory_avg = statistics.mean(
+                        m.memory_percent for m in stage_metrics
+                    )
+                    stage_info.update(
+                        {
+                            "average_cpu": stage_cpu_avg,
+                            "average_memory": stage_memory_avg,
+                        }
+                    )
 
                 stage_analysis.append(stage_info)
 
         # パフォーマンス評価
-        performance_score = self._calculate_performance_score(cpu_stats, memory_stats, docker_stats)
+        performance_score = self._calculate_performance_score(
+            cpu_stats, memory_stats, docker_stats
+        )
 
         return {
             "report_metadata": {
                 "generated_at": time.time(),
                 "monitoring_duration_seconds": (
                     metrics_list[-1].timestamp - metrics_list[0].timestamp
-                    if len(metrics_list) > 1 else 0
+                    if len(metrics_list) > 1
+                    else 0
                 ),
                 "total_metrics_collected": len(metrics_list),
                 "performance_score": performance_score,
@@ -1078,7 +1155,9 @@ class PerformanceMonitor:
             },
             "execution_analysis": {
                 "total_stages": len(self.execution_stages),
-                "completed_stages": len([s for s in self.execution_stages if s.duration_ms is not None]),
+                "completed_stages": len(
+                    [s for s in self.execution_stages if s.duration_ms is not None]
+                ),
                 "stage_details": stage_analysis,
             },
             "bottlenecks": [
@@ -1104,10 +1183,14 @@ class PerformanceMonitor:
                 }
                 for o in self.optimization_opportunities
             ],
-            "recommendations": self._generate_overall_recommendations(cpu_stats, memory_stats, docker_stats),
+            "recommendations": self._generate_overall_recommendations(
+                cpu_stats, memory_stats, docker_stats
+            ),
         }
 
-    def _calculate_performance_score(self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict) -> float:
+    def _calculate_performance_score(
+        self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict
+    ) -> float:
         """パフォーマンススコアを計算（0-100）"""
         # CPU スコア（低い使用率ほど高スコア）
         cpu_score = max(0, 100 - cpu_stats["average"])
@@ -1123,31 +1206,47 @@ class PerformanceMonitor:
             docker_score -= min(30, (docker_stats["peak_containers"] - 5) * 5)
 
         # 重み付き平均
-        overall_score = (cpu_score * 0.4 + memory_score * 0.4 + docker_score * 0.2)
+        overall_score = cpu_score * 0.4 + memory_score * 0.4 + docker_score * 0.2
         return round(max(0, min(100, overall_score)), 2)
 
-    def _generate_overall_recommendations(self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict) -> List[str]:
+    def _generate_overall_recommendations(
+        self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict
+    ) -> List[str]:
         """全体的な推奨事項を生成"""
         recommendations = []
 
         if cpu_stats["average"] > 70:
-            recommendations.append("CPU使用率が高いため、並列処理の最適化や処理の分散を検討してください")
+            recommendations.append(
+                "CPU使用率が高いため、並列処理の最適化や処理の分散を検討してください"
+            )
 
         if memory_stats["average"] > 80:
-            recommendations.append("メモリ使用率が高いため、メモリリークの確認や効率的なデータ構造の使用を検討してください")
+            recommendations.append(
+                "メモリ使用率が高いため、メモリリークの確認や効率的なデータ構造の使用を検討してください"
+            )
 
         if docker_stats["operations_per_minute"] > 15:
-            recommendations.append("Docker操作が頻繁に実行されているため、操作のバッチ化やキャッシュ戦略の改善を検討してください")
+            recommendations.append(
+                "Docker操作が頻繁に実行されているため、操作のバッチ化やキャッシュ戦略の改善を検討してください"
+            )
 
         if docker_stats["peak_containers"] > 10:
-            recommendations.append("同時実行コンテナ数が多いため、リソース制限の設定や不要なコンテナの削除を検討してください")
+            recommendations.append(
+                "同時実行コンテナ数が多いため、リソース制限の設定や不要なコンテナの削除を検討してください"
+            )
 
         # 段階別の推奨事項
-        long_stages = [s for s in self.execution_stages if s.duration_ms and s.duration_ms > 30000]
+        long_stages = [
+            s for s in self.execution_stages if s.duration_ms and s.duration_ms > 30000
+        ]
         if len(long_stages) > 2:
-            recommendations.append("長時間実行される段階が複数あるため、処理の最適化やタイムアウト設定の見直しを検討してください")
+            recommendations.append(
+                "長時間実行される段階が複数あるため、処理の最適化やタイムアウト設定の見直しを検討してください"
+            )
 
         if not recommendations:
-            recommendations.append("パフォーマンスは良好です。現在の設定を維持してください")
+            recommendations.append(
+                "パフォーマンスは良好です。現在の設定を維持してください"
+            )
 
         return recommendations

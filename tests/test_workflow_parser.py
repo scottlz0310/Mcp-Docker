@@ -31,16 +31,16 @@ class TestWorkflowParser:
                     "runs-on": "ubuntu-latest",
                     "steps": [
                         {"name": "Checkout", "uses": "actions/checkout@v3"},
-                        {"name": "Test", "run": "echo 'Hello World'"}
-                    ]
+                        {"name": "Test", "run": "echo 'Hello World'"},
+                    ],
                 }
-            }
+            },
         }
 
     @pytest.fixture
     def temp_workflow_file(self, valid_workflow_data):
         """一時的なワークフローファイルを作成"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             yaml.dump(valid_workflow_data, f)
             yield Path(f.name)
         Path(f.name).unlink()
@@ -74,7 +74,7 @@ class TestWorkflowParser:
 
     def test_parse_file_invalid_yaml(self, parser):
         """無効なYAMLファイルのテスト"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write("invalid: yaml: content: [")
             invalid_file = Path(f.name)
 
@@ -90,7 +90,7 @@ class TestWorkflowParser:
         """必須フィールドが不足している場合のテスト"""
         incomplete_data = {"name": "Test Workflow"}  # "on"と"jobs"が不足
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             yaml.dump(incomplete_data, f)
             incomplete_file = Path(f.name)
 
@@ -111,7 +111,9 @@ class TestWorkflowParser:
         """名前フィールドが不足している場合のテスト"""
         invalid_data = {
             "on": ["push"],
-            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}}
+            "jobs": {
+                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
+            },
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:
@@ -123,7 +125,9 @@ class TestWorkflowParser:
         """onフィールドが不足している場合のテスト"""
         invalid_data = {
             "name": "Test",
-            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}}
+            "jobs": {
+                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
+            },
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:
@@ -133,10 +137,7 @@ class TestWorkflowParser:
 
     def test_validate_basic_structure_missing_jobs(self, parser):
         """jobsフィールドが不足している場合のテスト"""
-        invalid_data = {
-            "name": "Test",
-            "on": ["push"]
-        }
+        invalid_data = {"name": "Test", "on": ["push"]}
 
         with pytest.raises(WorkflowParseError) as exc_info:
             parser._validate_basic_structure(invalid_data)
@@ -145,11 +146,7 @@ class TestWorkflowParser:
 
     def test_validate_basic_structure_empty_jobs(self, parser):
         """jobsが空の場合のテスト"""
-        invalid_data = {
-            "name": "Test",
-            "on": ["push"],
-            "jobs": {}
-        }
+        invalid_data = {"name": "Test", "on": ["push"], "jobs": {}}
 
         with pytest.raises(WorkflowParseError) as exc_info:
             parser._validate_basic_structure(invalid_data)
@@ -161,7 +158,9 @@ class TestWorkflowParser:
         invalid_data = {
             "name": "Test",
             "on": ["unsupported_event"],
-            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}}
+            "jobs": {
+                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
+            },
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:
@@ -189,9 +188,7 @@ class TestWorkflowParser:
         """ジョブ検証成功テスト"""
         valid_job = {
             "runs-on": "ubuntu-latest",
-            "steps": [
-                {"name": "Test", "run": "echo test"}
-            ]
+            "steps": [{"name": "Test", "run": "echo test"}],
         }
 
         # 例外が発生しないことを確認
@@ -199,9 +196,7 @@ class TestWorkflowParser:
 
     def test_validate_job_missing_runs_on(self, parser):
         """runs-onが不足している場合のテスト"""
-        invalid_job = {
-            "steps": [{"name": "Test", "run": "echo test"}]
-        }
+        invalid_job = {"steps": [{"name": "Test", "run": "echo test"}]}
 
         with pytest.raises(WorkflowParseError) as exc_info:
             parser._validate_job("test_job", invalid_job)
@@ -210,9 +205,7 @@ class TestWorkflowParser:
 
     def test_validate_job_missing_steps(self, parser):
         """stepsが不足している場合のテスト"""
-        invalid_job = {
-            "runs-on": "ubuntu-latest"
-        }
+        invalid_job = {"runs-on": "ubuntu-latest"}
 
         with pytest.raises(WorkflowParseError) as exc_info:
             parser._validate_job("test_job", invalid_job)
@@ -221,10 +214,7 @@ class TestWorkflowParser:
 
     def test_validate_job_empty_steps(self, parser):
         """stepsが空の場合のテスト"""
-        invalid_job = {
-            "runs-on": "ubuntu-latest",
-            "steps": []
-        }
+        invalid_job = {"runs-on": "ubuntu-latest", "steps": []}
 
         with pytest.raises(WorkflowParseError) as exc_info:
             parser._validate_job("test_job", invalid_job)
@@ -271,19 +261,13 @@ class TestWorkflowParser:
             "jobs": {
                 "build": {
                     "runs-on": "ubuntu-latest",
-                    "strategy": {
-                        "matrix": {
-                            "node-version": ["16", "18", "20"]
-                        }
-                    },
-                    "steps": [
-                        {"name": "Test", "run": "echo test"}
-                    ]
+                    "strategy": {"matrix": {"node-version": ["16", "18", "20"]}},
+                    "steps": [{"name": "Test", "run": "echo test"}],
                 }
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             yaml.dump(matrix_workflow, f)
             matrix_file = Path(f.name)
 

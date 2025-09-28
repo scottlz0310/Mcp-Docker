@@ -11,13 +11,12 @@ SimulationServiceとEnhancedActWrapper統合のテスト
 import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from services.actions.service import (
     SimulationService,
     SimulationParameters,
     SimulationResult,
-    SimulationServiceError,
 )
 from services.actions.logger import ActionsLogger
 
@@ -73,7 +72,7 @@ jobs:
         service.enable_enhanced_features(
             enable_diagnostics=True,
             enable_performance_monitoring=True,
-            enable_detailed_reporting=True
+            enable_detailed_reporting=True,
         )
 
         # 有効化後の状態確認
@@ -82,29 +81,31 @@ jobs:
         assert status["diagnostics_enabled"] is True
         assert status["performance_monitoring_enabled"] is True
 
-    @patch('services.actions.service.DiagnosticService')
-    @patch('services.actions.service.PerformanceMonitor')
-    @patch('services.actions.service.ExecutionTracer')
-    def test_pre_execution_diagnostics(self, mock_tracer, mock_perf_monitor, mock_diagnostic):
+    @patch("services.actions.service.DiagnosticService")
+    @patch("services.actions.service.PerformanceMonitor")
+    @patch("services.actions.service.ExecutionTracer")
+    def test_pre_execution_diagnostics(
+        self, mock_tracer, mock_perf_monitor, mock_diagnostic
+    ):
         """実行前診断チェックのテスト"""
         # モックの設定
         mock_diagnostic_instance = Mock()
         mock_diagnostic_instance.check_system_health.return_value = {
             "status": "healthy",
             "cpu_usage": 25.0,
-            "memory_usage": 45.0
+            "memory_usage": 45.0,
         }
         mock_diagnostic_instance.check_docker_connectivity.return_value = {
             "status": "ok",
-            "docker_available": True
+            "docker_available": True,
         }
         mock_diagnostic_instance.check_act_binary.return_value = {
             "status": "ok",
-            "act_version": "0.2.26"
+            "act_version": "0.2.26",
         }
         mock_diagnostic_instance.check_container_permissions.return_value = {
             "status": "ok",
-            "permissions": "valid"
+            "permissions": "valid",
         }
         mock_diagnostic.return_value = mock_diagnostic_instance
 
@@ -113,19 +114,19 @@ jobs:
         mock_perf_instance.stop_monitoring.return_value = None
         mock_perf_instance.get_summary_metrics.return_value = {
             "avg_cpu": 30.0,
-            "peak_memory_mb": 512.0
+            "peak_memory_mb": 512.0,
         }
         mock_perf_monitor.return_value = mock_perf_instance
 
         mock_tracer_instance = Mock()
         mock_tracer_instance.get_trace_summary.return_value = {
             "total_events": 15,
-            "execution_stages": ["init", "subprocess", "output", "complete"]
+            "execution_stages": ["init", "subprocess", "output", "complete"],
         }
         mock_tracer.return_value = mock_tracer_instance
 
         # EnhancedActWrapperをモック
-        with patch('services.actions.service.EnhancedActWrapper') as mock_wrapper:
+        with patch("services.actions.service.EnhancedActWrapper") as mock_wrapper:
             mock_wrapper_instance = Mock()
             mock_wrapper_instance.run_workflow_with_diagnostics.return_value = Mock(
                 success=True,
@@ -139,7 +140,7 @@ jobs:
                 stream_result=None,
                 hang_analysis=None,
                 resource_usage=[],
-                trace_id="test_trace_123"
+                trace_id="test_trace_123",
             )
             mock_wrapper.return_value = mock_wrapper_instance
 
@@ -152,8 +153,7 @@ jobs:
             )
 
             params = SimulationParameters(
-                workflow_file=self.workflow_file,
-                verbose=True
+                workflow_file=self.workflow_file, verbose=True
             )
 
             result = service.run_simulation(params)
@@ -169,14 +169,14 @@ jobs:
             # 診断チェックが実行されたことを確認
             mock_diagnostic_instance.check_system_health.assert_called()
 
-    @patch('services.actions.service.DiagnosticService')
+    @patch("services.actions.service.DiagnosticService")
     def test_pre_execution_diagnostics_failure(self, mock_diagnostic):
         """実行前診断チェック失敗時のテスト"""
         # 診断チェックが失敗するように設定
         mock_diagnostic_instance = Mock()
         mock_diagnostic_instance.check_system_health.return_value = {
             "status": "error",
-            "error": "Docker daemon not running"
+            "error": "Docker daemon not running",
         }
         mock_diagnostic.return_value = mock_diagnostic_instance
 
@@ -187,16 +187,15 @@ jobs:
         )
 
         # _run_pre_execution_diagnosticsをモックして失敗を返す
-        with patch.object(service, '_run_pre_execution_diagnostics') as mock_pre_check:
+        with patch.object(service, "_run_pre_execution_diagnostics") as mock_pre_check:
             mock_pre_check.return_value = {
                 "overall_status": "ERROR",
                 "summary": "Docker daemon not running",
-                "timestamp": 1234567890.0
+                "timestamp": 1234567890.0,
             }
 
             params = SimulationParameters(
-                workflow_file=self.workflow_file,
-                verbose=True
+                workflow_file=self.workflow_file, verbose=True
             )
 
             result = service.run_simulation(params)
@@ -207,14 +206,18 @@ jobs:
             assert "重大な問題が検出されました" in result.stderr
             assert len(result.diagnostic_results) > 0
 
-    @patch('services.actions.service.EnhancedActWrapper')
-    @patch('services.actions.service.DiagnosticService')
-    @patch('services.actions.service.PerformanceMonitor')
-    def test_detailed_result_reporting(self, mock_perf_monitor, mock_diagnostic, mock_wrapper):
+    @patch("services.actions.service.EnhancedActWrapper")
+    @patch("services.actions.service.DiagnosticService")
+    @patch("services.actions.service.PerformanceMonitor")
+    def test_detailed_result_reporting(
+        self, mock_perf_monitor, mock_diagnostic, mock_wrapper
+    ):
         """詳細結果レポートのテスト"""
         # モックの設定
         mock_diagnostic_instance = Mock()
-        mock_diagnostic_instance.check_system_health.return_value = {"status": "healthy"}
+        mock_diagnostic_instance.check_system_health.return_value = {
+            "status": "healthy"
+        }
         mock_diagnostic.return_value = mock_diagnostic_instance
 
         mock_perf_instance = Mock()
@@ -223,7 +226,7 @@ jobs:
         mock_perf_instance.get_summary_metrics.return_value = {
             "avg_cpu": 35.0,
             "peak_memory_mb": 768.0,
-            "total_duration_ms": 2500.0
+            "total_duration_ms": 2500.0,
         }
         # ボトルネック分析のモック設定
         bottleneck_mock = Mock()
@@ -240,7 +243,9 @@ jobs:
         opportunity_mock.title = "キャッシュ最適化"
         opportunity_mock.description = "依存関係のキャッシュを有効化"
         opportunity_mock.recommendations = ["actions/cache@v3を使用してください"]
-        mock_perf_instance.identify_optimization_opportunities.return_value = [opportunity_mock]
+        mock_perf_instance.identify_optimization_opportunities.return_value = [
+            opportunity_mock
+        ]
         mock_perf_monitor.return_value = mock_perf_instance
 
         mock_wrapper_instance = Mock()
@@ -259,11 +264,11 @@ jobs:
                 threads_completed=True,
                 deadlock_detected=False,
                 stream_duration_ms=2000.0,
-                error_message=None
+                error_message=None,
             ),
             hang_analysis=None,
             resource_usage=[{"timestamp": 1234567890, "cpu": 30.0, "memory_mb": 512}],
-            trace_id="detailed_trace_456"
+            trace_id="detailed_trace_456",
         )
         mock_wrapper.return_value = mock_wrapper_instance
 
@@ -274,10 +279,7 @@ jobs:
             detailed_result_reporting=True,
         )
 
-        params = SimulationParameters(
-            workflow_file=self.workflow_file,
-            verbose=True
-        )
+        params = SimulationParameters(workflow_file=self.workflow_file, verbose=True)
 
         result = service.run_simulation(params)
 
@@ -319,20 +321,19 @@ jobs:
             enable_performance_monitoring=False,
         )
 
-        with patch('services.actions.service.ActWrapper') as mock_wrapper:
+        with patch("services.actions.service.ActWrapper") as mock_wrapper:
             mock_wrapper_instance = Mock()
             mock_wrapper_instance.run_workflow.return_value = {
                 "success": True,
                 "returncode": 0,
                 "stdout": "Basic output",
                 "stderr": "",
-                "command": "act test.yml"
+                "command": "act test.yml",
             }
             mock_wrapper.return_value = mock_wrapper_instance
 
             params = SimulationParameters(
-                workflow_file=self.workflow_file,
-                verbose=False
+                workflow_file=self.workflow_file, verbose=False
             )
 
             result = service.run_simulation(params)
@@ -352,6 +353,7 @@ jobs:
     def teardown_method(self):
         """テストクリーンアップ"""
         import shutil
+
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
 

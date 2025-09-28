@@ -370,7 +370,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality-gate-setup
     timeout-minutes: 20
-    if: ${{ contains(needs.quality-gate-setup.outputs.changed-files, '.sample') || contains(needs.quality-gate-setup.outputs.changed-files, '.example') || needs.quality-gate-setup.outputs.needs-full-validation == 'true' }}
+    if: >
+      ${{ contains(needs.quality-gate-setup.outputs.changed-files, '.sample') ||
+      contains(needs.quality-gate-setup.outputs.changed-files, '.example') ||
+      needs.quality-gate-setup.outputs.needs-full-validation == 'true' }}
 
     steps:
       - name: 📥 ソースコード取得

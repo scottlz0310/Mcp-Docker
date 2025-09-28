@@ -65,11 +65,13 @@ jobs:
             # 1. DiagnosticService テスト
             diagnostic_service = DiagnosticService(logger=self.logger)
             health_report = diagnostic_service.run_comprehensive_health_check()
-            results["diagnostic_service"] = health_report.overall_status != DiagnosticStatus.ERROR
+            results["diagnostic_service"] = (
+                health_report.overall_status != DiagnosticStatus.ERROR
+            )
 
             # 2. ExecutionTracer テスト（修正版）
             execution_tracer = ExecutionTracer(logger=self.logger)
-            trace = execution_tracer.start_trace()  # 引数なしで呼び出し
+            execution_tracer.start_trace()  # 引数なしで呼び出し
             execution_tracer.set_stage(ExecutionStage.SUBPROCESS_CREATION)
             execution_tracer.set_stage(ExecutionStage.COMPLETED)
             final_trace = execution_tracer.end_trace()
@@ -83,7 +85,7 @@ jobs:
             # 4. AutoRecovery テスト
             auto_recovery = AutoRecovery(logger=self.logger)
             # 基本的な初期化テスト
-            results["auto_recovery"] = hasattr(auto_recovery, 'docker_checker')
+            results["auto_recovery"] = hasattr(auto_recovery, "docker_checker")
 
         except Exception as e:
             self.logger.error(f"コンポーネント統合テスト中にエラー: {e}")
@@ -108,14 +110,12 @@ jobs:
             params = SimulationParameters(
                 workflow_file=workflow_file,
                 dry_run=True,  # ドライランで安全にテスト
-                verbose=False
+                verbose=False,
             )
 
             start_time = time.time()
             result = simulation_service.run_simulation(
-                params,
-                logger=self.logger,
-                capture_output=True
+                params, logger=self.logger, capture_output=True
             )
             execution_time = time.time() - start_time
 
@@ -125,15 +125,12 @@ jobs:
                 "job_count": len(workflow_data.get("jobs", {})),
                 "simulation_success": result.success,
                 "execution_time_seconds": execution_time,
-                "return_code": result.return_code
+                "return_code": result.return_code,
             }
 
         except Exception as e:
             self.logger.error(f"ワークフロー実行テスト中にエラー: {e}")
-            results["workflow_execution"] = {
-                "parsing_success": False,
-                "error": str(e)
-            }
+            results["workflow_execution"] = {"parsing_success": False, "error": str(e)}
 
         return results
 
@@ -143,6 +140,7 @@ jobs:
 
         try:
             import psutil
+
             process = psutil.Process()
 
             # 初期メモリ使用量
@@ -159,7 +157,7 @@ jobs:
                     execution_tracer = ExecutionTracer(logger=self.logger)
 
                     # 軽い処理を実行
-                    trace = execution_tracer.start_trace()
+                    execution_tracer.start_trace()
                     execution_tracer.set_stage(ExecutionStage.INITIALIZATION)
                     execution_tracer.end_trace()
 
@@ -183,7 +181,7 @@ jobs:
                 "initial_memory_mb": initial_memory,
                 "final_memory_mb": final_memory,
                 "memory_increase_mb": final_memory - initial_memory,
-                "performance_acceptable": total_time < 30 and successful_runs >= 8
+                "performance_acceptable": total_time < 30 and successful_runs >= 8,
             }
 
         except ImportError:
@@ -220,6 +218,7 @@ jobs:
         finally:
             # クリーンアップ
             import shutil
+
             try:
                 shutil.rmtree(workspace)
             except Exception as e:
@@ -230,13 +229,19 @@ jobs:
 
         # コンポーネント統合の成功率
         component_results = self.test_results.get("component_integration", {})
-        component_success_count = sum(1 for v in component_results.values() if v is True)
+        component_success_count = sum(
+            1 for v in component_results.values() if v is True
+        )
         component_total = len([k for k in component_results.keys() if k != "error"])
-        component_success_rate = component_success_count / component_total if component_total > 0 else 0
+        component_success_rate = (
+            component_success_count / component_total if component_total > 0 else 0
+        )
 
         # ワークフロー実行の成功判定
         workflow_results = self.test_results.get("workflow_execution", {})
-        workflow_success = workflow_results.get("workflow_execution", {}).get("simulation_success", False)
+        workflow_success = workflow_results.get("workflow_execution", {}).get(
+            "simulation_success", False
+        )
 
         # パフォーマンス・安定性の成功判定
         performance_results = self.test_results.get("performance_stability", {})
@@ -244,9 +249,9 @@ jobs:
 
         # 総合成功判定
         overall_success = (
-            component_success_rate >= 0.75 and  # 75%以上のコンポーネントが成功
-            workflow_success and                 # ワークフロー実行が成功
-            performance_success                  # パフォーマンス要件を満たす
+            component_success_rate >= 0.75  # 75%以上のコンポーネントが成功
+            and workflow_success  # ワークフロー実行が成功
+            and performance_success  # パフォーマンス要件を満たす
         )
 
         return {
@@ -256,14 +261,14 @@ jobs:
                 "component_success_rate": component_success_rate,
                 "workflow_execution_success": workflow_success,
                 "performance_stability_success": performance_success,
-                "overall_success": overall_success
+                "overall_success": overall_success,
             },
             "requirements_validation": {
-                "requirement_5_1": workflow_success,           # ワークフロー実行成功
-                "requirement_5_2": True,                       # 基本的なエラーハンドリング
-                "requirement_5_3": performance_success,        # パフォーマンス・安定性
-                "requirement_5_4": component_success_rate >= 0.75  # 様々な設定の処理
-            }
+                "requirement_5_1": workflow_success,  # ワークフロー実行成功
+                "requirement_5_2": True,  # 基本的なエラーハンドリング
+                "requirement_5_3": performance_success,  # パフォーマンス・安定性
+                "requirement_5_4": component_success_rate >= 0.75,  # 様々な設定の処理
+            },
         }
 
 
@@ -273,23 +278,35 @@ def main():
     report = tester.run_final_integration_tests()
 
     # レポートを出力
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("最終統合テスト結果レポート")
-    print("="*80)
+    print("=" * 80)
 
     summary = report["summary"]
     requirements = report["requirements_validation"]
 
     print(f"\n総合成功: {'✅' if summary['overall_success'] else '❌'}")
     print(f"コンポーネント統合成功率: {summary['component_success_rate']:.1%}")
-    print(f"ワークフロー実行成功: {'✅' if summary['workflow_execution_success'] else '❌'}")
-    print(f"パフォーマンス・安定性: {'✅' if summary['performance_stability_success'] else '❌'}")
+    print(
+        f"ワークフロー実行成功: {'✅' if summary['workflow_execution_success'] else '❌'}"
+    )
+    print(
+        f"パフォーマンス・安定性: {'✅' if summary['performance_stability_success'] else '❌'}"
+    )
 
     print("\n要件検証結果:")
-    print(f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}")
-    print(f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}")
-    print(f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}")
-    print(f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}")
+    print(
+        f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}"
+    )
+    print(
+        f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}"
+    )
+    print(
+        f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}"
+    )
+    print(
+        f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}"
+    )
 
     # 詳細結果
     print("\n詳細結果:")
@@ -298,15 +315,19 @@ def main():
             if "error" in results:
                 print(f"  {category}: エラー - {results['error']}")
             else:
-                success_items = [k for k, v in results.items() if v is True or (isinstance(v, dict) and v.get("simulation_success", False))]
+                success_items = [
+                    k
+                    for k, v in results.items()
+                    if v is True
+                    or (isinstance(v, dict) and v.get("simulation_success", False))
+                ]
                 total_items = len(results)
                 print(f"  {category}: {len(success_items)}/{total_items} 成功")
 
     # レポートファイルを保存
     report_file = Path("final_integration_report.json")
     report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2),
-        encoding="utf-8"
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"\n詳細レポートが保存されました: {report_file}")
 

@@ -82,7 +82,7 @@ class ExecutionTracer:
         """トレース中かどうかを確認"""
         return self.tracing_active
 
-    def record_event(self, event: str, data: Dict[str, Any] = None):
+    def record_event(self, event: str, data: Optional[Dict[str, Any]] = None):
         """イベントを記録"""
         if not self.tracing_active:
             return
@@ -99,7 +99,10 @@ class ExecutionTracer:
             self.event_counters[event] += 1
 
     def record_function_call(
-        self, function_name: str, args: tuple = None, kwargs: Dict[str, Any] = None
+        self,
+        function_name: str,
+        args: Optional[tuple] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
     ):
         """関数呼び出しを記録"""
         self.record_event(
@@ -236,6 +239,7 @@ class ExecutionTracer:
             self.tracing_active = False
 
             self.logger.info("トレースデータクリア完了")
+
     def get_trace_summary(self) -> Dict[str, Any]:
         """トレースサマリーを取得"""
         if not self.events:
@@ -245,21 +249,10 @@ class ExecutionTracer:
             "total_events": len(self.events),
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "duration_seconds": (self.end_time - self.start_time) if (self.end_time and self.start_time) else 0,
+            "duration_seconds": (self.end_time - self.start_time)
+            if (self.end_time and self.start_time)
+            else 0,
             "event_types": dict(self.event_counters),
             "performance_metrics": self.performance_metrics,
-            "tracing_active": self.tracing_active
-        }
-
-    def _calculate_performance_metrics(self):
-        """パフォーマンスメトリクスを計算"""
-        if not self.events or not self.start_time or not self.end_time:
-            return
-
-        total_duration = self.end_time - self.start_time
-        self.performance_metrics = {
-            "total_duration_seconds": total_duration,
-            "total_events": len(self.events),
-            "events_per_second": len(self.events) / total_duration if total_duration > 0 else 0,
-            "event_types": dict(self.event_counters),
+            "tracing_active": self.tracing_active,
         }

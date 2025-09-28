@@ -5,8 +5,6 @@ GitHub Actions Simulator - ActionsLogger テスト
 
 import logging
 import sys
-from io import StringIO
-from unittest.mock import patch
 
 import pytest
 
@@ -96,7 +94,7 @@ class TestActionsLogger:
             lineno=0,
             msg="test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         formatted = formatter.format(record)
         assert "test message" in formatted
@@ -154,16 +152,13 @@ class TestActionsLogger:
     def test_logger_properties(self):
         """ロガープロパティテスト"""
         logger = ActionsLogger(
-            verbose=True,
-            quiet=False,
-            debug=True,
-            name="test-logger"
+            verbose=True, quiet=False, debug=True, name="test-logger"
         )
 
-        assert hasattr(logger, 'logger')
-        assert hasattr(logger, 'verbose')
-        assert hasattr(logger, 'quiet')
-        assert hasattr(logger, 'debug_mode')
+        assert hasattr(logger, "logger")
+        assert hasattr(logger, "verbose")
+        assert hasattr(logger, "quiet")
+        assert hasattr(logger, "debug_mode")
 
         assert isinstance(logger.logger, logging.Logger)
         assert isinstance(logger.verbose, bool)

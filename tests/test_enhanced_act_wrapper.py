@@ -7,16 +7,15 @@ EnhancedActWrapperクラスの機能をテストします。
 """
 
 import os
-import subprocess
 import tempfile
-import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # テスト対象のインポート
 import sys
+
 sys.path.append(str(Path(__file__).parent.parent / "services"))
 sys.path.append(str(Path(__file__).parent.parent / "services" / "actions"))
 
@@ -28,7 +27,7 @@ from services.actions.enhanced_act_wrapper import (
     MonitoredProcess,
     DetailedResult,
 )
-from services.actions.execution_tracer import ExecutionTracer, ExecutionStage
+from services.actions.execution_tracer import ExecutionTracer
 from services.actions.logger import ActionsLogger
 
 
@@ -41,7 +40,9 @@ class TestEnhancedActWrapper(unittest.TestCase):
         self.working_directory = Path(self.temp_dir)
 
         # テスト用のワークフローファイルを作成
-        self.workflow_file = self.working_directory / ".github" / "workflows" / "test.yml"
+        self.workflow_file = (
+            self.working_directory / ".github" / "workflows" / "test.yml"
+        )
         self.workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.workflow_file, "w") as f:
@@ -67,6 +68,7 @@ jobs:
     def tearDown(self):
         """テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
         # 環境変数をクリア
@@ -120,7 +122,7 @@ jobs:
         self.assertIn("シミュレーション実行", result.stdout)
         self.assertIsNotNone(result.trace_id)
 
-    @patch('services.actions.enhanced_act_wrapper.subprocess.Popen')
+    @patch("services.actions.enhanced_act_wrapper.subprocess.Popen")
     def test_create_monitored_subprocess(self, mock_popen):
         """監視付きサブプロセス作成テスト"""
         # モックプロセスを設定
@@ -144,7 +146,9 @@ jobs:
         env = {"TEST": "value"}
         timeout_seconds = 60.0
 
-        monitored_process = wrapper._create_monitored_subprocess(cmd, env, timeout_seconds)
+        monitored_process = wrapper._create_monitored_subprocess(
+            cmd, env, timeout_seconds
+        )
 
         self.assertIsInstance(monitored_process, MonitoredProcess)
         self.assertEqual(monitored_process.process, mock_process)
@@ -276,6 +280,7 @@ jobs:
         # kill()呼び出し後は終了状態にする
         def mock_kill():
             mock_process.poll.return_value = 0
+
         mock_process.kill.side_effect = mock_kill
 
         wrapper._force_terminate_process(mock_process)
@@ -350,7 +355,10 @@ jobs:
 
         self.assertEqual(analysis["failure_type"], "execution_error")
         self.assertIn("Docker関連の問題", analysis["probable_causes"])
-        self.assertIn("Docker daemonが実行されているか確認してください", analysis["recommendations"])
+        self.assertIn(
+            "Docker daemonが実行されているか確認してください",
+            analysis["recommendations"],
+        )
 
     def test_analyze_execution_failure_deadlock(self):
         """実行失敗分析テスト - デッドロック"""
@@ -373,7 +381,9 @@ jobs:
 
         self.assertEqual(analysis["failure_type"], "deadlock")
         self.assertIn("デッドロック検出", analysis["probable_causes"])
-        self.assertIn("出力ストリーミングの問題を確認してください", analysis["recommendations"])
+        self.assertIn(
+            "出力ストリーミングの問題を確認してください", analysis["recommendations"]
+        )
 
     def test_stream_result_initialization(self):
         """StreamResult初期化テスト"""
@@ -443,17 +453,23 @@ class TestEnhancedActWrapperIntegration(unittest.TestCase):
     def tearDown(self):
         """統合テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
         # 環境変数をクリア
-        for env_var in ["ACTIONS_SIMULATOR_ENGINE", "ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS"]:
+        for env_var in [
+            "ACTIONS_SIMULATOR_ENGINE",
+            "ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS",
+        ]:
             if env_var in os.environ:
                 del os.environ[env_var]
 
     def test_full_workflow_execution_mock_mode(self):
         """モックモードでの完全なワークフロー実行テスト"""
         # テスト用のワークフローファイルを作成
-        workflow_file = self.working_directory / ".github" / "workflows" / "integration_test.yml"
+        workflow_file = (
+            self.working_directory / ".github" / "workflows" / "integration_test.yml"
+        )
         workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(workflow_file, "w") as f:
@@ -495,7 +511,9 @@ jobs:
     def test_workflow_execution_with_environment_variables(self):
         """環境変数付きワークフロー実行テスト"""
         # テスト用のワークフローファイルを作成
-        workflow_file = self.working_directory / ".github" / "workflows" / "env_test.yml"
+        workflow_file = (
+            self.working_directory / ".github" / "workflows" / "env_test.yml"
+        )
         workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(workflow_file, "w") as f:
@@ -553,6 +571,7 @@ class TestEnhancedActWrapperWithAutoRecovery(unittest.TestCase):
     def tearDown(self):
         """テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
         # 環境変数をクリア

@@ -85,7 +85,7 @@ def demo_basic_simulation():
     params = SimulationParameters(
         workflow_file=workflow_file,
         verbose=True,
-        dry_run=True  # ドライランで実行
+        dry_run=True,  # ドライランで実行
     )
 
     print(f"ワークフローファイル: {workflow_file}")
@@ -94,7 +94,7 @@ def demo_basic_simulation():
     try:
         result = service.run_simulation(params, logger=logger)
 
-        print(f"\n実行結果:")
+        print("\n実行結果:")
         print(f"  成功: {result.success}")
         print(f"  終了コード: {result.return_code}")
         print(f"  実行時間: {result.execution_time_ms:.2f}ms")
@@ -107,6 +107,7 @@ def demo_basic_simulation():
 
     # クリーンアップ
     import shutil
+
     shutil.rmtree(workflow_file.parent)
 
 
@@ -131,7 +132,7 @@ def demo_enhanced_simulation():
     params = SimulationParameters(
         workflow_file=workflow_file,
         verbose=True,
-        dry_run=True  # ドライランで実行
+        dry_run=True,  # ドライランで実行
     )
 
     print(f"ワークフローファイル: {workflow_file}")
@@ -140,7 +141,7 @@ def demo_enhanced_simulation():
     try:
         result = service.run_simulation(params, logger=logger)
 
-        print(f"\n実行結果:")
+        print("\n実行結果:")
         print(f"  成功: {result.success}")
         print(f"  終了コード: {result.return_code}")
         print(f"  実行時間: {result.execution_time_ms:.2f}ms")
@@ -152,35 +153,39 @@ def demo_enhanced_simulation():
 
         # 詳細情報の表示
         if result.diagnostic_results:
-            print(f"\n診断結果の詳細:")
+            print("\n診断結果の詳細:")
             for i, diag in enumerate(result.diagnostic_results, 1):
                 print(f"  {i}. フェーズ: {diag.get('phase', 'unknown')}")
-                print(f"     ステータス: {diag.get('results', {}).get('overall_status', 'unknown')}")
+                print(
+                    f"     ステータス: {diag.get('results', {}).get('overall_status', 'unknown')}"
+                )
                 print(f"     サマリー: {diag.get('results', {}).get('summary', 'N/A')}")
 
         if result.performance_metrics:
-            print(f"\nパフォーマンスメトリクス:")
+            print("\nパフォーマンスメトリクス:")
             for key, value in result.performance_metrics.items():
                 print(f"  {key}: {value}")
 
         if result.execution_trace:
-            print(f"\n実行トレース:")
+            print("\n実行トレース:")
             for key, value in result.execution_trace.items():
                 print(f"  {key}: {value}")
 
         if result.metadata:
-            print(f"\nメタデータ:")
+            print("\nメタデータ:")
             for key, value in result.metadata.items():
-                if key not in ['command']:  # 長いコマンドは省略
+                if key not in ["command"]:  # 長いコマンドは省略
                     print(f"  {key}: {value}")
 
     except Exception as e:
         print(f"エラーが発生しました: {e}")
         import traceback
+
         traceback.print_exc()
 
     # クリーンアップ
     import shutil
+
     shutil.rmtree(workflow_file.parent)
 
 
@@ -190,7 +195,7 @@ def demo_feature_toggle():
     print("機能の動的切り替えデモ")
     print("=" * 60)
 
-    logger = ActionsLogger(verbose=True)
+    ActionsLogger(verbose=True)
 
     # 初期状態（拡張機能なし）
     service = SimulationService()
@@ -206,7 +211,7 @@ def demo_feature_toggle():
     service.enable_enhanced_features(
         enable_diagnostics=True,
         enable_performance_monitoring=True,
-        enable_detailed_reporting=True
+        enable_detailed_reporting=True,
     )
 
     print("有効化後:")
@@ -217,8 +222,8 @@ def demo_feature_toggle():
     print(f"  詳細レポート: {status['detailed_result_reporting_enabled']}")
 
     # コンポーネントの状態確認
-    print(f"\nコンポーネント状態:")
-    components = status.get('components', {})
+    print("\nコンポーネント状態:")
+    components = status.get("components", {})
     for name, available in components.items():
         print(f"  {name}: {'利用可能' if available else '利用不可'}")
 
@@ -255,6 +260,7 @@ def main():
     except Exception as e:
         print(f"\nデモ実行中にエラーが発生しました: {e}")
         import traceback
+
         traceback.print_exc()
 
 

@@ -9,7 +9,7 @@ import pytest
 import time
 import threading
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 import sys
 import json
 
@@ -190,7 +190,9 @@ class TestEnhancedPerformanceMonitor:
         issues = self.monitor.detect_performance_issues()
 
         # 長時間実行段階の問題が検出されることを確認
-        long_stage_issue = next((i for i in issues if i["type"] == "LONG_RUNNING_STAGE"), None)
+        long_stage_issue = next(
+            (i for i in issues if i["type"] == "LONG_RUNNING_STAGE"), None
+        )
         assert long_stage_issue is not None
         assert long_stage_issue["severity"] == "MEDIUM"
         assert "stage_name" in long_stage_issue
@@ -279,8 +281,12 @@ class TestEnhancedPerformanceMonitor:
 
         # 長時間実行段階のボトルネックが検出されることを確認
         slow_stage_bottleneck = next(
-            (b for b in self.monitor.bottlenecks if b.bottleneck_type == "STAGE_SLOW_EXECUTION"),
-            None
+            (
+                b
+                for b in self.monitor.bottlenecks
+                if b.bottleneck_type == "STAGE_SLOW_EXECUTION"
+            ),
+            None,
         )
         assert slow_stage_bottleneck is not None
         assert slow_stage_bottleneck.severity in ["HIGH", "MEDIUM"]
@@ -322,17 +328,23 @@ class TestEnhancedPerformanceMonitor:
 
         # 実行時間最適化の機会が検出されることを確認
         execution_time_opt = next(
-            (o for o in self.monitor.optimization_opportunities
-             if o.opportunity_type == "EXECUTION_TIME_OPTIMIZATION"),
-            None
+            (
+                o
+                for o in self.monitor.optimization_opportunities
+                if o.opportunity_type == "EXECUTION_TIME_OPTIMIZATION"
+            ),
+            None,
         )
         assert execution_time_opt is not None
 
         # リソース使用率最適化の機会が検出されることを確認
         resource_opt = next(
-            (o for o in self.monitor.optimization_opportunities
-             if o.opportunity_type == "RESOURCE_UNDERUTILIZATION"),
-            None
+            (
+                o
+                for o in self.monitor.optimization_opportunities
+                if o.opportunity_type == "RESOURCE_UNDERUTILIZATION"
+            ),
+            None,
         )
         assert resource_opt is not None
 
@@ -418,11 +430,12 @@ class TestEnhancedPerformanceMonitor:
 
     def test_concurrent_monitoring_with_enhancements(self):
         """拡張機能での並行監視テスト"""
+
         def worker_with_stages():
             """段階付きワーカー関数"""
             self.monitor.record_workflow_stage("worker_job", "test")
             for i in range(500):
-                _ = i ** 2
+                _ = i**2
                 if i % 100 == 0:
                     self.monitor.record_docker_operation(f"worker_op_{i}")
 

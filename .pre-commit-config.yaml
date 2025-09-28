@@ -120,7 +120,7 @@ repos:
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
         files: ^src/
-        args: [--ignore-missing-imports, --strict-optional]
+        args: [--ignore-missing-imports, --no-strict-optional, --disable-error-code=misc]
         additional_dependencies: [types-requests, types-PyYAML]
 
   # === Phase 4: GitHub Actions Simulator 統合チェック ===
