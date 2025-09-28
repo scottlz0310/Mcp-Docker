@@ -535,6 +535,158 @@ jobs:
         self.assertIn("ANOTHER_VAR=another_value", result.stdout)
 
 
+class TestEnhancedActWrapperWithAutoRecovery(unittest.TestCase):
+    """EnhancedActWrapper自動復旧機能テスト"""
+
+    def setUp(self):
+        """テストセットアップ"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.working_directory = Path(self.temp_dir)
+
+        # モックモードを設定
+        os.environ["ACTIONS_SIMULATOR_ENGINE"] = "mock"
+
+        self.mock_logger = Mock(spec=ActionsLogger)
+        self.mock_logger.verbose = True
+        self.mock_tracer = Mock(spec=ExecutionTracer)
+
+    def tearDown(self):
+        """テストクリーンアップ"""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+        # 環境変数をクリア
+        if "ACTIONS_SIMULATOR_ENGINE" in os.environ:
+            del os.environ["ACTIONS_SIMULATOR_ENGINE"]
+
+    def test_auto_recovery_properties(self):
+        """自動復旧関連プロパティテスト"""
+        wrapper = EnhancedActWrapper(
+            working_directory=str(self.working_directory),
+            logger=self.mock_logger,
+            execution_tracer=self.mock_tracer,
+            enable_diagnostics=False,
+        )
+
+        # プロパティの存在確認
+        self.assertIsNotNone(wrapper.diagnostic_service)  # Noneでも属性は存在
+        self.assertIsNotNone(wrapper.process_monitor)
+        # auto_recoveryとdocker_integration_checkerは依存関係により None の可能性あり
+
+        # ハングアップ検出器はexecution_tracerを返すはず
+        self.assertEqual(wrapper.hangup_detector, wrapper.execution_tracer)
+
+    def test_get_auto_recovery_statistics_no_recovery(self):
+        """自動復旧統計取得テスト（復旧機能なし）"""
+        wrapper = EnhancedActWrapper(
+            working_directory=str(self.working_directory),
+            logger=self.mock_logger,
+            execution_tracer=self.mock_tracer,
+            enable_diagnostics=False,
+        )
+
+        stats = wrapper.get_auto_recovery_statistics()
+
+        self.assertIsInstance(stats, dict)
+        self.assertIn("total_sessions", stats)
+        self.assertIn("successful_sessions", stats)
+        self.assertIn("success_rate", stats)
+        self.assertIn("auto_recovery_available", stats)
+
+    def test_build_act_command(self):
+        """actコマンド構築テスト"""
+        wrapper = EnhancedActWrapper(
+            working_directory=str(self.working_directory),
+            logger=self.mock_logger,
+            execution_tracer=self.mock_tracer,
+            enable_diagnostics=False,
+        )
+
+        # 実際のactバイナリの代わりにechoコマンドを使用
+        wrapper.act_binary = "echo"
+
+        cmd = wrapper._build_act_command(
+            workflow_file="test.yml",
+            event="push",
+            job="test-job",
+            dry_run=True,
+            verbose=True,
+            env_vars={"TEST_VAR": "test_value"},
+        )
+
+        expected_elements = [
+            "echo",
+            "push",
+            "-j",
+            "test-job",
+            "-W",
+            "test.yml",
+            "--dry-run",
+            "--verbose",
+            "--env",
+            "TEST_VAR=test_value",
+        ]
+
+        # 順序は重要でないので、全ての要素が含まれているかチェック
+        for element in expected_elements:
+            self.assertIn(element, cmd)
+
+    def test_run_workflow_with_auto_recovery_mock_mode(self):
+        """自動復旧付きワークフロー実行テスト（モックモード）"""
+        # テスト用のワークフローファイルを作成
+        workflow_dir = self.working_directory / ".github" / "workflows"
+        workflow_dir.mkdir(parents=True, exist_ok=True)
+
+        workflow_file = workflow_dir / "test.yml"
+        with open(workflow_file, "w") as f:
+            f.write("""
+name: Test Workflow
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test step
+        run: echo "Hello World"
+""")
+
+        wrapper = EnhancedActWrapper(
+            working_directory=str(self.working_directory),
+            logger=self.mock_logger,
+            execution_tracer=self.mock_tracer,
+            enable_diagnostics=False,
+        )
+
+        result = wrapper.run_workflow_with_auto_recovery(
+            workflow_file=".github/workflows/test.yml",
+            dry_run=True,
+            enable_recovery=False,  # 復旧を無効にしてシンプルにテスト
+        )
+
+        self.assertIsInstance(result, DetailedResult)
+        self.assertTrue(result.success)
+        self.assertEqual(result.returncode, 0)
+
+    def test_run_workflow_with_auto_recovery_disabled(self):
+        """自動復旧無効時のテスト"""
+        wrapper = EnhancedActWrapper(
+            working_directory=str(self.working_directory),
+            logger=self.mock_logger,
+            execution_tracer=self.mock_tracer,
+            enable_diagnostics=False,
+        )
+
+        # 存在しないワークフローファイルでテスト
+        result = wrapper.run_workflow_with_auto_recovery(
+            workflow_file="/nonexistent/workflow.yml",
+            enable_recovery=False,
+        )
+
+        # エラーが適切にハンドリングされることを確認
+        self.assertFalse(result.success)
+        self.assertIsInstance(result, DetailedResult)
+
+
 if __name__ == "__main__":
     # テストを実行
     unittest.main(verbosity=2)

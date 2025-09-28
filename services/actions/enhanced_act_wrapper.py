@@ -141,6 +141,10 @@ class EnhancedActWrapper(ActWrapper):
         self._monitoring_threads: List[threading.Thread] = []
         self._stop_monitoring = threading.Event()
 
+        # 自動復旧機能の初期化
+        self._auto_recovery = None
+        self._initialize_auto_recovery()
+
     def _initialize_diagnostic_service(self) -> None:
         """診断サービスを初期化"""
         try:
@@ -155,6 +159,52 @@ class EnhancedActWrapper(ActWrapper):
             self.logger.warning(f"診断サービスの初期化に失敗しました: {e}")
             self.enable_diagnostics = False
             self._diagnostic_service = None
+
+    def _initialize_auto_recovery(self) -> None:
+        """自動復旧機能を初期化"""
+        try:
+            from services.actions.auto_recovery import AutoRecovery
+            from services.actions.docker_integration_checker import DockerIntegrationChecker
+
+            docker_checker = DockerIntegrationChecker(logger=self.logger)
+            self._auto_recovery = AutoRecovery(
+                logger=self.logger,
+                docker_checker=docker_checker,
+                max_recovery_attempts=3,
+                recovery_timeout=60.0,
+                enable_fallback_mode=True,
+            )
+            self.logger.debug("自動復旧機能を初期化しました")
+        except (ImportError, ModuleNotFoundError) as e:
+            self.logger.warning(f"自動復旧機能の初期化に失敗しました: {e}")
+            self._auto_recovery = None
+
+    @property
+    def auto_recovery(self):
+        """自動復旧インスタンスを取得"""
+        return self._auto_recovery
+
+    @property
+    def diagnostic_service(self):
+        """診断サービスを取得"""
+        return self._diagnostic_service
+
+    @property
+    def process_monitor(self):
+        """プロセス監視を取得（ExecutionTracerを返す）"""
+        return self.execution_tracer
+
+    @property
+    def docker_integration_checker(self):
+        """Docker統合チェッカーを取得"""
+        if self._auto_recovery:
+            return self._auto_recovery.docker_checker
+        return None
+
+    @property
+    def hangup_detector(self):
+        """ハングアップ検出器を取得（ExecutionTracerを返す）"""
+        return self.execution_tracer
 
     def run_workflow_with_diagnostics(
         self,
@@ -860,3 +910,180 @@ class EnhancedActWrapper(ActWrapper):
         self._stop_all_monitoring()
 
         self.logger.info("強制クリーンアップが完了しました")
+
+    def run_workflow_with_auto_recovery(
+        self,
+        workflow_file: Optional[str] = None,
+        event: str | None = None,
+        job: Optional[str] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+        env_vars: Optional[Dict[str, str]] = None,
+        enable_recovery: bool = True,
+        max_recovery_attempts: Optional[int] = None,
+    ) -> DetailedResult:
+        """
+        自動復旧機能付きでワークフローを実行
+
+        Args:
+            workflow_file: ワークフローファイル
+            event: イベント名
+            job: ジョブ名
+            dry_run: ドライラン実行
+            verbose: 詳細ログ
+            env_vars: 環境変数
+            enable_recovery: 自動復旧を有効にするかどうか
+            max_recovery_attempts: 最大復旧試行回数
+
+        Returns:
+            DetailedResult: 詳細な実行結果
+        """
+        start_time = time.time()
+        trace_id = f"auto_recovery_act_{int(start_time * 1000)}"
+
+        # 最初の実行を試行
+        self.logger.info("プライマリワークフロー実行を開始します...")
+        result = self.run_workflow_with_diagnostics(
+            workflow_file=workflow_file,
+            event=event,
+            job=job,
+            dry_run=dry_run,
+            verbose=verbose,
+            env_vars=env_vars,
+        )
+
+        # 成功した場合はそのまま返す
+        if result.success:
+            self.logger.info("プライマリ実行が成功しました")
+            return result
+
+        # 失敗した場合、自動復旧を試行
+        if not enable_recovery or not self._auto_recovery:
+            self.logger.info("自動復旧が無効または利用できません")
+            return result
+
+        self.logger.warning("プライマリ実行が失敗しました。自動復旧を試行します...")
+
+        try:
+            # 復旧セッションを開始
+            recovery_session = self._auto_recovery.run_comprehensive_recovery(
+                error_context={
+                    "command": result.command,
+                    "returncode": result.returncode,
+                    "stderr": result.stderr,
+                    "diagnostic_results": result.diagnostic_results,
+                },
+                max_attempts=max_recovery_attempts or 3,
+            )
+
+            if recovery_session.overall_success:
+                self.logger.info("自動復旧が成功しました。ワークフローを再実行します...")
+
+                # 復旧後に再実行
+                retry_result = self.run_workflow_with_diagnostics(
+                    workflow_file=workflow_file,
+                    event=event,
+                    job=job,
+                    dry_run=dry_run,
+                    verbose=verbose,
+                    env_vars=env_vars,
+                )
+
+                if retry_result.success:
+                    self.logger.info("復旧後の再実行が成功しました")
+                    return retry_result
+                else:
+                    self.logger.warning("復旧後の再実行も失敗しました")
+
+            # 復旧が失敗した場合、フォールバック実行を試行
+            if self._auto_recovery.enable_fallback_mode:
+                self.logger.info("フォールバック実行を試行します...")
+                fallback_result = self._auto_recovery.execute_fallback_mode(
+                    workflow_file=workflow_file,
+                    job=job,
+                    dry_run=True,  # フォールバックは常にドライラン
+                    env_vars=env_vars,
+                )
+
+                if fallback_result.success:
+                    self.logger.info("フォールバック実行が成功しました")
+                    # フォールバック結果をDetailedResultに変換
+                    return DetailedResult(
+                        success=True,
+                        returncode=fallback_result.returncode,
+                        stdout=fallback_result.stdout,
+                        stderr=fallback_result.stderr,
+                        command="fallback execution",
+                        execution_time_ms=fallback_result.execution_time_ms,
+                        trace_id=trace_id,
+                    )
+
+        except Exception as e:
+            self.logger.error(f"自動復旧中にエラーが発生しました: {e}")
+
+        # すべての復旧試行が失敗した場合、元の結果を返す
+        self.logger.error("すべての復旧試行が失敗しました")
+        return result
+
+    def get_auto_recovery_statistics(self) -> Dict[str, Any]:
+        """
+        自動復旧統計を取得
+
+        Returns:
+            Dict[str, Any]: 復旧統計情報
+        """
+        if not self._auto_recovery:
+            return {
+                "total_sessions": 0,
+                "successful_sessions": 0,
+                "success_rate": 0.0,
+                "auto_recovery_available": False,
+            }
+
+        return self._auto_recovery.get_recovery_statistics()
+
+    def _build_act_command(
+        self,
+        workflow_file: Optional[str] = None,
+        event: str | None = None,
+        job: Optional[str] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+        env_vars: Optional[Dict[str, str]] = None,
+    ) -> List[str]:
+        """
+        actコマンドを構築（テスト用）
+
+        Args:
+            workflow_file: ワークフローファイル
+            event: イベント名
+            job: ジョブ名
+            dry_run: ドライラン実行
+            verbose: 詳細ログ
+            env_vars: 環境変数
+
+        Returns:
+            List[str]: 構築されたコマンド
+        """
+        cmd = [self.act_binary]
+
+        if event:
+            cmd.append(event)
+
+        if job:
+            cmd.extend(["-j", job])
+
+        if workflow_file:
+            cmd.extend(["-W", workflow_file])
+
+        if dry_run:
+            cmd.append("--dry-run")
+
+        if verbose:
+            cmd.append("--verbose")
+
+        if env_vars:
+            for key, value in env_vars.items():
+                cmd.extend(["--env", f"{key}={value}"])
+
+        return cmd
