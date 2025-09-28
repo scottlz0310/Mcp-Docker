@@ -118,6 +118,19 @@ class ExecutionTracer:
         # 互換性のため、ダミーオブジェクトを返す
         return self
 
+    def track_thread_lifecycle(self, thread, target_function=None):
+        """スレッドライフサイクルを追跡（互換性のため）"""
+        self.record_event(
+            "thread_lifecycle",
+            {
+                "thread_id": thread.ident if thread else None,
+                "thread_name": thread.name if thread else None,
+                "target_function": target_function,
+            },
+        )
+        # 互換性のため、ダミーオブジェクトを返す
+        return self
+
     def is_tracing(self) -> bool:
         """トレース中かどうかを確認"""
         return self.tracing_active
