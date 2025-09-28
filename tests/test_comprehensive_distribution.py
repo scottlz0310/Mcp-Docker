@@ -238,7 +238,7 @@ jobs:
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
 
-        result = subprocess.run(
+        subprocess.run(
             [str(script_path), "--check-deps"],
             capture_output=True,
             text=True,

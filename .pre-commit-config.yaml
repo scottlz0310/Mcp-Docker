@@ -162,7 +162,9 @@ repos:
       - id: actions-simulator-config-check
         name: "⚙️ Actions Simulator 設定検証"
         description: "Actions Simulator の設定ファイルを検証"
-        entry: bash -c 'if [ -f ".env.example" ]; then echo "✅ .env.example 存在確認"; else echo "❌ .env.example が見つかりません"; exit 1; fi'
+        entry: >
+          bash -c 'if [ -f ".env.example" ]; then echo "✅ .env.example 存在確認";
+          else echo "❌ .env.example が見つかりません"; exit 1; fi'
         language: system
         files: ^(\.env\.example|pyproject\.toml|main\.py)$
         pass_filenames: false

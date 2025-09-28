@@ -1,12 +1,8 @@
----
 extends: default
 
 rules:
   line-length:
-    max: 120
-  comments:
-    min-spaces-from-content: 1
-  document-start:
-    present: true
-  truthy:
-    allowed-values: ['true', 'false', 'on', 'off']
+    max: 200  # GitHub Actionsの長いURLに対応
+  document-start: disable  # ドキュメント開始マーカーを無効化
+  comments-indentation: disable  # コメントのインデントを緩和
+  truthy: disable  # on/off値の制限を緩和

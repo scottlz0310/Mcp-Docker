@@ -391,7 +391,7 @@ jobs:
 
             # ヘルプオプションの実行時間
             start_time = time.time()
-            help_result = subprocess.run(
+            subprocess.run(
                 [str(run_script), "--help"],
                 capture_output=True,
                 text=True,
@@ -405,7 +405,7 @@ jobs:
 
             # 依存関係チェックの実行時間
             start_time = time.time()
-            deps_result = subprocess.run(
+            subprocess.run(
                 [str(run_script), "--check-deps"],
                 capture_output=True,
                 text=True,
@@ -422,7 +422,7 @@ jobs:
 
         if template_validator.exists():
             start_time = time.time()
-            validation_result = subprocess.run(
+            subprocess.run(
                 ["python", str(template_validator), "--check-only"],
                 capture_output=True,
                 text=True,
@@ -738,7 +738,7 @@ class TestSystemStabilityAndReliability:
         env["NON_INTERACTIVE"] = "1"
 
         for i in range(3):
-            result = subprocess.run(
+            subprocess.run(
                 [str(run_script), "--check-deps"],
                 capture_output=True,
                 text=True,

@@ -431,7 +431,7 @@ class SupportToolsPerformanceTest(unittest.TestCase):
 
         start_time = time.time()
 
-        result = subprocess.run(
+        subprocess.run(
             [str(script_path), "dependencies"],
             capture_output=True,
             text=True,
