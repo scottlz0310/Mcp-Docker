@@ -520,7 +520,7 @@ check_template_quality() {
                         ((template_warnings++))
                     fi
                 else
-                    # shellcheckが無い場合は基本的な構文チェック
+                    # linter が無い場合は基本的な構文チェック
                     if ! bash -n "$file" >/dev/null 2>&1; then
                         log_debug "Shell構文エラー: $file"
                         ((syntax_errors++))

@@ -51,7 +51,7 @@ repos:
       - id: check-added-large-files
         name: "📦 大容量ファイルチェック"
         description: "意図しない大容量ファイルのコミットを防止"
-        args: ['--maxkb=1024']
+        args: ["--maxkb=1024"]
       - id: check-merge-conflict
         name: "🔀 マージコンフリクトチェック"
         description: "マージコンフリクトマーカーの残存を検出"
@@ -61,7 +61,7 @@ repos:
       - id: mixed-line-ending
         name: "📄 改行コード統一"
         description: "改行コードをLFに統一"
-        args: ['--fix=lf']
+        args: ["--fix=lf"]
 
   # === Phase 2: Docker/Infrastructure 品質チェック ===
   - repo: https://github.com/hadolint/hadolint
@@ -70,12 +70,15 @@ repos:
       - id: hadolint-docker
         name: "🐳 Dockerfile品質チェック"
         description: "Dockerfileのベストプラクティス準拠を確認"
-        args: [
-          --ignore, DL3008,  # パッケージバージョン固定（開発環境では柔軟性を優先）
-          --ignore, DL3009,  # apt-get clean（マルチステージビルドで対応）
-          --ignore, DL3018,  # パッケージバージョン固定（Alpine用）
-          --ignore, DL3059,  # 複数RUNコマンド（可読性を優先）
-        ]
+        args:
+          - --ignore
+          - DL3008  # パッケージバージョン固定（開発環境では柔軟性を優先）
+          - --ignore
+          - DL3009  # apt-get clean（マルチステージビルドで対応）
+          - --ignore
+          - DL3018  # パッケージバージョン固定（Alpine用）
+          - --ignore
+          - DL3059  # 複数RUNコマンド（可読性を優先）
 
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: v0.10.0
@@ -83,12 +86,14 @@ repos:
       - id: shellcheck
         name: "🐚 Shell スクリプト品質チェック"
         description: "Shell スクリプトの潜在的な問題を検出"
-        args: [
-          --severity=warning,
-          --shell=bash,
-          --exclude=SC2034,  # 未使用変数（設定ファイルで許可）
-          --exclude=SC1091,  # 外部ファイル読み込み（動的パスで許可）
-        ]
+        args:
+          - --severity=warning
+          - --shell=bash
+          - --exclude=SC2034  # 未使用変数（設定ファイルで許可）
+          - --exclude=SC1091  # 外部ファイル読み込み（動的パスで許可）
+          - --exclude=SC2155  # 変数宣言と代入の分離（可読性を優先）
+          - --exclude=SC2206  # 配列の単語分割（意図的な使用）
+          - --exclude=SC2064  # trap文の引用符（動的変数使用）
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
@@ -120,7 +125,12 @@ repos:
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
         files: ^src/
-        args: [--ignore-missing-imports, --no-strict-optional, --disable-error-code=misc]
+        args:
+          [
+            --ignore-missing-imports,
+            --no-strict-optional,
+            --disable-error-code=misc,
+          ]
         additional_dependencies: [types-requests, types-PyYAML]
 
   # === Phase 4: GitHub Actions Simulator 統合チェック ===
@@ -189,7 +199,6 @@ repos:
         language: system
         files: ^(pyproject\.toml|main\.py)$
         pass_filenames: false
-
 # === 段階的品質ゲート設定の説明 ===
 #
 # このpre-commit設定は以下の段階的アプローチを採用しています:
