@@ -14,7 +14,11 @@ RUN apk add --no-cache \
     git \
     python3 \
     py3-pip \
-    docker-cli && \
+    docker-cli \
+    gcc \
+    python3-dev \
+    musl-dev \
+    linux-headers && \
     apk cache clean
 
 # Builder stage: install tooling and Python dependencies via uv

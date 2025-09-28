@@ -138,8 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     results: list[dict[str, object]] = [
-        _run_single_test(test, bats_bin=bats_bin, run_id=run_id)
-        for test in tests
+        _run_single_test(test, bats_bin=bats_bin, run_id=run_id) for test in tests
     ]
     success = all(item["status"] == "passed" for item in results)
 

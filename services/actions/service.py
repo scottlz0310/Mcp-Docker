@@ -95,9 +95,7 @@ class SimulationService:
             except SimulationServiceError:
                 raise
             except Exception as exc:  # noqa: BLE001 - defensive
-                raise SimulationServiceError(
-                    f"Unexpected error: {exc}"
-                ) from exc
+                raise SimulationServiceError(f"Unexpected error: {exc}") from exc
 
         if capture_output:
             extra_stdout = stdout_io.getvalue() if stdout_io else ""
@@ -136,7 +134,9 @@ class SimulationService:
 
         # EnhancedActWrapperまたは通常のActWrapperを選択
         if self._use_enhanced_wrapper:
-            diagnostic_service = DiagnosticService(logger=logger) if self._enable_diagnostics else None
+            diagnostic_service = (
+                DiagnosticService(logger=logger) if self._enable_diagnostics else None
+            )
             wrapper_factory = EnhancedActWrapper
             wrapper_kwargs = {
                 "working_directory": str(workflow_path.parent),
@@ -168,12 +168,18 @@ class SimulationService:
             if hasattr(wrapper, "logger"):
                 setattr(wrapper, "logger", logger)
             if hasattr(wrapper, "execution_tracer"):
-                setattr(wrapper, "execution_tracer", self._execution_tracer or ExecutionTracer(logger=logger))
+                setattr(
+                    wrapper,
+                    "execution_tracer",
+                    self._execution_tracer or ExecutionTracer(logger=logger),
+                )
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 
         # EnhancedActWrapperの場合は診断機能付きメソッドを使用
-        if self._use_enhanced_wrapper and hasattr(wrapper, 'run_workflow_with_diagnostics'):
+        if self._use_enhanced_wrapper and hasattr(
+            wrapper, "run_workflow_with_diagnostics"
+        ):
             detailed_result = wrapper.run_workflow_with_diagnostics(
                 workflow_file=workflow_path.name,
                 job=params.job,
@@ -230,7 +236,9 @@ class SimulationService:
                 metadata["bottlenecks_detected"] = detailed_result.bottlenecks_detected
 
             if detailed_result.optimization_opportunities:
-                metadata["optimization_opportunities"] = detailed_result.optimization_opportunities
+                metadata["optimization_opportunities"] = (
+                    detailed_result.optimization_opportunities
+                )
         else:
             # 通常のActWrapperを使用
             result = wrapper.run_workflow(

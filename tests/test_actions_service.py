@@ -25,7 +25,7 @@ class TestWorkflowParser:
             "  test:\n"
             "    runs-on: ubuntu-latest\n"
             "    steps:\n"
-            "      - run: echo \"Hello World\"\n"
+            '      - run: echo "Hello World"\n'
         )
 
         with tempfile.NamedTemporaryFile(
@@ -52,7 +52,7 @@ class TestWorkflowParser:
             "  test:\n"
             "    runs-on: ubuntu-latest\n"
             "    steps:\n"
-            "      - run: echo \"test\"\n"
+            '      - run: echo "test"\n'
             "    invalid_indent_here\n"
             "    another_problem: ]\n"
         )
@@ -78,7 +78,7 @@ class TestWorkflowParser:
             "  test:\n"
             "    runs-on: ubuntu-latest\n"
             "    steps:\n"
-            "      - run: echo \"test\"\n"
+            '      - run: echo "test"\n'
         )
 
         with tempfile.NamedTemporaryFile(
@@ -126,9 +126,9 @@ def test_workflow_parser_supports_matrix_strategy(tmp_path: Path) -> None:
             "    runs-on: ubuntu-latest\n"
             "    strategy:\n"
             "      matrix:\n"
-            "        python: [\"3.11\", \"3.12\"]\n"
+            '        python: ["3.11", "3.12"]\n'
             "    steps:\n"
-            "      - run: echo \"${{ matrix.python }}\"\n"
+            '      - run: echo "${{ matrix.python }}"\n'
         ),
         encoding="utf-8",
     )
@@ -142,10 +142,7 @@ def test_workflow_parser_supports_matrix_strategy(tmp_path: Path) -> None:
 
     variant_ids = expansions.get("build")
     assert variant_ids == ["build__python-3-11", "build__python-3-12"]
-    assert all(
-        base_lookup[variant_id] == "build"
-        for variant_id in variant_ids
-    )
+    assert all(base_lookup[variant_id] == "build" for variant_id in variant_ids)
 
     for variant_id, expected_python in zip(
         variant_ids,

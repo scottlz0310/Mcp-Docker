@@ -9,8 +9,4 @@ from .diagnostic_service import DiagnosticService
 from .process_monitor import ProcessMonitor
 from .execution_tracer import ExecutionTracer
 
-__all__ = [
-    'DiagnosticService',
-    'ProcessMonitor',
-    'ExecutionTracer'
-]
+__all__ = ["DiagnosticService", "ProcessMonitor", "ExecutionTracer"]

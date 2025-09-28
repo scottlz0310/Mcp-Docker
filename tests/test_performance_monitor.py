@@ -9,7 +9,7 @@ import pytest
 import time
 import threading
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import sys
 
 # パフォーマンス監視モジュールをインポート
@@ -19,7 +19,7 @@ from performance_monitor import (
     PerformanceMetrics,
     ExecutionStage,
     BottleneckAnalysis,
-    OptimizationOpportunity
+    OptimizationOpportunity,
 )
 
 
@@ -93,10 +93,10 @@ class TestPerformanceMonitor:
 
         self.monitor.stop_monitoring()
 
-    @patch('psutil.cpu_percent')
-    @patch('psutil.virtual_memory')
-    @patch('psutil.disk_io_counters')
-    @patch('psutil.net_io_counters')
+    @patch("psutil.cpu_percent")
+    @patch("psutil.virtual_memory")
+    @patch("psutil.disk_io_counters")
+    @patch("psutil.net_io_counters")
     def test_metrics_collection(self, mock_net_io, mock_disk_io, mock_memory, mock_cpu):
         """メトリクス収集のテスト"""
         # モックの設定
@@ -104,15 +104,15 @@ class TestPerformanceMonitor:
         mock_memory.return_value = Mock(
             rss=1024 * 1024 * 512,  # 512MB
             vms=1024 * 1024 * 1024,  # 1GB
-            percent=50.0
+            percent=50.0,
         )
         mock_disk_io.return_value = Mock(
             read_bytes=1024 * 1024 * 100,  # 100MB
-            write_bytes=1024 * 1024 * 50   # 50MB
+            write_bytes=1024 * 1024 * 50,  # 50MB
         )
         mock_net_io.return_value = Mock(
-            bytes_sent=1024 * 1024 * 10,   # 10MB
-            bytes_recv=1024 * 1024 * 20    # 20MB
+            bytes_sent=1024 * 1024 * 10,  # 10MB
+            bytes_recv=1024 * 1024 * 20,  # 20MB
         )
 
         # メトリクス収集をテスト
@@ -130,7 +130,7 @@ class TestPerformanceMonitor:
         self.monitor.start_monitoring()
 
         # 高CPU使用率のメトリクスを模擬
-        with patch.object(self.monitor, '_collect_current_metrics') as mock_collect:
+        with patch.object(self.monitor, "_collect_current_metrics") as mock_collect:
             high_cpu_metrics = PerformanceMetrics(
                 timestamp=time.time(),
                 cpu_percent=95.0,  # 高CPU使用率
@@ -140,7 +140,7 @@ class TestPerformanceMonitor:
                 disk_io_read_mb=10.0,
                 disk_io_write_mb=5.0,
                 network_bytes_sent=1000.0,
-                network_bytes_recv=2000.0
+                network_bytes_recv=2000.0,
             )
             mock_collect.return_value = high_cpu_metrics
 
@@ -153,8 +153,12 @@ class TestPerformanceMonitor:
         # ボトルネックが検出されることを確認
         assert len(self.monitor.bottlenecks) > 0
         cpu_bottleneck = next(
-            (b for b in self.monitor.bottlenecks if b.bottleneck_type == "CPU_HIGH_USAGE"),
-            None
+            (
+                b
+                for b in self.monitor.bottlenecks
+                if b.bottleneck_type == "CPU_HIGH_USAGE"
+            ),
+            None,
         )
         assert cpu_bottleneck is not None
         assert cpu_bottleneck.severity in ["HIGH", "MEDIUM"]
@@ -172,9 +176,12 @@ class TestPerformanceMonitor:
         # 最適化機会が特定されることを確認
         assert len(self.monitor.optimization_opportunities) > 0
         docker_optimization = next(
-            (o for o in self.monitor.optimization_opportunities
-             if o.opportunity_type == "DOCKER_OPERATIONS_OPTIMIZATION"),
-            None
+            (
+                o
+                for o in self.monitor.optimization_opportunities
+                if o.opportunity_type == "DOCKER_OPERATIONS_OPTIMIZATION"
+            ),
+            None,
         )
         assert docker_optimization is not None
         assert docker_optimization.priority in ["HIGH", "MEDIUM", "LOW"]
@@ -245,7 +252,8 @@ class TestPerformanceMonitor:
 
         # エクスポートされたファイルの内容を確認
         import json
-        with open(export_path, 'r', encoding='utf-8') as f:
+
+        with open(export_path, "r", encoding="utf-8") as f:
             exported_data = json.load(f)
 
         assert "metadata" in exported_data
@@ -255,10 +263,11 @@ class TestPerformanceMonitor:
 
     def test_concurrent_monitoring(self):
         """並行監視のテスト"""
+
         def worker_function():
             """ワーカー関数（CPU負荷を模擬）"""
             for i in range(1000):
-                _ = i ** 2
+                _ = i**2
 
         self.monitor.start_monitoring()
         self.monitor.start_stage("concurrent_test")
@@ -282,7 +291,7 @@ class TestPerformanceMonitor:
         summary = self.monitor.get_performance_summary()
         assert summary["metrics_collected"] > 0
 
-    @patch('docker.from_env')
+    @patch("docker.from_env")
     def test_docker_monitoring(self, mock_docker):
         """Docker監視のテスト"""
         # Dockerクライアントのモック
@@ -290,15 +299,15 @@ class TestPerformanceMonitor:
         mock_container = Mock()
         mock_container.id = "test_container_123"
         mock_container.stats.return_value = {
-            'cpu_stats': {
-                'cpu_usage': {'total_usage': 1000000, 'percpu_usage': [500000, 500000]},
-                'system_cpu_usage': 10000000
+            "cpu_stats": {
+                "cpu_usage": {"total_usage": 1000000, "percpu_usage": [500000, 500000]},
+                "system_cpu_usage": 10000000,
             },
-            'precpu_stats': {
-                'cpu_usage': {'total_usage': 900000},
-                'system_cpu_usage': 9000000
+            "precpu_stats": {
+                "cpu_usage": {"total_usage": 900000},
+                "system_cpu_usage": 9000000,
             },
-            'memory_stats': {'usage': 1024 * 1024 * 100}  # 100MB
+            "memory_stats": {"usage": 1024 * 1024 * 100},  # 100MB
         }
 
         mock_client.containers.list.return_value = [mock_container]
@@ -329,7 +338,11 @@ class TestPerformanceMonitor:
         assert "error" in summary
 
         # 現在のメトリクス取得（エラー時）
-        with patch.object(self.monitor, '_collect_current_metrics', side_effect=Exception("Test error")):
+        with patch.object(
+            self.monitor,
+            "_collect_current_metrics",
+            side_effect=Exception("Test error"),
+        ):
             current_metrics = self.monitor.get_current_metrics()
             assert current_metrics is None
 
@@ -352,7 +365,7 @@ class TestPerformanceMetrics:
             docker_operations_count=5,
             active_containers=2,
             docker_cpu_usage=30.0,
-            docker_memory_usage_mb=128.0
+            docker_memory_usage_mb=128.0,
         )
 
         assert metrics.cpu_percent == 50.0
@@ -367,10 +380,7 @@ class TestExecutionStage:
     def test_execution_stage_creation(self):
         """ExecutionStageの作成テスト"""
         start_time = time.time()
-        stage = ExecutionStage(
-            stage_name="test_stage",
-            start_time=start_time
-        )
+        stage = ExecutionStage(stage_name="test_stage", start_time=start_time)
 
         assert stage.stage_name == "test_stage"
         assert stage.start_time == start_time
@@ -394,7 +404,7 @@ class TestBottleneckAnalysis:
             affected_stage="execution",
             impact_score=0.8,
             recommendations=["並列処理の最適化", "CPU集約的タスクの分散"],
-            metrics_evidence={"avg_cpu": 85.0, "max_cpu": 95.0}
+            metrics_evidence={"avg_cpu": 85.0, "max_cpu": 95.0},
         )
 
         assert analysis.bottleneck_type == "CPU_HIGH_USAGE"
@@ -416,7 +426,7 @@ class TestOptimizationOpportunity:
             description="Docker操作が多数実行されています",
             estimated_improvement="実行時間 10-30% 短縮",
             implementation_effort="中程度",
-            recommendations=["Docker操作のバッチ化", "キャッシュ戦略の最適化"]
+            recommendations=["Docker操作のバッチ化", "キャッシュ戦略の最適化"],
         )
 
         assert opportunity.opportunity_type == "DOCKER_OPERATIONS_OPTIMIZATION"

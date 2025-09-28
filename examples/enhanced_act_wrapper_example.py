@@ -31,7 +31,7 @@ def main():
         logger=logger,
         heartbeat_interval=10.0,  # 10秒間隔でハートビート
         resource_monitoring_interval=2.0,  # 2秒間隔でリソース監視
-        enable_detailed_logging=True
+        enable_detailed_logging=True,
     )
 
     # 診断サービスを初期化
@@ -45,7 +45,7 @@ def main():
         diagnostic_service=diagnostic_service,
         enable_diagnostics=True,
         deadlock_detection_interval=5.0,  # 5秒間隔でデッドロック検出
-        activity_timeout=30.0  # 30秒のアクティビティタイムアウト
+        activity_timeout=30.0,  # 30秒のアクティビティタイムアウト
     )
 
     # モックモードを有効にしてテスト実行
@@ -97,7 +97,7 @@ jobs:
                 workflow_file="test_workflow_demo.yml",
                 dry_run=True,
                 verbose=True,
-                pre_execution_diagnostics=True
+                pre_execution_diagnostics=True,
             )
 
             print("\n=== 実行結果 ===")
@@ -118,12 +118,20 @@ jobs:
             if result.diagnostic_results:
                 print(f"\n=== 診断結果 ({len(result.diagnostic_results)}項目) ===")
                 for diag in result.diagnostic_results:
-                    status_icon = "✅" if diag.status.value == "OK" else "⚠️" if diag.status.value == "WARNING" else "❌"
+                    status_icon = (
+                        "✅"
+                        if diag.status.value == "OK"
+                        else "⚠️"
+                        if diag.status.value == "WARNING"
+                        else "❌"
+                    )
                     print(f"{status_icon} {diag.component}: {diag.message}")
 
             # デッドロック指標を表示
             if result.deadlock_indicators:
-                print(f"\n=== デッドロック指標 ({len(result.deadlock_indicators)}項目) ===")
+                print(
+                    f"\n=== デッドロック指標 ({len(result.deadlock_indicators)}項目) ==="
+                )
                 for indicator in result.deadlock_indicators:
                     print(f"⚠️ {indicator.deadlock_type.value}: {indicator.details}")
                     for rec in indicator.recommendations:
@@ -166,6 +174,7 @@ jobs:
     except Exception as e:
         print(f"❌ エラーが発生しました: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

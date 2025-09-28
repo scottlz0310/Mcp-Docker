@@ -76,14 +76,10 @@ class ActRunnerSettings:
             image=str(image) if isinstance(image, str) else None,
             platforms=platforms,
             container_workdir=(
-                str(container_workdir)
-                if isinstance(container_workdir, str)
-                else None
+                str(container_workdir) if isinstance(container_workdir, str) else None
             ),
             cache_dir=(
-                str(cache_dir)
-                if isinstance(cache_dir, str)
-                else "/opt/act/cache"
+                str(cache_dir) if isinstance(cache_dir, str) else "/opt/act/cache"
             ),
             env=resolved_env,
         )
@@ -100,9 +96,7 @@ class ActWrapper:
         logger: ActionsLogger | None = None,
         execution_tracer: Optional[ExecutionTracer] = None,
     ) -> None:
-        self.working_directory = Path(
-            working_directory or os.getcwd()
-        ).resolve()
+        self.working_directory = Path(working_directory or os.getcwd()).resolve()
         if not self.working_directory.exists():
             raise RuntimeError(
                 f"作業ディレクトリが存在しません: {self.working_directory}"
@@ -116,9 +110,7 @@ class ActWrapper:
         mock_delay = os.getenv("ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS")
         try:
             self._mock_delay_seconds = (
-                max(0.0, float(mock_delay))
-                if mock_delay
-                else 0.0
+                max(0.0, float(mock_delay)) if mock_delay else 0.0
             )
         except ValueError:
             self._mock_delay_seconds = 0.0
@@ -159,9 +151,7 @@ class ActWrapper:
     def _compose_runner_flags(self) -> list[str]:
         flags: list[str] = []
         if self.settings.container_workdir:
-            flags.extend(
-                ["--container-workdir", self.settings.container_workdir]
-            )
+            flags.extend(["--container-workdir", self.settings.container_workdir])
         if self.settings.image:
             platforms = self.settings.platforms or ("ubuntu-latest",)
             for platform in platforms:
@@ -244,8 +234,7 @@ class ActWrapper:
 
         if seconds <= 0:
             self.logger.warning(
-                "タイムアウト値は正の秒数である必要があります "
-                f"({source}): {raw_value}",
+                f"タイムアウト値は正の秒数である必要があります ({source}): {raw_value}",
             )
             return None
 
@@ -297,13 +286,16 @@ class ActWrapper:
 
         try:
             # 初期化段階
-            self.execution_tracer.set_stage(ExecutionStage.INITIALIZATION, {
-                "workflow_file": workflow_file,
-                "job": job,
-                "dry_run": dry_run,
-                "verbose": verbose,
-                "mock_mode": self._mock_mode
-            })
+            self.execution_tracer.set_stage(
+                ExecutionStage.INITIALIZATION,
+                {
+                    "workflow_file": workflow_file,
+                    "job": job,
+                    "dry_run": dry_run,
+                    "verbose": verbose,
+                    "mock_mode": self._mock_mode,
+                },
+            )
 
             if self._mock_mode:
                 result = self._run_mock_workflow(
@@ -337,8 +329,7 @@ class ActWrapper:
 
             # Docker通信監視を開始
             docker_op = self.execution_tracer.monitor_docker_communication(
-                operation_type="act_execution",
-                command=cmd
+                operation_type="act_execution", command=cmd
             )
 
             stdout_lines: list[str] = []
@@ -351,7 +342,9 @@ class ActWrapper:
                 thread_trace,
             ) -> None:
                 try:
-                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.RUNNING)
+                    self.execution_tracer.update_thread_state(
+                        thread_trace, ThreadState.RUNNING
+                    )
                     if pipe is None:
                         return
                     with pipe:
@@ -362,7 +355,9 @@ class ActWrapper:
                                 continue
                             if self.logger.verbose:
                                 self.logger.debug(f"[{label}] {line}")
-                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.TERMINATED)
+                    self.execution_tracer.update_thread_state(
+                        thread_trace, ThreadState.TERMINATED
+                    )
                 except Exception as e:
                     self.execution_tracer.update_thread_state(
                         thread_trace, ThreadState.ERROR, str(e)
@@ -410,7 +405,7 @@ class ActWrapper:
                     target=_stream_output,
                     args=(process.stdout, stdout_lines, "act stdout", None),
                     daemon=True,
-                    name="ActWrapper-StdoutStream"
+                    name="ActWrapper-StdoutStream",
                 )
                 thread_trace_out = self.execution_tracer.track_thread_lifecycle(
                     t_out, "_stream_output"
@@ -420,7 +415,7 @@ class ActWrapper:
                     target=_stream_output,
                     args=(process.stdout, stdout_lines, "act stdout", thread_trace_out),
                     daemon=True,
-                    name="ActWrapper-StdoutStream"
+                    name="ActWrapper-StdoutStream",
                 )
                 t_out.start()
                 threads.append(t_out)
@@ -431,7 +426,7 @@ class ActWrapper:
                     target=_stream_output,
                     args=(process.stderr, stderr_lines, "act stderr", None),
                     daemon=True,
-                    name="ActWrapper-StderrStream"
+                    name="ActWrapper-StderrStream",
                 )
                 thread_trace_err = self.execution_tracer.track_thread_lifecycle(
                     t_err, "_stream_output"
@@ -441,7 +436,7 @@ class ActWrapper:
                     target=_stream_output,
                     args=(process.stderr, stderr_lines, "act stderr", thread_trace_err),
                     daemon=True,
-                    name="ActWrapper-StderrStream"
+                    name="ActWrapper-StderrStream",
                 )
                 t_err.start()
                 threads.append(t_err)
@@ -454,9 +449,7 @@ class ActWrapper:
             heartbeat_interval = 30
             next_heartbeat = start_time + heartbeat_interval
             deadline = (
-                start_time + self._timeout_seconds
-                if self._timeout_seconds
-                else None
+                start_time + self._timeout_seconds if self._timeout_seconds else None
             )
             timed_out = False
 
@@ -471,7 +464,9 @@ class ActWrapper:
                     self.logger.error("actの実行がタイムアウトしました")
 
                     # ハングアップ検出
-                    hang_info = self.execution_tracer.detect_hang_condition(self._timeout_seconds)
+                    hang_info = self.execution_tracer.detect_hang_condition(
+                        self._timeout_seconds
+                    )
                     if hang_info:
                         self.logger.error(f"ハングアップを検出: {hang_info}")
 
@@ -486,11 +481,11 @@ class ActWrapper:
                     process_info = {
                         "pid": process.pid,
                         "elapsed_seconds": elapsed,
-                        "return_code": process.poll()
+                        "return_code": process.poll(),
                     }
                     self.execution_tracer.log_heartbeat(
                         f"act 実行中... {elapsed} 秒経過 (PID: {process.pid})",
-                        process_info
+                        process_info,
                     )
 
                     next_heartbeat = now + heartbeat_interval
@@ -513,9 +508,9 @@ class ActWrapper:
             self.execution_tracer.update_process_trace(
                 process_trace,
                 return_code=process.returncode,
-                stdout_bytes=len(stdout_text.encode('utf-8')),
-                stderr_bytes=len(stderr_text.encode('utf-8')),
-                error_message="Execution timeout" if timed_out else None
+                stdout_bytes=len(stdout_text.encode("utf-8")),
+                stderr_bytes=len(stderr_text.encode("utf-8")),
+                error_message="Execution timeout" if timed_out else None,
             )
 
             # Docker操作を更新
@@ -525,7 +520,7 @@ class ActWrapper:
                 return_code=process.returncode,
                 stdout=stdout_text[:1000],  # 最初の1000文字のみ保存
                 stderr=stderr_text[:1000],
-                error_message="Execution timeout" if timed_out else None
+                error_message="Execution timeout" if timed_out else None,
             )
 
             if timed_out:
@@ -541,9 +536,7 @@ class ActWrapper:
             exit_code = process.returncode or 0
 
             if exit_code != 0:
-                self.logger.error(
-                    f"act 実行が失敗しました (returncode={exit_code})"
-                )
+                self.logger.error(f"act 実行が失敗しました (returncode={exit_code})")
                 self.execution_tracer.set_stage(ExecutionStage.FAILED)
             else:
                 self.execution_tracer.set_stage(ExecutionStage.COMPLETED)
@@ -560,7 +553,9 @@ class ActWrapper:
             # トレースを終了
             final_trace = self.execution_tracer.end_trace()
             if final_trace and self.logger.verbose:
-                self.logger.debug(f"実行トレース完了: {final_trace.trace_id}, 実行時間: {final_trace.duration_ms:.2f}ms")
+                self.logger.debug(
+                    f"実行トレース完了: {final_trace.trace_id}, 実行時間: {final_trace.duration_ms:.2f}ms"
+                )
 
     def _run_mock_workflow(
         self,
@@ -659,9 +654,7 @@ class ActWrapper:
             for job_id, job_def in selected_jobs:
                 job_title_raw = job_def.get("name")
                 display_name = (
-                    str(job_title_raw)
-                    if isinstance(job_title_raw, str)
-                    else job_id
+                    str(job_title_raw) if isinstance(job_title_raw, str) else job_id
                 )
                 lines.append(f"ジョブ: {display_name}")
                 if verbose:

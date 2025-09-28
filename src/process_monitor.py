@@ -17,6 +17,7 @@ from dataclasses import dataclass
 @dataclass
 class ProcessMetrics:
     """プロセスメトリクス"""
+
     pid: int
     status: str
     cpu_percent: float
@@ -49,8 +50,7 @@ class ProcessMonitor:
             if not self.monitoring_active:
                 self.monitoring_active = True
                 self.monitor_thread = threading.Thread(
-                    target=self._monitor_loop,
-                    daemon=True
+                    target=self._monitor_loop, daemon=True
                 )
                 self.monitor_thread.start()
 
@@ -83,7 +83,11 @@ class ProcessMonitor:
                 self.logger.info("全プロセス監視停止")
 
         # スレッドの終了を待機（タイムアウト付き）
-        if not self.monitoring_active and self.monitor_thread and self.monitor_thread.is_alive():
+        if (
+            not self.monitoring_active
+            and self.monitor_thread
+            and self.monitor_thread.is_alive()
+        ):
             self.monitor_thread.join(timeout=2.0)
             if self.monitor_thread.is_alive():
                 self.logger.warning("監視スレッドの終了がタイムアウトしました")
@@ -98,16 +102,12 @@ class ProcessMonitor:
         """プロセスの現在の状態を取得"""
         try:
             if pid not in self.monitored_processes:
-                return {'error': f'PID {pid} は監視対象ではありません'}
+                return {"error": f"PID {pid} は監視対象ではありません"}
 
             process = self.monitored_processes[pid]
 
             if not process.is_running():
-                return {
-                    'pid': pid,
-                    'status': 'terminated',
-                    'timestamp': time.time()
-                }
+                return {"pid": pid, "status": "terminated", "timestamp": time.time()}
 
             # プロセス情報を取得
             status = process.status()
@@ -116,28 +116,20 @@ class ProcessMonitor:
             num_threads = process.num_threads()
 
             return {
-                'pid': pid,
-                'status': status,
-                'cpu_percent': cpu_percent,
-                'memory_rss': memory_info.rss,
-                'memory_vms': memory_info.vms,
-                'num_threads': num_threads,
-                'timestamp': time.time()
+                "pid": pid,
+                "status": status,
+                "cpu_percent": cpu_percent,
+                "memory_rss": memory_info.rss,
+                "memory_vms": memory_info.vms,
+                "num_threads": num_threads,
+                "timestamp": time.time(),
             }
 
         except psutil.NoSuchProcess:
-            return {
-                'pid': pid,
-                'status': 'not_found',
-                'timestamp': time.time()
-            }
+            return {"pid": pid, "status": "not_found", "timestamp": time.time()}
         except Exception as e:
             self.logger.error(f"プロセス状態取得エラー: {e}")
-            return {
-                'pid': pid,
-                'error': str(e),
-                'timestamp': time.time()
-            }
+            return {"pid": pid, "error": str(e), "timestamp": time.time()}
 
     def get_metrics_history(self, pid: int) -> List[Dict[str, Any]]:
         """プロセスのメトリクス履歴を取得"""
@@ -147,13 +139,13 @@ class ProcessMonitor:
 
             return [
                 {
-                    'pid': m.pid,
-                    'status': m.status,
-                    'cpu_percent': m.cpu_percent,
-                    'memory_rss': m.memory_rss,
-                    'memory_vms': m.memory_vms,
-                    'num_threads': m.num_threads,
-                    'timestamp': m.timestamp
+                    "pid": m.pid,
+                    "status": m.status,
+                    "cpu_percent": m.cpu_percent,
+                    "memory_rss": m.memory_rss,
+                    "memory_vms": m.memory_vms,
+                    "num_threads": m.num_threads,
+                    "timestamp": m.timestamp,
                 }
                 for m in self.metrics_history[pid]
             ]
@@ -179,7 +171,7 @@ class ProcessMonitor:
                                 memory_rss=process.memory_info().rss,
                                 memory_vms=process.memory_info().vms,
                                 num_threads=process.num_threads(),
-                                timestamp=time.time()
+                                timestamp=time.time(),
                             )
 
                             # 履歴に追加（最新100件まで保持）
@@ -188,7 +180,9 @@ class ProcessMonitor:
 
                             self.metrics_history[pid].append(metrics)
                             if len(self.metrics_history[pid]) > 100:
-                                self.metrics_history[pid] = self.metrics_history[pid][-100:]
+                                self.metrics_history[pid] = self.metrics_history[pid][
+                                    -100:
+                                ]
 
                         except psutil.NoSuchProcess:
                             pids_to_remove.append(pid)
@@ -218,12 +212,17 @@ class ProcessMonitor:
 
                 # CPU使用率が0%で状態が変わらない場合
                 if all(m.cpu_percent == 0 for m in recent_metrics):
-                    if all(m.status == recent_metrics[0].status for m in recent_metrics):
-                        hanging_processes.append({
-                            'pid': pid,
-                            'reason': 'no_cpu_activity',
-                            'duration': recent_metrics[-1].timestamp - recent_metrics[0].timestamp,
-                            'status': recent_metrics[0].status
-                        })
+                    if all(
+                        m.status == recent_metrics[0].status for m in recent_metrics
+                    ):
+                        hanging_processes.append(
+                            {
+                                "pid": pid,
+                                "reason": "no_cpu_activity",
+                                "duration": recent_metrics[-1].timestamp
+                                - recent_metrics[0].timestamp,
+                                "status": recent_metrics[0].status,
+                            }
+                        )
 
         return hanging_processes

@@ -15,7 +15,7 @@ from services.actions.diagnostic import DiagnosticService, DiagnosticStatus
 from services.actions.enhanced_act_wrapper import (
     EnhancedActWrapper,
     ProcessMonitor,
-    MonitoredProcess
+    MonitoredProcess,
 )
 from services.actions.execution_tracer import ExecutionTracer, ExecutionStage
 from services.actions.hangup_detector import HangupDetector, HangupType, HangupSeverity
@@ -65,16 +65,14 @@ jobs:
             logger=logger,
             warning_timeout=2.0,
             escalation_timeout=5.0,
-            heartbeat_interval=1.0
+            heartbeat_interval=1.0,
         )
 
     @pytest.fixture
     def execution_tracer(self, logger):
         """ExecutionTracerインスタンスを作成"""
         return ExecutionTracer(
-            logger=logger,
-            heartbeat_interval=1.0,
-            resource_monitoring_interval=0.5
+            logger=logger, heartbeat_interval=1.0, resource_monitoring_interval=0.5
         )
 
     @pytest.fixture
@@ -89,13 +87,13 @@ jobs:
             logger=logger,
             max_recovery_attempts=2,
             recovery_timeout=10.0,
-            enable_fallback_mode=True
+            enable_fallback_mode=True,
         )
 
     def test_docker_socket_hangup_scenario(self, diagnostic_service, hangup_detector):
         """Dockerソケット問題によるハングアップシナリオテスト"""
         # Dockerソケットが存在しない状況をシミュレート
-        with patch('pathlib.Path.exists', return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):
             # 診断サービスでDocker接続性をチェック
             docker_result = diagnostic_service.check_docker_connectivity()
 
@@ -107,14 +105,19 @@ jobs:
 
             assert len(docker_issues) > 0
             docker_issue = next(
-                (issue for issue in docker_issues
-                 if issue.issue_type == HangupType.DOCKER_SOCKET_ISSUE),
-                None
+                (
+                    issue
+                    for issue in docker_issues
+                    if issue.issue_type == HangupType.DOCKER_SOCKET_ISSUE
+                ),
+                None,
             )
             assert docker_issue is not None
             assert docker_issue.severity == HangupSeverity.CRITICAL
 
-    def test_subprocess_deadlock_hangup_scenario(self, process_monitor, execution_tracer, hangup_detector):
+    def test_subprocess_deadlock_hangup_scenario(
+        self, process_monitor, execution_tracer, hangup_detector
+    ):
         """サブプロセスデッドロックによるハングアップシナリオテスト"""
         # 長時間実行されるモックプロセスを作成
         mock_process = Mock()
@@ -124,22 +127,23 @@ jobs:
         monitored_process = MonitoredProcess(
             process=mock_process,
             command=["sleep", "infinity"],
-            start_time=time.time() - 300  # 5分前に開始
+            start_time=time.time() - 300,  # 5分前に開始
         )
 
         # 実行トレースを開始
-        trace = execution_tracer.start_trace("deadlock_test")
+        execution_tracer.start_trace("deadlock_test")
         execution_tracer.set_stage(ExecutionStage.PROCESS_MONITORING)
 
         # プロセストレースを追加
-        process_trace = execution_tracer.trace_subprocess_execution(
+        execution_tracer.trace_subprocess_execution(
             ["sleep", "infinity"], mock_process
         )
 
         # プロセス監視でデッドロック検出
-        with patch('time.time', return_value=time.time()):
+        with patch("time.time", return_value=time.time()):
             timed_out, deadlock_indicators = process_monitor.monitor_with_heartbeat(
-                monitored_process, timeout=1  # 短いタイムアウト
+                monitored_process,
+                timeout=1,  # 短いタイムアウト
             )
 
         assert timed_out
@@ -160,11 +164,11 @@ jobs:
         monitored_process = MonitoredProcess(
             process=mock_process,
             command=["long_running_command"],
-            start_time=time.time()
+            start_time=time.time(),
         )
 
         # タイムアウトエスカレーションをテスト
-        with patch('services.actions.enhanced_act_wrapper.time.time') as mock_time:
+        with patch("services.actions.enhanced_act_wrapper.time.time") as mock_time:
             start_time = 1000.0
             mock_time.side_effect = [
                 start_time,  # 開始時刻
@@ -209,13 +213,12 @@ jobs:
         monitored_process = MonitoredProcess(
             process=mock_process,
             command=["generate_large_output"],
-            start_time=time.time()
+            start_time=time.time(),
         )
 
         # EnhancedActWrapperで出力ストリーミングをテスト
         wrapper = EnhancedActWrapper(
-            working_directory=str(temp_workspace),
-            logger=logger
+            working_directory=str(temp_workspace), logger=logger
         )
 
         # 出力ストリーミングを実行
@@ -244,14 +247,16 @@ jobs:
         monitored_process = MonitoredProcess(
             process=mock_process,
             command=["memory_intensive_task"],
-            start_time=time.time()
+            start_time=time.time(),
         )
 
         # 高リソース使用量をシミュレート
-        with patch('psutil.Process') as mock_psutil:
+        with patch("psutil.Process") as mock_psutil:
             mock_process_instance = Mock()
             mock_process_instance.cpu_percent.return_value = 98.0  # 高CPU
-            mock_process_instance.memory_info.return_value = Mock(rss=2000 * 1024 * 1024)  # 2GB
+            mock_process_instance.memory_info.return_value = Mock(
+                rss=2000 * 1024 * 1024
+            )  # 2GB
             mock_process_instance.memory_percent.return_value = 95.0  # 高メモリ
             mock_process_instance.num_threads.return_value = 50
             mock_psutil.return_value = mock_process_instance
@@ -265,12 +270,14 @@ jobs:
             assert snapshot["cpu_percent"] == 98.0
             assert snapshot["memory_mb"] == 2000.0
 
-    def test_docker_communication_timeout_scenario(self, diagnostic_service, hangup_detector):
+    def test_docker_communication_timeout_scenario(
+        self, diagnostic_service, hangup_detector
+    ):
         """Docker通信タイムアウトシナリオテスト"""
         from subprocess import TimeoutExpired
 
         # Docker通信でタイムアウトが発生する状況をシミュレート
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.side_effect = TimeoutExpired("docker", 10)
 
             # 診断サービスでDocker接続性をチェック
@@ -283,34 +290,36 @@ jobs:
             timeout_issues = hangup_detector.detect_docker_socket_issues()
 
             timeout_issue = next(
-                (issue for issue in timeout_issues
-                 if "タイムアウト" in issue.title),
-                None
+                (issue for issue in timeout_issues if "タイムアウト" in issue.title),
+                None,
             )
             assert timeout_issue is not None
             assert timeout_issue.severity == HangupSeverity.HIGH
 
-    def test_permission_denied_hangup_scenario(self, diagnostic_service, hangup_detector):
+    def test_permission_denied_hangup_scenario(
+        self, diagnostic_service, hangup_detector
+    ):
         """権限拒否によるハングアップシナリオテスト"""
         # dockerグループに属していない状況をシミュレート
-        with patch('subprocess.run') as mock_run, \
-             patch('os.getuid', return_value=1000):
-
+        with patch("subprocess.run") as mock_run, patch("os.getuid", return_value=1000):
             mock_result = Mock()
             mock_result.returncode = 0
             mock_result.stdout = "user adm cdrom sudo"  # dockerグループなし
             mock_run.return_value = mock_result
 
             # 診断サービスで権限チェック
-            permission_result = diagnostic_service.check_container_permissions()
+            diagnostic_service.check_container_permissions()
 
             # ハングアップ検出器で権限問題を検出
             permission_issues = hangup_detector.detect_permission_issues()
 
             permission_issue = next(
-                (issue for issue in permission_issues
-                 if "dockerグループ" in issue.title),
-                None
+                (
+                    issue
+                    for issue in permission_issues
+                    if "dockerグループ" in issue.title
+                ),
+                None,
             )
             assert permission_issue is not None
             assert permission_issue.severity == HangupSeverity.HIGH
@@ -318,16 +327,20 @@ jobs:
     def test_auto_recovery_docker_reconnection_scenario(self, auto_recovery):
         """自動復旧Dockerリコネクションシナリオテスト"""
         # Docker接続が失敗している状況をシミュレート
-        with patch.object(auto_recovery.docker_checker, 'test_docker_daemon_connection_with_retry') as mock_check:
-            from services.actions.docker_integration_checker import DockerConnectionStatus
+        with patch.object(
+            auto_recovery.docker_checker, "test_docker_daemon_connection_with_retry"
+        ) as mock_check:
+            from services.actions.docker_integration_checker import (
+                DockerConnectionStatus,
+            )
 
             # 最初は失敗、再試行後に成功
             mock_check.side_effect = [
                 Mock(status=DockerConnectionStatus.DISCONNECTED),
-                Mock(status=DockerConnectionStatus.CONNECTED)
+                Mock(status=DockerConnectionStatus.CONNECTED),
             ]
 
-            with patch('subprocess.run') as mock_run:
+            with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0)
 
                 # Docker再接続を試行
@@ -362,7 +375,9 @@ jobs:
         assert result.fallback_method == "dry_run_mode"
         assert "ドライランモード実行結果" in result.stdout
 
-    def test_comprehensive_hangup_analysis_scenario(self, hangup_detector, execution_tracer):
+    def test_comprehensive_hangup_analysis_scenario(
+        self, hangup_detector, execution_tracer
+    ):
         """包括的ハングアップ分析シナリオテスト"""
         # 複数の問題を含む実行トレースを作成
         trace = execution_tracer.start_trace("comprehensive_test")
@@ -371,11 +386,16 @@ jobs:
         final_trace = execution_tracer.end_trace()
 
         # 包括的ハングアップ分析を実行
-        with patch.object(hangup_detector, 'detect_docker_socket_issues') as mock_docker, \
-             patch.object(hangup_detector, 'detect_subprocess_deadlock') as mock_subprocess, \
-             patch.object(hangup_detector, 'detect_timeout_problems') as mock_timeout, \
-             patch.object(hangup_detector, 'detect_permission_issues') as mock_permission:
-
+        with (
+            patch.object(hangup_detector, "detect_docker_socket_issues") as mock_docker,
+            patch.object(
+                hangup_detector, "detect_subprocess_deadlock"
+            ) as mock_subprocess,
+            patch.object(hangup_detector, "detect_timeout_problems") as mock_timeout,
+            patch.object(
+                hangup_detector, "detect_permission_issues"
+            ) as mock_permission,
+        ):
             from services.actions.hangup_detector import HangupIssue
 
             # 各種問題を設定
@@ -385,7 +405,7 @@ jobs:
                     severity=HangupSeverity.HIGH,
                     title="Docker接続エラー",
                     description="Docker daemonに接続できません",
-                    confidence_score=0.9
+                    confidence_score=0.9,
                 )
             ]
             mock_subprocess.return_value = [
@@ -394,14 +414,16 @@ jobs:
                     severity=HangupSeverity.HIGH,
                     title="プロセスデッドロック",
                     description="サブプロセスが応答しません",
-                    confidence_score=0.8
+                    confidence_score=0.8,
                 )
             ]
             mock_timeout.return_value = []
             mock_permission.return_value = []
 
             # 包括的分析を実行
-            analysis = hangup_detector.analyze_hangup_conditions(execution_trace=final_trace)
+            analysis = hangup_detector.analyze_hangup_conditions(
+                execution_trace=final_trace
+            )
 
             assert analysis.analysis_id is not None
             assert len(analysis.issues) == 2
@@ -432,12 +454,13 @@ jobs:
         final_trace = execution_tracer.end_trace()
 
         # 4. ハングアップ分析
-        analysis = hangup_detector.analyze_hangup_conditions(execution_trace=final_trace)
+        analysis = hangup_detector.analyze_hangup_conditions(
+            execution_trace=final_trace
+        )
 
         # 5. 自動復旧試行
         recovery_session = auto_recovery.run_comprehensive_recovery(
-            workflow_file=workflow_file,
-            original_command=["act", "--list"]
+            workflow_file=workflow_file, original_command=["act", "--list"]
         )
 
         # 結果検証
@@ -481,7 +504,7 @@ jobs:
 
         # 複数回のトレース実行
         for i in range(5):
-            trace = execution_tracer.start_trace(f"memory_test_{i}")
+            execution_tracer.start_trace(f"memory_test_{i}")
             execution_tracer.set_stage(ExecutionStage.COMPLETED)
             execution_tracer.end_trace()
 
@@ -503,7 +526,7 @@ jobs:
             severity=HangupSeverity.HIGH,
             title="テスト問題",
             description="テスト用の問題",
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         # 詳細エラーレポートを生成
@@ -532,7 +555,7 @@ jobs:
             output_directory=temp_workspace,
             include_logs=True,
             include_system_info=True,
-            include_docker_info=True
+            include_docker_info=True,
         )
 
         assert bundle.bundle_id is not None

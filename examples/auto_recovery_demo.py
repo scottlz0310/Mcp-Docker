@@ -44,7 +44,7 @@ def demo_fallback_execution():
     auto_recovery = AutoRecovery(logger=logger, enable_fallback_mode=True)
 
     # 一時的なワークフローファイルを作成
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write("""
 name: Demo Workflow
 on: push
@@ -63,10 +63,7 @@ jobs:
         print(f"\n1. ワークフローファイル作成: {workflow_file}")
 
         print("\n2. フォールバック実行テスト")
-        result = auto_recovery.execute_fallback_mode(
-            workflow_file,
-            ["act", "--list"]
-        )
+        result = auto_recovery.execute_fallback_mode(workflow_file, ["act", "--list"])
 
         print(f"フォールバック実行結果: {'成功' if result.success else '失敗'}")
         print(f"使用方法: {result.fallback_method}")
@@ -93,7 +90,7 @@ def demo_enhanced_act_wrapper_with_recovery():
     wrapper = EnhancedActWrapper(logger=logger, enable_diagnostics=True)
 
     # 一時的なワークフローファイルを作成
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write("""
 name: Test Workflow
 on: push
@@ -118,7 +115,7 @@ jobs:
             workflow_file=workflow_file,
             dry_run=True,
             enable_recovery=True,
-            max_recovery_attempts=1
+            max_recovery_attempts=1,
         )
 
         print(f"実行結果: {'成功' if result.success else '失敗'}")
@@ -127,8 +124,10 @@ jobs:
 
         if result.diagnostic_results:
             print(f"\n診断結果数: {len(result.diagnostic_results)}")
-            for i, diag in enumerate(result.diagnostic_results[:3]):  # 最初の3個のみ表示
-                print(f"  {i+1}. {diag.component}: {diag.message}")
+            for i, diag in enumerate(
+                result.diagnostic_results[:3]
+            ):  # 最初の3個のみ表示
+                print(f"  {i + 1}. {diag.component}: {diag.message}")
 
         print("\n4. 自動復旧統計（実行後）")
         stats_after = wrapper.get_auto_recovery_statistics()
@@ -146,7 +145,7 @@ def demo_comprehensive_recovery():
     auto_recovery = AutoRecovery(logger=logger)
 
     # 一時的なワークフローファイルを作成
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write("name: recovery-test\non: push")
         workflow_file = Path(f.name)
 
@@ -155,19 +154,22 @@ def demo_comprehensive_recovery():
 
         print("\n2. 包括的復旧処理実行")
         session = auto_recovery.run_comprehensive_recovery(
-            workflow_file=workflow_file,
-            original_command=["act", "--dry-run"]
+            workflow_file=workflow_file, original_command=["act", "--dry-run"]
         )
 
         print(f"復旧セッションID: {session.session_id}")
         print(f"全体的成功: {'はい' if session.overall_success else 'いいえ'}")
-        print(f"フォールバックモード使用: {'はい' if session.fallback_mode_activated else 'いいえ'}")
+        print(
+            f"フォールバックモード使用: {'はい' if session.fallback_mode_activated else 'いいえ'}"
+        )
         print(f"復旧試行数: {len(session.attempts)}")
 
         if session.attempts:
             print("\n復旧試行詳細:")
             for i, attempt in enumerate(session.attempts):
-                print(f"  {i+1}. {attempt.recovery_type.value}: {attempt.status.value}")
+                print(
+                    f"  {i + 1}. {attempt.recovery_type.value}: {attempt.status.value}"
+                )
                 if attempt.message:
                     print(f"     メッセージ: {attempt.message}")
 

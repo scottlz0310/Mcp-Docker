@@ -27,13 +27,14 @@ from .logger import ActionsLogger
 
 # パフォーマンス監視のインポート
 import sys
-from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
 from performance_monitor import PerformanceMonitor
 
 
 class DeadlockType(Enum):
     """デッドロックの種類"""
+
     STDOUT_THREAD = "stdout_thread"
     STDERR_THREAD = "stderr_thread"
     PROCESS_WAIT = "process_wait"
@@ -44,8 +45,11 @@ class DeadlockType(Enum):
 @dataclass
 class DeadlockIndicator:
     """デッドロック検出の指標"""
+
     deadlock_type: DeadlockType
-    detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    detected_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     thread_name: Optional[str] = None
     process_pid: Optional[int] = None
     details: Dict[str, Any] = field(default_factory=dict)
@@ -56,6 +60,7 @@ class DeadlockIndicator:
 @dataclass
 class MonitoredProcess:
     """監視対象プロセスの情報"""
+
     process: subprocess.Popen
     command: List[str]
     start_time: float
@@ -71,6 +76,7 @@ class MonitoredProcess:
 @dataclass
 class DetailedResult:
     """詳細な実行結果"""
+
     success: bool
     returncode: int
     stdout: str
@@ -101,7 +107,7 @@ class ProcessMonitor:
         warning_timeout: float = 480.0,  # 8分で警告
         escalation_timeout: float = 540.0,  # 9分でエスカレーション
         heartbeat_interval: float = 30.0,
-        detailed_logging: bool = True
+        detailed_logging: bool = True,
     ):
         """
         ProcessMonitorを初期化
@@ -138,9 +144,7 @@ class ProcessMonitor:
         self._performance_metrics: Dict[str, float] = {}
 
     def monitor_with_heartbeat(
-        self,
-        monitored_process: MonitoredProcess,
-        timeout: int
+        self, monitored_process: MonitoredProcess, timeout: int
     ) -> Tuple[bool, List[DeadlockIndicator]]:
         """
         改良されたハートビートメカニズムでプロセスを監視
@@ -153,14 +157,22 @@ class ProcessMonitor:
         Returns:
             Tuple[bool, List[DeadlockIndicator]]: (タイムアウトフラグ, デッドロック指標リスト)
         """
-        self.logger.info(f"改良されたプロセス監視を開始: PID {monitored_process.process.pid}, タイムアウト: {timeout}秒")
+        self.logger.info(
+            f"改良されたプロセス監視を開始: PID {monitored_process.process.pid}, タイムアウト: {timeout}秒"
+        )
 
         start_time = time.time()
         self._last_heartbeat = start_time
 
         # タイムアウト段階の設定
-        warning_deadline = start_time + self.warning_timeout if self.warning_timeout > 0 else None
-        escalation_deadline = start_time + self.escalation_timeout if self.escalation_timeout > 0 else None
+        warning_deadline = (
+            start_time + self.warning_timeout if self.warning_timeout > 0 else None
+        )
+        escalation_deadline = (
+            start_time + self.escalation_timeout
+            if self.escalation_timeout > 0
+            else None
+        )
         final_deadline = start_time + timeout if timeout > 0 else None
 
         next_heartbeat = start_time + self.heartbeat_interval
@@ -178,7 +190,9 @@ class ProcessMonitor:
                 return_code = monitored_process.process.poll()
                 if return_code is not None:
                     elapsed = time.time() - start_time
-                    self.logger.info(f"プロセスが正常終了: PID {monitored_process.process.pid}, 終了コード: {return_code}, 実行時間: {elapsed:.2f}秒")
+                    self.logger.info(
+                        f"プロセスが正常終了: PID {monitored_process.process.pid}, 終了コード: {return_code}, 実行時間: {elapsed:.2f}秒"
+                    )
                     break
 
                 now = time.time()
@@ -186,8 +200,12 @@ class ProcessMonitor:
 
                 # タイムアウトエスカレーション処理
                 timeout_result = self._handle_timeout_escalation(
-                    monitored_process, now, elapsed,
-                    warning_deadline, escalation_deadline, final_deadline
+                    monitored_process,
+                    now,
+                    elapsed,
+                    warning_deadline,
+                    escalation_deadline,
+                    final_deadline,
                 )
 
                 if timeout_result:
@@ -206,7 +224,9 @@ class ProcessMonitor:
 
                 # デッドロック検出結果をチェック
                 if monitored_process.deadlock_indicators:
-                    self.logger.warning(f"デッドロックが検出されました: PID {monitored_process.process.pid}")
+                    self.logger.warning(
+                        f"デッドロックが検出されました: PID {monitored_process.process.pid}"
+                    )
                     return True, monitored_process.deadlock_indicators
 
                 time.sleep(1)
@@ -219,7 +239,9 @@ class ProcessMonitor:
             # 最終リソース使用量を記録
             self._record_final_metrics(monitored_process, time.time() - start_time)
 
-    def detect_deadlock_conditions(self, monitored_process: MonitoredProcess) -> List[DeadlockIndicator]:
+    def detect_deadlock_conditions(
+        self, monitored_process: MonitoredProcess
+    ) -> List[DeadlockIndicator]:
         """
         デッドロック条件を検出
 
@@ -235,72 +257,81 @@ class ProcessMonitor:
         # スレッドの応答性チェック
         if monitored_process.stdout_thread:
             if not self._is_thread_responsive(monitored_process.stdout_thread):
-                indicators.append(DeadlockIndicator(
-                    deadlock_type=DeadlockType.STDOUT_THREAD,
-                    thread_name=monitored_process.stdout_thread.name,
-                    process_pid=monitored_process.process.pid,
-                    details={
-                        "thread_alive": monitored_process.stdout_thread.is_alive(),
-                        "last_activity": monitored_process.last_activity
-                    },
-                    recommendations=[
-                        "標準出力スレッドが応答しません",
-                        "プロセスを強制終了することを検討してください"
-                    ]
-                ))
+                indicators.append(
+                    DeadlockIndicator(
+                        deadlock_type=DeadlockType.STDOUT_THREAD,
+                        thread_name=monitored_process.stdout_thread.name,
+                        process_pid=monitored_process.process.pid,
+                        details={
+                            "thread_alive": monitored_process.stdout_thread.is_alive(),
+                            "last_activity": monitored_process.last_activity,
+                        },
+                        recommendations=[
+                            "標準出力スレッドが応答しません",
+                            "プロセスを強制終了することを検討してください",
+                        ],
+                    )
+                )
 
         if monitored_process.stderr_thread:
             if not self._is_thread_responsive(monitored_process.stderr_thread):
-                indicators.append(DeadlockIndicator(
-                    deadlock_type=DeadlockType.STDERR_THREAD,
-                    thread_name=monitored_process.stderr_thread.name,
-                    process_pid=monitored_process.process.pid,
-                    details={
-                        "thread_alive": monitored_process.stderr_thread.is_alive(),
-                        "last_activity": monitored_process.last_activity
-                    },
-                    recommendations=[
-                        "標準エラースレッドが応答しません",
-                        "プロセスを強制終了することを検討してください"
-                    ]
-                ))
+                indicators.append(
+                    DeadlockIndicator(
+                        deadlock_type=DeadlockType.STDERR_THREAD,
+                        thread_name=monitored_process.stderr_thread.name,
+                        process_pid=monitored_process.process.pid,
+                        details={
+                            "thread_alive": monitored_process.stderr_thread.is_alive(),
+                            "last_activity": monitored_process.last_activity,
+                        },
+                        recommendations=[
+                            "標準エラースレッドが応答しません",
+                            "プロセスを強制終了することを検討してください",
+                        ],
+                    )
+                )
 
         # プロセスの応答性チェック
         if now - monitored_process.last_activity > self.activity_timeout:
-            indicators.append(DeadlockIndicator(
-                deadlock_type=DeadlockType.PROCESS_WAIT,
-                process_pid=monitored_process.process.pid,
-                details={
-                    "inactive_duration": now - monitored_process.last_activity,
-                    "timeout_threshold": self.activity_timeout
-                },
-                recommendations=[
-                    f"プロセスが{self.activity_timeout}秒間非アクティブです",
-                    "Docker通信の問題またはリソース不足の可能性があります"
-                ]
-            ))
+            indicators.append(
+                DeadlockIndicator(
+                    deadlock_type=DeadlockType.PROCESS_WAIT,
+                    process_pid=monitored_process.process.pid,
+                    details={
+                        "inactive_duration": now - monitored_process.last_activity,
+                        "timeout_threshold": self.activity_timeout,
+                    },
+                    recommendations=[
+                        f"プロセスが{self.activity_timeout}秒間非アクティブです",
+                        "Docker通信の問題またはリソース不足の可能性があります",
+                    ],
+                )
+            )
 
         # リソース枯渇の検出
         try:
             import psutil
+
             process = psutil.Process(monitored_process.process.pid)
             memory_percent = process.memory_percent()
             cpu_percent = process.cpu_percent()
 
             if memory_percent > 90.0:
-                indicators.append(DeadlockIndicator(
-                    deadlock_type=DeadlockType.RESOURCE_EXHAUSTION,
-                    process_pid=monitored_process.process.pid,
-                    details={
-                        "memory_percent": memory_percent,
-                        "cpu_percent": cpu_percent
-                    },
-                    severity="HIGH",
-                    recommendations=[
-                        f"メモリ使用率が異常に高いです: {memory_percent:.1f}%",
-                        "メモリリークまたはリソース枯渇の可能性があります"
-                    ]
-                ))
+                indicators.append(
+                    DeadlockIndicator(
+                        deadlock_type=DeadlockType.RESOURCE_EXHAUSTION,
+                        process_pid=monitored_process.process.pid,
+                        details={
+                            "memory_percent": memory_percent,
+                            "cpu_percent": cpu_percent,
+                        },
+                        severity="HIGH",
+                        recommendations=[
+                            f"メモリ使用率が異常に高いです: {memory_percent:.1f}%",
+                            "メモリリークまたはリソース枯渇の可能性があります",
+                        ],
+                    )
+                )
 
         except (ImportError, Exception):
             # psutilが利用できない場合はスキップ
@@ -316,7 +347,9 @@ class ProcessMonitor:
         Args:
             monitored_process: クリーンアップ対象プロセス
         """
-        self.logger.warning(f"改良されたプロセス強制クリーンアップを開始: PID {monitored_process.process.pid}")
+        self.logger.warning(
+            f"改良されたプロセス強制クリーンアップを開始: PID {monitored_process.process.pid}"
+        )
 
         cleanup_start = time.time()
 
@@ -332,7 +365,9 @@ class ProcessMonitor:
                     self.logger.info("プロセスがSIGTERMで正常に終了しました")
                     return
                 except subprocess.TimeoutExpired:
-                    self.logger.warning("SIGTERM後のタイムアウト、次のステップに進みます")
+                    self.logger.warning(
+                        "SIGTERM後のタイムアウト、次のステップに進みます"
+                    )
 
             # ステップ2: プロセスグループ全体を終了
             if monitored_process.process.poll() is None:
@@ -340,14 +375,22 @@ class ProcessMonitor:
                 try:
                     import os
                     import signal
-                    if hasattr(os, 'killpg'):
-                        os.killpg(os.getpgid(monitored_process.process.pid), signal.SIGTERM)
+
+                    if hasattr(os, "killpg"):
+                        os.killpg(
+                            os.getpgid(monitored_process.process.pid), signal.SIGTERM
+                        )
                         time.sleep(2)
 
                         if monitored_process.process.poll() is None:
-                            os.killpg(os.getpgid(monitored_process.process.pid), signal.SIGKILL)
+                            os.killpg(
+                                os.getpgid(monitored_process.process.pid),
+                                signal.SIGKILL,
+                            )
                 except (OSError, ProcessLookupError):
-                    self.logger.debug("プロセスグループ終了に失敗、個別プロセス終了に進みます")
+                    self.logger.debug(
+                        "プロセスグループ終了に失敗、個別プロセス終了に進みます"
+                    )
 
             # ステップ3: 強制終了 (SIGKILL)
             if monitored_process.process.poll() is None:
@@ -360,7 +403,9 @@ class ProcessMonitor:
                     monitored_process.process.wait(timeout=3)
                     self.logger.info("プロセスがSIGKILLで強制終了されました")
                 except subprocess.TimeoutExpired:
-                    self.logger.error("プロセスの強制終了に失敗しました - ゾンビプロセスの可能性があります")
+                    self.logger.error(
+                        "プロセスの強制終了に失敗しました - ゾンビプロセスの可能性があります"
+                    )
 
         except Exception as e:
             self.logger.error(f"プロセスクリーンアップ中にエラーが発生しました: {e}")
@@ -373,7 +418,9 @@ class ProcessMonitor:
         self._clear_output_buffers(monitored_process)
 
         cleanup_duration = time.time() - cleanup_start
-        self.logger.info(f"プロセスクリーンアップ完了: 実行時間 {cleanup_duration:.2f}秒")
+        self.logger.info(
+            f"プロセスクリーンアップ完了: 実行時間 {cleanup_duration:.2f}秒"
+        )
 
     def _handle_timeout_escalation(
         self,
@@ -382,7 +429,7 @@ class ProcessMonitor:
         elapsed: float,
         warning_deadline: Optional[float],
         escalation_deadline: Optional[float],
-        final_deadline: Optional[float]
+        final_deadline: Optional[float],
     ) -> Optional[Tuple[bool, List[DeadlockIndicator]]]:
         """
         タイムアウトエスカレーション処理
@@ -399,7 +446,11 @@ class ProcessMonitor:
             Optional[Tuple[bool, List[DeadlockIndicator]]]: タイムアウト時の結果
         """
         # 警告段階
-        if warning_deadline and current_time >= warning_deadline and not self._warning_sent:
+        if (
+            warning_deadline
+            and current_time >= warning_deadline
+            and not self._warning_sent
+        ):
             self._warning_sent = True
             self.logger.warning(
                 f"⚠️  プロセス実行警告: {elapsed:.1f}秒経過 (PID: {monitored_process.process.pid})\n"
@@ -412,7 +463,11 @@ class ProcessMonitor:
             self._perform_warning_diagnostics(monitored_process)
 
         # エスカレーション段階
-        if escalation_deadline and current_time >= escalation_deadline and not self._escalation_started:
+        if (
+            escalation_deadline
+            and current_time >= escalation_deadline
+            and not self._escalation_started
+        ):
             self._escalation_started = True
             self.logger.error(
                 f"🚨 プロセス実行エスカレーション: {elapsed:.1f}秒経過 (PID: {monitored_process.process.pid})\n"
@@ -434,7 +489,9 @@ class ProcessMonitor:
 
         return None
 
-    def _log_enhanced_heartbeat(self, monitored_process: MonitoredProcess, elapsed: float) -> None:
+    def _log_enhanced_heartbeat(
+        self, monitored_process: MonitoredProcess, elapsed: float
+    ) -> None:
         """
         改良されたハートビートログを出力
 
@@ -450,26 +507,31 @@ class ProcessMonitor:
             "stdout_lines": len(monitored_process.stdout_lines),
             "stderr_lines": len(monitored_process.stderr_lines),
             "deadlock_indicators": len(monitored_process.deadlock_indicators),
-            "force_killed": monitored_process.force_killed
+            "force_killed": monitored_process.force_killed,
         }
 
         # リソース情報を追加
         try:
             import psutil
+
             process = psutil.Process(monitored_process.process.pid)
-            process_info.update({
-                "cpu_percent": round(process.cpu_percent(), 2),
-                "memory_mb": round(process.memory_info().rss / (1024 * 1024), 2),
-                "threads": process.num_threads(),
-                "status": process.status()
-            })
+            process_info.update(
+                {
+                    "cpu_percent": round(process.cpu_percent(), 2),
+                    "memory_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+                    "threads": process.num_threads(),
+                    "status": process.status(),
+                }
+            )
         except (ImportError, psutil.NoSuchProcess, psutil.AccessDenied):
             pass
 
         # 段階的な詳細レベル
         if elapsed < 60:
             # 最初の1分は簡潔に
-            self.logger.info(f"💓 プロセス監視: {elapsed:.0f}秒経過 | PID: {process_info['pid']}")
+            self.logger.info(
+                f"💓 プロセス監視: {elapsed:.0f}秒経過 | PID: {process_info['pid']}"
+            )
         elif elapsed < 300:
             # 5分まではやや詳細に
             self.logger.info(
@@ -497,6 +559,7 @@ class ProcessMonitor:
         """
         try:
             import psutil
+
             process = psutil.Process(monitored_process.process.pid)
 
             # リソース情報を取得
@@ -511,7 +574,7 @@ class ProcessMonitor:
                 "cpu_percent": cpu_percent,
                 "memory_mb": memory_mb,
                 "memory_percent": memory_percent,
-                "threads": process.num_threads()
+                "threads": process.num_threads(),
             }
             self._resource_snapshots.append(snapshot)
 
@@ -521,7 +584,9 @@ class ProcessMonitor:
 
             # 異常検出
             if memory_percent > 80.0:
-                self.logger.warning(f"⚠️  高メモリ使用量を検出: {memory_percent:.1f}% ({memory_mb:.1f}MB)")
+                self.logger.warning(
+                    f"⚠️  高メモリ使用量を検出: {memory_percent:.1f}% ({memory_mb:.1f}MB)"
+                )
 
             if cpu_percent > 90.0:
                 self.logger.warning(f"⚠️  高CPU使用量を検出: {cpu_percent:.1f}%")
@@ -548,20 +613,28 @@ class ProcessMonitor:
 
         # スレッド状態の確認
         if monitored_process.stdout_thread:
-            self.logger.info(f"   - 標準出力スレッド: {'生存' if monitored_process.stdout_thread.is_alive() else '停止'}")
+            self.logger.info(
+                f"   - 標準出力スレッド: {'生存' if monitored_process.stdout_thread.is_alive() else '停止'}"
+            )
         if monitored_process.stderr_thread:
-            self.logger.info(f"   - 標準エラースレッド: {'生存' if monitored_process.stderr_thread.is_alive() else '停止'}")
+            self.logger.info(
+                f"   - 標準エラースレッド: {'生存' if monitored_process.stderr_thread.is_alive() else '停止'}"
+            )
 
         # 最近の出力活動
         recent_stdout = len(monitored_process.stdout_lines)
         recent_stderr = len(monitored_process.stderr_lines)
-        self.logger.info(f"   - 出力行数: stdout={recent_stdout}, stderr={recent_stderr}")
+        self.logger.info(
+            f"   - 出力行数: stdout={recent_stdout}, stderr={recent_stderr}"
+        )
 
         # 最後の活動からの経過時間
         inactive_duration = time.time() - monitored_process.last_activity
         self.logger.info(f"   - 最後の活動からの経過時間: {inactive_duration:.1f}秒")
 
-    def _perform_escalation_diagnostics(self, monitored_process: MonitoredProcess) -> None:
+    def _perform_escalation_diagnostics(
+        self, monitored_process: MonitoredProcess
+    ) -> None:
         """
         エスカレーション段階での詳細診断
 
@@ -573,11 +646,14 @@ class ProcessMonitor:
         # プロセス詳細情報
         try:
             import psutil
+
             process = psutil.Process(monitored_process.process.pid)
 
             self.logger.error(f"   - プロセス状態: {process.status()}")
             self.logger.error(f"   - CPU使用率: {process.cpu_percent():.2f}%")
-            self.logger.error(f"   - メモリ使用量: {process.memory_info().rss / (1024 * 1024):.2f}MB")
+            self.logger.error(
+                f"   - メモリ使用量: {process.memory_info().rss / (1024 * 1024):.2f}MB"
+            )
             self.logger.error(f"   - スレッド数: {process.num_threads()}")
 
             # 子プロセスの確認
@@ -595,11 +671,17 @@ class ProcessMonitor:
 
         # デッドロック指標の詳細
         if monitored_process.deadlock_indicators:
-            self.logger.error(f"   - デッドロック指標数: {len(monitored_process.deadlock_indicators)}")
+            self.logger.error(
+                f"   - デッドロック指標数: {len(monitored_process.deadlock_indicators)}"
+            )
             for indicator in monitored_process.deadlock_indicators[-3:]:  # 最新3個
-                self.logger.error(f"     - {indicator.deadlock_type.value}: {indicator.details}")
+                self.logger.error(
+                    f"     - {indicator.deadlock_type.value}: {indicator.details}"
+                )
 
-    def _log_long_running_analysis(self, monitored_process: MonitoredProcess, elapsed: float) -> None:
+    def _log_long_running_analysis(
+        self, monitored_process: MonitoredProcess, elapsed: float
+    ) -> None:
         """
         長時間実行プロセスの分析ログ
 
@@ -612,12 +694,17 @@ class ProcessMonitor:
 
             # 実行時間の分析
             if elapsed > 600:  # 10分以上
-                analysis.append("⏰ 長時間実行中 - Docker通信やネットワークの問題の可能性")
+                analysis.append(
+                    "⏰ 長時間実行中 - Docker通信やネットワークの問題の可能性"
+                )
             elif elapsed > 300:  # 5分以上
                 analysis.append("⏱️  通常より長い実行時間")
 
             # 出力活動の分析
-            if len(monitored_process.stdout_lines) == 0 and len(monitored_process.stderr_lines) == 0:
+            if (
+                len(monitored_process.stdout_lines) == 0
+                and len(monitored_process.stderr_lines) == 0
+            ):
                 analysis.append("🔇 出力なし - プロセスがハングしている可能性")
             elif time.time() - monitored_process.last_activity > 120:  # 2分間活動なし
                 analysis.append("💤 長時間非アクティブ")
@@ -625,7 +712,9 @@ class ProcessMonitor:
             if analysis:
                 self.logger.info(f"   📈 長時間実行分析: {'; '.join(analysis)}")
 
-    def _record_final_metrics(self, monitored_process: MonitoredProcess, total_duration: float) -> None:
+    def _record_final_metrics(
+        self, monitored_process: MonitoredProcess, total_duration: float
+    ) -> None:
         """
         最終的なパフォーマンスメトリクスを記録
 
@@ -633,14 +722,16 @@ class ProcessMonitor:
             monitored_process: 監視対象プロセス
             total_duration: 総実行時間
         """
-        self._performance_metrics.update({
-            "total_duration_seconds": total_duration,
-            "stdout_lines_total": len(monitored_process.stdout_lines),
-            "stderr_lines_total": len(monitored_process.stderr_lines),
-            "deadlock_indicators_count": len(monitored_process.deadlock_indicators),
-            "force_killed": monitored_process.force_killed,
-            "resource_snapshots_count": len(self._resource_snapshots)
-        })
+        self._performance_metrics.update(
+            {
+                "total_duration_seconds": total_duration,
+                "stdout_lines_total": len(monitored_process.stdout_lines),
+                "stderr_lines_total": len(monitored_process.stderr_lines),
+                "deadlock_indicators_count": len(monitored_process.deadlock_indicators),
+                "force_killed": monitored_process.force_killed,
+                "resource_snapshots_count": len(self._resource_snapshots),
+            }
+        )
 
         if self.detailed_logging:
             self.logger.info(
@@ -657,9 +748,15 @@ class ProcessMonitor:
         """
         try:
             # パイプが残っている場合はクローズ
-            if monitored_process.process.stdout and not monitored_process.process.stdout.closed:
+            if (
+                monitored_process.process.stdout
+                and not monitored_process.process.stdout.closed
+            ):
                 monitored_process.process.stdout.close()
-            if monitored_process.process.stderr and not monitored_process.process.stderr.closed:
+            if (
+                monitored_process.process.stderr
+                and not monitored_process.process.stderr.closed
+            ):
                 monitored_process.process.stderr.close()
 
             self.logger.debug("出力バッファをクリアしました")
@@ -681,8 +778,8 @@ class ProcessMonitor:
                 "activity_timeout": self.activity_timeout,
                 "warning_timeout": self.warning_timeout,
                 "escalation_timeout": self.escalation_timeout,
-                "heartbeat_interval": self.heartbeat_interval
-            }
+                "heartbeat_interval": self.heartbeat_interval,
+            },
         }
 
     def _start_deadlock_detection(self, monitored_process: MonitoredProcess) -> None:
@@ -696,7 +793,7 @@ class ProcessMonitor:
             target=self._deadlock_detection_loop,
             args=(monitored_process,),
             name="ProcessMonitor-DeadlockDetection",
-            daemon=True
+            daemon=True,
         )
         self._monitor_thread.start()
 
@@ -718,7 +815,9 @@ class ProcessMonitor:
 
                 # 新しいデッドロック指標があればログ出力
                 for indicator in new_indicators:
-                    self.logger.warning(f"デッドロック指標を検出: {indicator.deadlock_type.value}")
+                    self.logger.warning(
+                        f"デッドロック指標を検出: {indicator.deadlock_type.value}"
+                    )
 
                 # 指定間隔で待機
                 self._stop_event.wait(self.deadlock_detection_interval)
@@ -744,7 +843,9 @@ class ProcessMonitor:
         # 実際の実装では、スレッド固有の応答性指標を使用する
         return True
 
-    def _log_heartbeat(self, monitored_process: MonitoredProcess, elapsed_seconds: int) -> None:
+    def _log_heartbeat(
+        self, monitored_process: MonitoredProcess, elapsed_seconds: int
+    ) -> None:
         """
         ハートビートログを出力
 
@@ -758,10 +859,12 @@ class ProcessMonitor:
             "return_code": monitored_process.process.poll(),
             "stdout_lines": len(monitored_process.stdout_lines),
             "stderr_lines": len(monitored_process.stderr_lines),
-            "deadlock_indicators": len(monitored_process.deadlock_indicators)
+            "deadlock_indicators": len(monitored_process.deadlock_indicators),
         }
 
-        self.logger.info(f"プロセス監視ハートビート: {elapsed_seconds}秒経過 | {json.dumps(process_info, ensure_ascii=False)}")
+        self.logger.info(
+            f"プロセス監視ハートビート: {elapsed_seconds}秒経過 | {json.dumps(process_info, ensure_ascii=False)}"
+        )
 
     def _cleanup_threads(self, monitored_process: MonitoredProcess) -> None:
         """
@@ -802,7 +905,7 @@ class EnhancedActWrapper(ActWrapper):
         enable_performance_monitoring: bool = True,
         deadlock_detection_interval: float = 10.0,
         activity_timeout: float = 60.0,
-        performance_monitoring_interval: float = 0.5
+        performance_monitoring_interval: float = 0.5,
     ) -> None:
         """
         EnhancedActWrapperを初期化
@@ -823,23 +926,28 @@ class EnhancedActWrapper(ActWrapper):
             working_directory=working_directory,
             config=config,
             logger=logger,
-            execution_tracer=execution_tracer
+            execution_tracer=execution_tracer,
         )
 
-        self.diagnostic_service = diagnostic_service or DiagnosticService(logger=self.logger)
+        self.diagnostic_service = diagnostic_service or DiagnosticService(
+            logger=self.logger
+        )
         self.enable_diagnostics = enable_diagnostics
         self.enable_performance_monitoring = enable_performance_monitoring
 
         # パフォーマンス監視の初期化
-        self.performance_monitor = PerformanceMonitor(
-            logger=self.logger,
-            monitoring_interval=performance_monitoring_interval
-        ) if enable_performance_monitoring else None
+        self.performance_monitor = (
+            PerformanceMonitor(
+                logger=self.logger, monitoring_interval=performance_monitoring_interval
+            )
+            if enable_performance_monitoring
+            else None
+        )
 
         self.process_monitor = ProcessMonitor(
             logger=self.logger,
             deadlock_detection_interval=deadlock_detection_interval,
-            activity_timeout=activity_timeout
+            activity_timeout=activity_timeout,
         )
 
         # Docker統合チェッカーを追加
@@ -851,7 +959,7 @@ class EnhancedActWrapper(ActWrapper):
         self.hangup_detector = HangupDetector(
             logger=self.logger,
             diagnostic_service=self.diagnostic_service,
-            execution_tracer=execution_tracer
+            execution_tracer=execution_tracer,
         )
 
         # 自動復旧メカニズムを追加
@@ -860,7 +968,7 @@ class EnhancedActWrapper(ActWrapper):
             docker_checker=self.docker_integration_checker,
             max_recovery_attempts=3,
             recovery_timeout=60.0,
-            enable_fallback_mode=True
+            enable_fallback_mode=True,
         )
 
     def run_workflow_with_diagnostics(
@@ -871,7 +979,7 @@ class EnhancedActWrapper(ActWrapper):
         dry_run: bool = False,
         verbose: bool = False,
         env_vars: Optional[Dict[str, str]] = None,
-        pre_execution_diagnostics: bool = True
+        pre_execution_diagnostics: bool = True,
     ) -> DetailedResult:
         """
         診断機能付きでワークフローを実行
@@ -902,22 +1010,26 @@ class EnhancedActWrapper(ActWrapper):
                 docker_check_results = self._verify_docker_integration_with_retry()
                 if not docker_check_results["overall_success"]:
                     self.logger.error("Docker統合に問題があります")
-                    recommendations = self.docker_integration_checker.generate_docker_fix_recommendations(docker_check_results)
+                    recommendations = self.docker_integration_checker.generate_docker_fix_recommendations(
+                        docker_check_results
+                    )
 
                     return DetailedResult(
                         success=False,
                         returncode=-2,
                         stdout="",
-                        stderr=f"Docker統合エラー: {docker_check_results['summary']}\n推奨修正:\n" + "\n".join(recommendations),
+                        stderr=f"Docker統合エラー: {docker_check_results['summary']}\n推奨修正:\n"
+                        + "\n".join(recommendations),
                         command="Docker統合チェック",
                         execution_time_ms=(time.time() - start_time) * 1000,
-                        diagnostic_results=diagnostic_results
+                        diagnostic_results=diagnostic_results,
                     )
 
                 # 重大なエラーがある場合は実行を中止
                 if health_report.has_errors:
                     error_messages = [
-                        result.message for result in health_report.results
+                        result.message
+                        for result in health_report.results
                         if result.status == DiagnosticStatus.ERROR
                     ]
                     return DetailedResult(
@@ -927,7 +1039,7 @@ class EnhancedActWrapper(ActWrapper):
                         stderr=f"実行前診断でエラーが検出されました: {'; '.join(error_messages)}",
                         command="診断チェック",
                         execution_time_ms=0.0,
-                        diagnostic_results=diagnostic_results
+                        diagnostic_results=diagnostic_results,
                     )
 
             # 改良されたプロセス管理で実行
@@ -937,7 +1049,7 @@ class EnhancedActWrapper(ActWrapper):
                 job=job,
                 dry_run=dry_run,
                 verbose=verbose,
-                env_vars=env_vars
+                env_vars=env_vars,
             )
 
             execution_time_ms = (time.time() - start_time) * 1000
@@ -955,12 +1067,14 @@ class EnhancedActWrapper(ActWrapper):
                 hang_analysis=result.get("hang_analysis"),
                 performance_metrics=result.get("performance_metrics"),
                 bottlenecks_detected=result.get("bottlenecks_detected", []),
-                optimization_opportunities=result.get("optimization_opportunities", [])
+                optimization_opportunities=result.get("optimization_opportunities", []),
             )
 
         except Exception as e:
             execution_time_ms = (time.time() - start_time) * 1000
-            self.logger.error(f"ワークフロー実行中に予期しないエラーが発生しました: {e}")
+            self.logger.error(
+                f"ワークフロー実行中に予期しないエラーが発生しました: {e}"
+            )
 
             return DetailedResult(
                 success=False,
@@ -969,7 +1083,7 @@ class EnhancedActWrapper(ActWrapper):
                 stderr=f"予期しないエラー: {str(e)}",
                 command="不明",
                 execution_time_ms=execution_time_ms,
-                diagnostic_results=diagnostic_results
+                diagnostic_results=diagnostic_results,
             )
 
     def _run_workflow_with_enhanced_monitoring(
@@ -979,7 +1093,7 @@ class EnhancedActWrapper(ActWrapper):
         job: Optional[str] = None,
         dry_run: bool = False,
         verbose: bool = False,
-        env_vars: Optional[Dict[str, str]] = None
+        env_vars: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         改良された監視機能でワークフローを実行（パフォーマンス監視付き）
@@ -1003,7 +1117,7 @@ class EnhancedActWrapper(ActWrapper):
                 job=job,
                 dry_run=dry_run,
                 verbose=verbose,
-                env_vars=env_vars
+                env_vars=env_vars,
             )
 
         # パフォーマンス監視を開始
@@ -1021,21 +1135,26 @@ class EnhancedActWrapper(ActWrapper):
 
         try:
             # 初期化段階
-            self.execution_tracer.set_stage(ExecutionStage.INITIALIZATION, {
-                "workflow_file": workflow_file,
-                "job": job,
-                "dry_run": dry_run,
-                "verbose": verbose,
-                "enhanced_monitoring": True,
-                "performance_monitoring": self.performance_monitor is not None
-            })
+            self.execution_tracer.set_stage(
+                ExecutionStage.INITIALIZATION,
+                {
+                    "workflow_file": workflow_file,
+                    "job": job,
+                    "dry_run": dry_run,
+                    "verbose": verbose,
+                    "enhanced_monitoring": True,
+                    "performance_monitoring": self.performance_monitor is not None,
+                },
+            )
 
             # コマンド構築段階
             if self.performance_monitor:
                 self.performance_monitor.end_stage()
                 self.performance_monitor.start_stage("command_building")
 
-            cmd = self._build_command(workflow_file, event, job, dry_run, verbose, env_vars)
+            cmd = self._build_command(
+                workflow_file, event, job, dry_run, verbose, env_vars
+            )
             process_env = self._build_process_env(event, env_vars)
 
             self.logger.info(f"改良されたactコマンド実行: {' '.join(cmd)}")
@@ -1050,8 +1169,9 @@ class EnhancedActWrapper(ActWrapper):
 
             # Docker操作を記録
             if self.performance_monitor:
-                self.performance_monitor.record_docker_operation("subprocess_creation",
-                                                               str(monitored_process.process.pid))
+                self.performance_monitor.record_docker_operation(
+                    "subprocess_creation", str(monitored_process.process.pid)
+                )
 
             # 出力ストリーミング段階
             if self.performance_monitor:
@@ -1067,13 +1187,17 @@ class EnhancedActWrapper(ActWrapper):
                 self.performance_monitor.start_stage("process_monitoring")
 
             # プロセス監視とタイムアウト処理
-            timed_out, deadlock_indicators = self.process_monitor.monitor_with_heartbeat(
-                monitored_process, self._timeout_seconds
+            timed_out, deadlock_indicators = (
+                self.process_monitor.monitor_with_heartbeat(
+                    monitored_process, self._timeout_seconds
+                )
             )
 
             # タイムアウト時の処理
             if timed_out:
-                self.logger.error("プロセス実行がタイムアウトまたはデッドロックしました")
+                self.logger.error(
+                    "プロセス実行がタイムアウトまたはデッドロックしました"
+                )
 
                 # パフォーマンス監視を停止して分析
                 if self.performance_monitor:
@@ -1083,30 +1207,37 @@ class EnhancedActWrapper(ActWrapper):
                     detailed_analysis = self.performance_monitor.get_detailed_analysis()
                     performance_metrics = detailed_analysis["performance_summary"]
                     bottlenecks_detected = detailed_analysis["bottlenecks"]
-                    optimization_opportunities = detailed_analysis["optimization_opportunities"]
+                    optimization_opportunities = detailed_analysis[
+                        "optimization_opportunities"
+                    ]
 
                 self.process_monitor.force_cleanup_on_timeout(monitored_process)
 
                 # ハングアップ分析
-                hang_analysis = self._analyze_hang_condition(monitored_process, deadlock_indicators)
+                hang_analysis = self._analyze_hang_condition(
+                    monitored_process, deadlock_indicators
+                )
 
                 # 詳細エラーレポートを生成
                 diagnostic_results = []
                 if self.enable_diagnostics:
-                    health_report = self.diagnostic_service.run_comprehensive_health_check()
+                    health_report = (
+                        self.diagnostic_service.run_comprehensive_health_check()
+                    )
                     diagnostic_results = health_report.results
 
                 error_report = self.hangup_detector.generate_detailed_error_report(
                     hangup_analysis=hang_analysis,
                     diagnostic_results=diagnostic_results,
-                    execution_trace=self.execution_tracer.get_current_trace()
+                    execution_trace=self.execution_tracer.get_current_trace(),
                 )
 
                 return {
                     "success": False,
                     "returncode": -1,
                     "stdout": "".join(monitored_process.stdout_lines),
-                    "stderr": "".join(monitored_process.stderr_lines) or "Execution timeout or deadlock",
+                    "stderr": "".join(monitored_process.stderr_lines)
+                    or "Execution timeout or deadlock",
                     "command": " ".join(cmd),
                     "deadlock_indicators": deadlock_indicators,
                     "hang_analysis": hang_analysis,
@@ -1116,8 +1247,8 @@ class EnhancedActWrapper(ActWrapper):
                     "optimization_opportunities": optimization_opportunities,
                     "process_monitoring_data": {
                         "force_killed": monitored_process.force_killed,
-                        "execution_time": time.time() - monitored_process.start_time
-                    }
+                        "execution_time": time.time() - monitored_process.start_time,
+                    },
                 }
 
             # 完了段階
@@ -1144,25 +1275,45 @@ class EnhancedActWrapper(ActWrapper):
                 detailed_analysis = self.performance_monitor.get_detailed_analysis()
                 performance_metrics = detailed_analysis["performance_summary"]
                 bottlenecks_detected = detailed_analysis["bottlenecks"]
-                optimization_opportunities = detailed_analysis["optimization_opportunities"]
+                optimization_opportunities = detailed_analysis[
+                    "optimization_opportunities"
+                ]
 
                 # パフォーマンス結果をログ出力
                 if self.logger.verbose and performance_metrics:
-                    self.logger.info(f"📊 パフォーマンス監視結果:")
-                    self.logger.info(f"   実行時間: {performance_metrics.get('total_execution_time_ms', 0):.2f}ms")
-                    self.logger.info(f"   ピークCPU: {performance_metrics.get('cpu_usage', {}).get('peak', 0):.1f}%")
-                    self.logger.info(f"   ピークメモリ: {performance_metrics.get('memory_usage', {}).get('peak_mb', 0):.1f}MB")
-                    self.logger.info(f"   Docker操作数: {performance_metrics.get('docker_operations', {}).get('total_count', 0)}")
+                    self.logger.info("📊 パフォーマンス監視結果:")
+                    self.logger.info(
+                        f"   実行時間: {performance_metrics.get('total_execution_time_ms', 0):.2f}ms"
+                    )
+                    self.logger.info(
+                        f"   ピークCPU: {performance_metrics.get('cpu_usage', {}).get('peak', 0):.1f}%"
+                    )
+                    self.logger.info(
+                        f"   ピークメモリ: {performance_metrics.get('memory_usage', {}).get('peak_mb', 0):.1f}MB"
+                    )
+                    self.logger.info(
+                        f"   Docker操作数: {performance_metrics.get('docker_operations', {}).get('total_count', 0)}"
+                    )
 
                     if bottlenecks_detected:
-                        self.logger.warning(f"⚠️  検出されたボトルネック: {len(bottlenecks_detected)}個")
+                        self.logger.warning(
+                            f"⚠️  検出されたボトルネック: {len(bottlenecks_detected)}個"
+                        )
                         for bottleneck in bottlenecks_detected[:3]:  # 最初の3個のみ表示
-                            self.logger.warning(f"   - {bottleneck['type']}: {bottleneck['description']}")
+                            self.logger.warning(
+                                f"   - {bottleneck['type']}: {bottleneck['description']}"
+                            )
 
                     if optimization_opportunities:
-                        self.logger.info(f"💡 最適化機会: {len(optimization_opportunities)}個")
-                        for opportunity in optimization_opportunities[:2]:  # 最初の2個のみ表示
-                            self.logger.info(f"   - {opportunity['title']}: {opportunity['estimated_improvement']}")
+                        self.logger.info(
+                            f"💡 最適化機会: {len(optimization_opportunities)}個"
+                        )
+                        for opportunity in optimization_opportunities[
+                            :2
+                        ]:  # 最初の2個のみ表示
+                            self.logger.info(
+                                f"   - {opportunity['title']}: {opportunity['estimated_improvement']}"
+                            )
 
             return {
                 "success": return_code == 0,
@@ -1176,8 +1327,8 @@ class EnhancedActWrapper(ActWrapper):
                 "optimization_opportunities": optimization_opportunities,
                 "process_monitoring_data": {
                     "force_killed": monitored_process.force_killed,
-                    "execution_time": time.time() - monitored_process.start_time
-                }
+                    "execution_time": time.time() - monitored_process.start_time,
+                },
             }
 
         finally:
@@ -1197,7 +1348,7 @@ class EnhancedActWrapper(ActWrapper):
         job: Optional[str],
         dry_run: bool,
         verbose: bool,
-        env_vars: Optional[Dict[str, str]]
+        env_vars: Optional[Dict[str, str]],
     ) -> List[str]:
         """
         実行コマンドを構築
@@ -1231,9 +1382,7 @@ class EnhancedActWrapper(ActWrapper):
         return cmd
 
     def _create_monitored_subprocess(
-        self,
-        cmd: List[str],
-        process_env: Dict[str, str]
+        self, cmd: List[str], process_env: Dict[str, str]
     ) -> MonitoredProcess:
         """
         監視対象サブプロセスを安全に作成
@@ -1260,13 +1409,11 @@ class EnhancedActWrapper(ActWrapper):
                 text=True,
                 env=process_env,
                 # プロセスグループを作成して、子プロセスも含めて制御できるようにする
-                preexec_fn=os.setsid if hasattr(os, 'setsid') else None
+                preexec_fn=os.setsid if hasattr(os, "setsid") else None,
             )
 
             monitored_process = MonitoredProcess(
-                process=process,
-                command=cmd,
-                start_time=time.time()
+                process=process, command=cmd, start_time=time.time()
             )
 
             # プロセストレースを開始
@@ -1282,7 +1429,9 @@ class EnhancedActWrapper(ActWrapper):
             self.execution_tracer.set_stage(ExecutionStage.FAILED)
             raise RuntimeError(f"サブプロセスの作成に失敗しました: {exc}") from exc
 
-    def _handle_output_streaming_safely(self, monitored_process: MonitoredProcess) -> Dict[str, Any]:
+    def _handle_output_streaming_safely(
+        self, monitored_process: MonitoredProcess
+    ) -> Dict[str, Any]:
         """
         出力ストリーミングを安全に処理
 
@@ -1298,7 +1447,7 @@ class EnhancedActWrapper(ActWrapper):
             pipe: Any,
             collector: List[str],
             label: str,
-            monitored_process: MonitoredProcess
+            monitored_process: MonitoredProcess,
         ) -> None:
             """安全な出力ストリーミング関数"""
             try:
@@ -1315,7 +1464,9 @@ class EnhancedActWrapper(ActWrapper):
                             self.logger.debug(f"[{label}] {line}")
 
             except Exception as e:
-                self.logger.error(f"出力ストリーミング中にエラーが発生しました ({label}): {e}")
+                self.logger.error(
+                    f"出力ストリーミング中にエラーが発生しました ({label}): {e}"
+                )
                 # エラーをコレクターに記録
                 collector.append(f"[ERROR] ストリーミングエラー: {str(e)}\n")
 
@@ -1327,16 +1478,18 @@ class EnhancedActWrapper(ActWrapper):
                     monitored_process.process.stdout,
                     monitored_process.stdout_lines,
                     "act stdout",
-                    monitored_process
+                    monitored_process,
                 ),
                 name="EnhancedActWrapper-StdoutStream",
-                daemon=True
+                daemon=True,
             )
             stdout_thread.start()
             monitored_process.stdout_thread = stdout_thread
 
             # スレッドトレースを開始
-            self.execution_tracer.track_thread_lifecycle(stdout_thread, "_safe_stream_output")
+            self.execution_tracer.track_thread_lifecycle(
+                stdout_thread, "_safe_stream_output"
+            )
 
         # 標準エラースレッド
         if monitored_process.process.stderr:
@@ -1346,24 +1499,28 @@ class EnhancedActWrapper(ActWrapper):
                     monitored_process.process.stderr,
                     monitored_process.stderr_lines,
                     "act stderr",
-                    monitored_process
+                    monitored_process,
                 ),
                 name="EnhancedActWrapper-StderrStream",
-                daemon=True
+                daemon=True,
             )
             stderr_thread.start()
             monitored_process.stderr_thread = stderr_thread
 
             # スレッドトレースを開始
-            self.execution_tracer.track_thread_lifecycle(stderr_thread, "_safe_stream_output")
+            self.execution_tracer.track_thread_lifecycle(
+                stderr_thread, "_safe_stream_output"
+            )
 
-        return {"stdout_thread_started": monitored_process.stdout_thread is not None,
-                "stderr_thread_started": monitored_process.stderr_thread is not None}
+        return {
+            "stdout_thread_started": monitored_process.stdout_thread is not None,
+            "stderr_thread_started": monitored_process.stderr_thread is not None,
+        }
 
     def _analyze_hang_condition(
         self,
         monitored_process: MonitoredProcess,
-        deadlock_indicators: List[DeadlockIndicator]
+        deadlock_indicators: List[DeadlockIndicator],
     ) -> HangupAnalysis:
         """
         ハングアップ条件を包括的に分析
@@ -1389,8 +1546,7 @@ class EnhancedActWrapper(ActWrapper):
 
             # HangupDetectorを使用して包括的な分析を実行
             hangup_analysis = self.hangup_detector.analyze_hangup_conditions(
-                execution_trace=current_trace,
-                diagnostic_results=diagnostic_results
+                execution_trace=current_trace, diagnostic_results=diagnostic_results
             )
 
             # 従来のデッドロック指標を追加情報として含める
@@ -1402,7 +1558,7 @@ class EnhancedActWrapper(ActWrapper):
                             "detected_at": indicator.detected_at,
                             "severity": indicator.severity,
                             "details": indicator.details,
-                            "recommendations": indicator.recommendations
+                            "recommendations": indicator.recommendations,
                         }
                         for indicator in deadlock_indicators
                     ]
@@ -1417,7 +1573,7 @@ class EnhancedActWrapper(ActWrapper):
                     "execution_time": time.time() - monitored_process.start_time,
                     "force_killed": monitored_process.force_killed,
                     "stdout_lines": len(monitored_process.stdout_lines),
-                    "stderr_lines": len(monitored_process.stderr_lines)
+                    "stderr_lines": len(monitored_process.stderr_lines),
                 }
             }
             hangup_analysis.execution_context.update(process_info)
@@ -1438,14 +1594,12 @@ class EnhancedActWrapper(ActWrapper):
             fallback_analysis.system_state = {
                 "analysis_error": str(e),
                 "process_pid": monitored_process.process.pid,
-                "execution_time": time.time() - monitored_process.start_time
+                "execution_time": time.time() - monitored_process.start_time,
             }
             return fallback_analysis
 
     def create_debug_bundle_for_hangup(
-        self,
-        error_report: ErrorReport,
-        output_directory: Optional[Path] = None
+        self, error_report: ErrorReport, output_directory: Optional[Path] = None
     ) -> Optional[DebugBundle]:
         """
         ハングアップ問題用のデバッグバンドルを作成
@@ -1465,7 +1619,7 @@ class EnhancedActWrapper(ActWrapper):
                 output_directory=output_directory,
                 include_logs=True,
                 include_system_info=True,
-                include_docker_info=True
+                include_docker_info=True,
             )
 
             if debug_bundle.bundle_path:
@@ -1491,7 +1645,10 @@ class EnhancedActWrapper(ActWrapper):
         """
         if self._docker_connection_verified:
             self.logger.debug("Docker接続は既に検証済みです")
-            return {"overall_success": True, "summary": "Docker統合は正常です（キャッシュ済み）"}
+            return {
+                "overall_success": True,
+                "summary": "Docker統合は正常です（キャッシュ済み）",
+            }
 
         self.logger.info("Docker統合をリトライ機能付きで検証中...")
 
@@ -1505,7 +1662,11 @@ class EnhancedActWrapper(ActWrapper):
             self.logger.error(f"Docker統合に問題があります: {check_results['summary']}")
 
             # 修正推奨事項をログに出力
-            recommendations = self.docker_integration_checker.generate_docker_fix_recommendations(check_results)
+            recommendations = (
+                self.docker_integration_checker.generate_docker_fix_recommendations(
+                    check_results
+                )
+            )
             self.logger.info("Docker統合の修正推奨事項:")
             for rec in recommendations:
                 self.logger.info(f"  {rec}")
@@ -1525,11 +1686,15 @@ class EnhancedActWrapper(ActWrapper):
         self.logger.debug("Docker接続を確保中...")
 
         # Docker daemon接続テスト（リトライ付き）
-        connection_result = self.docker_integration_checker.test_docker_daemon_connection_with_retry()
+        connection_result = (
+            self.docker_integration_checker.test_docker_daemon_connection_with_retry()
+        )
 
         if connection_result.status == DockerConnectionStatus.CONNECTED:
             self._docker_connection_verified = True
-            self.logger.debug(f"Docker接続確保成功: {connection_result.response_time_ms:.1f}ms")
+            self.logger.debug(
+                f"Docker接続確保成功: {connection_result.response_time_ms:.1f}ms"
+            )
             return True
         else:
             self.logger.error(f"Docker接続確保失敗: {connection_result.message}")
@@ -1551,7 +1716,7 @@ class EnhancedActWrapper(ActWrapper):
         verbose: bool = False,
         env_vars: Optional[Dict[str, str]] = None,
         enable_recovery: bool = True,
-        max_recovery_attempts: int = 2
+        max_recovery_attempts: int = 2,
     ) -> DetailedResult:
         """
         自動復旧機能付きでワークフローを実行
@@ -1583,7 +1748,7 @@ class EnhancedActWrapper(ActWrapper):
                 job=job,
                 dry_run=dry_run,
                 verbose=verbose,
-                env_vars=env_vars
+                env_vars=env_vars,
             )
 
             if result.success:
@@ -1591,11 +1756,15 @@ class EnhancedActWrapper(ActWrapper):
                 return result
             else:
                 primary_execution_failed = True
-                self.logger.warning("プライマリ実行が失敗しました - 自動復旧を開始します")
+                self.logger.warning(
+                    "プライマリ実行が失敗しました - 自動復旧を開始します"
+                )
 
         except Exception as e:
             primary_execution_failed = True
-            self.logger.error(f"プライマリ実行中にエラーが発生しました: {str(e)} - 自動復旧を開始します")
+            self.logger.error(
+                f"プライマリ実行中にエラーが発生しました: {str(e)} - 自動復旧を開始します"
+            )
 
             # エラー時の基本結果を作成
             result = DetailedResult(
@@ -1604,7 +1773,7 @@ class EnhancedActWrapper(ActWrapper):
                 stdout="",
                 stderr=f"プライマリ実行エラー: {str(e)}",
                 command="",
-                execution_time_ms=0
+                execution_time_ms=0,
             )
 
         # 自動復旧が有効で、プライマリ実行が失敗した場合
@@ -1624,13 +1793,13 @@ class EnhancedActWrapper(ActWrapper):
                         job=job,
                         dry_run=dry_run,
                         verbose=verbose,
-                        env_vars=env_vars
+                        env_vars=env_vars,
                     )
 
                     recovery_session = self.auto_recovery.run_comprehensive_recovery(
                         failed_process=None,  # プロセス情報がない場合
                         workflow_file=workflow_path,
-                        original_command=original_command
+                        original_command=original_command,
                     )
 
                     # 復旧後に再実行を試行
@@ -1644,19 +1813,25 @@ class EnhancedActWrapper(ActWrapper):
                                 job=job,
                                 dry_run=dry_run,
                                 verbose=verbose,
-                                env_vars=env_vars
+                                env_vars=env_vars,
                             )
 
                             if retry_result.success:
                                 self.logger.success("復旧後の再実行が成功しました")
                                 # 復旧情報を結果に追加
-                                retry_result.diagnostic_results.append(DiagnosticResult(
-                                    component="auto_recovery",
-                                    status=DiagnosticStatus.OK,
-                                    message=f"自動復旧成功 (試行 {attempt + 1}/{max_recovery_attempts})",
-                                    details={"recovery_session_id": recovery_session.session_id},
-                                    recommendations=["自動復旧により問題が解決されました"]
-                                ))
+                                retry_result.diagnostic_results.append(
+                                    DiagnosticResult(
+                                        component="auto_recovery",
+                                        status=DiagnosticStatus.OK,
+                                        message=f"自動復旧成功 (試行 {attempt + 1}/{max_recovery_attempts})",
+                                        details={
+                                            "recovery_session_id": recovery_session.session_id
+                                        },
+                                        recommendations=[
+                                            "自動復旧により問題が解決されました"
+                                        ],
+                                    )
+                                )
                                 return retry_result
 
                         except Exception as e:
@@ -1678,23 +1853,29 @@ class EnhancedActWrapper(ActWrapper):
                                 stdout=fallback_result.stdout,
                                 stderr=fallback_result.stderr,
                                 command=" ".join(original_command),
-                                execution_time_ms=fallback_result.execution_time_ms
+                                execution_time_ms=fallback_result.execution_time_ms,
                             )
-                            result.diagnostic_results.append(DiagnosticResult(
-                                component="auto_recovery_fallback",
-                                status=DiagnosticStatus.OK,
-                                message=f"フォールバック実行成功: {fallback_result.fallback_method}",
-                                details={
-                                    "fallback_method": fallback_result.fallback_method,
-                                    "limitations": fallback_result.limitations,
-                                    "warnings": fallback_result.warnings
-                                },
-                                recommendations=["フォールバックモードで実行されました"]
-                            ))
+                            result.diagnostic_results.append(
+                                DiagnosticResult(
+                                    component="auto_recovery_fallback",
+                                    status=DiagnosticStatus.OK,
+                                    message=f"フォールバック実行成功: {fallback_result.fallback_method}",
+                                    details={
+                                        "fallback_method": fallback_result.fallback_method,
+                                        "limitations": fallback_result.limitations,
+                                        "warnings": fallback_result.warnings,
+                                    },
+                                    recommendations=[
+                                        "フォールバックモードで実行されました"
+                                    ],
+                                )
+                            )
                             return result
 
                 except Exception as e:
-                    self.logger.error(f"復旧試行 {attempt + 1} でエラーが発生しました: {str(e)}")
+                    self.logger.error(
+                        f"復旧試行 {attempt + 1} でエラーが発生しました: {str(e)}"
+                    )
 
                 # 最後の試行でない場合は少し待機
                 if attempt < max_recovery_attempts - 1:
@@ -1706,34 +1887,46 @@ class EnhancedActWrapper(ActWrapper):
 
         # 復旧情報を結果に追加
         if recovery_session:
-            result.diagnostic_results.append(DiagnosticResult(
-                component="auto_recovery",
-                status=DiagnosticStatus.ERROR if not recovery_session.overall_success else DiagnosticStatus.WARNING,
-                message=f"自動復旧{'成功' if recovery_session.overall_success else '失敗'}: {len(recovery_session.attempts)}個の復旧操作実行",
-                details={
-                    "recovery_session_id": recovery_session.session_id,
-                    "total_attempts": len(recovery_session.attempts),
-                    "successful_attempts": sum(1 for a in recovery_session.attempts if a.status.value == "success"),
-                    "fallback_activated": recovery_session.fallback_mode_activated
-                },
-                recommendations=[
-                    "自動復旧が実行されましたが、問題が完全に解決されていない可能性があります",
-                    "手動での問題調査を推奨します"
-                ]
-            ))
+            result.diagnostic_results.append(
+                DiagnosticResult(
+                    component="auto_recovery",
+                    status=DiagnosticStatus.ERROR
+                    if not recovery_session.overall_success
+                    else DiagnosticStatus.WARNING,
+                    message=f"自動復旧{'成功' if recovery_session.overall_success else '失敗'}: {len(recovery_session.attempts)}個の復旧操作実行",
+                    details={
+                        "recovery_session_id": recovery_session.session_id,
+                        "total_attempts": len(recovery_session.attempts),
+                        "successful_attempts": sum(
+                            1
+                            for a in recovery_session.attempts
+                            if a.status.value == "success"
+                        ),
+                        "fallback_activated": recovery_session.fallback_mode_activated,
+                    },
+                    recommendations=[
+                        "自動復旧が実行されましたが、問題が完全に解決されていない可能性があります",
+                        "手動での問題調査を推奨します",
+                    ],
+                )
+            )
 
         if fallback_result:
-            result.diagnostic_results.append(DiagnosticResult(
-                component="fallback_execution",
-                status=DiagnosticStatus.WARNING if fallback_result.success else DiagnosticStatus.ERROR,
-                message=f"フォールバック実行{'成功' if fallback_result.success else '失敗'}: {fallback_result.fallback_method}",
-                details={
-                    "fallback_method": fallback_result.fallback_method,
-                    "limitations": fallback_result.limitations,
-                    "warnings": fallback_result.warnings
-                },
-                recommendations=["フォールバック実行の制限事項を確認してください"]
-            ))
+            result.diagnostic_results.append(
+                DiagnosticResult(
+                    component="fallback_execution",
+                    status=DiagnosticStatus.WARNING
+                    if fallback_result.success
+                    else DiagnosticStatus.ERROR,
+                    message=f"フォールバック実行{'成功' if fallback_result.success else '失敗'}: {fallback_result.fallback_method}",
+                    details={
+                        "fallback_method": fallback_result.fallback_method,
+                        "limitations": fallback_result.limitations,
+                        "warnings": fallback_result.warnings,
+                    },
+                    recommendations=["フォールバック実行の制限事項を確認してください"],
+                )
+            )
 
         return result
 
@@ -1744,7 +1937,7 @@ class EnhancedActWrapper(ActWrapper):
         job: Optional[str] = None,
         dry_run: bool = False,
         verbose: bool = False,
-        env_vars: Optional[Dict[str, str]] = None
+        env_vars: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         """
         actコマンドを構築
@@ -1791,11 +1984,9 @@ class EnhancedActWrapper(ActWrapper):
             Dict[str, Any]: 自動復旧統計情報
         """
         return self.auto_recovery.get_recovery_statistics()
+
     def export_performance_metrics(
-        self,
-        output_path: Path,
-        format: str = "json",
-        include_raw_data: bool = True
+        self, output_path: Path, format: str = "json", include_raw_data: bool = True
     ) -> bool:
         """
         パフォーマンスメトリクスをファイルにエクスポート
@@ -1809,13 +2000,14 @@ class EnhancedActWrapper(ActWrapper):
             bool: エクスポート成功時True
         """
         if not self.performance_monitor:
-            self.logger.warning("パフォーマンス監視が無効のため、エクスポートできません")
+            self.logger.warning(
+                "パフォーマンス監視が無効のため、エクスポートできません"
+            )
             return False
 
         try:
             return self.performance_monitor.export_metrics(
-                output_path=output_path,
-                format=format
+                output_path=output_path, format=format
             )
         except Exception as e:
             self.logger.error(f"パフォーマンスメトリクスエクスポートエラー: {e}")
@@ -1871,7 +2063,9 @@ class EnhancedActWrapper(ActWrapper):
             self.logger.error(f"最適化機会取得エラー: {e}")
             return []
 
-    def analyze_performance_trends(self, historical_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def analyze_performance_trends(
+        self, historical_data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         パフォーマンストレンドを分析
 
@@ -1901,14 +2095,18 @@ class EnhancedActWrapper(ActWrapper):
 
             # メモリ使用量のトレンド
             memory_peaks = [
-                data.get("performance_summary", {}).get("memory_usage", {}).get("peak_mb", 0)
+                data.get("performance_summary", {})
+                .get("memory_usage", {})
+                .get("peak_mb", 0)
                 for data in historical_data
                 if data.get("performance_summary", {}).get("memory_usage")
             ]
 
             # Docker操作数のトレンド
             docker_ops = [
-                data.get("performance_summary", {}).get("docker_operations", {}).get("total_count", 0)
+                data.get("performance_summary", {})
+                .get("docker_operations", {})
+                .get("total_count", 0)
                 for data in historical_data
                 if data.get("performance_summary", {}).get("docker_operations")
             ]
@@ -1918,33 +2116,44 @@ class EnhancedActWrapper(ActWrapper):
             trend_analysis = {
                 "data_points": len(historical_data),
                 "execution_time_trend": {
-                    "average_ms": statistics.mean(execution_times) if execution_times else 0,
-                    "median_ms": statistics.median(execution_times) if execution_times else 0,
+                    "average_ms": statistics.mean(execution_times)
+                    if execution_times
+                    else 0,
+                    "median_ms": statistics.median(execution_times)
+                    if execution_times
+                    else 0,
                     "min_ms": min(execution_times) if execution_times else 0,
                     "max_ms": max(execution_times) if execution_times else 0,
-                    "trend": "improving" if len(execution_times) >= 2 and execution_times[-1] < execution_times[0] else "stable"
+                    "trend": "improving"
+                    if len(execution_times) >= 2
+                    and execution_times[-1] < execution_times[0]
+                    else "stable",
                 },
                 "cpu_usage_trend": {
                     "average_percent": statistics.mean(cpu_peaks) if cpu_peaks else 0,
                     "peak_percent": max(cpu_peaks) if cpu_peaks else 0,
-                    "trend": "stable"
+                    "trend": "stable",
                 },
                 "memory_usage_trend": {
                     "average_mb": statistics.mean(memory_peaks) if memory_peaks else 0,
                     "peak_mb": max(memory_peaks) if memory_peaks else 0,
-                    "trend": "stable"
+                    "trend": "stable",
                 },
                 "docker_operations_trend": {
                     "average_count": statistics.mean(docker_ops) if docker_ops else 0,
                     "max_count": max(docker_ops) if docker_ops else 0,
-                    "trend": "stable"
-                }
+                    "trend": "stable",
+                },
             }
 
             # トレンドの判定
             if len(execution_times) >= 3:
                 recent_avg = statistics.mean(execution_times[-3:])
-                older_avg = statistics.mean(execution_times[:-3]) if len(execution_times) > 3 else execution_times[0]
+                older_avg = (
+                    statistics.mean(execution_times[:-3])
+                    if len(execution_times) > 3
+                    else execution_times[0]
+                )
 
                 if recent_avg < older_avg * 0.9:
                     trend_analysis["execution_time_trend"]["trend"] = "improving"
@@ -1955,16 +2164,24 @@ class EnhancedActWrapper(ActWrapper):
             recommendations = []
 
             if trend_analysis["execution_time_trend"]["trend"] == "degrading":
-                recommendations.append("実行時間が悪化傾向にあります。ボトルネック分析を実行してください")
+                recommendations.append(
+                    "実行時間が悪化傾向にあります。ボトルネック分析を実行してください"
+                )
 
             if trend_analysis["cpu_usage_trend"]["average_percent"] > 80:
-                recommendations.append("CPU使用率が継続的に高いです。並列処理の最適化を検討してください")
+                recommendations.append(
+                    "CPU使用率が継続的に高いです。並列処理の最適化を検討してください"
+                )
 
             if trend_analysis["memory_usage_trend"]["average_mb"] > 1000:
-                recommendations.append("メモリ使用量が多いです。メモリ効率の改善を検討してください")
+                recommendations.append(
+                    "メモリ使用量が多いです。メモリ効率の改善を検討してください"
+                )
 
             if trend_analysis["docker_operations_trend"]["average_count"] > 100:
-                recommendations.append("Docker操作が多いです。操作の最適化を検討してください")
+                recommendations.append(
+                    "Docker操作が多いです。操作の最適化を検討してください"
+                )
 
             trend_analysis["recommendations"] = recommendations
 

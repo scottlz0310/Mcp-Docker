@@ -48,9 +48,7 @@ class CLIContext:
         self.verbose = verbose or debug
         self.quiet = quiet
         self.debug = debug
-        default_config = (
-            DEFAULT_CONFIG_PATH if DEFAULT_CONFIG_PATH.exists() else None
-        )
+        default_config = DEFAULT_CONFIG_PATH if DEFAULT_CONFIG_PATH.exists() else None
         self._default_config_path = default_config
         self.config_path = config_path or default_config
         self.config_data: dict[str, Any] = {}
@@ -85,10 +83,7 @@ class CLIContext:
                 self.config_data = {}
                 self.service = None
                 self._config_warning_emitted = False
-        elif (
-            self.config_path is None
-            and self._default_config_path is not None
-        ):
+        elif self.config_path is None and self._default_config_path is not None:
             self.config_path = self._default_config_path
 
         # モード変更時はロガーとコンソールを再初期化する
@@ -211,82 +206,138 @@ def run_simulate(
         )
 
         # 詳細結果の表示処理
-        if hasattr(result, 'detailed_result') and result.detailed_result:
+        if hasattr(result, "detailed_result") and result.detailed_result:
             detailed_result = result.detailed_result
 
             # 診断結果の表示
-            if hasattr(detailed_result, 'diagnostic_results') and detailed_result.diagnostic_results:
+            if (
+                hasattr(detailed_result, "diagnostic_results")
+                and detailed_result.diagnostic_results
+            ):
                 console.print("\n[cyan]📋 診断結果:[/cyan]")
                 for diag_result in detailed_result.diagnostic_results:
-                    status_icon = {
-                        "OK": "✅",
-                        "WARNING": "⚠️",
-                        "ERROR": "❌"
-                    }.get(diag_result.status.value if hasattr(diag_result.status, 'value') else str(diag_result.status), "❓")
+                    status_icon = {"OK": "✅", "WARNING": "⚠️", "ERROR": "❌"}.get(
+                        diag_result.status.value
+                        if hasattr(diag_result.status, "value")
+                        else str(diag_result.status),
+                        "❓",
+                    )
 
-                    console.print(f"  {status_icon} {diag_result.component}: {diag_result.message}")
+                    console.print(
+                        f"  {status_icon} {diag_result.component}: {diag_result.message}"
+                    )
 
                     if diag_result.recommendations:
-                        for rec in diag_result.recommendations[:2]:  # 最初の2つの推奨事項のみ表示
+                        for rec in diag_result.recommendations[
+                            :2
+                        ]:  # 最初の2つの推奨事項のみ表示
                             console.print(f"    💡 {rec}")
 
             # パフォーマンスメトリクスの表示
-            if show_performance_metrics and hasattr(detailed_result, 'performance_metrics') and detailed_result.performance_metrics:
+            if (
+                show_performance_metrics
+                and hasattr(detailed_result, "performance_metrics")
+                and detailed_result.performance_metrics
+            ):
                 console.print("\n[cyan]📊 パフォーマンスメトリクス:[/cyan]")
                 metrics = detailed_result.performance_metrics
 
-                if hasattr(metrics, 'execution_time_ms'):
+                if hasattr(metrics, "execution_time_ms"):
                     console.print(f"  ⏱️  実行時間: {metrics.execution_time_ms:.2f}ms")
-                if hasattr(metrics, 'peak_memory_mb'):
-                    console.print(f"  🧠 ピークメモリ使用量: {metrics.peak_memory_mb:.2f}MB")
-                if hasattr(metrics, 'cpu_usage_percent'):
+                if hasattr(metrics, "peak_memory_mb"):
+                    console.print(
+                        f"  🧠 ピークメモリ使用量: {metrics.peak_memory_mb:.2f}MB"
+                    )
+                if hasattr(metrics, "cpu_usage_percent"):
                     console.print(f"  ⚡ CPU使用率: {metrics.cpu_usage_percent:.1f}%")
-                if hasattr(metrics, 'docker_operations_count'):
-                    console.print(f"  🐳 Docker操作数: {metrics.docker_operations_count}")
+                if hasattr(metrics, "docker_operations_count"):
+                    console.print(
+                        f"  🐳 Docker操作数: {metrics.docker_operations_count}"
+                    )
 
             # 実行トレースの表示
-            if show_execution_trace and hasattr(detailed_result, 'execution_trace') and detailed_result.execution_trace:
+            if (
+                show_execution_trace
+                and hasattr(detailed_result, "execution_trace")
+                and detailed_result.execution_trace
+            ):
                 console.print("\n[cyan]🔍 実行トレース:[/cyan]")
                 trace = detailed_result.execution_trace
 
-                if hasattr(trace, 'stages') and trace.stages:
+                if hasattr(trace, "stages") and trace.stages:
                     for stage in trace.stages[-5:]:  # 最後の5段階のみ表示
-                        stage_name = stage.stage.value if hasattr(stage.stage, 'value') else str(stage.stage)
-                        duration = f" ({stage.duration_ms:.2f}ms)" if hasattr(stage, 'duration_ms') and stage.duration_ms else ""
+                        stage_name = (
+                            stage.stage.value
+                            if hasattr(stage.stage, "value")
+                            else str(stage.stage)
+                        )
+                        duration = (
+                            f" ({stage.duration_ms:.2f}ms)"
+                            if hasattr(stage, "duration_ms") and stage.duration_ms
+                            else ""
+                        )
                         console.print(f"  📍 {stage_name}{duration}")
 
             # ハングアップ検出とデバッグバンドル作成の処理
-            if (detailed_result.hang_analysis or
-                (hasattr(detailed_result, 'error_report') and detailed_result.error_report)):
-
-                console.print("[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]")
+            if detailed_result.hang_analysis or (
+                hasattr(detailed_result, "error_report")
+                and detailed_result.error_report
+            ):
+                console.print(
+                    "[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]"
+                )
 
                 if detailed_result.hang_analysis:
-                    console.print(f"[yellow]分析ID: {detailed_result.hang_analysis.analysis_id}[/yellow]")
+                    console.print(
+                        f"[yellow]分析ID: {detailed_result.hang_analysis.analysis_id}[/yellow]"
+                    )
                     if detailed_result.hang_analysis.primary_cause:
-                        console.print(f"[red]主要な問題: {detailed_result.hang_analysis.primary_cause.title}[/red]")
-                        console.print(f"[red]説明: {detailed_result.hang_analysis.primary_cause.description}[/red]")
+                        console.print(
+                            f"[red]主要な問題: {detailed_result.hang_analysis.primary_cause.title}[/red]"
+                        )
+                        console.print(
+                            f"[red]説明: {detailed_result.hang_analysis.primary_cause.description}[/red]"
+                        )
 
                 # デバッグバンドルの自動作成
-                if create_debug_bundle and hasattr(detailed_result, 'error_report') and detailed_result.error_report:
+                if (
+                    create_debug_bundle
+                    and hasattr(detailed_result, "error_report")
+                    and detailed_result.error_report
+                ):
                     try:
                         from .enhanced_act_wrapper import EnhancedActWrapper
-                        if hasattr(service, 'act_wrapper') and isinstance(service.act_wrapper, EnhancedActWrapper):
+
+                        if hasattr(service, "act_wrapper") and isinstance(
+                            service.act_wrapper, EnhancedActWrapper
+                        ):
                             console.print("[blue]🔧 デバッグバンドルを作成中...[/blue]")
 
-                            debug_bundle = service.act_wrapper.create_debug_bundle_for_hangup(
-                                error_report=detailed_result.error_report,
-                                output_directory=debug_bundle_dir
+                            debug_bundle = (
+                                service.act_wrapper.create_debug_bundle_for_hangup(
+                                    error_report=detailed_result.error_report,
+                                    output_directory=debug_bundle_dir,
+                                )
                             )
 
                             if debug_bundle and debug_bundle.bundle_path:
-                                console.print(f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]")
-                                console.print(f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]")
-                                console.print(f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]")
+                                console.print(
+                                    f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]"
+                                )
+                                console.print(
+                                    f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]"
+                                )
+                                console.print(
+                                    f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]"
+                                )
                             else:
-                                console.print("[red]❌ デバッグバンドルの作成に失敗しました[/red]")
+                                console.print(
+                                    "[red]❌ デバッグバンドルの作成に失敗しました[/red]"
+                                )
                     except Exception as e:
-                        logger.error(f"デバッグバンドル作成中にエラーが発生しました: {e}")
+                        logger.error(
+                            f"デバッグバンドル作成中にエラーが発生しました: {e}"
+                        )
                         console.print(f"[red]❌ デバッグバンドル作成エラー: {e}[/red]")
 
     except SimulationServiceError as exc:
@@ -323,9 +374,7 @@ def run_validate(
         )
         targets = sorted(yaml_files)
         if not targets:
-            logger.warning(
-                f"検証対象のワークフローが見つかりません: {workflow_file}"
-            )
+            logger.warning(f"検証対象のワークフローが見つかりません: {workflow_file}")
             return 1
     else:
         targets = [workflow_file]
@@ -366,17 +415,19 @@ def run_list_jobs(
         logger.error(f"ワークフロー解析エラー: {exc}")
         return 1
 
-    jobs = workflow.get('jobs', {})
+    jobs = workflow.get("jobs", {})
 
-    if output_format.lower() == 'json':
+    if output_format.lower() == "json":
         jobs_info: list[dict[str, Any]] = []
         for job_id, job_data in jobs.items():
-            jobs_info.append({
-                'job_id': job_id,
-                'name': job_data.get('name', job_id),
-                'runs_on': job_data.get('runs-on', 'unknown'),
-                'steps': len(job_data.get('steps', [])),
-            })
+            jobs_info.append(
+                {
+                    "job_id": job_id,
+                    "name": job_data.get("name", job_id),
+                    "runs_on": job_data.get("runs-on", "unknown"),
+                    "steps": len(job_data.get("steps", [])),
+                }
+            )
         console.print_json(data=jobs_info)
     else:
         table = Table(title="ジョブ一覧", show_lines=True)
@@ -386,9 +437,9 @@ def run_list_jobs(
         table.add_column("Steps", style="yellow")
 
         for job_id, job_data in jobs.items():
-            job_name = job_data.get('name', job_id)
-            runs_on = job_data.get('runs-on', 'unknown')
-            steps_count = len(job_data.get('steps', []))
+            job_name = job_data.get("name", job_id)
+            runs_on = job_data.get("runs-on", "unknown")
+            steps_count = len(job_data.get("steps", []))
             table.add_row(job_id, job_name, runs_on, str(steps_count))
 
         console.print(table)
@@ -424,13 +475,18 @@ def run_diagnose(
         try:
             # システムリソースの詳細分析
             import psutil
+
             performance_analysis = {
                 "cpu_count": psutil.cpu_count(),
                 "cpu_percent": psutil.cpu_percent(interval=1),
                 "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-                "memory_available_gb": round(psutil.virtual_memory().available / (1024**3), 2),
-                "disk_usage_percent": psutil.disk_usage('/').percent,
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None,
+                "memory_available_gb": round(
+                    psutil.virtual_memory().available / (1024**3), 2
+                ),
+                "disk_usage_percent": psutil.disk_usage("/").percent,
+                "load_average": psutil.getloadavg()
+                if hasattr(psutil, "getloadavg")
+                else None,
             }
         except Exception as e:
             logger.warning(f"パフォーマンス分析中にエラーが発生しました: {e}")
@@ -443,21 +499,30 @@ def run_diagnose(
         try:
             # 最近の実行ログの分析
             from pathlib import Path
+
             output_dir = Path("output")
             if output_dir.exists():
                 log_files = list(output_dir.rglob("*.log"))
                 trace_analysis = {
                     "recent_log_files": len(log_files),
-                    "latest_logs": [str(f) for f in sorted(log_files, key=lambda x: x.stat().st_mtime, reverse=True)[:5]]
+                    "latest_logs": [
+                        str(f)
+                        for f in sorted(
+                            log_files, key=lambda x: x.stat().st_mtime, reverse=True
+                        )[:5]
+                    ],
                 }
             else:
-                trace_analysis = {"log_files": 0, "message": "出力ディレクトリが見つかりません"}
+                trace_analysis = {
+                    "log_files": 0,
+                    "message": "出力ディレクトリが見つかりません",
+                }
         except Exception as e:
             logger.warning(f"トレース分析中にエラーが発生しました: {e}")
             trace_analysis = {"error": str(e)}
 
     # 結果の出力
-    if output_format.lower() == 'json':
+    if output_format.lower() == "json":
         # JSON形式での出力
         json_data = {
             "overall_status": health_report.overall_status.value,
@@ -470,11 +535,11 @@ def run_diagnose(
                     "message": result.message,
                     "details": result.details,
                     "recommendations": result.recommendations,
-                    "timestamp": result.timestamp
+                    "timestamp": result.timestamp,
                 }
                 for result in health_report.results
             ],
-            "potential_hangup_causes": hangup_causes
+            "potential_hangup_causes": hangup_causes,
         }
 
         # パフォーマンス分析とトレース分析を追加
@@ -485,8 +550,7 @@ def run_diagnose(
 
         if output_file:
             output_file.write_text(
-                json.dumps(json_data, ensure_ascii=False, indent=2),
-                encoding="utf-8"
+                json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             logger.info(f"診断結果を {output_file} に保存しました")
 
@@ -499,10 +563,12 @@ def run_diagnose(
         status_icon = {
             DiagnosticStatus.OK: "✅",
             DiagnosticStatus.WARNING: "⚠️",
-            DiagnosticStatus.ERROR: "❌"
+            DiagnosticStatus.ERROR: "❌",
         }.get(health_report.overall_status, "❓")
 
-        console.print(f"{status_icon} 全体的なステータス: {health_report.overall_status.value}")
+        console.print(
+            f"{status_icon} 全体的なステータス: {health_report.overall_status.value}"
+        )
         console.print(f"📋 {health_report.summary}")
         console.print()
 
@@ -517,16 +583,18 @@ def run_diagnose(
             status_style = {
                 DiagnosticStatus.OK: "green",
                 DiagnosticStatus.WARNING: "yellow",
-                DiagnosticStatus.ERROR: "red"
+                DiagnosticStatus.ERROR: "red",
             }.get(result.status, "white")
 
-            recommendations_text = "\n".join(result.recommendations) if result.recommendations else "-"
+            recommendations_text = (
+                "\n".join(result.recommendations) if result.recommendations else "-"
+            )
 
             table.add_row(
                 result.component,
                 f"[{status_style}]{result.status.value}[/]",
                 result.message,
-                recommendations_text
+                recommendations_text,
             )
 
         console.print(table)
@@ -542,21 +610,31 @@ def run_diagnose(
         if performance_analysis and "error" not in performance_analysis:
             console.print()
             console.print(Rule("パフォーマンス分析"))
-            console.print(f"🖥️  CPU: {performance_analysis.get('cpu_count', 'N/A')}コア, 使用率: {performance_analysis.get('cpu_percent', 'N/A')}%")
-            console.print(f"🧠 メモリ: {performance_analysis.get('memory_available_gb', 'N/A')}GB利用可能 / {performance_analysis.get('memory_total_gb', 'N/A')}GB総容量")
-            console.print(f"💾 ディスク使用率: {performance_analysis.get('disk_usage_percent', 'N/A')}%")
-            if performance_analysis.get('load_average'):
-                load_avg = performance_analysis['load_average']
-                console.print(f"⚡ システム負荷: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}")
+            console.print(
+                f"🖥️  CPU: {performance_analysis.get('cpu_count', 'N/A')}コア, 使用率: {performance_analysis.get('cpu_percent', 'N/A')}%"
+            )
+            console.print(
+                f"🧠 メモリ: {performance_analysis.get('memory_available_gb', 'N/A')}GB利用可能 / {performance_analysis.get('memory_total_gb', 'N/A')}GB総容量"
+            )
+            console.print(
+                f"💾 ディスク使用率: {performance_analysis.get('disk_usage_percent', 'N/A')}%"
+            )
+            if performance_analysis.get("load_average"):
+                load_avg = performance_analysis["load_average"]
+                console.print(
+                    f"⚡ システム負荷: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}"
+                )
 
         # トレース分析の表示
         if trace_analysis and "error" not in trace_analysis:
             console.print()
             console.print(Rule("実行トレース分析"))
-            console.print(f"📁 最近のログファイル数: {trace_analysis.get('recent_log_files', 0)}")
-            if trace_analysis.get('latest_logs'):
+            console.print(
+                f"📁 最近のログファイル数: {trace_analysis.get('recent_log_files', 0)}"
+            )
+            if trace_analysis.get("latest_logs"):
                 console.print("📋 最新のログファイル:")
-                for log_file in trace_analysis['latest_logs'][:3]:
+                for log_file in trace_analysis["latest_logs"][:3]:
                     console.print(f"  • {log_file}")
 
         # ファイル出力
@@ -572,11 +650,11 @@ def run_diagnose(
                         "message": result.message,
                         "details": result.details,
                         "recommendations": result.recommendations,
-                        "timestamp": result.timestamp
+                        "timestamp": result.timestamp,
                     }
                     for result in health_report.results
                 ],
-                "potential_hangup_causes": hangup_causes
+                "potential_hangup_causes": hangup_causes,
             }
 
             # パフォーマンス分析とトレース分析を追加
@@ -586,8 +664,7 @@ def run_diagnose(
                 json_data["trace_analysis"] = trace_analysis
 
             output_file.write_text(
-                json.dumps(json_data, ensure_ascii=False, indent=2),
-                encoding="utf-8"
+                json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
             )
             logger.info(f"診断結果を {output_file} に保存しました")
 
@@ -788,7 +865,9 @@ def simulate(
 
     workflow_paths = list(workflow_files)
     if not workflow_paths:
-        console.print("[red]ワークフローファイルを少なくとも1つ指定してください。[/red]")
+        console.print(
+            "[red]ワークフローファイルを少なくとも1つ指定してください。[/red]"
+        )
         raise SystemExit(1)
 
     env_overrides: Dict[str, str] = {}
@@ -796,9 +875,7 @@ def simulate(
     config_env = context.config_data.get("environment")
     if isinstance(config_env, dict):
         typed_env = cast(Dict[str, Any], config_env)
-        env_overrides.update(
-            {str(key): str(value) for key, value in typed_env.items()}
-        )
+        env_overrides.update({str(key): str(value) for key, value in typed_env.items()})
 
     simulator_config = context.config_data.get("simulator")
     if isinstance(simulator_config, dict):
@@ -835,7 +912,9 @@ def simulate(
 
     # 診断機能を有効にする場合の事前チェック
     if diagnose:
-        console.print("[cyan]🔍 ワークフロー実行前にシステム診断を実行しています...[/cyan]")
+        console.print(
+            "[cyan]🔍 ワークフロー実行前にシステム診断を実行しています...[/cyan]"
+        )
 
         diagnostic_service = DiagnosticService(logger=logger)
         health_report = diagnostic_service.run_comprehensive_health_check()
@@ -844,21 +923,27 @@ def simulate(
         status_icon = {
             DiagnosticStatus.OK: "✅",
             DiagnosticStatus.WARNING: "⚠️",
-            DiagnosticStatus.ERROR: "❌"
+            DiagnosticStatus.ERROR: "❌",
         }.get(health_report.overall_status, "❓")
 
-        console.print(f"{status_icon} システム診断結果: {health_report.overall_status.value}")
+        console.print(
+            f"{status_icon} システム診断結果: {health_report.overall_status.value}"
+        )
 
         # エラーがある場合は詳細を表示
         if health_report.overall_status == DiagnosticStatus.ERROR:
-            console.print("[red]重大な問題が検出されました。以下の問題を修正してから再実行してください:[/red]")
+            console.print(
+                "[red]重大な問題が検出されました。以下の問題を修正してから再実行してください:[/red]"
+            )
             for result in health_report.results:
                 if result.status == DiagnosticStatus.ERROR:
                     console.print(f"  ❌ {result.component}: {result.message}")
                     for rec in result.recommendations[:2]:  # 最初の2つの推奨事項のみ
                         console.print(f"    💡 {rec}")
 
-            console.print("\n[yellow]詳細な診断結果を確認するには 'actions diagnose' コマンドを実行してください。[/yellow]")
+            console.print(
+                "\n[yellow]詳細な診断結果を確認するには 'actions diagnose' コマンドを実行してください。[/yellow]"
+            )
             raise SystemExit(1)
 
         elif health_report.overall_status == DiagnosticStatus.WARNING:
@@ -911,7 +996,7 @@ def simulate(
 
     skipped: List[Path] = []
     if len(collected_results) < len(workflow_paths):
-        skipped = workflow_paths[len(collected_results):]
+        skipped = workflow_paths[len(collected_results) :]
 
     summary_rows: List[Dict[str, object]] = []
     for path, res, log_refs in collected_results:
@@ -938,9 +1023,7 @@ def simulate(
         )
 
     successful = all(
-        row["status"] == "success"
-        for row in summary_rows
-        if row["status"] != "skipped"
+        row["status"] == "success" for row in summary_rows if row["status"] != "skipped"
     )
 
     summary_payload: Dict[str, Any] = {
@@ -985,10 +1068,7 @@ def simulate(
                 log_links = ""
                 logs = row.get("logs")
                 if isinstance(logs, dict):
-                    log_dict = {
-                        str(key): str(value)
-                        for key, value in logs.items()
-                    }
+                    log_dict = {str(key): str(value) for key, value in logs.items()}
                     log_links = ", ".join(
                         f"{key}:{value}" for key, value in log_dict.items()
                     )
@@ -1087,8 +1167,7 @@ def show_summary(
             log_pairs = ""
             if isinstance(logs_obj, dict):
                 log_pairs = ", ".join(
-                    f"{str(key)}:{str(value)}"
-                    for key, value in logs_obj.items()
+                    f"{str(key)}:{str(value)}" for key, value in logs_obj.items()
                 )
             table.add_row(
                 str(entry.get("workflow", "")),
@@ -1239,32 +1318,29 @@ def trace_test(
     console = context.console
 
     if not workflow_file.exists():
-        console.print(f"[red]ワークフローファイルが見つかりません: {workflow_file}[/red]")
+        console.print(
+            f"[red]ワークフローファイルが見つかりません: {workflow_file}[/red]"
+        )
         raise SystemExit(1)
 
     # ExecutionTracerを作成
     from .execution_tracer import ExecutionTracer
+
     tracer = ExecutionTracer(
         logger=logger,
         heartbeat_interval=heartbeat_interval,
         resource_monitoring_interval=2.0,
-        enable_detailed_logging=True
+        enable_detailed_logging=True,
     )
 
     # SimulationServiceにExecutionTracerを設定
-    service = SimulationService(
-        config=context.config_data,
-        execution_tracer=tracer
-    )
+    service = SimulationService(config=context.config_data, execution_tracer=tracer)
 
     console.print(f"[cyan]実行トレース機能をテスト中: {workflow_file}[/cyan]")
     console.print(f"[dim]ハートビート間隔: {heartbeat_interval}秒[/dim]")
 
     # ワークフローを実行
-    params = SimulationParameters(
-        workflow_file=workflow_file,
-        verbose=logger.verbose
-    )
+    params = SimulationParameters(workflow_file=workflow_file, verbose=logger.verbose)
 
     try:
         result = service.run_simulation(params, logger=logger, capture_output=True)
@@ -1273,7 +1349,9 @@ def trace_test(
         if result.success:
             console.print("[green]✓ ワークフロー実行が成功しました[/green]")
         else:
-            console.print(f"[red]✗ ワークフロー実行が失敗しました (終了コード: {result.return_code})[/red]")
+            console.print(
+                f"[red]✗ ワークフロー実行が失敗しました (終了コード: {result.return_code})[/red]"
+            )
 
         if result.stdout:
             console.print("\n[bold]標準出力:[/bold]")
@@ -1286,7 +1364,9 @@ def trace_test(
         # トレース情報をエクスポート
         if output_file:
             # 最後のトレースを取得（実際の実装では適切にトレースを管理する必要があります）
-            console.print(f"\n[cyan]トレース情報を {output_file} に保存しています...[/cyan]")
+            console.print(
+                f"\n[cyan]トレース情報を {output_file} に保存しています...[/cyan]"
+            )
             console.print("[green]✓ トレース情報の保存が完了しました[/green]")
 
     except Exception as e:

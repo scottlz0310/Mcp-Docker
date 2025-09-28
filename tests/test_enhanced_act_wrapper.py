@@ -31,9 +31,7 @@ class TestProcessMonitor(unittest.TestCase):
         """テストセットアップ"""
         self.logger = ActionsLogger(verbose=False)
         self.process_monitor = ProcessMonitor(
-            logger=self.logger,
-            deadlock_detection_interval=1.0,
-            activity_timeout=5.0
+            logger=self.logger, deadlock_detection_interval=1.0, activity_timeout=5.0
         )
 
     def test_monitor_with_heartbeat_normal_completion(self):
@@ -46,9 +44,7 @@ class TestProcessMonitor(unittest.TestCase):
         mock_process.poll.side_effect = poll_results
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["echo", "test"],
-            start_time=time.time()
+            process=mock_process, command=["echo", "test"], start_time=time.time()
         )
 
         # 短いタイムアウトで監視
@@ -67,9 +63,7 @@ class TestProcessMonitor(unittest.TestCase):
         mock_process.poll.return_value = None  # 常に実行中
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["sleep", "100"],
-            start_time=time.time()
+            process=mock_process, command=["sleep", "100"], start_time=time.time()
         )
 
         # 短いタイムアウトで監視
@@ -88,17 +82,19 @@ class TestProcessMonitor(unittest.TestCase):
             process=mock_process,
             command=["test"],
             start_time=time.time(),
-            last_activity=time.time() - 10.0  # 10秒前
+            last_activity=time.time() - 10.0,  # 10秒前
         )
 
         indicators = self.process_monitor.detect_deadlock_conditions(monitored_process)
 
         # アクティビティタイムアウト（5秒）を超えているのでデッドロック検出
         self.assertTrue(len(indicators) > 0)
-        self.assertTrue(any(
-            indicator.deadlock_type == DeadlockType.PROCESS_WAIT
-            for indicator in indicators
-        ))
+        self.assertTrue(
+            any(
+                indicator.deadlock_type == DeadlockType.PROCESS_WAIT
+                for indicator in indicators
+            )
+        )
 
     def test_force_cleanup_on_timeout(self):
         """タイムアウト時の強制クリーンアップテスト"""
@@ -110,9 +106,7 @@ class TestProcessMonitor(unittest.TestCase):
         mock_process.kill.return_value = None
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test"],
-            start_time=time.time()
+            process=mock_process, command=["test"], start_time=time.time()
         )
 
         # 強制クリーンアップを実行
@@ -152,9 +146,10 @@ jobs:
     def tearDown(self):
         """テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch('services.actions.enhanced_act_wrapper.subprocess.Popen')
+    @patch("services.actions.enhanced_act_wrapper.subprocess.Popen")
     def test_create_monitored_subprocess(self, mock_popen):
         """監視対象サブプロセス作成テスト"""
         # モックプロセスを設定
@@ -166,7 +161,7 @@ jobs:
             working_directory=str(self.working_directory),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # actバイナリをモックに設定
@@ -185,7 +180,7 @@ jobs:
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
         self.assertEqual(call_args[0][0], cmd)
-        self.assertEqual(call_args[1]['env'], process_env)
+        self.assertEqual(call_args[1]["env"], process_env)
 
     def test_handle_output_streaming_safely(self):
         """安全な出力ストリーミング処理テスト"""
@@ -208,16 +203,14 @@ jobs:
         mock_process.stderr = mock_stderr
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test"],
-            start_time=time.time()
+            process=mock_process, command=["test"], start_time=time.time()
         )
 
         wrapper = EnhancedActWrapper(
             working_directory=str(self.working_directory),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # 出力ストリーミングを実行
@@ -238,7 +231,7 @@ jobs:
         self.assertEqual(monitored_process.stdout_lines, ["line1\n", "line2\n"])
         self.assertEqual(monitored_process.stderr_lines, ["error1\n", "error2\n"])
 
-    @patch('services.actions.enhanced_act_wrapper.subprocess.Popen')
+    @patch("services.actions.enhanced_act_wrapper.subprocess.Popen")
     def test_run_workflow_with_diagnostics_mock_mode(self, mock_popen):
         """診断機能付きワークフロー実行テスト（モックモード）"""
         # モックモードを有効にする
@@ -249,13 +242,13 @@ jobs:
                 working_directory=str(self.working_directory),
                 logger=self.logger,
                 execution_tracer=self.execution_tracer,
-                diagnostic_service=self.diagnostic_service
+                diagnostic_service=self.diagnostic_service,
             )
 
             result = wrapper.run_workflow_with_diagnostics(
                 workflow_file="test_workflow.yml",
                 dry_run=True,
-                pre_execution_diagnostics=False  # 診断をスキップしてテストを高速化
+                pre_execution_diagnostics=False,  # 診断をスキップしてテストを高速化
             )
 
             self.assertIsInstance(result, DetailedResult)
@@ -277,7 +270,7 @@ jobs:
             process=mock_process,
             command=["test", "command"],
             start_time=time.time() - 100,  # 100秒前に開始
-            force_killed=True
+            force_killed=True,
         )
 
         # デッドロック指標を作成
@@ -286,25 +279,27 @@ jobs:
                 deadlock_type=DeadlockType.DOCKER_COMMUNICATION,
                 process_pid=12345,
                 details={"error": "connection timeout"},
-                recommendations=["Docker daemonを確認してください"]
+                recommendations=["Docker daemonを確認してください"],
             ),
             DeadlockIndicator(
                 deadlock_type=DeadlockType.STDOUT_THREAD,
                 thread_name="stdout-thread",
                 process_pid=12345,
                 details={"thread_alive": False},
-                recommendations=["出力バッファを確認してください"]
-            )
+                recommendations=["出力バッファを確認してください"],
+            ),
         ]
 
         wrapper = EnhancedActWrapper(
             working_directory=str(self.working_directory),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
-        analysis = wrapper._analyze_hang_condition(monitored_process, deadlock_indicators)
+        analysis = wrapper._analyze_hang_condition(
+            monitored_process, deadlock_indicators
+        )
 
         # HangupAnalysisオブジェクトの属性をテスト
         self.assertIsNotNone(analysis.analysis_id)
@@ -319,7 +314,7 @@ jobs:
             working_directory=str(self.working_directory),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # actバイナリをモックに設定
@@ -331,16 +326,19 @@ jobs:
             job="test-job",
             dry_run=True,
             verbose=True,
-            env_vars={"TEST_VAR": "test_value"}
+            env_vars={"TEST_VAR": "test_value"},
         )
 
         expected_elements = [
             "mock-act",
-            "-W", "test.yml",
-            "-j", "test-job",
+            "-W",
+            "test.yml",
+            "-j",
+            "test-job",
             "--dryrun",
             "--verbose",
-            "--env", "TEST_VAR=test_value"
+            "--env",
+            "TEST_VAR=test_value",
         ]
 
         for element in expected_elements:
@@ -358,7 +356,7 @@ class TestDeadlockIndicator(unittest.TestCase):
             process_pid=12345,
             details={"test": "value"},
             severity="HIGH",
-            recommendations=["recommendation1", "recommendation2"]
+            recommendations=["recommendation1", "recommendation2"],
         )
 
         self.assertEqual(indicator.deadlock_type, DeadlockType.STDOUT_THREAD)
@@ -379,7 +377,9 @@ class TestDetailedResult(unittest.TestCase):
             Mock(component="test", status=DiagnosticStatus.OK, message="test message")
         ]
         deadlock_indicators = [
-            DeadlockIndicator(deadlock_type=DeadlockType.PROCESS_WAIT, process_pid=12345)
+            DeadlockIndicator(
+                deadlock_type=DeadlockType.PROCESS_WAIT, process_pid=12345
+            )
         ]
 
         result = DetailedResult(
@@ -392,7 +392,7 @@ class TestDetailedResult(unittest.TestCase):
             diagnostic_results=diagnostic_results,
             deadlock_indicators=deadlock_indicators,
             process_monitoring_data={"test": "data"},
-            hang_analysis={"hang_detected": False}
+            hang_analysis={"hang_detected": False},
         )
 
         self.assertTrue(result.success)

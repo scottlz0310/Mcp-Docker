@@ -32,8 +32,7 @@ class DummySimulationService:
             raise SimulationServiceError("simulation failed")
         if self.result is None:
             raise AssertionError(
-                "DummySimulationService requires a result when"
-                " raise_error=False",
+                "DummySimulationService requires a result when raise_error=False",
             )
         return self.result
 
@@ -131,6 +130,4 @@ def test_simulate_missing_file(tmp_path: Path) -> None:
     assert response.status_code == 400
     detail = response.json()["detail"]
     assert "workflow file not found" in detail
-    assert not service.calls, (
-        "Service should not be invoked when file is missing"
-    )
+    assert not service.calls, "Service should not be invoked when file is missing"

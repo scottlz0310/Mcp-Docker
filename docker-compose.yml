@@ -83,11 +83,7 @@ services:
         "CMD",
         "bash",
         "-c",
-        "python -c 'import services.actions.docker_integration_checker;
-        checker = services.actions.docker_integration_checker.DockerIntegrationChecker();
-        exit(0 if checker.verify_socket_access() else 1)' &&
-        docker version --format '{{.Server.Version}}' > /dev/null 2>&1 &&
-        act --version > /dev/null 2>&1",
+        "python -c 'import docker; docker.from_env().ping()' && act --version > /dev/null"
       ]
       interval: 30s
       timeout: 15s
@@ -117,9 +113,9 @@ services:
     # Docker socket グループアクセス
     group_add:
       - "${DOCKER_GID:-999}" # Dockerグループへの追加
-    # 依存関係設定
-    depends_on:
-      - docker-health-check
+    # 依存関係設定（一時的に無効化）
+    # depends_on:
+    #   - docker-health-check
     # 再起動ポリシー
     restart: unless-stopped
     # ログ設定

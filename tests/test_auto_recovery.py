@@ -15,7 +15,7 @@ from services.actions.auto_recovery import (
     RecoveryAttempt,
     RecoverySession,
     RecoveryStatus,
-    RecoveryType
+    RecoveryType,
 )
 from services.actions.docker_integration_checker import DockerConnectionStatus
 from services.actions.logger import ActionsLogger
@@ -33,7 +33,7 @@ class TestAutoRecovery(unittest.TestCase):
             docker_checker=self.mock_docker_checker,
             max_recovery_attempts=2,
             recovery_timeout=30.0,
-            enable_fallback_mode=True
+            enable_fallback_mode=True,
         )
 
     def test_init(self):
@@ -44,7 +44,7 @@ class TestAutoRecovery(unittest.TestCase):
         self.assertEqual(self.auto_recovery.recovery_timeout, 30.0)
         self.assertTrue(self.auto_recovery.enable_fallback_mode)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_attempt_docker_reconnection_success(self, mock_run):
         """Docker再接続成功テスト"""
         # Docker接続が既に正常な場合
@@ -55,13 +55,13 @@ class TestAutoRecovery(unittest.TestCase):
         result = self.auto_recovery.attempt_docker_reconnection()
         self.assertTrue(result)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_attempt_docker_reconnection_with_restart(self, mock_run):
         """Docker再接続（再起動付き）テスト"""
         # 最初は接続失敗、再起動後に成功
         self.mock_docker_checker.test_docker_daemon_connection_with_retry.side_effect = [
             Mock(status=DockerConnectionStatus.DISCONNECTED),  # 最初は失敗
-            Mock(status=DockerConnectionStatus.CONNECTED)      # 再起動後は成功
+            Mock(status=DockerConnectionStatus.CONNECTED),  # 再起動後は成功
         ]
 
         # Docker daemon再起動コマンドが成功
@@ -95,7 +95,11 @@ class TestAutoRecovery(unittest.TestCase):
         """SIGKILL必要テスト"""
         mock_process = Mock()
         mock_process.pid = 12345
-        mock_process.poll.side_effect = [None, None, 0]  # SIGTERM後も実行中、SIGKILL後に終了
+        mock_process.poll.side_effect = [
+            None,
+            None,
+            0,
+        ]  # SIGTERM後も実行中、SIGKILL後に終了
         mock_process.wait.side_effect = [subprocess.TimeoutExpired("", 5), None]
 
         result = self.auto_recovery.restart_hung_subprocess(mock_process)
@@ -108,9 +112,9 @@ class TestAutoRecovery(unittest.TestCase):
         result = self.auto_recovery.restart_hung_subprocess(None)
         self.assertFalse(result)
 
-    @patch('os.sync')
-    @patch('sys.stdout')
-    @patch('sys.stderr')
+    @patch("os.sync")
+    @patch("sys.stdout")
+    @patch("sys.stderr")
     def test_clear_output_buffers(self, mock_stderr, mock_stdout, mock_sync):
         """出力バッファクリアテスト"""
         mock_stdout.flush.return_value = None
@@ -123,7 +127,7 @@ class TestAutoRecovery(unittest.TestCase):
         mock_stderr.flush.assert_called_once()
         mock_sync.assert_called_once()
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_reset_container_state_success(self, mock_run):
         """コンテナ状態リセット成功テスト"""
         # 全てのDockerコマンドが成功
@@ -132,17 +136,17 @@ class TestAutoRecovery(unittest.TestCase):
         result = self.auto_recovery.reset_container_state()
         self.assertTrue(result)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_reset_container_state_partial_success(self, mock_run):
         """コンテナ状態リセット部分成功テスト"""
         # 一部のDockerコマンドが失敗するが、いくつかは成功
         mock_run.side_effect = [
             Mock(returncode=0, stdout="container123\n"),  # ps成功
-            Mock(returncode=0),                           # stop成功
-            Mock(returncode=1, stderr="error"),           # container prune失敗
-            Mock(returncode=0),                           # network prune成功
-            Mock(returncode=0),                           # volume prune成功
-            Mock(returncode=0)                            # system prune成功
+            Mock(returncode=0),  # stop成功
+            Mock(returncode=1, stderr="error"),  # container prune失敗
+            Mock(returncode=0),  # network prune成功
+            Mock(returncode=0),  # volume prune成功
+            Mock(returncode=0),  # system prune成功
         ]
 
         result = self.auto_recovery.reset_container_state()
@@ -151,10 +155,7 @@ class TestAutoRecovery(unittest.TestCase):
 
     def test_execute_fallback_mode_disabled(self):
         """フォールバックモード無効テスト"""
-        auto_recovery = AutoRecovery(
-            logger=self.logger,
-            enable_fallback_mode=False
-        )
+        auto_recovery = AutoRecovery(logger=self.logger, enable_fallback_mode=False)
 
         workflow_file = Path("/tmp/test_workflow.yml")
         original_command = ["act", "--list"]
@@ -165,11 +166,11 @@ class TestAutoRecovery(unittest.TestCase):
         self.assertEqual(result.fallback_method, "disabled")
         self.assertIn("フォールバックモードが無効です", result.stderr)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_execute_fallback_mode_direct_docker_success(self, mock_run):
         """フォールバック直接Docker実行成功テスト"""
         # 一時的なワークフローファイルを作成
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write("name: test\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest")
             workflow_file = Path(f.name)
 
@@ -178,7 +179,7 @@ class TestAutoRecovery(unittest.TestCase):
             mock_run.return_value = Mock(
                 returncode=0,
                 stdout="ワークフローファイル解析: test.yml\nname: test",
-                stderr=""
+                stderr="",
             )
 
             result = self.auto_recovery.execute_fallback_mode(workflow_file, ["act"])
@@ -190,11 +191,11 @@ class TestAutoRecovery(unittest.TestCase):
         finally:
             workflow_file.unlink()
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_execute_fallback_mode_all_methods_fail(self, mock_run):
         """全フォールバック方法失敗テスト"""
         # 一時的なワークフローファイルを作成
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write("name: test")
             workflow_file = Path(f.name)
 
@@ -204,7 +205,10 @@ class TestAutoRecovery(unittest.TestCase):
 
             # ドライランモードを無効にするため、フォールバック方法を制限
             original_methods = self.auto_recovery._fallback_methods
-            self.auto_recovery._fallback_methods = ["direct_docker_run", "simplified_act_execution"]
+            self.auto_recovery._fallback_methods = [
+                "direct_docker_run",
+                "simplified_act_execution",
+            ]
 
             result = self.auto_recovery.execute_fallback_mode(workflow_file, ["act"])
 
@@ -230,18 +234,18 @@ class TestAutoRecovery(unittest.TestCase):
         )
 
         # 一時的なワークフローファイル
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write("name: test")
             workflow_file = Path(f.name)
 
         try:
-            with patch('subprocess.run') as mock_run:
+            with patch("subprocess.run") as mock_run:
                 mock_run.return_value = Mock(returncode=0, stdout="")
 
                 session = self.auto_recovery.run_comprehensive_recovery(
                     failed_process=mock_process,
                     workflow_file=workflow_file,
-                    original_command=["act"]
+                    original_command=["act"],
                 )
 
                 self.assertIsNotNone(session.session_id)
@@ -270,7 +274,7 @@ class TestAutoRecovery(unittest.TestCase):
         session1.attempts = [
             RecoveryAttempt(
                 recovery_type=RecoveryType.DOCKER_RECONNECTION,
-                status=RecoveryStatus.SUCCESS
+                status=RecoveryStatus.SUCCESS,
             )
         ]
 
@@ -279,7 +283,7 @@ class TestAutoRecovery(unittest.TestCase):
         session2.attempts = [
             RecoveryAttempt(
                 recovery_type=RecoveryType.DOCKER_RECONNECTION,
-                status=RecoveryStatus.FAILED
+                status=RecoveryStatus.FAILED,
             )
         ]
 
@@ -292,7 +296,7 @@ class TestAutoRecovery(unittest.TestCase):
         self.assertEqual(stats["success_rate"], 0.5)
         self.assertIn("docker_reconnection", stats["recovery_type_statistics"])
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_private_methods_docker_operations(self, mock_run):
         """プライベートメソッド（Docker操作）テスト"""
         # Docker daemon再起動
@@ -309,7 +313,7 @@ class TestAutoRecovery(unittest.TestCase):
         mock_run.side_effect = [
             Mock(returncode=0, stdout="container1\ncontainer2\n"),  # ps
             Mock(returncode=0),  # stop
-            Mock(returncode=0)   # system prune用の追加モック
+            Mock(returncode=0),  # system prune用の追加モック
         ]
         result = self.auto_recovery._stop_act_containers()
         self.assertEqual(result, 2)
@@ -323,7 +327,7 @@ class TestAutoRecovery(unittest.TestCase):
     def test_fallback_methods(self):
         """フォールバック方法テスト"""
         # 一時的なワークフローファイル
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write("name: test\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest")
             workflow_file = Path(f.name)
 
@@ -342,7 +346,7 @@ class TestAutoRecovery(unittest.TestCase):
         attempt = RecoveryAttempt(
             recovery_type=RecoveryType.BUFFER_CLEAR,
             status=RecoveryStatus.SUCCESS,
-            message="テスト復旧"
+            message="テスト復旧",
         )
 
         self.assertEqual(attempt.recovery_type, RecoveryType.BUFFER_CLEAR)
@@ -358,7 +362,7 @@ class TestAutoRecovery(unittest.TestCase):
             stdout="test output",
             stderr="",
             execution_time_ms=100.0,
-            fallback_method="test_method"
+            fallback_method="test_method",
         )
 
         self.assertTrue(result.success)
@@ -375,14 +379,14 @@ class TestAutoRecovery(unittest.TestCase):
         self.assertFalse(session.overall_success)
         self.assertFalse(session.fallback_mode_activated)
 
-    @patch('time.sleep')
+    @patch("time.sleep")
     def test_recovery_with_timeout(self, mock_sleep):
         """タイムアウト付き復旧テスト"""
         # タイムアウトが短い設定でテスト
         auto_recovery = AutoRecovery(
             logger=self.logger,
             docker_checker=self.mock_docker_checker,
-            recovery_timeout=1.0  # 1秒でタイムアウト
+            recovery_timeout=1.0,  # 1秒でタイムアウト
         )
 
         # Docker接続が成功
@@ -390,7 +394,7 @@ class TestAutoRecovery(unittest.TestCase):
             status=DockerConnectionStatus.CONNECTED
         )
 
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0)
 
             session = auto_recovery.run_comprehensive_recovery()
@@ -425,5 +429,5 @@ class TestAutoRecovery(unittest.TestCase):
             self.assertIsInstance(result, dict)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

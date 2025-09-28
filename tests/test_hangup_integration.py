@@ -38,6 +38,7 @@ class TestHangupIntegration(unittest.TestCase):
     def tearDown(self):
         """テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_test_workflows(self):
@@ -116,13 +117,16 @@ jobs:
     def test_docker_socket_unavailable_integration(self):
         """Dockerソケット利用不可統合テスト"""
         # Dockerソケットが利用できない状況をシミュレート
-        with patch('pathlib.Path.exists', return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):
             # 診断実行
             health_report = self.diagnostic_service.run_comprehensive_health_check()
 
             # Docker関連の問題が検出されることを確認
-            docker_issues = [result for result in health_report.results
-                           if "Docker" in result.component]
+            docker_issues = [
+                result
+                for result in health_report.results
+                if "Docker" in result.component
+            ]
             self.assertTrue(len(docker_issues) > 0)
 
             # ハングアップ分析
@@ -135,9 +139,10 @@ jobs:
     def test_act_binary_missing_integration(self):
         """actバイナリ不在統合テスト"""
         # actバイナリが見つからない状況をシミュレート
-        with patch('shutil.which', return_value=None), \
-             patch('pathlib.Path.exists', return_value=False):
-
+        with (
+            patch("shutil.which", return_value=None),
+            patch("pathlib.Path.exists", return_value=False),
+        ):
             # 診断実行
             act_result = self.diagnostic_service.check_act_binary()
             self.assertEqual(act_result.status.name, "ERROR")
@@ -153,7 +158,7 @@ jobs:
             working_directory=str(self.workspace),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # モックモードで実行（実際のactを使わない）
@@ -164,7 +169,7 @@ jobs:
             result = wrapper.run_workflow_with_diagnostics(
                 workflow_file="basic_workflow.yml",
                 timeout_seconds=1,  # 非常に短いタイムアウト
-                pre_execution_diagnostics=False
+                pre_execution_diagnostics=False,
             )
 
             # タイムアウトまたは正常完了のいずれかになることを確認
@@ -196,7 +201,7 @@ jobs:
             working_directory=str(self.workspace),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # モックモードで実行
@@ -205,7 +210,7 @@ jobs:
         try:
             result = wrapper.run_workflow_with_diagnostics(
                 workflow_file="large_output_workflow.yml",
-                pre_execution_diagnostics=False
+                pre_execution_diagnostics=False,
             )
 
             # 大量の出力が適切に処理されることを確認
@@ -242,7 +247,7 @@ jobs:
     def test_auto_recovery_docker_restart_integration(self):
         """自動復旧Docker再起動統合テスト"""
         # Docker再接続を試行
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0)
 
             result = self.auto_recovery.attempt_docker_reconnection()
@@ -256,7 +261,9 @@ jobs:
         original_command = ["act", "--list"]
 
         # フォールバックモードを実行
-        result = self.auto_recovery.execute_fallback_mode(workflow_file, original_command)
+        result = self.auto_recovery.execute_fallback_mode(
+            workflow_file, original_command
+        )
 
         # フォールバック実行が成功することを確認
         self.assertTrue(result.success)
@@ -268,8 +275,7 @@ jobs:
 
         # 包括的復旧を実行
         session = self.auto_recovery.run_comprehensive_recovery(
-            workflow_file=workflow_file,
-            original_command=["act", "--list"]
+            workflow_file=workflow_file, original_command=["act", "--list"]
         )
 
         # 復旧セッションが正常に実行されることを確認
@@ -294,7 +300,7 @@ jobs:
             output_directory=self.workspace,
             include_logs=True,
             include_system_info=True,
-            include_docker_info=True
+            include_docker_info=True,
         )
 
         # バンドルが正常に作成されることを確認
@@ -305,7 +311,7 @@ jobs:
     def test_execution_trace_integration(self):
         """実行トレース統合テスト"""
         # 実行トレースを開始
-        trace = self.execution_tracer.start_trace("integration_test")
+        self.execution_tracer.start_trace("integration_test")
 
         # 各段階を実行
         self.execution_tracer.set_stage("SUBPROCESS_CREATION", {"test": "data"})
@@ -338,7 +344,7 @@ jobs:
             working_directory=str(self.workspace),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
         # モックモードで各種ワークフローを実行
@@ -349,7 +355,7 @@ jobs:
                 "basic_workflow.yml",
                 "long_running_workflow.yml",
                 "complex_workflow.yml",
-                "error_workflow.yml"
+                "error_workflow.yml",
             ]
 
             for workflow in workflows:
@@ -357,7 +363,7 @@ jobs:
                     result = wrapper.run_workflow_with_diagnostics(
                         workflow_file=workflow,
                         pre_execution_diagnostics=False,
-                        dry_run=True
+                        dry_run=True,
                     )
 
                     # 各ワークフローが正常に処理されることを確認
@@ -400,16 +406,20 @@ jobs:
     def test_memory_management_integration(self):
         """メモリ管理統合テスト"""
         # 複数回の実行でメモリリークがないことを確認
-        initial_trace_count = len(self.execution_tracer._traces) if hasattr(self.execution_tracer, '_traces') else 0
+        initial_trace_count = (
+            len(self.execution_tracer._traces)
+            if hasattr(self.execution_tracer, "_traces")
+            else 0
+        )
 
         for i in range(5):
-            trace = self.execution_tracer.start_trace(f"memory_test_{i}")
+            self.execution_tracer.start_trace(f"memory_test_{i}")
             self.execution_tracer.set_stage("COMPLETED")
             self.execution_tracer.end_trace()
 
         # トレース履歴が適切に管理されることを確認
         # （実装によっては履歴を保持しない場合もある）
-        if hasattr(self.execution_tracer, '_traces'):
+        if hasattr(self.execution_tracer, "_traces"):
             final_trace_count = len(self.execution_tracer._traces)
             # 無制限に増加しないことを確認
             self.assertLessEqual(final_trace_count, initial_trace_count + 10)
@@ -420,14 +430,13 @@ jobs:
         test_configs = {
             "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS": "300",
             "ACTIONS_SIMULATOR_ENGINE": "act",
-            "ACTIONS_SIMULATOR_VERBOSE": "true"
+            "ACTIONS_SIMULATOR_VERBOSE": "true",
         }
 
         with patch.dict(os.environ, test_configs):
             # 設定が正しく読み込まれることを確認
             wrapper = EnhancedActWrapper(
-                working_directory=str(self.workspace),
-                logger=self.logger
+                working_directory=str(self.workspace), logger=self.logger
             )
 
             # 設定値が反映されることを確認
@@ -436,7 +445,7 @@ jobs:
     def test_cleanup_and_resource_release_integration(self):
         """クリーンアップとリソース解放統合テスト"""
         # リソースを使用する処理を実行
-        trace = self.execution_tracer.start_trace("cleanup_test")
+        self.execution_tracer.start_trace("cleanup_test")
         self.execution_tracer.set_stage("PROCESS_MONITORING")
 
         # 自動復旧でバッファクリアを実行
@@ -449,5 +458,5 @@ jobs:
         self.assertIsNotNone(final_trace.end_time)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

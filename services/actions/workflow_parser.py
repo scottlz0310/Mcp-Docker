@@ -23,10 +23,13 @@ class WorkflowParser:
 
     def __init__(self):
         """初期化"""
-        self.required_fields = ['name', 'on', 'jobs']
+        self.required_fields = ["name", "on", "jobs"]
         self.supported_events = [
-            'push', 'pull_request', 'schedule',
-            'workflow_dispatch', 'workflow_call'
+            "push",
+            "pull_request",
+            "schedule",
+            "workflow_dispatch",
+            "workflow_call",
         ]
 
     def parse_file(self, workflow_path: Path) -> Dict[str, Any]:
@@ -43,7 +46,7 @@ class WorkflowParser:
             WorkflowParseError: 解析エラー
         """
         try:
-            with open(workflow_path, 'r', encoding='utf-8') as f:
+            with open(workflow_path, "r", encoding="utf-8") as f:
                 workflow_data = yaml.safe_load(f)
 
             # 基本検証
@@ -66,7 +69,9 @@ class WorkflowParser:
     def _validate_basic_structure(self, workflow_data: Dict[str, Any]) -> None:
         """基本構造の検証"""
         if not workflow_data or not isinstance(workflow_data, dict):
-            raise WorkflowParseError("ワークフローはYAMLオブジェクトである必要があります")
+            raise WorkflowParseError(
+                "ワークフローはYAMLオブジェクトである必要があります"
+            )
 
         # GitHub Actions YAML特有の問題への対処
         # YAMLパーサーが 'on:' を True キーとして解釈する問題を修正
@@ -78,7 +83,7 @@ class WorkflowParser:
                 raise WorkflowParseError(f"必須フィールド '{field}' がありません")
 
         # ジョブの検証
-        jobs = workflow_data.get('jobs', {})
+        jobs = workflow_data.get("jobs", {})
         if not jobs:
             raise WorkflowParseError("少なくとも1つのジョブが必要です")
 
@@ -107,8 +112,8 @@ class WorkflowParser:
         # 型チェッカー向け: Dict[str, Any]だがYAMLパーサーの仕様上boolキーが存在する
         bool_keys = [k for k in normalized_data.keys() if isinstance(k, bool)]
         for bool_key in bool_keys:
-            if bool_key is True and 'on' not in normalized_data:
-                normalized_data['on'] = normalized_data[bool_key]
+            if bool_key is True and "on" not in normalized_data:
+                normalized_data["on"] = normalized_data[bool_key]
                 del normalized_data[bool_key]
 
         return normalized_data
@@ -116,14 +121,18 @@ class WorkflowParser:
     def _validate_job(self, job_id: str, job_data: Dict[str, Any]) -> None:
         """ジョブの検証"""
         if not isinstance(job_data, dict):
-            raise WorkflowParseError(f"ジョブ '{job_id}' は有効なオブジェクトではありません")
+            raise WorkflowParseError(
+                f"ジョブ '{job_id}' は有効なオブジェクトではありません"
+            )
 
         # runs-onの確認
-        if 'runs-on' not in job_data:
-            raise WorkflowParseError(f"ジョブ '{job_id}' に 'runs-on' が指定されていません")
+        if "runs-on" not in job_data:
+            raise WorkflowParseError(
+                f"ジョブ '{job_id}' に 'runs-on' が指定されていません"
+            )
 
         # stepsの確認
-        steps = job_data.get('steps', [])
+        steps = job_data.get("steps", [])
         if not steps:
             raise WorkflowParseError(f"ジョブ '{job_id}' にステップがありません")
 
@@ -131,10 +140,7 @@ class WorkflowParser:
             self._validate_step(job_id, i, step)
 
     def _validate_step(
-        self,
-        job_id: str,
-        step_index: int,
-        step: Dict[str, Any]
+        self, job_id: str, step_index: int, step: Dict[str, Any]
     ) -> None:
         """ステップの検証"""
         if not isinstance(step, dict):
@@ -143,7 +149,7 @@ class WorkflowParser:
             )
 
         # runまたはusesのどちらかは必須
-        if 'run' not in step and 'uses' not in step:
+        if "run" not in step and "uses" not in step:
             raise WorkflowParseError(
                 f"ジョブ '{job_id}' のステップ {step_index + 1} に "
                 "'run' または 'uses' が必要です"
@@ -151,7 +157,7 @@ class WorkflowParser:
 
     def _normalize_needs(self, needs: Any) -> List[str]:
         """needs フィールドをリスト形式に正規化"""
-        if needs in (None, [], ''):
+        if needs in (None, [], ""):
             return []
 
         if isinstance(needs, str):
@@ -171,16 +177,14 @@ class WorkflowParser:
 
     def _expand_matrix_jobs(self, workflow_data: Dict[str, Any]) -> None:
         """strategy.matrix を展開して個別ジョブに変換"""
-        jobs_field = workflow_data.get('jobs', {})
+        jobs_field = workflow_data.get("jobs", {})
         if not isinstance(jobs_field, dict):
             raise WorkflowParseError("jobs フィールドが無効です")
 
         jobs: Dict[str, Dict[str, Any]] = {}
         for job_id, job_data in jobs_field.items():
             if not isinstance(job_data, dict):
-                raise WorkflowParseError(
-                    f"ジョブ '{job_id}' の定義が無効です"
-                )
+                raise WorkflowParseError(f"ジョブ '{job_id}' の定義が無効です")
             jobs[job_id] = job_data
 
         expanded_jobs: Dict[str, Dict[str, Any]] = {}
@@ -188,13 +192,13 @@ class WorkflowParser:
         base_lookup: Dict[str, str] = {}
 
         for job_id, job_data in jobs.items():
-            strategy_obj = job_data.get('strategy')
+            strategy_obj = job_data.get("strategy")
             strategy_dict: Optional[Dict[str, Any]] = (
                 cast(Dict[str, Any], strategy_obj)
                 if isinstance(strategy_obj, dict)
                 else None
             )
-            matrix_def = strategy_dict.get('matrix') if strategy_dict else None
+            matrix_def = strategy_dict.get("matrix") if strategy_dict else None
 
             if not matrix_def:
                 expanded_jobs[job_id] = job_data
@@ -227,36 +231,33 @@ class WorkflowParser:
                 matrix_job = copy.deepcopy(job_data)
 
                 # strategy から matrix を除去
-                if isinstance(matrix_job.get('strategy'), dict):
-                    new_strategy = copy.deepcopy(matrix_job['strategy'])
-                    new_strategy.pop('matrix', None)
+                if isinstance(matrix_job.get("strategy"), dict):
+                    new_strategy = copy.deepcopy(matrix_job["strategy"])
+                    new_strategy.pop("matrix", None)
                     if new_strategy:
-                        matrix_job['strategy'] = new_strategy
+                        matrix_job["strategy"] = new_strategy
                     else:
-                        matrix_job.pop('strategy', None)
+                        matrix_job.pop("strategy", None)
 
-                base_name = job_data.get('name', job_id)
-                matrix_summary = ', '.join(
-                    f"{matrix_key}={combo[matrix_key]}"
-                    for matrix_key in sorted(combo)
+                base_name = job_data.get("name", job_id)
+                matrix_summary = ", ".join(
+                    f"{matrix_key}={combo[matrix_key]}" for matrix_key in sorted(combo)
                 )
-                matrix_job['name'] = (
-                    f"{base_name} [{matrix_summary}]"
-                    if matrix_summary
-                    else base_name
+                matrix_job["name"] = (
+                    f"{base_name} [{matrix_summary}]" if matrix_summary else base_name
                 )
 
-                job_env = copy.deepcopy(job_data.get('env', {}))
+                job_env = copy.deepcopy(job_data.get("env", {}))
                 job_env.update(
                     {
                         f"MATRIX_{matrix_key.upper()}": str(value)
                         for matrix_key, value in combo.items()
                     }
                 )
-                matrix_job['env'] = job_env
+                matrix_job["env"] = job_env
 
-                matrix_job['matrix'] = combo
-                matrix_job['base_job_id'] = job_id
+                matrix_job["matrix"] = combo
+                matrix_job["base_job_id"] = job_id
 
                 expanded_jobs[new_job_id] = matrix_job
                 variant_ids.append(new_job_id)
@@ -266,12 +267,12 @@ class WorkflowParser:
 
         # needs の展開
         for job_id, job_data in expanded_jobs.items():
-            original_needs = job_data.get('needs')
+            original_needs = job_data.get("needs")
             normalized_needs = self._normalize_needs(original_needs)
 
             if not normalized_needs:
-                if 'needs' in job_data:
-                    job_data.pop('needs', None)
+                if "needs" in job_data:
+                    job_data.pop("needs", None)
                 continue
 
             expanded_needs: List[str] = []
@@ -282,29 +283,27 @@ class WorkflowParser:
                 else:
                     expanded_needs.append(dependency)
 
-            job_data['needs'] = expanded_needs
+            job_data["needs"] = expanded_needs
 
             if (
                 job_id in jobs
                 and isinstance(original_needs, str)
                 and len(expanded_needs) == 1
             ):
-                job_data['needs'] = expanded_needs[0]
+                job_data["needs"] = expanded_needs[0]
 
-        workflow_data['jobs'] = expanded_jobs
-        workflow_data.setdefault('_simulator', {})['matrix'] = {
-            'expansions': expansion_map,
-            'base_lookup': base_lookup,
+        workflow_data["jobs"] = expanded_jobs
+        workflow_data.setdefault("_simulator", {})["matrix"] = {
+            "expansions": expansion_map,
+            "base_lookup": base_lookup,
         }
 
     def _generate_matrix_combinations(
-        self,
-        job_id: str,
-        matrix_def: Dict[str, Any]
+        self, job_id: str, matrix_def: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """matrix 定義から組み合わせを生成"""
-        include_raw = matrix_def.get('include', [])
-        exclude_raw = matrix_def.get('exclude', [])
+        include_raw = matrix_def.get("include", [])
+        exclude_raw = matrix_def.get("exclude", [])
 
         include_items: List[Dict[str, Any]] = []
         if include_raw:
@@ -338,7 +337,7 @@ class WorkflowParser:
 
         axes: Dict[str, List[Any]] = {}
         for key, raw_values in matrix_def.items():
-            if key in {'include', 'exclude'}:
+            if key in {"include", "exclude"}:
                 continue
             if not isinstance(raw_values, list) or not raw_values:
                 raise WorkflowParseError(
@@ -374,10 +373,7 @@ class WorkflowParser:
         if exclude_items:
             filtered: List[Dict[str, Any]] = []
             for combo in combinations:
-                if any(
-                    matches(combo, exclusion)
-                    for exclusion in exclude_items
-                ):
+                if any(matches(combo, exclusion) for exclusion in exclude_items):
                     continue
                 filtered.append(combo)
             combinations = filtered
@@ -430,7 +426,7 @@ class WorkflowParser:
         base_job_id: str,
         combo: Dict[str, Any],
         index: int,
-        existing_jobs: Dict[str, Dict[str, Any]]
+        existing_jobs: Dict[str, Dict[str, Any]],
     ) -> str:
         """マトリックス展開されたジョブIDを生成"""
         parts = [base_job_id]
@@ -438,7 +434,7 @@ class WorkflowParser:
             sanitized_value = self._sanitize_identifier(str(combo[key]))
             parts.append(f"{key}-{sanitized_value}")
 
-        candidate = '__'.join(parts)
+        candidate = "__".join(parts)
         if candidate in existing_jobs:
             candidate = f"{candidate}__{index}"
         return candidate
@@ -448,12 +444,12 @@ class WorkflowParser:
         """ジョブIDに使用できるよう値をサニタイズ"""
         allowed: List[str] = []
         for char in value:
-            if char.isalnum() or char in ('-', '_'):
+            if char.isalnum() or char in ("-", "_"):
                 allowed.append(char)
             else:
-                allowed.append('-')
-        sanitized = ''.join(allowed)
-        return sanitized.strip('-') or 'value'
+                allowed.append("-")
+        sanitized = "".join(allowed)
+        return sanitized.strip("-") or "value"
 
     def strict_validate(self, workflow_data: Dict[str, Any]) -> None:
         """厳密な検証"""
@@ -461,7 +457,7 @@ class WorkflowParser:
         self._validate_basic_structure(workflow_data)
 
         # イベント検証
-        events_value = workflow_data.get('on')
+        events_value = workflow_data.get("on")
         events_list: List[str]
         if isinstance(events_value, str):
             events_list = [events_value]
@@ -482,7 +478,7 @@ class WorkflowParser:
                 raise WorkflowParseError(f"サポートされていないイベント: {event}")
 
         # 環境変数の検証
-        jobs = workflow_data.get('jobs', {})
+        jobs = workflow_data.get("jobs", {})
         for job_id, job_data in jobs.items():
             self._strict_validate_job(job_id, job_data)
 
@@ -493,7 +489,7 @@ class WorkflowParser:
     ) -> None:
         """ジョブの厳密な検証"""
         # タイムアウトの確認
-        timeout = job_data.get('timeout-minutes')
+        timeout = job_data.get("timeout-minutes")
         if timeout is not None:
             if not isinstance(timeout, (int, float)) or timeout <= 0:
                 raise WorkflowParseError(
@@ -501,12 +497,12 @@ class WorkflowParser:
                 )
 
         # 環境変数の確認
-        env = job_data.get('env', {})
+        env = job_data.get("env", {})
         if not isinstance(env, dict):
             raise WorkflowParseError(f"ジョブ '{job_id}' の環境変数が無効です")
 
         # ステップの厳密な検証
-        steps = job_data.get('steps', [])
+        steps = job_data.get("steps", [])
         for i, step in enumerate(steps):
             self._strict_validate_step(job_id, i, step)
 
@@ -521,21 +517,21 @@ class WorkflowParser:
         self._validate_step(job_id, step_index, step)
 
         # nameの確認（推奨）
-        if 'name' not in step:
+        if "name" not in step:
             # 警告として記録（ここでは省略）
             pass
 
         # 条件式の検証
-        if 'if' in step:
-            condition = step['if']
+        if "if" in step:
+            condition = step["if"]
             if not isinstance(condition, str):
                 raise WorkflowParseError(
                     f"ジョブ '{job_id}' のステップ {step_index + 1} の条件式が無効です"
                 )
 
         # usesの場合のバージョン確認
-        if 'uses' in step:
-            uses = step['uses']
+        if "uses" in step:
+            uses = step["uses"]
             if not isinstance(uses, str) or not uses.strip():
                 raise WorkflowParseError(
                     f"ジョブ '{job_id}' のステップ {step_index + 1} の 'uses' が無効です"
@@ -546,16 +542,18 @@ class WorkflowParser:
         workflow_data: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """ジョブの概要情報を取得"""
-        jobs = workflow_data.get('jobs', {})
+        jobs = workflow_data.get("jobs", {})
         summary: List[Dict[str, Any]] = []
 
         for job_id, job_data in jobs.items():
-            summary.append({
-                'id': job_id,
-                'name': job_data.get('name', job_id),
-                'runs_on': job_data.get('runs-on'),
-                'steps_count': len(job_data.get('steps', [])),
-                'timeout_minutes': job_data.get('timeout-minutes'),
-                'needs': job_data.get('needs', [])
-            })
+            summary.append(
+                {
+                    "id": job_id,
+                    "name": job_data.get("name", job_id),
+                    "runs_on": job_data.get("runs-on"),
+                    "steps_count": len(job_data.get("steps", [])),
+                    "timeout_minutes": job_data.get("timeout-minutes"),
+                    "needs": job_data.get("needs", []),
+                }
+            )
         return summary

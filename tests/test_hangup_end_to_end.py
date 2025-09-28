@@ -36,6 +36,7 @@ class TestHangupEndToEnd(unittest.TestCase):
     def tearDown(self):
         """テストクリーンアップ"""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_realistic_workflows(self):
@@ -449,7 +450,7 @@ jobs:
             working_directory=str(self.workspace),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service
+            diagnostic_service=self.diagnostic_service,
         )
 
     def test_ci_workflow_execution_reliability(self):
@@ -461,7 +462,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="ci.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=60
+                timeout_seconds=60,
             )
 
             # CI ワークフローが正常に処理されることを確認
@@ -484,7 +485,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="docker-build.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=90
+                timeout_seconds=90,
             )
 
             # Docker ワークフローが正常に処理されることを確認
@@ -503,7 +504,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="security.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=120
+                timeout_seconds=120,
             )
 
             # セキュリティワークフローが正常に処理されることを確認
@@ -522,7 +523,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=180
+                timeout_seconds=180,
             )
 
             # パフォーマンステストワークフローが正常に処理されることを確認
@@ -541,7 +542,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="conditional.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=120
+                timeout_seconds=120,
             )
 
             # 条件分岐ワークフローが正常に処理されることを確認
@@ -558,17 +559,20 @@ jobs:
 
         try:
             # 最初の実行（失敗をシミュレート）
-            with patch.object(self.enhanced_wrapper, '_create_monitored_subprocess') as mock_subprocess:
+            with patch.object(
+                self.enhanced_wrapper, "_create_monitored_subprocess"
+            ) as mock_subprocess:
                 mock_process = Mock()
                 mock_process.pid = 12345
                 mock_process.poll.return_value = 1  # 失敗
                 mock_process.returncode = 1
 
                 from services.actions.enhanced_act_wrapper import MonitoredProcess
+
                 monitored_process = MonitoredProcess(
                     process=mock_process,
                     command=["act", "flaky.yml"],
-                    start_time=time.time()
+                    start_time=time.time(),
                 )
                 monitored_process.stdout_lines = ["Flaky Workflow execution failed"]
                 monitored_process.stderr_lines = ["Error occurred"]
@@ -578,7 +582,7 @@ jobs:
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file="flaky.yml",
                     pre_execution_diagnostics=False,
-                    timeout_seconds=30
+                    timeout_seconds=30,
                 )
 
                 # 失敗が検出されることを確認
@@ -588,7 +592,7 @@ jobs:
                 recovery_session = self.auto_recovery.run_comprehensive_recovery(
                     failed_process=mock_process,
                     workflow_file=self.workspace / "flaky.yml",
-                    original_command=["act", "flaky.yml"]
+                    original_command=["act", "flaky.yml"],
                 )
 
                 # 復旧セッションが実行されることを確認
@@ -611,7 +615,7 @@ jobs:
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file=workflow,
                     pre_execution_diagnostics=False,
-                    timeout_seconds=60
+                    timeout_seconds=60,
                 )
                 results.append(result)
 
@@ -635,7 +639,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
                 pre_execution_diagnostics=False,
-                timeout_seconds=5  # 非常に短いタイムアウト
+                timeout_seconds=5,  # 非常に短いタイムアウト
             )
 
             # タイムアウトまたは正常完了のいずれかになることを確認
@@ -644,9 +648,9 @@ jobs:
             if not result.success:
                 # タイムアウトの場合、適切なエラーメッセージが含まれることを確認
                 self.assertTrue(
-                    "タイムアウト" in result.stderr or
-                    "timeout" in result.stderr.lower() or
-                    result.returncode != 0
+                    "タイムアウト" in result.stderr
+                    or "timeout" in result.stderr.lower()
+                    or result.returncode != 0
                 )
 
         finally:
@@ -661,7 +665,7 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="ci.yml",
                 pre_execution_diagnostics=True,
-                timeout_seconds=60
+                timeout_seconds=60,
             )
 
             # 診断情報が含まれることを確認
@@ -683,7 +687,9 @@ jobs:
 
         try:
             # 1. 初回実行（エラーをシミュレート）
-            with patch.object(self.enhanced_wrapper, 'run_workflow_with_diagnostics') as mock_run:
+            with patch.object(
+                self.enhanced_wrapper, "run_workflow_with_diagnostics"
+            ) as mock_run:
                 from services.actions.enhanced_act_wrapper import DetailedResult
 
                 # 失敗結果を返す
@@ -693,7 +699,7 @@ jobs:
                     stdout="",
                     stderr="Simulated failure",
                     command="act ci.yml",
-                    execution_time_ms=1000.0
+                    execution_time_ms=1000.0,
                 )
                 mock_run.return_value = failed_result
 
@@ -717,7 +723,7 @@ jobs:
             # 4. 自動復旧試行
             recovery_session = self.auto_recovery.run_comprehensive_recovery(
                 workflow_file=self.workspace / "ci.yml",
-                original_command=["act", "ci.yml"]
+                original_command=["act", "ci.yml"],
             )
 
             # 復旧プロセスが実行されることを確認
@@ -740,7 +746,7 @@ jobs:
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file=str(real_workflow),
                     pre_execution_diagnostics=True,
-                    timeout_seconds=30
+                    timeout_seconds=30,
                 )
 
                 # 実際のワークフローファイルが正常に処理されることを確認
@@ -763,13 +769,13 @@ jobs:
                 try:
                     wrapper = EnhancedActWrapper(
                         working_directory=str(self.workspace),
-                        logger=ActionsLogger(verbose=False)  # ログを抑制
+                        logger=ActionsLogger(verbose=False),  # ログを抑制
                     )
 
                     result = wrapper.run_workflow_with_diagnostics(
                         workflow_file=workflow_name,
                         pre_execution_diagnostics=False,
-                        timeout_seconds=30
+                        timeout_seconds=30,
                     )
                     results.append((workflow_name, result.success))
                 except Exception as e:
@@ -807,14 +813,17 @@ jobs:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
                 pre_execution_diagnostics=False,
-                timeout_seconds=300  # 5分のタイムアウト
+                timeout_seconds=300,  # 5分のタイムアウト
             )
 
             # 長時間実行でも安定して動作することを確認
             self.assertIsNotNone(result)
 
             # メモリリークがないことを確認（簡易チェック）
-            if hasattr(result, 'process_monitoring_data') and result.process_monitoring_data:
+            if (
+                hasattr(result, "process_monitoring_data")
+                and result.process_monitoring_data
+            ):
                 monitoring_data = result.process_monitoring_data
                 self.assertIsInstance(monitoring_data, dict)
 
@@ -823,5 +832,5 @@ jobs:
                 del os.environ["ACTIONS_SIMULATOR_ENGINE"]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

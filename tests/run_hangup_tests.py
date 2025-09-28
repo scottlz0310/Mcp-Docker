@@ -30,7 +30,7 @@ class HangupTestRunner:
             "test_execution_tracer.py",
             "test_hangup_detector.py",
             "test_enhanced_act_wrapper.py",
-            "test_auto_recovery.py"
+            "test_auto_recovery.py",
         ]
 
         success_count = 0
@@ -50,7 +50,7 @@ class HangupTestRunner:
                 self.test_results[test_file] = {
                     "type": "unit",
                     "success": success,
-                    "file": str(test_path)
+                    "file": str(test_path),
                 }
             else:
                 print(f"  ⚠️ 見つかりません: {test_file}")
@@ -65,7 +65,7 @@ class HangupTestRunner:
         integration_test_files = [
             "test_hangup_scenarios_comprehensive.py",
             "test_hangup_integration.py",
-            "test_docker_integration_complete.py"
+            "test_docker_integration_complete.py",
         ]
 
         success_count = 0
@@ -85,7 +85,7 @@ class HangupTestRunner:
                 self.test_results[test_file] = {
                     "type": "integration",
                     "success": success,
-                    "file": str(test_path)
+                    "file": str(test_path),
                 }
             else:
                 print(f"  ⚠️ 見つかりません: {test_file}")
@@ -97,9 +97,7 @@ class HangupTestRunner:
         """エンドツーエンドテストを実行"""
         print("🎯 エンドツーエンドテスト実行中...")
 
-        e2e_test_files = [
-            "test_hangup_end_to_end.py"
-        ]
+        e2e_test_files = ["test_hangup_end_to_end.py"]
 
         success_count = 0
         total_count = len(e2e_test_files)
@@ -118,7 +116,7 @@ class HangupTestRunner:
                 self.test_results[test_file] = {
                     "type": "e2e",
                     "success": success,
-                    "file": str(test_path)
+                    "file": str(test_path),
                 }
             else:
                 print(f"  ⚠️ 見つかりません: {test_file}")
@@ -166,8 +164,8 @@ class HangupTestRunner:
 
             # パフォーマンス基準をチェック
             performance_ok = (
-                execution_time < 30.0 and  # 30秒以内
-                memory_increase < 100.0    # 100MB以内の増加
+                execution_time < 30.0  # 30秒以内
+                and memory_increase < 100.0  # 100MB以内の増加
             )
 
             if performance_ok:
@@ -179,7 +177,7 @@ class HangupTestRunner:
                 "type": "performance",
                 "success": performance_ok,
                 "execution_time": execution_time,
-                "memory_increase": memory_increase
+                "memory_increase": memory_increase,
             }
 
             return performance_ok
@@ -213,8 +211,8 @@ class HangupTestRunner:
                     hangup_detector = HangupDetector(logger=logger)
 
                     # 複数の診断を並行実行
-                    health_report = diagnostic_service.run_comprehensive_health_check()
-                    analysis = hangup_detector.analyze_hangup_conditions()
+                    diagnostic_service.run_comprehensive_health_check()
+                    hangup_detector.analyze_hangup_conditions()
 
                     results.append(True)
                 except Exception as e:
@@ -247,7 +245,7 @@ class HangupTestRunner:
             self.test_results["stress"] = {
                 "type": "stress",
                 "success": stress_success,
-                "success_rate": success_count / total_count if total_count > 0 else 0
+                "success_rate": success_count / total_count if total_count > 0 else 0,
             }
 
             return stress_success
@@ -269,7 +267,7 @@ class HangupTestRunner:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5分のタイムアウト
+                timeout=300,  # 5分のタイムアウト
             )
 
             if self.verbose and result.stdout:
@@ -291,9 +289,9 @@ class HangupTestRunner:
         """テスト結果レポートを生成"""
         total_time = time.time() - self.start_time
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📋 ハングアップテスト結果レポート")
-        print("="*60)
+        print("=" * 60)
 
         # カテゴリ別結果
         categories = {
@@ -301,19 +299,19 @@ class HangupTestRunner:
             "integration": "統合テスト",
             "e2e": "エンドツーエンドテスト",
             "performance": "パフォーマンステスト",
-            "stress": "ストレステスト"
+            "stress": "ストレステスト",
         }
 
         for category, name in categories.items():
             category_tests = [
-                test for test, result in self.test_results.items()
+                test
+                for test, result in self.test_results.items()
                 if result.get("type") == category
             ]
 
             if category_tests:
                 success_count = sum(
-                    1 for test in category_tests
-                    if self.test_results[test]["success"]
+                    1 for test in category_tests if self.test_results[test]["success"]
                 )
                 total_count = len(category_tests)
 
@@ -329,8 +327,7 @@ class HangupTestRunner:
         # 全体統計
         total_tests = len(self.test_results)
         successful_tests = sum(
-            1 for result in self.test_results.values()
-            if result["success"]
+            1 for result in self.test_results.values() if result["success"]
         )
 
         print(f"\n📊 全体結果: {successful_tests}/{total_tests} 成功")
@@ -347,12 +344,12 @@ class HangupTestRunner:
             print("  - Docker環境が正常に動作していることを確認してください")
             print("  - 必要な依存関係がインストールされていることを確認してください")
 
-        print("="*60)
+        print("=" * 60)
 
     def run_all_tests(self) -> bool:
         """全てのテストを実行"""
         print("🚀 ハングアップシナリオテスト開始")
-        print("="*60)
+        print("=" * 60)
 
         # 環境チェック
         self._check_environment()
@@ -368,13 +365,15 @@ class HangupTestRunner:
         self.generate_report()
 
         # 全体結果
-        overall_success = all([
-            unit_success,
-            integration_success,
-            e2e_success,
-            performance_success,
-            stress_success
-        ])
+        overall_success = all(
+            [
+                unit_success,
+                integration_success,
+                e2e_success,
+                performance_success,
+                stress_success,
+            ]
+        )
 
         if overall_success:
             print("\n🎉 全てのハングアップテストが成功しました！")
@@ -392,12 +391,7 @@ class HangupTestRunner:
         print(f"  🐍 Python: {python_version}")
 
         # 必要なモジュールの確認
-        required_modules = [
-            "pytest",
-            "unittest",
-            "pathlib",
-            "subprocess"
-        ]
+        required_modules = ["pytest", "unittest", "pathlib", "subprocess"]
 
         missing_modules = []
         for module in required_modules:
@@ -432,34 +426,20 @@ def main():
         description="GitHub Actions Simulator ハングアップテスト実行スクリプト"
     )
 
+    parser.add_argument("--verbose", "-v", action="store_true", help="詳細な出力を表示")
+
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="詳細な出力を表示"
+        "--parallel", "-p", action="store_true", help="並行実行を有効にする"
+    )
+
+    parser.add_argument("--unit-only", action="store_true", help="単体テストのみ実行")
+
+    parser.add_argument(
+        "--integration-only", action="store_true", help="統合テストのみ実行"
     )
 
     parser.add_argument(
-        "--parallel", "-p",
-        action="store_true",
-        help="並行実行を有効にする"
-    )
-
-    parser.add_argument(
-        "--unit-only",
-        action="store_true",
-        help="単体テストのみ実行"
-    )
-
-    parser.add_argument(
-        "--integration-only",
-        action="store_true",
-        help="統合テストのみ実行"
-    )
-
-    parser.add_argument(
-        "--e2e-only",
-        action="store_true",
-        help="エンドツーエンドテストのみ実行"
+        "--e2e-only", action="store_true", help="エンドツーエンドテストのみ実行"
     )
 
     args = parser.parse_args()

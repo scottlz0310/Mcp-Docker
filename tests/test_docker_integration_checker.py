@@ -13,7 +13,7 @@ from services.actions.docker_integration_checker import (
     DockerConnectionStatus,
     DockerConnectionResult,
     ContainerCommunicationResult,
-    CompatibilityResult
+    CompatibilityResult,
 )
 from services.actions.logger import ActionsLogger
 
@@ -26,8 +26,8 @@ class TestDockerIntegrationChecker:
         self.logger = Mock(spec=ActionsLogger)
         self.checker = DockerIntegrationChecker(logger=self.logger)
 
-    @patch('subprocess.run')
-    @patch('pathlib.Path.exists')
+    @patch("subprocess.run")
+    @patch("pathlib.Path.exists")
     def test_verify_socket_access_success(self, mock_exists, mock_run):
         """Dockerソケットアクセス検証の成功ケース"""
         # モックの設定
@@ -42,8 +42,8 @@ class TestDockerIntegrationChecker:
         mock_run.assert_called_once()
         self.logger.debug.assert_called()
 
-    @patch('subprocess.run')
-    @patch('pathlib.Path.exists')
+    @patch("subprocess.run")
+    @patch("pathlib.Path.exists")
     def test_verify_socket_access_socket_not_found(self, mock_exists, mock_run):
         """Dockerソケットが見つからない場合"""
         # モックの設定
@@ -57,14 +57,12 @@ class TestDockerIntegrationChecker:
         mock_run.assert_not_called()
         self.logger.error.assert_called()
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_container_communication_success(self, mock_run):
         """コンテナ通信テストの成功ケース"""
         # モックの設定
         mock_run.return_value = Mock(
-            returncode=0,
-            stdout="Docker integration test successful\n",
-            stderr=""
+            returncode=0, stdout="Docker integration test successful\n", stderr=""
         )
 
         # テスト実行
@@ -77,14 +75,12 @@ class TestDockerIntegrationChecker:
         assert result.execution_time_ms is not None
         assert result.execution_time_ms > 0
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_container_communication_failure(self, mock_run):
         """コンテナ通信テストの失敗ケース"""
         # モックの設定
         mock_run.return_value = Mock(
-            returncode=1,
-            stdout="",
-            stderr="docker: Error response from daemon"
+            returncode=1, stdout="", stderr="docker: Error response from daemon"
         )
 
         # テスト実行
@@ -96,7 +92,7 @@ class TestDockerIntegrationChecker:
         assert "失敗" in result.message
         assert "docker: Error response from daemon" in result.details["stderr"]
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_container_communication_timeout(self, mock_run):
         """コンテナ通信テストのタイムアウトケース"""
         # モックの設定
@@ -111,9 +107,10 @@ class TestDockerIntegrationChecker:
         assert "タイムアウト" in result.message
         assert result.details["timeout"] is True
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_check_act_docker_compatibility_success(self, mock_run):
         """act-Docker互換性チェックの成功ケース"""
+
         # モックの設定
         def mock_run_side_effect(cmd, **kwargs):
             if "act" in cmd and "--version" in cmd:
@@ -128,7 +125,7 @@ class TestDockerIntegrationChecker:
         mock_run.side_effect = mock_run_side_effect
 
         # verify_socket_accessをモック
-        with patch.object(self.checker, 'verify_socket_access', return_value=True):
+        with patch.object(self.checker, "verify_socket_access", return_value=True):
             # テスト実行
             result = self.checker.check_act_docker_compatibility()
 
@@ -140,9 +137,10 @@ class TestDockerIntegrationChecker:
         assert result.docker_version is not None
         assert len(result.issues) == 0
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_check_act_docker_compatibility_act_missing(self, mock_run):
         """actが見つからない場合の互換性チェック"""
+
         # モックの設定
         def mock_run_side_effect(cmd, **kwargs):
             if "act" in cmd and "--version" in cmd:
@@ -164,7 +162,7 @@ class TestDockerIntegrationChecker:
         assert any("act" in issue for issue in result.issues)
         assert any("brew install act" in rec for rec in result.recommendations)
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_docker_daemon_connection_with_retry_success(self, mock_run):
         """Docker daemon接続テスト（リトライ付き）の成功ケース"""
         # モックの設定
@@ -172,12 +170,10 @@ class TestDockerIntegrationChecker:
             "ServerVersion": "24.0.0",
             "ContainersRunning": 2,
             "Containers": 5,
-            "Images": 10
+            "Images": 10,
         }
         mock_run.return_value = Mock(
-            returncode=0,
-            stdout=json.dumps(docker_info),
-            stderr=""
+            returncode=0, stdout=json.dumps(docker_info), stderr=""
         )
 
         # テスト実行
@@ -191,18 +187,21 @@ class TestDockerIntegrationChecker:
         assert result.details["server_version"] == "24.0.0"
         assert result.details["attempt"] == 1
 
-    @patch('subprocess.run')
-    def test_test_docker_daemon_connection_with_retry_failure_then_success(self, mock_run):
+    @patch("subprocess.run")
+    def test_test_docker_daemon_connection_with_retry_failure_then_success(
+        self, mock_run
+    ):
         """Docker daemon接続テスト（最初失敗、後で成功）"""
         # モックの設定
         docker_info = {
             "ServerVersion": "24.0.0",
             "ContainersRunning": 0,
             "Containers": 0,
-            "Images": 5
+            "Images": 5,
         }
 
         call_count = 0
+
         def mock_run_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -221,13 +220,12 @@ class TestDockerIntegrationChecker:
         assert result.status == DockerConnectionStatus.CONNECTED
         assert result.details["attempt"] == 2  # 2回目で成功
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_docker_daemon_connection_with_retry_all_fail(self, mock_run):
         """Docker daemon接続テスト（全て失敗）"""
         # モックの設定
         mock_run.return_value = Mock(
-            returncode=1,
-            stderr="Cannot connect to the Docker daemon"
+            returncode=1, stderr="Cannot connect to the Docker daemon"
         )
 
         # テスト実行
@@ -240,7 +238,7 @@ class TestDockerIntegrationChecker:
         assert result.details["attempts"] == 3
         assert "Cannot connect to the Docker daemon" in result.details["last_error"]
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_test_docker_daemon_connection_with_retry_timeout(self, mock_run):
         """Docker daemon接続テスト（タイムアウト）"""
         # モックの設定
@@ -258,16 +256,22 @@ class TestDockerIntegrationChecker:
     def test_run_comprehensive_docker_check_all_success(self):
         """包括的Dockerチェック（全て成功）"""
         # モックの設定
-        with patch.object(self.checker, 'verify_socket_access', return_value=True), \
-             patch.object(self.checker, 'test_container_communication') as mock_comm, \
-             patch.object(self.checker, 'check_act_docker_compatibility') as mock_compat, \
-             patch.object(self.checker, 'test_docker_daemon_connection_with_retry') as mock_daemon:
-
-            mock_comm.return_value = ContainerCommunicationResult(success=True, message="成功")
-            mock_compat.return_value = CompatibilityResult(compatible=True, message="互換性OK")
+        with (
+            patch.object(self.checker, "verify_socket_access", return_value=True),
+            patch.object(self.checker, "test_container_communication") as mock_comm,
+            patch.object(self.checker, "check_act_docker_compatibility") as mock_compat,
+            patch.object(
+                self.checker, "test_docker_daemon_connection_with_retry"
+            ) as mock_daemon,
+        ):
+            mock_comm.return_value = ContainerCommunicationResult(
+                success=True, message="成功"
+            )
+            mock_compat.return_value = CompatibilityResult(
+                compatible=True, message="互換性OK"
+            )
             mock_daemon.return_value = DockerConnectionResult(
-                status=DockerConnectionStatus.CONNECTED,
-                message="接続成功"
+                status=DockerConnectionStatus.CONNECTED, message="接続成功"
             )
 
             # テスト実行
@@ -279,21 +283,29 @@ class TestDockerIntegrationChecker:
             assert result["socket_access"] is True
             assert result["container_communication"].success is True
             assert result["act_compatibility"].compatible is True
-            assert result["daemon_connection"].status == DockerConnectionStatus.CONNECTED
+            assert (
+                result["daemon_connection"].status == DockerConnectionStatus.CONNECTED
+            )
 
     def test_run_comprehensive_docker_check_partial_failure(self):
         """包括的Dockerチェック（部分的失敗）"""
         # モックの設定
-        with patch.object(self.checker, 'verify_socket_access', return_value=False), \
-             patch.object(self.checker, 'test_container_communication') as mock_comm, \
-             patch.object(self.checker, 'check_act_docker_compatibility') as mock_compat, \
-             patch.object(self.checker, 'test_docker_daemon_connection_with_retry') as mock_daemon:
-
-            mock_comm.return_value = ContainerCommunicationResult(success=True, message="成功")
-            mock_compat.return_value = CompatibilityResult(compatible=True, message="互換性OK")
+        with (
+            patch.object(self.checker, "verify_socket_access", return_value=False),
+            patch.object(self.checker, "test_container_communication") as mock_comm,
+            patch.object(self.checker, "check_act_docker_compatibility") as mock_compat,
+            patch.object(
+                self.checker, "test_docker_daemon_connection_with_retry"
+            ) as mock_daemon,
+        ):
+            mock_comm.return_value = ContainerCommunicationResult(
+                success=True, message="成功"
+            )
+            mock_compat.return_value = CompatibilityResult(
+                compatible=True, message="互換性OK"
+            )
             mock_daemon.return_value = DockerConnectionResult(
-                status=DockerConnectionStatus.CONNECTED,
-                message="接続成功"
+                status=DockerConnectionStatus.CONNECTED, message="接続成功"
             )
 
             # テスト実行
@@ -309,20 +321,23 @@ class TestDockerIntegrationChecker:
         # テストデータの準備
         check_results = {
             "socket_access": False,
-            "container_communication": ContainerCommunicationResult(success=False, message="失敗"),
+            "container_communication": ContainerCommunicationResult(
+                success=False, message="失敗"
+            ),
             "act_compatibility": CompatibilityResult(
                 compatible=False,
                 message="互換性なし",
-                recommendations=["actをインストールしてください"]
+                recommendations=["actをインストールしてください"],
             ),
             "daemon_connection": DockerConnectionResult(
-                status=DockerConnectionStatus.ERROR,
-                message="接続失敗"
-            )
+                status=DockerConnectionStatus.ERROR, message="接続失敗"
+            ),
         }
 
         # テスト実行
-        recommendations = self.checker.generate_docker_fix_recommendations(check_results)
+        recommendations = self.checker.generate_docker_fix_recommendations(
+            check_results
+        )
 
         # 検証
         assert len(recommendations) > 0
@@ -336,16 +351,21 @@ class TestDockerIntegrationChecker:
         # テストデータの準備
         check_results = {
             "socket_access": True,
-            "container_communication": ContainerCommunicationResult(success=True, message="成功"),
-            "act_compatibility": CompatibilityResult(compatible=True, message="互換性OK"),
+            "container_communication": ContainerCommunicationResult(
+                success=True, message="成功"
+            ),
+            "act_compatibility": CompatibilityResult(
+                compatible=True, message="互換性OK"
+            ),
             "daemon_connection": DockerConnectionResult(
-                status=DockerConnectionStatus.CONNECTED,
-                message="接続成功"
-            )
+                status=DockerConnectionStatus.CONNECTED, message="接続成功"
+            ),
         }
 
         # テスト実行
-        recommendations = self.checker.generate_docker_fix_recommendations(check_results)
+        recommendations = self.checker.generate_docker_fix_recommendations(
+            check_results
+        )
 
         # 検証
         assert len(recommendations) == 1

@@ -36,26 +36,24 @@ class TestHangupDetector:
     @pytest.fixture
     def hangup_detector(self, mock_logger):
         """HangupDetectorインスタンスを作成"""
-        return HangupDetector(
-            logger=mock_logger,
-            confidence_threshold=0.5
-        )
+        return HangupDetector(logger=mock_logger, confidence_threshold=0.5)
 
     @pytest.fixture
     def sample_execution_trace(self):
         """サンプル実行トレースを作成"""
         trace = ExecutionTrace(trace_id="test_trace_123")
         trace.current_stage = ExecutionStage.PROCESS_MONITORING
-        trace.stages = [ExecutionStage.INITIALIZATION, ExecutionStage.SUBPROCESS_CREATION]
+        trace.stages = [
+            ExecutionStage.INITIALIZATION,
+            ExecutionStage.SUBPROCESS_CREATION,
+        ]
         trace.hang_point = "プロセスが5分間応答していません"
         return trace
 
     def test_init(self, mock_logger):
         """初期化のテスト"""
         detector = HangupDetector(
-            logger=mock_logger,
-            confidence_threshold=0.8,
-            max_log_lines=500
+            logger=mock_logger, confidence_threshold=0.8, max_log_lines=500
         )
 
         assert detector.logger == mock_logger
@@ -64,8 +62,10 @@ class TestHangupDetector:
         assert detector._detection_patterns is not None
         assert detector._known_issues_db is not None
 
-    @patch('services.actions.hangup_detector.Path')
-    def test_detect_docker_socket_issues_socket_not_exists(self, mock_path, hangup_detector):
+    @patch("services.actions.hangup_detector.Path")
+    def test_detect_docker_socket_issues_socket_not_exists(
+        self, mock_path, hangup_detector
+    ):
         """Dockerソケットが存在しない場合のテスト"""
         # Dockerソケットが存在しない場合をモック
         mock_socket = MagicMock()
@@ -75,15 +75,24 @@ class TestHangupDetector:
         issues = hangup_detector.detect_docker_socket_issues()
 
         assert len(issues) >= 1
-        docker_issue = next((issue for issue in issues if issue.issue_type == HangupType.DOCKER_SOCKET_ISSUE), None)
+        docker_issue = next(
+            (
+                issue
+                for issue in issues
+                if issue.issue_type == HangupType.DOCKER_SOCKET_ISSUE
+            ),
+            None,
+        )
         assert docker_issue is not None
         assert docker_issue.severity == HangupSeverity.CRITICAL
         assert "Dockerソケットが見つかりません" in docker_issue.title
         assert docker_issue.confidence_score == 0.95
 
-    @patch('subprocess.run')
-    @patch('services.actions.hangup_detector.Path')
-    def test_detect_docker_socket_issues_daemon_connection_error(self, mock_path, mock_subprocess, hangup_detector):
+    @patch("subprocess.run")
+    @patch("services.actions.hangup_detector.Path")
+    def test_detect_docker_socket_issues_daemon_connection_error(
+        self, mock_path, mock_subprocess, hangup_detector
+    ):
         """Docker daemon接続エラーのテスト"""
         # Dockerソケットは存在するが、daemon接続に失敗
         mock_socket = MagicMock()
@@ -98,30 +107,37 @@ class TestHangupDetector:
 
         issues = hangup_detector.detect_docker_socket_issues()
 
-        docker_issue = next((issue for issue in issues if "Docker daemon接続エラー" in issue.title), None)
+        docker_issue = next(
+            (issue for issue in issues if "Docker daemon接続エラー" in issue.title),
+            None,
+        )
         assert docker_issue is not None
         assert docker_issue.severity == HangupSeverity.HIGH
         assert docker_issue.confidence_score == 0.85
 
-    @patch('subprocess.run')
-    def test_detect_docker_socket_issues_timeout(self, mock_subprocess, hangup_detector):
+    @patch("subprocess.run")
+    def test_detect_docker_socket_issues_timeout(
+        self, mock_subprocess, hangup_detector
+    ):
         """Docker daemonタイムアウトのテスト"""
         from subprocess import TimeoutExpired
 
         # 最初の呼び出し（socket存在確認）は成功、2回目（daemon接続）でタイムアウト
         mock_subprocess.side_effect = [
             MagicMock(returncode=0),  # socket存在確認
-            TimeoutExpired("docker", 10)  # daemon接続でタイムアウト
+            TimeoutExpired("docker", 10),  # daemon接続でタイムアウト
         ]
 
-        with patch('services.actions.hangup_detector.Path') as mock_path:
+        with patch("services.actions.hangup_detector.Path") as mock_path:
             mock_socket = MagicMock()
             mock_socket.exists.return_value = True
             mock_path.return_value = mock_socket
 
             issues = hangup_detector.detect_docker_socket_issues()
 
-        timeout_issue = next((issue for issue in issues if "タイムアウト" in issue.title), None)
+        timeout_issue = next(
+            (issue for issue in issues if "タイムアウト" in issue.title), None
+        )
         assert timeout_issue is not None
         assert timeout_issue.severity == HangupSeverity.HIGH
         assert timeout_issue.confidence_score == 0.80
@@ -131,103 +147,146 @@ class TestHangupDetector:
         issues = hangup_detector.detect_subprocess_deadlock(None)
         assert len(issues) == 0
 
-    def test_detect_subprocess_deadlock_long_running_process(self, hangup_detector, sample_execution_trace):
+    def test_detect_subprocess_deadlock_long_running_process(
+        self, hangup_detector, sample_execution_trace
+    ):
         """長時間実行プロセスの検出テスト"""
         from services.actions.execution_tracer import ProcessTrace
         from datetime import datetime, timezone
 
         # 5分以上前に開始されたプロセスを作成
-        old_time = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(minutes=6)
+        old_time = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(
+            minutes=6
+        )
         process_trace = ProcessTrace(
             command=["act", "--list"],
             pid=12345,
             start_time=old_time.isoformat(),
             stdout_bytes=0,
             stderr_bytes=0,
-            heartbeat_logs=[]
+            heartbeat_logs=[],
         )
         sample_execution_trace.process_traces = [process_trace]
 
-        with patch('time.time', return_value=time.time()):
+        with patch("time.time", return_value=time.time()):
             issues = hangup_detector.detect_subprocess_deadlock(sample_execution_trace)
 
-        deadlock_issue = next((issue for issue in issues if issue.issue_type == HangupType.SUBPROCESS_DEADLOCK), None)
+        deadlock_issue = next(
+            (
+                issue
+                for issue in issues
+                if issue.issue_type == HangupType.SUBPROCESS_DEADLOCK
+            ),
+            None,
+        )
         assert deadlock_issue is not None
         assert deadlock_issue.severity == HangupSeverity.HIGH
         assert "応答しません" in deadlock_issue.title
 
     def test_detect_timeout_problems_invalid_env_var(self, hangup_detector):
         """無効なタイムアウト環境変数のテスト"""
-        with patch.dict(os.environ, {'ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS': 'invalid'}):
+        with patch.dict(
+            os.environ, {"ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS": "invalid"}
+        ):
             issues = hangup_detector.detect_timeout_problems()
 
-        timeout_issue = next((issue for issue in issues if issue.issue_type == HangupType.TIMEOUT_PROBLEM), None)
+        timeout_issue = next(
+            (
+                issue
+                for issue in issues
+                if issue.issue_type == HangupType.TIMEOUT_PROBLEM
+            ),
+            None,
+        )
         assert timeout_issue is not None
         assert "無効なタイムアウト設定" in timeout_issue.title
         assert timeout_issue.confidence_score == 0.95
 
     def test_detect_timeout_problems_negative_value(self, hangup_detector):
         """負のタイムアウト値のテスト"""
-        with patch.dict(os.environ, {'ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS': '-100'}):
+        with patch.dict(os.environ, {"ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS": "-100"}):
             issues = hangup_detector.detect_timeout_problems()
 
-        timeout_issue = next((issue for issue in issues if "無効なタイムアウト設定" in issue.title), None)
+        timeout_issue = next(
+            (issue for issue in issues if "無効なタイムアウト設定" in issue.title), None
+        )
         assert timeout_issue is not None
         assert timeout_issue.severity == HangupSeverity.MEDIUM
 
     def test_detect_timeout_problems_short_timeout(self, hangup_detector):
         """短すぎるタイムアウト値のテスト"""
-        with patch.dict(os.environ, {'ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS': '60'}):
+        with patch.dict(os.environ, {"ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS": "60"}):
             issues = hangup_detector.detect_timeout_problems()
 
-        timeout_issue = next((issue for issue in issues if "短すぎます" in issue.title), None)
+        timeout_issue = next(
+            (issue for issue in issues if "短すぎます" in issue.title), None
+        )
         assert timeout_issue is not None
         assert timeout_issue.severity == HangupSeverity.LOW
 
-    def test_detect_timeout_problems_with_hang_point(self, hangup_detector, sample_execution_trace):
+    def test_detect_timeout_problems_with_hang_point(
+        self, hangup_detector, sample_execution_trace
+    ):
         """ハングポイントがある場合のテスト"""
         issues = hangup_detector.detect_timeout_problems(sample_execution_trace)
 
-        hang_issue = next((issue for issue in issues if "ハングアップを検出" in issue.title), None)
+        hang_issue = next(
+            (issue for issue in issues if "ハングアップを検出" in issue.title), None
+        )
         assert hang_issue is not None
         assert hang_issue.severity == HangupSeverity.HIGH
         assert hang_issue.confidence_score == 0.85
 
-    @patch('subprocess.run')
-    def test_detect_permission_issues_not_in_docker_group(self, mock_subprocess, hangup_detector):
+    @patch("subprocess.run")
+    def test_detect_permission_issues_not_in_docker_group(
+        self, mock_subprocess, hangup_detector
+    ):
         """dockerグループに属していない場合のテスト"""
         mock_result = MagicMock()
         mock_result.returncode = 0
         mock_result.stdout = "user adm cdrom sudo dip plugdev"
         mock_subprocess.return_value = mock_result
 
-        with patch('os.getuid', return_value=1000):
+        with patch("os.getuid", return_value=1000):
             issues = hangup_detector.detect_permission_issues()
 
-        permission_issue = next((issue for issue in issues if "dockerグループ" in issue.title), None)
+        permission_issue = next(
+            (issue for issue in issues if "dockerグループ" in issue.title), None
+        )
         assert permission_issue is not None
         assert permission_issue.severity == HangupSeverity.HIGH
         assert permission_issue.confidence_score == 0.90
 
-    @patch('os.access')
-    def test_detect_permission_issues_no_write_access(self, mock_access, hangup_detector):
+    @patch("os.access")
+    def test_detect_permission_issues_no_write_access(
+        self, mock_access, hangup_detector
+    ):
         """作業ディレクトリへの書き込み権限がない場合のテスト"""
         # 読み込みは可能だが書き込み不可
         mock_access.side_effect = lambda path, mode: mode != os.W_OK
 
         issues = hangup_detector.detect_permission_issues()
 
-        write_issue = next((issue for issue in issues if "書き込み権限" in issue.title), None)
+        write_issue = next(
+            (issue for issue in issues if "書き込み権限" in issue.title), None
+        )
         assert write_issue is not None
         assert write_issue.severity == HangupSeverity.MEDIUM
 
-    def test_analyze_hangup_conditions_comprehensive(self, hangup_detector, sample_execution_trace):
+    def test_analyze_hangup_conditions_comprehensive(
+        self, hangup_detector, sample_execution_trace
+    ):
         """包括的なハングアップ分析のテスト"""
-        with patch.object(hangup_detector, 'detect_docker_socket_issues') as mock_docker, \
-             patch.object(hangup_detector, 'detect_subprocess_deadlock') as mock_subprocess, \
-             patch.object(hangup_detector, 'detect_timeout_problems') as mock_timeout, \
-             patch.object(hangup_detector, 'detect_permission_issues') as mock_permission:
-
+        with (
+            patch.object(hangup_detector, "detect_docker_socket_issues") as mock_docker,
+            patch.object(
+                hangup_detector, "detect_subprocess_deadlock"
+            ) as mock_subprocess,
+            patch.object(hangup_detector, "detect_timeout_problems") as mock_timeout,
+            patch.object(
+                hangup_detector, "detect_permission_issues"
+            ) as mock_permission,
+        ):
             # 各検出メソッドのモック設定
             mock_docker.return_value = [
                 HangupIssue(
@@ -235,7 +294,7 @@ class TestHangupDetector:
                     severity=HangupSeverity.CRITICAL,
                     title="Docker接続エラー",
                     description="テスト用エラー",
-                    confidence_score=0.9
+                    confidence_score=0.9,
                 )
             ]
             mock_subprocess.return_value = []
@@ -264,7 +323,7 @@ class TestHangupDetector:
             severity=HangupSeverity.HIGH,
             title="テスト問題",
             description="テスト用の問題",
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         report = hangup_detector.generate_detailed_error_report(
@@ -294,7 +353,7 @@ class TestHangupDetector:
                 output_directory=output_dir,
                 include_logs=True,
                 include_system_info=True,
-                include_docker_info=True
+                include_docker_info=True,
             )
 
             assert bundle.bundle_id.startswith("debug_bundle_")
@@ -306,7 +365,7 @@ class TestHangupDetector:
             assert "metadata.json" in bundle.included_files
 
             # ZIPファイルの内容を確認（一時ディレクトリのスコープ内で）
-            with zipfile.ZipFile(bundle.bundle_path, 'r') as zipf:
+            with zipfile.ZipFile(bundle.bundle_path, "r") as zipf:
                 file_list = zipf.namelist()
                 assert any("error_report.json" in f for f in file_list)
                 assert any("metadata.json" in f for f in file_list)
@@ -320,10 +379,9 @@ class TestHangupDetector:
             output_dir = Path(temp_dir)
 
             # ZipFileでエラーを発生させる
-            with patch('zipfile.ZipFile', side_effect=Exception("Test error")):
+            with patch("zipfile.ZipFile", side_effect=Exception("Test error")):
                 bundle = hangup_detector.create_debug_bundle(
-                    error_report=report,
-                    output_directory=output_dir
+                    error_report=report, output_directory=output_dir
                 )
 
             assert bundle.bundle_path is None
@@ -332,7 +390,9 @@ class TestHangupDetector:
         """信頼度閾値によるフィルタリングのテスト"""
         hangup_detector.confidence_threshold = 0.8
 
-        with patch.object(hangup_detector, 'detect_docker_socket_issues') as mock_docker:
+        with patch.object(
+            hangup_detector, "detect_docker_socket_issues"
+        ) as mock_docker:
             # 信頼度が閾値以下の問題を含める
             mock_docker.return_value = [
                 HangupIssue(
@@ -340,15 +400,15 @@ class TestHangupDetector:
                     severity=HangupSeverity.HIGH,
                     title="高信頼度問題",
                     description="信頼度0.9",
-                    confidence_score=0.9
+                    confidence_score=0.9,
                 ),
                 HangupIssue(
                     issue_type=HangupType.DOCKER_SOCKET_ISSUE,
                     severity=HangupSeverity.MEDIUM,
                     title="低信頼度問題",
                     description="信頼度0.5",
-                    confidence_score=0.5
-                )
+                    confidence_score=0.5,
+                ),
             ]
 
             analysis = hangup_detector.analyze_hangup_conditions()
@@ -359,7 +419,7 @@ class TestHangupDetector:
 
     def test_system_state_collection(self, hangup_detector):
         """システム状態収集のテスト"""
-        with patch('subprocess.run') as mock_subprocess:
+        with patch("subprocess.run") as mock_subprocess:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = '{"ServerVersion": "20.10.0"}'
@@ -385,7 +445,7 @@ class TestHangupDetector:
             severity=HangupSeverity.HIGH,
             title="テスト問題",
             description="テスト",
-            confidence_score=0.8
+            confidence_score=0.8,
         )
         report.hangup_analysis = analysis
 
@@ -397,12 +457,15 @@ class TestHangupDetector:
         assert result_dict["hangup_analysis"]["analysis_id"] == "test_analysis"
         assert result_dict["hangup_analysis"]["primary_cause"] == "テスト問題"
 
-    @pytest.mark.parametrize("issue_type,expected_severity", [
-        (HangupType.DOCKER_SOCKET_ISSUE, HangupSeverity.CRITICAL),
-        (HangupType.PERMISSION_ISSUE, HangupSeverity.HIGH),
-        (HangupType.TIMEOUT_PROBLEM, HangupSeverity.MEDIUM),
-        (HangupType.CONTAINER_COMMUNICATION, HangupSeverity.LOW),
-    ])
+    @pytest.mark.parametrize(
+        "issue_type,expected_severity",
+        [
+            (HangupType.DOCKER_SOCKET_ISSUE, HangupSeverity.CRITICAL),
+            (HangupType.PERMISSION_ISSUE, HangupSeverity.HIGH),
+            (HangupType.TIMEOUT_PROBLEM, HangupSeverity.MEDIUM),
+            (HangupType.CONTAINER_COMMUNICATION, HangupSeverity.LOW),
+        ],
+    )
     def test_issue_severity_mapping(self, issue_type, expected_severity):
         """問題タイプと重要度のマッピングテスト"""
         issue = HangupIssue(
@@ -410,7 +473,7 @@ class TestHangupDetector:
             severity=expected_severity,
             title="テスト問題",
             description="テスト",
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         assert issue.severity == expected_severity
@@ -424,7 +487,7 @@ class TestHangupDetector:
             title="Docker問題",
             description="テスト",
             recommendations=["Docker Desktopを再起動してください"],
-            confidence_score=0.8
+            confidence_score=0.8,
         )
 
         suggestions = hangup_detector._generate_recovery_suggestions(analysis)
@@ -441,15 +504,15 @@ class TestHangupDetector:
                 severity=HangupSeverity.HIGH,
                 title="権限問題",
                 description="テスト",
-                confidence_score=0.8
+                confidence_score=0.8,
             ),
             HangupIssue(
                 issue_type=HangupType.RESOURCE_EXHAUSTION,
                 severity=HangupSeverity.MEDIUM,
                 title="リソース問題",
                 description="テスト",
-                confidence_score=0.7
-            )
+                confidence_score=0.7,
+            ),
         ]
 
         measures = hangup_detector._generate_prevention_measures(analysis)

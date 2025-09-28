@@ -34,7 +34,9 @@ def update_version(new_version):
     main_path = Path("main.py")
     if main_path.exists():
         content = main_path.read_text()
-        content = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{new_version}"', content)
+        content = re.sub(
+            r'__version__ = "[^"]+"', f'__version__ = "{new_version}"', content
+        )
         main_path.write_text(content)
 
 
@@ -50,10 +52,10 @@ def smart_check(target_version):
         ["sort", "-V"],
         input=f"{current}\n{target_version}\n",
         text=True,
-        capture_output=True
+        capture_output=True,
     )
 
-    versions = result.stdout.strip().split('\n')
+    versions = result.stdout.strip().split("\n")
 
     if current == target_version:
         print("✅ Version unchanged")
@@ -85,22 +87,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     try:
         result = subprocess.run(
             ["git", "describe", "--tags", "--abbrev=0"],
-            capture_output=True, text=True, check=True
+            capture_output=True,
+            text=True,
+            check=True,
         )
         last_tag = result.stdout.strip()
 
         result = subprocess.run(
             ["git", "log", "--pretty=format:%s", f"{last_tag}..HEAD"],
-            capture_output=True, text=True, check=True
+            capture_output=True,
+            text=True,
+            check=True,
         )
-        commits = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        commits = result.stdout.strip().split("\n") if result.stdout.strip() else []
     except subprocess.CalledProcessError:
         # No previous tags
         result = subprocess.run(
             ["git", "log", "--pretty=format:%s"],
-            capture_output=True, text=True, check=True
+            capture_output=True,
+            text=True,
+            check=True,
         )
-        commits = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        commits = result.stdout.strip().split("\n") if result.stdout.strip() else []
 
     # Categorize commits
     features = []
@@ -109,51 +117,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     others = []
 
     for commit in commits:
-        if re.match(r'^feat(\(.+\))?: ', commit):
-            features.append(re.sub(r'^feat(\(.+\))?: ', '- ', commit))
-        elif re.match(r'^fix(\(.+\))?: ', commit):
-            fixes.append(re.sub(r'^fix(\(.+\))?: ', '- ', commit))
-        elif re.match(r'^docs(\(.+\))?: ', commit):
-            docs.append(re.sub(r'^docs(\(.+\))?: ', '- ', commit))
+        if re.match(r"^feat(\(.+\))?: ", commit):
+            features.append(re.sub(r"^feat(\(.+\))?: ", "- ", commit))
+        elif re.match(r"^fix(\(.+\))?: ", commit):
+            fixes.append(re.sub(r"^fix(\(.+\))?: ", "- ", commit))
+        elif re.match(r"^docs(\(.+\))?: ", commit):
+            docs.append(re.sub(r"^docs(\(.+\))?: ", "- ", commit))
         else:
             others.append(f"- {commit}")
 
     # Generate changelog entry
     from datetime import datetime
+
     date_str = datetime.now().strftime("%Y-%m-%d")
 
     entry = f"## [{version}] - {date_str}\n\n"
 
     if features:
-        entry += "### ✨ 新機能\n" + '\n'.join(features) + "\n\n"
+        entry += "### ✨ 新機能\n" + "\n".join(features) + "\n\n"
     if fixes:
-        entry += "### 🐛 修正\n" + '\n'.join(fixes) + "\n\n"
+        entry += "### 🐛 修正\n" + "\n".join(fixes) + "\n\n"
     if docs:
-        entry += "### 📝 ドキュメント\n" + '\n'.join(docs) + "\n\n"
+        entry += "### 📝 ドキュメント\n" + "\n".join(docs) + "\n\n"
     if others:
-        entry += "### 🔧 その他\n" + '\n'.join(others) + "\n\n"
+        entry += "### 🔧 その他\n" + "\n".join(others) + "\n\n"
 
     if not any([features, fixes, docs, others]):
         entry += f"### 🔧 その他\n- リリース {version}\n\n"
 
     # Insert entry into CHANGELOG
     content = changelog_path.read_text()
-    lines = content.split('\n')
+    lines = content.split("\n")
 
     # Find insertion point (after header)
     insert_idx = 0
     for i, line in enumerate(lines):
-        if line.startswith('# Changelog'):
+        if line.startswith("# Changelog"):
             # Skip header and find first empty line
             for j in range(i + 1, len(lines)):
-                if lines[j].strip() == '':
+                if lines[j].strip() == "":
                     insert_idx = j + 1
                     break
             break
 
     # Insert new entry
     lines.insert(insert_idx, entry.rstrip())
-    changelog_path.write_text('\n'.join(lines))
+    changelog_path.write_text("\n".join(lines))
 
     print(f"✅ CHANGELOG updated for version {version}")
 
@@ -163,7 +172,9 @@ def main():
     parser.add_argument("--check", action="store_true", help="Show current version")
     parser.add_argument("--smart-check", metavar="VERSION", help="Smart version check")
     parser.add_argument("--update", metavar="VERSION", help="Update version")
-    parser.add_argument("--update-changelog", metavar="VERSION", help="Update CHANGELOG")
+    parser.add_argument(
+        "--update-changelog", metavar="VERSION", help="Update CHANGELOG"
+    )
 
     args = parser.parse_args()
 

@@ -76,6 +76,25 @@ uv run python main.py actions --help
 
 グローバルオプションとして `-v/--verbose`, `-q/--quiet`, `--debug`, `--config <path>`, `--version` をサポートしています。設定ファイルは TOML 形式で、`[simulator]` や `[environment]` セクションからデフォルト値を読み込みます。
 
+#### 🔧 診断・トラブルシューティング機能
+
+```bash
+# システム全体の健康状態チェック
+uv run python main.py actions diagnose
+
+# 詳細診断（パフォーマンス分析・実行トレース含む）
+uv run python main.py actions diagnose --include-performance --include-trace
+
+# ワークフロー実行前の事前診断
+uv run python main.py actions simulate .github/workflows/ci.yml --diagnose
+
+# 強化されたエラー検出・自動復旧機能
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
+
+# ハングアップ時のデバッグバンドル自動作成
+uv run python main.py actions simulate .github/workflows/ci.yml --create-debug-bundle
+```
+
 代表的な実行例:
 
 ```bash
@@ -207,9 +226,18 @@ git push origin v1.3.7
 
 - **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
 - **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- **🚨 ハングアップ問題対応**: [docs/HANGUP_TROUBLESHOOTING.md](docs/HANGUP_TROUBLESHOOTING.md)
+- **🔧 診断コマンド完全ガイド**: [docs/DIAGNOSTIC_COMMANDS.md](docs/DIAGNOSTIC_COMMANDS.md)
 - **🔒 セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md)
+- **📊 API仕様**: [docs/API.md](docs/API.md)
 - **🗂️ アーカイブ済み Sphinx プロジェクト**: `archive/docs/sphinx/` (HTML 生成に再利用する場合)
 - **🛡️ アーカイブ済み CodeQL 設定**: `archive/services/codeql/`
+
+### 🔧 実装詳細ドキュメント
+
+- **🐳 Docker統合**: [docs/docker-integration-implementation-summary.md](docs/docker-integration-implementation-summary.md)
+- **🔄 自動復旧**: [docs/auto_recovery_implementation_summary.md](docs/auto_recovery_implementation_summary.md)
+- **📈 パフォーマンス監視**: [docs/performance_monitoring_implementation.md](docs/performance_monitoring_implementation.md)
 
 ## 🔧 サービス詳細
 

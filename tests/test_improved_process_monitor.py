@@ -12,7 +12,7 @@ from services.actions.enhanced_act_wrapper import (
     ProcessMonitor,
     MonitoredProcess,
     DeadlockIndicator,
-    DeadlockType
+    DeadlockType,
 )
 from services.actions.logger import ActionsLogger
 
@@ -28,7 +28,7 @@ class TestImprovedProcessMonitor(unittest.TestCase):
             warning_timeout=5.0,  # テスト用に短縮
             escalation_timeout=8.0,
             heartbeat_interval=2.0,
-            detailed_logging=True
+            detailed_logging=True,
         )
 
     def test_timeout_escalation_warning(self):
@@ -39,22 +39,22 @@ class TestImprovedProcessMonitor(unittest.TestCase):
 
         # 最初は実行中、後で終了
         poll_calls = 0
+
         def mock_poll():
             nonlocal poll_calls
             poll_calls += 1
             if poll_calls > 3:  # 数回チェック後に終了
                 return 0
             return None
+
         mock_process.poll = mock_poll
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_process, command=["test", "command"], start_time=time.time()
         )
 
         # 警告タイムアウトをテスト（短時間で実行）
-        with patch('services.actions.enhanced_act_wrapper.time.time') as mock_time:
+        with patch("services.actions.enhanced_act_wrapper.time.time") as mock_time:
             start_time = 1000.0
             # より多くのtime.time()呼び出しに対応
             mock_time.side_effect = [
@@ -84,13 +84,11 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_process.poll.return_value = None  # 常に実行中
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_process, command=["test", "command"], start_time=time.time()
         )
 
         # 最終タイムアウトをテスト
-        with patch('services.actions.enhanced_act_wrapper.time.time') as mock_time:
+        with patch("services.actions.enhanced_act_wrapper.time.time") as mock_time:
             start_time = 1000.0
             mock_time.side_effect = [
                 start_time,  # 開始時刻
@@ -114,15 +112,13 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_process.poll.return_value = None
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_process, command=["test", "command"], start_time=time.time()
         )
         monitored_process.stdout_lines = ["line1", "line2"]
         monitored_process.stderr_lines = ["error1"]
 
         # ハートビートログをテスト
-        with patch.object(self.logger, 'info') as mock_log:
+        with patch.object(self.logger, "info") as mock_log:
             self.monitor._log_enhanced_heartbeat(monitored_process, 30.0)
 
             # ログが呼ばれたことを確認
@@ -131,13 +127,15 @@ class TestImprovedProcessMonitor(unittest.TestCase):
             self.assertIn("プロセス監視", call_args)
             self.assertIn("30", call_args)
 
-    @patch('psutil.Process')
+    @patch("psutil.Process")
     def test_resource_usage_monitoring(self, mock_psutil_process):
         """リソース使用量監視のテスト"""
         # psutilのモック設定
         mock_process_instance = Mock()
         mock_process_instance.cpu_percent.return_value = 50.0
-        mock_process_instance.memory_info.return_value = Mock(rss=100 * 1024 * 1024)  # 100MB
+        mock_process_instance.memory_info.return_value = Mock(
+            rss=100 * 1024 * 1024
+        )  # 100MB
         mock_process_instance.memory_percent.return_value = 25.0
         mock_process_instance.num_threads.return_value = 4
         mock_psutil_process.return_value = mock_process_instance
@@ -146,9 +144,7 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_subprocess.pid = 12345
 
         monitored_process = MonitoredProcess(
-            process=mock_subprocess,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_subprocess, command=["test", "command"], start_time=time.time()
         )
 
         # リソースチェックを実行
@@ -160,13 +156,15 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         self.assertEqual(snapshot["cpu_percent"], 50.0)
         self.assertEqual(snapshot["memory_mb"], 100.0)
 
-    @patch('psutil.Process')
+    @patch("psutil.Process")
     def test_high_resource_usage_warning(self, mock_psutil_process):
         """高リソース使用量警告のテスト"""
         # 高メモリ使用量のモック
         mock_process_instance = Mock()
         mock_process_instance.cpu_percent.return_value = 95.0  # 高CPU
-        mock_process_instance.memory_info.return_value = Mock(rss=1000 * 1024 * 1024)  # 1GB
+        mock_process_instance.memory_info.return_value = Mock(
+            rss=1000 * 1024 * 1024
+        )  # 1GB
         mock_process_instance.memory_percent.return_value = 85.0  # 高メモリ
         mock_process_instance.num_threads.return_value = 10
         mock_psutil_process.return_value = mock_process_instance
@@ -175,12 +173,10 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_subprocess.pid = 12345
 
         monitored_process = MonitoredProcess(
-            process=mock_subprocess,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_subprocess, command=["test", "command"], start_time=time.time()
         )
 
-        with patch.object(self.logger, 'warning') as mock_warning:
+        with patch.object(self.logger, "warning") as mock_warning:
             self.monitor._check_resource_usage(monitored_process)
 
             # 警告ログが出力されたことを確認
@@ -199,9 +195,7 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_process.poll.return_value = None  # 実行中
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_process, command=["test", "command"], start_time=time.time()
         )
 
         # 最初のterminateで終了しない場合をシミュレート
@@ -240,7 +234,7 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         self.monitor._performance_metrics = {
             "total_duration_seconds": 120.5,
             "stdout_lines_total": 100,
-            "stderr_lines_total": 5
+            "stderr_lines_total": 5,
         }
 
         self.monitor._resource_snapshots = [
@@ -254,7 +248,9 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         self.assertIn("resource_snapshots", metrics)
         self.assertIn("monitoring_config", metrics)
 
-        self.assertEqual(metrics["performance_metrics"]["total_duration_seconds"], 120.5)
+        self.assertEqual(
+            metrics["performance_metrics"]["total_duration_seconds"], 120.5
+        )
         self.assertEqual(len(metrics["resource_snapshots"]), 1)
 
     def test_deadlock_detection_integration(self):
@@ -264,16 +260,14 @@ class TestImprovedProcessMonitor(unittest.TestCase):
         mock_process.poll.return_value = None
 
         monitored_process = MonitoredProcess(
-            process=mock_process,
-            command=["test", "command"],
-            start_time=time.time()
+            process=mock_process, command=["test", "command"], start_time=time.time()
         )
 
         # デッドロック指標を追加
         deadlock_indicator = DeadlockIndicator(
             deadlock_type=DeadlockType.STDOUT_THREAD,
             process_pid=12345,
-            details={"test": "data"}
+            details={"test": "data"},
         )
         monitored_process.deadlock_indicators.append(deadlock_indicator)
 
@@ -290,9 +284,12 @@ class TestImprovedProcessMonitor(unittest.TestCase):
     def tearDown(self):
         """テストクリーンアップ"""
         # 監視スレッドが残っている場合は停止
-        if hasattr(self.monitor, '_monitoring_active') and self.monitor._monitoring_active:
+        if (
+            hasattr(self.monitor, "_monitoring_active")
+            and self.monitor._monitoring_active
+        ):
             self.monitor._stop_deadlock_detection()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

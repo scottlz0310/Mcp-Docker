@@ -19,10 +19,10 @@ def demo_timeout_escalation():
     logger = ActionsLogger(verbose=True)
     monitor = ProcessMonitor(
         logger=logger,
-        warning_timeout=5.0,      # 5秒で警告
-        escalation_timeout=8.0,   # 8秒でエスカレーション
-        heartbeat_interval=2.0,   # 2秒ごとにハートビート
-        detailed_logging=True
+        warning_timeout=5.0,  # 5秒で警告
+        escalation_timeout=8.0,  # 8秒でエスカレーション
+        heartbeat_interval=2.0,  # 2秒ごとにハートビート
+        detailed_logging=True,
     )
 
     print("📋 設定:")
@@ -41,13 +41,11 @@ def demo_timeout_escalation():
             ["sleep", "15"],  # 15秒間スリープ
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
 
         monitored_process = MonitoredProcess(
-            process=process,
-            command=["sleep", "15"],
-            start_time=time.time()
+            process=process, command=["sleep", "15"], start_time=time.time()
         )
 
         print(f"🔍 プロセス監視を開始: PID {process.pid}")
@@ -56,14 +54,16 @@ def demo_timeout_escalation():
         # 改良されたプロセス監視を実行
         timed_out, deadlock_indicators = monitor.monitor_with_heartbeat(
             monitored_process,
-            timeout=12  # 12秒でタイムアウト
+            timeout=12,  # 12秒でタイムアウト
         )
 
         print()
         print("📊 監視結果:")
         print(f"  - タイムアウト発生: {'はい' if timed_out else 'いいえ'}")
         print(f"  - 警告送信: {'はい' if monitor._warning_sent else 'いいえ'}")
-        print(f"  - エスカレーション開始: {'はい' if monitor._escalation_started else 'いいえ'}")
+        print(
+            f"  - エスカレーション開始: {'はい' if monitor._escalation_started else 'いいえ'}"
+        )
         print(f"  - 強制終了: {'はい' if monitored_process.force_killed else 'いいえ'}")
         print(f"  - デッドロック指標数: {len(deadlock_indicators)}")
 
@@ -80,7 +80,7 @@ def demo_timeout_escalation():
         print(f"\n❌ エラーが発生しました: {e}")
     finally:
         # プロセスが残っている場合はクリーンアップ
-        if 'process' in locals() and process.poll() is None:
+        if "process" in locals() and process.poll() is None:
             print("\n🧹 プロセスクリーンアップを実行中...")
             monitor.force_cleanup_on_timeout(monitored_process)
 
@@ -96,10 +96,10 @@ def demo_normal_completion():
     logger = ActionsLogger(verbose=True)
     monitor = ProcessMonitor(
         logger=logger,
-        warning_timeout=10.0,     # 10秒で警告（短いプロセスなので発生しない）
+        warning_timeout=10.0,  # 10秒で警告（短いプロセスなので発生しない）
         escalation_timeout=15.0,  # 15秒でエスカレーション
-        heartbeat_interval=1.0,   # 1秒ごとにハートビート
-        detailed_logging=True
+        heartbeat_interval=1.0,  # 1秒ごとにハートビート
+        detailed_logging=True,
     )
 
     print("💤 短時間実行プロセスを開始します (sleep 3秒)...")
@@ -110,13 +110,11 @@ def demo_normal_completion():
             ["sleep", "3"],  # 3秒間スリープ
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
         )
 
         monitored_process = MonitoredProcess(
-            process=process,
-            command=["sleep", "3"],
-            start_time=time.time()
+            process=process, command=["sleep", "3"], start_time=time.time()
         )
 
         print(f"🔍 プロセス監視を開始: PID {process.pid}")
@@ -125,7 +123,7 @@ def demo_normal_completion():
         # プロセス監視を実行
         timed_out, deadlock_indicators = monitor.monitor_with_heartbeat(
             monitored_process,
-            timeout=20  # 20秒でタイムアウト（十分な時間）
+            timeout=20,  # 20秒でタイムアウト（十分な時間）
         )
 
         print()

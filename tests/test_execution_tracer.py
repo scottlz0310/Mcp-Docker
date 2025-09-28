@@ -74,10 +74,7 @@ class TestExecutionTracer:
         # 簡単なコマンドを実行
         cmd = ["echo", "hello world"]
         process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         # プロセストレースを開始
@@ -93,8 +90,8 @@ class TestExecutionTracer:
         tracer.update_process_trace(
             process_trace,
             return_code=return_code,
-            stdout_bytes=len(stdout.encode('utf-8')),
-            stderr_bytes=len(stderr.encode('utf-8'))
+            stdout_bytes=len(stdout.encode("utf-8")),
+            stderr_bytes=len(stderr.encode("utf-8")),
         )
 
         assert process_trace.return_code == return_code
@@ -112,8 +109,7 @@ class TestExecutionTracer:
 
         # Docker操作を監視
         docker_op = tracer.monitor_docker_communication(
-            "test_command",
-            ["docker", "version"]
+            "test_command", ["docker", "version"]
         )
 
         assert docker_op.operation_type == "test_command"
@@ -126,7 +122,7 @@ class TestExecutionTracer:
             success=True,
             return_code=0,
             stdout="Docker version info",
-            stderr=""
+            stderr="",
         )
 
         assert docker_op.success is True
@@ -211,9 +207,7 @@ class TestExecutionTracer:
         """リソース監視をテスト"""
         logger = ActionsLogger(verbose=False)
         tracer = ExecutionTracer(
-            logger=logger,
-            heartbeat_interval=0.5,
-            resource_monitoring_interval=0.2
+            logger=logger, heartbeat_interval=0.5, resource_monitoring_interval=0.2
         )
 
         trace = tracer.start_trace("resource_test")
@@ -241,7 +235,7 @@ class TestExecutionTracer:
         final_trace = tracer.end_trace()
 
         # 一時ファイルにエクスポート
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             output_path = Path(f.name)
 
         try:
@@ -251,7 +245,7 @@ class TestExecutionTracer:
             assert output_path.exists()
 
             # JSONとして読み込み可能かチェック
-            with open(output_path, 'r', encoding='utf-8') as f:
+            with open(output_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             assert data["trace_id"] == "export_test"
@@ -263,13 +257,15 @@ class TestExecutionTracer:
             if output_path.exists():
                 output_path.unlink()
 
-    @patch('psutil.cpu_percent')
-    @patch('psutil.virtual_memory')
+    @patch("psutil.cpu_percent")
+    @patch("psutil.virtual_memory")
     def test_resource_monitoring_with_mocks(self, mock_memory, mock_cpu):
         """モックを使用したリソース監視のテスト"""
         # モックの設定
         mock_cpu.return_value = 25.5
-        mock_memory.return_value = Mock(used=1024*1024*512, percent=50.0)  # 512MB, 50%
+        mock_memory.return_value = Mock(
+            used=1024 * 1024 * 512, percent=50.0
+        )  # 512MB, 50%
 
         logger = ActionsLogger(verbose=False)
         tracer = ExecutionTracer(logger=logger)
@@ -321,9 +317,7 @@ class TestExecutionTracer:
 
         # エラーメッセージを設定
         tracer.update_process_trace(
-            process_trace,
-            return_code=-1,
-            error_message="Command not found"
+            process_trace, return_code=-1, error_message="Command not found"
         )
 
         assert process_trace.return_code == -1

@@ -49,10 +49,7 @@ class ExpressionEvaluator:
 
     def _evaluate_node(self, node: ast.AST, context: Mapping[str, Any]) -> Any:
         if isinstance(node, ast.BoolOp):
-            values = [
-                self._evaluate_node(value, context)
-                for value in node.values
-            ]
+            values = [self._evaluate_node(value, context) for value in node.values]
             if isinstance(node.op, ast.And):
                 return all(values)
             if isinstance(node.op, ast.Or):
@@ -85,13 +82,8 @@ class ExpressionEvaluator:
                     "attempted to call a non-callable object"
                 )
             if node.keywords:
-                raise ExpressionEvaluationError(
-                    "keyword arguments are not supported"
-                )
-            args = [
-                self._evaluate_node(arg, context)
-                for arg in node.args
-            ]
+                raise ExpressionEvaluationError("keyword arguments are not supported")
+            args = [self._evaluate_node(arg, context) for arg in node.args]
             try:
                 return func(*args)
             except ExpressionEvaluationError:
@@ -110,9 +102,7 @@ class ExpressionEvaluator:
             base_value = self._evaluate_node(node.value, context)
             index_node = node.slice
             if isinstance(index_node, ast.Slice):
-                raise ExpressionEvaluationError(
-                    "slice notation is not supported"
-                )
+                raise ExpressionEvaluationError("slice notation is not supported")
             key_value = self._evaluate_node(index_node, context)
             if isinstance(base_value, Mapping):
                 base_map = cast(Mapping[Any, Any], base_value)
@@ -138,32 +128,22 @@ class ExpressionEvaluator:
             return self._resolve_name(node.id, context)
 
         if isinstance(node, ast.List):
-            return [
-                self._evaluate_node(elt, context)
-                for elt in node.elts
-            ]
+            return [self._evaluate_node(elt, context) for elt in node.elts]
 
         if isinstance(node, ast.Tuple):
-            return tuple(
-                self._evaluate_node(elt, context)
-                for elt in node.elts
-            )
+            return tuple(self._evaluate_node(elt, context) for elt in node.elts)
 
         if isinstance(node, ast.Dict):
             result: Dict[Any, Any] = {}
             for key_node, value_node in zip(node.keys, node.values):
                 if key_node is None:
-                    raise ExpressionEvaluationError(
-                        "dict unpacking is not supported"
-                    )
-                result[
-                    self._evaluate_node(key_node, context)
-                ] = self._evaluate_node(value_node, context)
+                    raise ExpressionEvaluationError("dict unpacking is not supported")
+                result[self._evaluate_node(key_node, context)] = self._evaluate_node(
+                    value_node, context
+                )
             return result
 
-        raise ExpressionEvaluationError(
-            f"unsupported expression: {ast.dump(node)}"
-        )
+        raise ExpressionEvaluationError(f"unsupported expression: {ast.dump(node)}")
 
     def _resolve_name(self, name: str, context: Mapping[str, Any]) -> Any:
         if name in self._functions:
@@ -196,9 +176,7 @@ class ExpressionEvaluator:
             return left < right
         if isinstance(operator, ast.LtE):
             return left <= right
-        raise ExpressionEvaluationError(
-            f"unsupported comparison operator: {operator}"
-        )
+        raise ExpressionEvaluationError(f"unsupported comparison operator: {operator}")
 
     @staticmethod
     def _ensure_iterable(value: Any) -> Iterable[Any]:
@@ -210,6 +188,4 @@ class ExpressionEvaluator:
             return cast(Iterable[Any], value)
         if isinstance(value, Sequence):
             return cast(Iterable[Any], value)
-        raise ExpressionEvaluationError(
-            "membership test requires an iterable"
-        )
+        raise ExpressionEvaluationError("membership test requires an iterable")

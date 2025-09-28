@@ -22,6 +22,7 @@ from .logger import ActionsLogger
 
 class ExecutionStage(Enum):
     """実行段階の定義"""
+
     INITIALIZATION = "initialization"
     SUBPROCESS_CREATION = "subprocess_creation"
     DOCKER_COMMUNICATION = "docker_communication"
@@ -35,6 +36,7 @@ class ExecutionStage(Enum):
 
 class ThreadState(Enum):
     """スレッドの状態"""
+
     CREATED = "created"
     RUNNING = "running"
     WAITING = "waiting"
@@ -46,7 +48,10 @@ class ThreadState(Enum):
 @dataclass
 class ResourceUsage:
     """リソース使用量の情報"""
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     cpu_percent: float = 0.0
     memory_mb: float = 0.0
     memory_percent: float = 0.0
@@ -61,9 +66,12 @@ class ResourceUsage:
 @dataclass
 class DockerOperation:
     """Docker操作の記録"""
+
     operation_type: str  # "command", "api_call", "socket_access"
     command: Optional[List[str]] = None
-    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    start_time: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     success: bool = False
@@ -77,10 +85,13 @@ class DockerOperation:
 @dataclass
 class ThreadTrace:
     """スレッドのトレース情報"""
+
     thread_id: int
     thread_name: str
     state: ThreadState
-    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    start_time: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     target_function: Optional[str] = None
@@ -93,9 +104,12 @@ class ThreadTrace:
 @dataclass
 class ProcessTrace:
     """プロセスのトレース情報"""
+
     command: List[str]
     pid: Optional[int] = None
-    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    start_time: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     return_code: Optional[int] = None
@@ -113,8 +127,11 @@ class ProcessTrace:
 @dataclass
 class ExecutionTrace:
     """実行全体のトレース情報"""
+
     trace_id: str
-    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    start_time: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     stages: List[ExecutionStage] = field(default_factory=list)
@@ -141,7 +158,7 @@ class ExecutionTracer:
         logger: Optional[ActionsLogger] = None,
         heartbeat_interval: float = 30.0,
         resource_monitoring_interval: float = 5.0,
-        enable_detailed_logging: bool = True
+        enable_detailed_logging: bool = True,
     ):
         """
         ExecutionTracerを初期化
@@ -182,8 +199,7 @@ class ExecutionTracer:
 
         with self._trace_lock:
             self._current_trace = ExecutionTrace(
-                trace_id=trace_id,
-                heartbeat_interval=self.heartbeat_interval
+                trace_id=trace_id, heartbeat_interval=self.heartbeat_interval
             )
 
         self.logger.info(f"実行トレースを開始しました: {trace_id}")
@@ -210,8 +226,12 @@ class ExecutionTracer:
             self._current_trace.end_time = datetime.now(timezone.utc).isoformat()
 
             # 実行時間を計算
-            start_dt = datetime.fromisoformat(self._current_trace.start_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(self._current_trace.end_time.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(
+                self._current_trace.start_time.replace("Z", "+00:00")
+            )
+            end_dt = datetime.fromisoformat(
+                self._current_trace.end_time.replace("Z", "+00:00")
+            )
             self._current_trace.duration_ms = (end_dt - start_dt).total_seconds() * 1000
 
             # 現在のステージを完了に設定
@@ -225,10 +245,14 @@ class ExecutionTracer:
         # リソース監視を停止
         self._stop_resource_monitoring()
 
-        self.logger.info(f"実行トレースを終了しました: {trace.trace_id} (実行時間: {trace.duration_ms:.2f}ms)")
+        self.logger.info(
+            f"実行トレースを終了しました: {trace.trace_id} (実行時間: {trace.duration_ms:.2f}ms)"
+        )
         return trace
 
-    def set_stage(self, stage: ExecutionStage, details: Optional[Dict[str, Any]] = None) -> None:
+    def set_stage(
+        self, stage: ExecutionStage, details: Optional[Dict[str, Any]] = None
+    ) -> None:
         """
         現在の実行段階を設定
 
@@ -254,7 +278,7 @@ class ExecutionTracer:
         self,
         cmd: List[str],
         process: Optional[subprocess.Popen] = None,
-        working_directory: Optional[str] = None
+        working_directory: Optional[str] = None,
     ) -> ProcessTrace:
         """
         サブプロセス実行をトレース
@@ -285,7 +309,9 @@ class ExecutionTracer:
                 self._current_trace.process_traces.append(process_trace)
 
         if self.enable_detailed_logging:
-            self.logger.debug(f"サブプロセス実行をトレース開始: {' '.join(cmd)} (PID: {process_trace.pid})")
+            self.logger.debug(
+                f"サブプロセス実行をトレース開始: {' '.join(cmd)} (PID: {process_trace.pid})"
+            )
 
         return process_trace
 
@@ -295,7 +321,7 @@ class ExecutionTracer:
         return_code: Optional[int] = None,
         stdout_bytes: Optional[int] = None,
         stderr_bytes: Optional[int] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ) -> None:
         """
         プロセストレース情報を更新
@@ -312,8 +338,12 @@ class ExecutionTracer:
             process_trace.end_time = datetime.now(timezone.utc).isoformat()
 
             # 実行時間を計算
-            start_dt = datetime.fromisoformat(process_trace.start_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(process_trace.end_time.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(
+                process_trace.start_time.replace("Z", "+00:00")
+            )
+            end_dt = datetime.fromisoformat(
+                process_trace.end_time.replace("Z", "+00:00")
+            )
             process_trace.duration_ms = (end_dt - start_dt).total_seconds() * 1000
 
         if stdout_bytes is not None:
@@ -330,9 +360,13 @@ class ExecutionTracer:
             del self._monitored_processes[process_trace.pid]
 
         if self.enable_detailed_logging:
-            self.logger.debug(f"プロセストレースを更新: PID {process_trace.pid}, 終了コード: {return_code}")
+            self.logger.debug(
+                f"プロセストレースを更新: PID {process_trace.pid}, 終了コード: {return_code}"
+            )
 
-    def monitor_docker_communication(self, operation_type: str, command: Optional[List[str]] = None) -> DockerOperation:
+    def monitor_docker_communication(
+        self, operation_type: str, command: Optional[List[str]] = None
+    ) -> DockerOperation:
         """
         Docker通信を監視
 
@@ -343,10 +377,7 @@ class ExecutionTracer:
         Returns:
             DockerOperation: Docker操作の記録
         """
-        docker_op = DockerOperation(
-            operation_type=operation_type,
-            command=command
-        )
+        docker_op = DockerOperation(operation_type=operation_type, command=command)
 
         # 現在のトレースに追加
         with self._trace_lock:
@@ -354,7 +385,7 @@ class ExecutionTracer:
                 self._current_trace.docker_operations.append(docker_op)
 
         if self.enable_detailed_logging:
-            cmd_str = ' '.join(command) if command else 'N/A'
+            cmd_str = " ".join(command) if command else "N/A"
             self.logger.debug(f"Docker通信を監視開始: {operation_type} - {cmd_str}")
 
         return docker_op
@@ -367,7 +398,7 @@ class ExecutionTracer:
         stdout: str = "",
         stderr: str = "",
         error_message: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Docker操作の記録を更新
@@ -392,14 +423,18 @@ class ExecutionTracer:
             docker_op.details.update(details)
 
         # 実行時間を計算
-        start_dt = datetime.fromisoformat(docker_op.start_time.replace('Z', '+00:00'))
-        end_dt = datetime.fromisoformat(docker_op.end_time.replace('Z', '+00:00'))
+        start_dt = datetime.fromisoformat(docker_op.start_time.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(docker_op.end_time.replace("Z", "+00:00"))
         docker_op.duration_ms = (end_dt - start_dt).total_seconds() * 1000
 
         if self.enable_detailed_logging:
-            self.logger.debug(f"Docker操作を更新: {docker_op.operation_type}, 成功: {success}, 実行時間: {docker_op.duration_ms:.2f}ms")
+            self.logger.debug(
+                f"Docker操作を更新: {docker_op.operation_type}, 成功: {success}, 実行時間: {docker_op.duration_ms:.2f}ms"
+            )
 
-    def track_thread_lifecycle(self, thread: threading.Thread, target_function: Optional[str] = None) -> ThreadTrace:
+    def track_thread_lifecycle(
+        self, thread: threading.Thread, target_function: Optional[str] = None
+    ) -> ThreadTrace:
         """
         スレッドライフサイクルを追跡
 
@@ -416,7 +451,7 @@ class ExecutionTracer:
             state=ThreadState.CREATED,
             target_function=target_function,
             is_daemon=thread.daemon,
-            is_alive=thread.is_alive()
+            is_alive=thread.is_alive(),
         )
 
         # スレッドレジストリに追加
@@ -429,11 +464,18 @@ class ExecutionTracer:
                 self._current_trace.thread_traces.append(thread_trace)
 
         if self.enable_detailed_logging:
-            self.logger.debug(f"スレッドライフサイクル追跡開始: {thread.name} (ID: {thread.ident})")
+            self.logger.debug(
+                f"スレッドライフサイクル追跡開始: {thread.name} (ID: {thread.ident})"
+            )
 
         return thread_trace
 
-    def update_thread_state(self, thread_trace: ThreadTrace, state: ThreadState, exception: Optional[str] = None) -> None:
+    def update_thread_state(
+        self,
+        thread_trace: ThreadTrace,
+        state: ThreadState,
+        exception: Optional[str] = None,
+    ) -> None:
         """
         スレッドの状態を更新
 
@@ -449,8 +491,12 @@ class ExecutionTracer:
             thread_trace.is_alive = False
 
             # 実行時間を計算
-            start_dt = datetime.fromisoformat(thread_trace.start_time.replace('Z', '+00:00'))
-            end_dt = datetime.fromisoformat(thread_trace.end_time.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(
+                thread_trace.start_time.replace("Z", "+00:00")
+            )
+            end_dt = datetime.fromisoformat(
+                thread_trace.end_time.replace("Z", "+00:00")
+            )
             thread_trace.duration_ms = (end_dt - start_dt).total_seconds() * 1000
 
         if exception:
@@ -458,9 +504,15 @@ class ExecutionTracer:
             thread_trace.state = ThreadState.ERROR
 
         if self.enable_detailed_logging:
-            self.logger.debug(f"スレッド状態を更新: {thread_trace.thread_name} -> {state.value}")
+            self.logger.debug(
+                f"スレッド状態を更新: {thread_trace.thread_name} -> {state.value}"
+            )
 
-    def log_heartbeat(self, message: Optional[str] = None, process_info: Optional[Dict[str, Any]] = None) -> None:
+    def log_heartbeat(
+        self,
+        message: Optional[str] = None,
+        process_info: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """
         ハートビートログを記録
 
@@ -475,7 +527,9 @@ class ExecutionTracer:
 
         # プロセス情報を含める
         if process_info:
-            message += f" | プロセス情報: {json.dumps(process_info, ensure_ascii=False)}"
+            message += (
+                f" | プロセス情報: {json.dumps(process_info, ensure_ascii=False)}"
+            )
 
         with self._trace_lock:
             if self._current_trace:
@@ -504,7 +558,7 @@ class ExecutionTracer:
             # 最後のハートビートからの経過時間をチェック
             if self._current_trace.last_heartbeat:
                 last_heartbeat_dt = datetime.fromisoformat(
-                    self._current_trace.last_heartbeat.replace('Z', '+00:00')
+                    self._current_trace.last_heartbeat.replace("Z", "+00:00")
                 )
                 now = datetime.now(timezone.utc)
                 elapsed = (now - last_heartbeat_dt).total_seconds()
@@ -522,7 +576,9 @@ class ExecutionTracer:
                     return hang_point
 
             # 長時間同じステージに留まっているかチェック
-            start_dt = datetime.fromisoformat(self._current_trace.start_time.replace('Z', '+00:00'))
+            start_dt = datetime.fromisoformat(
+                self._current_trace.start_time.replace("Z", "+00:00")
+            )
             now = datetime.now(timezone.utc)
             total_elapsed = (now - start_dt).total_seconds()
 
@@ -555,7 +611,7 @@ class ExecutionTracer:
             # データクラスを辞書に変換
             trace_dict = self._trace_to_dict(trace)
 
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(trace_dict, f, ensure_ascii=False, indent=2)
 
             self.logger.info(f"トレース情報をエクスポートしました: {output_path}")
@@ -572,7 +628,7 @@ class ExecutionTracer:
         self._monitoring_thread = threading.Thread(
             target=self._resource_monitoring_loop,
             name="ExecutionTracer-ResourceMonitor",
-            daemon=True
+            daemon=True,
         )
         self._monitoring_thread.start()
 
@@ -625,20 +681,28 @@ class ExecutionTracer:
 
             # 現在のプロセスの情報
             current_process = psutil.Process()
-            process_info = current_process.as_dict([
-                'memory_info', 'num_threads', 'num_fds'
-            ])
+            process_info = current_process.as_dict(
+                ["memory_info", "num_threads", "num_fds"]
+            )
 
             resource_usage = ResourceUsage(
                 cpu_percent=cpu_percent,
                 memory_mb=memory.used / (1024 * 1024),
                 memory_percent=memory.percent,
-                disk_io_read_mb=(disk_io.read_bytes / (1024 * 1024)) if disk_io else 0.0,
-                disk_io_write_mb=(disk_io.write_bytes / (1024 * 1024)) if disk_io else 0.0,
-                network_io_sent_mb=(network_io.bytes_sent / (1024 * 1024)) if network_io else 0.0,
-                network_io_recv_mb=(network_io.bytes_recv / (1024 * 1024)) if network_io else 0.0,
-                open_files=process_info.get('num_fds', 0),
-                threads_count=process_info.get('num_threads', 0)
+                disk_io_read_mb=(disk_io.read_bytes / (1024 * 1024))
+                if disk_io
+                else 0.0,
+                disk_io_write_mb=(disk_io.write_bytes / (1024 * 1024))
+                if disk_io
+                else 0.0,
+                network_io_sent_mb=(network_io.bytes_sent / (1024 * 1024))
+                if network_io
+                else 0.0,
+                network_io_recv_mb=(network_io.bytes_recv / (1024 * 1024))
+                if network_io
+                else 0.0,
+                open_files=process_info.get("num_fds", 0),
+                threads_count=process_info.get("num_threads", 0),
             )
 
             with self._trace_lock:
@@ -658,18 +722,15 @@ class ExecutionTracer:
                 try:
                     if process.is_running():
                         process_info[str(pid)] = {
-                            'status': process.status(),
-                            'cpu_percent': process.cpu_percent(),
-                            'memory_mb': process.memory_info().rss / (1024 * 1024),
-                            'threads': process.num_threads()
+                            "status": process.status(),
+                            "cpu_percent": process.cpu_percent(),
+                            "memory_mb": process.memory_info().rss / (1024 * 1024),
+                            "threads": process.num_threads(),
                         }
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    process_info[str(pid)] = {'status': 'terminated'}
+                    process_info[str(pid)] = {"status": "terminated"}
 
-            self.log_heartbeat(
-                message="監視ハートビート",
-                process_info=process_info
-            )
+            self.log_heartbeat(message="監視ハートビート", process_info=process_info)
 
         except Exception as e:
             if self.enable_detailed_logging:
@@ -694,14 +755,19 @@ class ExecutionTracer:
 
     def _trace_to_dict(self, trace: ExecutionTrace) -> Dict[str, Any]:
         """ExecutionTraceを辞書に変換"""
+
         def convert_dataclass(obj):
-            if hasattr(obj, '__dataclass_fields__'):
+            if hasattr(obj, "__dataclass_fields__"):
                 result = {}
                 for field_name, field_value in obj.__dict__.items():
                     if isinstance(field_value, list):
-                        result[field_name] = [convert_dataclass(item) for item in field_value]
+                        result[field_name] = [
+                            convert_dataclass(item) for item in field_value
+                        ]
                     elif isinstance(field_value, dict):
-                        result[field_name] = {k: convert_dataclass(v) for k, v in field_value.items()}
+                        result[field_name] = {
+                            k: convert_dataclass(v) for k, v in field_value.items()
+                        }
                     elif isinstance(field_value, Enum):
                         result[field_name] = field_value.value
                     else:

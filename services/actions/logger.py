@@ -48,8 +48,7 @@ class ActionsLogger:
         if not self.logger.handlers:
             handler = logging.StreamHandler(sys.stdout)
             formatter = logging.Formatter(
-                '%(asctime)s - %(levelname)s - %(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S'
+                "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
             )
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
@@ -79,8 +78,8 @@ class ActionsLogger:
     def success(self, message: str) -> None:
         """成功ログ（緑色で表示）"""
         # ANSI color codes for green text
-        GREEN = '\033[92m'
-        ENDC = '\033[0m'
+        GREEN = "\033[92m"
+        ENDC = "\033[0m"
 
         if self.quiet:
             return
@@ -109,9 +108,9 @@ class ActionsLogger:
         """ジョブ開始ログ"""
         if self.quiet:
             return
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"🚀 Job: {job_name}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
     def job_end(self, job_name: str, success: bool = True) -> None:
         """ジョブ終了ログ"""
@@ -132,9 +131,9 @@ class ActionsLogger:
         """ワークフロー実行サマリー"""
         if self.quiet:
             return
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("📊 Workflow Summary")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Total jobs: {total_jobs}")
         print(f"Successful: {successful_jobs}")
         print(f"Failed: {total_jobs - successful_jobs}")

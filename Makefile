@@ -1,9 +1,9 @@
-.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all test-hangup test-hangup-unit test-hangup-integration test-hangup-e2e test-hangup-all test-hangup-bats security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify
+.PHONY: help build start stop logs clean datetime actions actions-auto actions-list actions-run test test-bats test-docker test-services test-security test-integration test-all test-hangup test-hangup-unit test-hangup-integration test-hangup-e2e test-hangup-all test-hangup-bats security lint pre-commit setup-branch-protection release-check version version-sync sbom audit-deps validate-security install-bats check-bats setup-docker health-check verify-containers docker-setup docker-health actions-setup actions-verify test-hangup-ci test-hangup-ci-full test-hangup-ci-matrix test-hangup-regression
 
 help:
 	@echo "MCP Docker Environment Commands:"
 	@echo "  make build     - Build unified image"
-	@echo "  make start     - Start DateTime validator"
+	@echo "  make start     - Start all MCP services (GitHub MCP + DateTime validator)"
 	@echo "  make stop      - Stop all services"
 	@echo "  make logs      - Show logs"
 	@echo "  make clean     - Clean up containers and images"
@@ -35,6 +35,9 @@ help:
 	@echo "  make test-hangup-e2e       - Run hangup end-to-end tests only"
 	@echo "  make test-hangup-all       - Run all hangup tests with detailed reporting"
 	@echo "  make test-hangup-bats      - Run hangup BATS tests"
+	@echo "  make test-hangup-ci        - Run CI-optimized hangup tests"
+	@echo "  make test-hangup-ci-full   - Run complete CI hangup test suite"
+	@echo "  make test-hangup-regression - Run hangup regression tests"
 	@echo ""
 	@echo "Security & Quality:"
 	@echo "  make security  - Run security scan"
@@ -52,18 +55,17 @@ help:
 	@echo "  make actions-auto        - Run default CI workflow (Docker)"
 	@echo "  make actions-list        - List available workflows"
 	@echo "  make actions-run         - Run workflow: WORKFLOW=path [JOB=job] [VERBOSE=1]"
-	@echo "  make actions-simulate    - Legacy: Run custom workflow: WORKFLOW=path [JOB=job] [VERBOSE=1]"
 	@echo "  make actions-validate    - Validate workflows: [WORKFLOW=path]"
 	@echo "  make actions-dry-run     - Dry run workflow: WORKFLOW=path [VERBOSE=1]"
 	@echo ""
 	@echo "GitHub MCP Server:"
-	@echo "  Use: docker run -e GITHUB_PERSONAL_ACCESS_TOKEN=\$$GITHUB_PERSONAL_ACCESS_TOKEN mcp-docker-github-mcp"
+	@echo "  Use: docker run -e GITHUB_PERSONAL_ACCESS_TOKEN=\$GITHUB_PERSONAL_ACCESS_TOKEN mcp-docker-github-mcp"
 
 build:
 	docker compose build
 
 start:
-	docker compose up -d datetime-validator
+	docker compose up -d github-mcp datetime-validator
 
 stop:
 	docker compose down
@@ -81,14 +83,18 @@ datetime:
 	docker compose up -d datetime-validator
 
 # GitHub Actions Simulator（Docker版）
+actions:
+	@echo "🎭 GitHub Actions Simulator - インタラクティブ実行"
+	@workflows=$$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null); \
 	if [ -z "$$workflows" ]; then \
 		echo "❌ ワークフローファイルが見つかりません"; \
 		exit 1; \
-	@find .github/workflows -name "*.yml" -o -name "*.yaml" | head -5
-	@echo ""
-	@echo "🚀 デフォルト実行: CI ワークフロー"
-	docker compose --profile tools run --rm actions-simulator \
-		uv run python main.py actions simulate .github/workflows/ci.yml --fail-fast
+	fi; \
+	default_selection=".github/workflows/ci.yml"; \
+	echo "📋 使用可能なワークフロー:"; \
+	echo "$$workflows" | nl -w2 -s') '; \
+	echo ""; \
+	echo "🚀 デフォルト実行: CI ワークフロー"; \
 	echo ""; \
 	selected=""; \
 	if [ -n "$(WORKFLOW)" ]; then \
@@ -135,47 +141,8 @@ datetime:
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
-	set -- uv run python main.py actions; \
-	if [ -n "$(VERBOSE)" ]; then \
-		set -- "$$@" --verbose; \
-	fi; \
-	if [ -n "$(QUIET)" ]; then \
-		set -- "$$@" --quiet; \
-	fi; \
-	if [ -n "$(DEBUG)" ]; then \
-		set -- "$$@" --debug; \
-	fi; \
-	if [ -n "$(CONFIG)" ]; then \
-		set -- "$$@" --config "$(CONFIG)"; \
-	fi; \
-	set -- "$$@" simulate "$$selected"; \
-	if [ -n "$(JOB)" ]; then \
-		set -- "$$@" --job "$(JOB)"; \
-	fi; \
-	if [ -n "$(DRY_RUN)" ]; then \
-		set -- "$$@" --dry-run; \
-	fi; \
-	if [ -n "$(ENV_FILE)" ]; then \
-		set -- "$$@" --env-file "$(ENV_FILE)"; \
-	fi; \
-	if [ -n "$(EVENT)" ]; then \
-		set -- "$$@" --event "$(EVENT)"; \
-	fi; \
-	if [ -n "$(REF)" ]; then \
-		set -- "$$@" --ref "$(REF)"; \
-	fi; \
-	if [ -n "$(ACTOR)" ]; then \
-		set -- "$$@" --actor "$(ACTOR)"; \
-	fi; \
-	if [ -n "$(ENV_VARS)" ]; then \
-		for kv in $(ENV_VARS); do \
-			set -- "$$@" --env "$$kv"; \
-		done; \
-	fi; \
-	if [ -n "$(CLI_ARGS)" ]; then \
-		set -- "$$@" $(CLI_ARGS); \
-	fi; \
-	docker compose --profile tools run --rm -e WORKFLOW_FILE="$$selected" actions-simulator "$$@"
+	docker compose --profile tools run --rm -e WORKFLOW_FILE="$$selected" actions-simulator \
+		uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,) $(if $(JOB),--job $(JOB),)
 
 actions-auto:
 	@echo "🎭 GitHub Actions Simulator - 自動実行 (CI)"
@@ -183,7 +150,8 @@ actions-auto:
 	@find .github/workflows -name "*.yml" -o -name "*.yaml" | head -5
 	@echo ""
 	@echo "🚀 デフォルト実行: CI ワークフロー"
-	docker compose --profile tools run --rm actions-simulator
+	docker compose --profile tools run --rm actions-simulator \
+		uv run python main.py actions simulate .github/workflows/ci.yml --fail-fast
 
 actions-list:
 	@echo "🎭 GitHub Actions Simulator - ワークフローリスト"
@@ -210,22 +178,6 @@ actions-run:
 		exit 1; \
 	fi
 	@echo "🚀 実行ワークフロー: $(WORKFLOW)"
-	@if [ -n "$(JOB)" ]; then \
-		echo "🎯 ジョブ: $(JOB)"; \
-		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) -e JOB_NAME=$(JOB) actions-simulator \
-			uv run python main.py actions simulate $(WORKFLOW) --job $(JOB) $(if $(VERBOSE),--verbose,); \
-	else \
-		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) actions-simulator \
-			uv run python main.py actions simulate $(WORKFLOW) $(if $(VERBOSE),--verbose,); \
-	fi
-	@echo "🎭 GitHub Actions Simulator - カスタムワークフロー"
-	@if [ -z "$(WORKFLOW)" ]; then \
-		echo "❌ WORKFLOW パラメーターが必要です"; \
-		echo "使用例: make actions-simulate WORKFLOW=.github/workflows/ci.yml"; \
-		echo "使用例: make actions-simulate WORKFLOW=.github/workflows/ci.yml JOB=test"; \
-		exit 1; \
-	fi
-	@echo "📝 ワークフロー: $(WORKFLOW)"
 	@if [ -n "$(JOB)" ]; then \
 		echo "🎯 ジョブ: $(JOB)"; \
 		docker compose --profile tools run --rm -e WORKFLOW_FILE=$(WORKFLOW) -e JOB_NAME=$(JOB) actions-simulator \
@@ -267,7 +219,7 @@ check-bats:
 		echo "Installing Bats via Homebrew..."; \
 		$(MAKE) install-bats; \
 	else \
-		echo "✅ Bats $(shell bats --version) is available"; \
+		echo "✅ Bats $$(bats --version) is available"; \
 	fi
 
 install-bats:
@@ -327,11 +279,7 @@ lint:
 	@echo "✅ MegaLinter completed. Reports (if any) are stored in ./megalinter-reports"
 
 pre-commit:
-	pipx run uv run pre-commit run --all-files
-
-pre-commit-fast:
-	@echo "⚡ 高速PreCommitチェック（unit testのみ）"
-	pipx run uv run pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 version:
 	@./scripts/get-current-version.sh
@@ -357,7 +305,7 @@ version-sync:
 
 release-check:
 	@echo "🔍 リリース準備状況チェック"
-	@echo "Version: $(shell grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')"
+	@echo "Version: $$(grep '^version = ' pyproject.toml | sed 's/version = \"\(.*\)\"/\1/')"
 	@echo "Git status:"
 	@git status --porcelain
 	@echo "Last commit:"
@@ -413,7 +361,7 @@ actions-setup:
 	@echo "🎭 Actions Simulator環境セットアップ"
 	@./scripts/setup-docker-integration.sh
 	@echo "🚀 Actions Simulatorコンテナを起動中..."
-	@docker-compose --profile tools up -d actions-simulator
+	@docker compose --profile tools up -d actions-simulator
 	@echo "⏳ コンテナの起動を待機中..."
 	@sleep 10
 	@./scripts/verify-container-startup.sh --actions-simulator
@@ -492,26 +440,18 @@ test-hangup-quick:
 	uv run python -m pytest tests/test_hangup_scenarios_comprehensive.py::TestHangupScenariosComprehensive::test_subprocess_deadlock_hangup_scenario -v
 	uv run python -m pytest tests/test_hangup_scenarios_comprehensive.py::TestHangupScenariosComprehensive::test_auto_recovery_fallback_mode_scenario -v
 
+# 簡潔なPythonスクリプト実行ターゲット
 test-hangup-performance:
 	@echo "⚡ ハングアップパフォーマンステスト実行"
 	@echo "📋 診断・検出・復旧機能のパフォーマンス測定"
 	@echo ""
-	uv run python -c "
-from tests.run_hangup_tests import HangupTestRunner
-runner = HangupTestRunner(verbose=True)
-runner.run_performance_tests()
-runner.run_stress_tests()
-"
+	@uv run python -c "from tests.run_hangup_tests import HangupTestRunner; runner = HangupTestRunner(verbose=True); runner.run_performance_tests()"
 
 test-hangup-stress:
 	@echo "💪 ハングアップストレステスト実行"
 	@echo "📋 高負荷・並行実行時の安定性テスト"
 	@echo ""
-	uv run python -c "
-from tests.run_hangup_tests import HangupTestRunner
-runner = HangupTestRunner(verbose=True)
-runner.run_stress_tests()
-"
+	@uv run python -c "from tests.run_hangup_tests import HangupTestRunner; runner = HangupTestRunner(verbose=True); runner.run_stress_tests()"
 
 test-hangup-docker:
 	@echo "🐳 Docker環境ハングアップテスト実行"
@@ -528,8 +468,44 @@ test-hangup-ci:
 	@echo "🤖 CI環境ハングアップテスト実行"
 	@echo "📋 CI/CD環境に適したハングアップテスト"
 	@echo ""
-	@# CI環境では並行実行を無効化し、タイムアウトを短縮
 	PYTEST_TIMEOUT=180 uv run python tests/run_hangup_tests.py
+
+test-hangup-ci-full:
+	@echo "🚀 CI環境完全ハングアップテスト実行"
+	@echo "📋 CI/CDパイプライン用の包括的ハングアップテスト"
+	@echo ""
+	@echo "🔍 1. 基本診断テスト"
+	@make test-hangup-unit
+	@echo ""
+	@echo "🔗 2. 統合テスト"
+	@make test-hangup-integration
+	@echo ""
+	@echo "⚡ 3. パフォーマンステスト（軽量版）"
+	@make test-hangup-performance
+	@echo ""
+	@echo "🔄 4. リグレッションテスト"
+	@uv run python -c "from services.actions.diagnostic import DiagnosticService; from services.actions.hangup_detector import HangupDetector; from services.actions.logger import ActionsLogger; logger = ActionsLogger(verbose=True); print('🔍 CI環境リグレッションテスト'); service = DiagnosticService(logger=logger); detector = HangupDetector(logger=logger); docker_result = service.check_docker_connectivity(); assert docker_result.status != 'ERROR', f'Docker接続回帰: {docker_result.message}'; print('✅ Docker接続回帰テスト完了'); process_issues = detector.detect_subprocess_deadlock(); critical_issues = [i for i in process_issues if i.severity.value >= 3]; assert len(critical_issues) == 0, f'プロセス監視回帰: {len(critical_issues)}件'; print('✅ プロセス監視回帰テスト完了'); print('✅ CI環境リグレッションテスト完了')"
+	@echo ""
+	@echo "✅ CI環境完全ハングアップテスト完了"
+
+test-hangup-ci-matrix:
+	@echo "🎯 CI環境マトリクステスト実行"
+	@echo "📋 複数環境でのハングアップテスト"
+	@echo ""
+	@echo "🐍 Python環境情報:"
+	@python --version
+	@echo "🐳 Docker環境情報:"
+	@docker --version
+	@docker system info | head -10
+	@echo ""
+	@echo "🧪 環境固有テスト実行"
+	@uv run python -c "import os; import platform; import psutil; from services.actions.diagnostic import DiagnosticService; from services.actions.hangup_detector import HangupDetector; from services.actions.logger import ActionsLogger; logger = ActionsLogger(verbose=True); print(f'🔍 環境情報'); print(f'OS: {platform.system()} {platform.release()}'); print(f'Python: {platform.python_version()}'); print(f'CPU: {psutil.cpu_count()} cores'); print(f'Memory: {psutil.virtual_memory().total / 1024 / 1024 / 1024:.1f} GB'); service = DiagnosticService(logger=logger); detector = HangupDetector(logger=logger); health_report = service.run_comprehensive_health_check(); print(f'システムヘルス: {health_report.get(\"status\", \"unknown\")}'); analysis = detector.analyze_hangup_conditions(); print(f'検出された問題: {len(analysis.issues)}件'); env_issues = []; docker_issues = detector.detect_docker_socket_issues() if platform.system() == 'Linux' else []; permission_issues = detector.detect_permission_issues() if platform.system() == 'Darwin' else []; env_issues.extend(docker_issues); env_issues.extend(permission_issues); critical_env_issues = [i for i in env_issues if i.severity.value >= 3]; assert len(critical_env_issues) == 0, f'環境固有の重大な問題: {len(critical_env_issues)}件'; print('✅ CI環境マトリクステスト完了')"
+
+test-hangup-regression:
+	@echo "🔄 ハングアップリグレッションテスト実行"
+	@echo "📋 自動化されたリグレッション検出とパフォーマンス監視"
+	@echo ""
+	@./scripts/run-hangup-regression-tests.sh --verbose
 
 test-hangup-debug:
 	@echo "🐛 ハングアップデバッグモードテスト実行"

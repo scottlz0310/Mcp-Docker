@@ -120,9 +120,7 @@ def list_json_files(*segments: str) -> list[Path]:
     if not directory.exists():
         return []
     return sorted(
-        path
-        for path in directory.glob("*.json")
-        if path.name != "latest.json"
+        path for path in directory.glob("*.json") if path.name != "latest.json"
     )
 
 
