@@ -105,6 +105,19 @@ class ExecutionTracer:
         # 互換性のため、ダミーオブジェクトを返す
         return self
 
+    def trace_subprocess_execution(self, cmd, process=None, working_directory=None):
+        """サブプロセス実行をトレース（互換性のため）"""
+        self.record_event(
+            "subprocess_execution",
+            {
+                "command": cmd,
+                "pid": process.pid if process else None,
+                "working_directory": working_directory,
+            },
+        )
+        # 互換性のため、ダミーオブジェクトを返す
+        return self
+
     def is_tracing(self) -> bool:
         """トレース中かどうかを確認"""
         return self.tracing_active
