@@ -253,9 +253,9 @@ make docker-override-help
 ## 📚 関連ドキュメント
 
 - [Docker カスタマイズガイド](DOCKER_CUSTOMIZATION_GUIDE.md)
-- [環境変数設定例](.env.example)
+- [環境変数設定例](../.env.example)
 - [トラブルシューティングガイド](TROUBLESHOOTING.md)
-- [セキュリティガイド](../security-reports/)
+- [セキュリティガイド](Security_tool_selection.md)
 
 ## 🎉 完了
 

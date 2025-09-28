@@ -388,28 +388,21 @@ git push origin v1.3.7
 
 完全なリリースシステムの詳細については、**[📚 リリース自動化システム完全ガイド](docs/RELEASE_SYSTEM.md)**を参照してください。
 
-## 📚 ドキュメント体系
+## 📚 ドキュメント
 
-### 🚀 ユーザー向けガイド
+### 🚀 ユーザー向けドキュメント
+- **[Actions Simulator ドキュメント](docs/actions/)** - 使用方法、インストール、トラブルシューティング
+- **[クイックスタート](docs/actions/QUICK_START.md)** - 5分で始めるガイド
+- **[インストールガイド](docs/actions/INSTALLATION.md)** - 詳細なセットアップ手順
+- **[ユーザーガイド](docs/actions/USER_GUIDE.md)** - 基本的な使用方法
+- **[CLIリファレンス](docs/actions/CLI_REFERENCE.md)** - 全コマンドとオプション
+- **[トラブルシューティング](docs/actions/TROUBLESHOOTING.md)** - 問題解決ガイド
+- **[FAQ](docs/actions/FAQ.md)** - よくある質問と回答
 
-- **📖 CLIリファレンス**: [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) - 全コマンドとオプションの完全ガイド
-- **🎯 コマンド使い分けガイド**: [docs/COMMAND_USAGE_GUIDE.md](docs/COMMAND_USAGE_GUIDE.md) - Make・スクリプト・CLIの使い分け
-- **📊 APIリファレンス**: [docs/API_REFERENCE.md](docs/API_REFERENCE.md) - 詳細なAPIドキュメント
-- **⚙️ スクリプトオプション**: [docs/SCRIPT_OPTIONS_REFERENCE.md](docs/SCRIPT_OPTIONS_REFERENCE.md) - 全スクリプトのオプション詳細
-- **🔧 トラブルシューティング**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - 一般的な問題と解決方法
-- **🚨 ハングアップ対応**: [docs/HANGUP_TROUBLESHOOTING.md](docs/HANGUP_TROUBLESHOOTING.md) - 実行停止時の対処法
-- **📋 問題報告ガイド**: [docs/PROBLEM_REPORTING_GUIDE.md](docs/PROBLEM_REPORTING_GUIDE.md) - 効果的な問題報告方法
-- **🤝 コミュニティサポート**: [docs/COMMUNITY_SUPPORT_GUIDE.md](docs/COMMUNITY_SUPPORT_GUIDE.md) - コミュニティ活用ガイド
-- **🔧 診断コマンド**: [docs/DIAGNOSTIC_COMMANDS.md](docs/DIAGNOSTIC_COMMANDS.md) - 診断機能の詳細
-- **🔒 権限・セキュリティ**: [docs/PERMISSION_SOLUTIONS.md](docs/PERMISSION_SOLUTIONS.md) - 権限問題の解決
-- **📊 API仕様**: [docs/API.md](docs/API.md) - REST API リファレンス（簡易版）
-
-### 🛠️ 開発者向けドキュメント
-
-- **🚀 リリースシステム**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md) - 自動リリース管理
-- **🐳 Docker統合**: [docs/docker-integration-implementation-summary.md](docs/docker-integration-implementation-summary.md)
-- **🔄 自動復旧**: [docs/auto_recovery_implementation_summary.md](docs/auto_recovery_implementation_summary.md)
-- **📈 パフォーマンス監視**: [docs/performance_monitoring_implementation.md](docs/performance_monitoring_implementation.md)
+### 🛠️ 開発・設計ドキュメント
+- **[実装ルール](.kiro/steering/)** - Docker特化の実装・品質ルール
+- **[設計仕様](.kiro/specs/)** - アーキテクチャ・実装・品質ゲート仕様
+- **[プロジェクトガイドライン](.kiro/steering/project-guidelines.md)** - ドキュメント構造とルール
 
 ### 📁 アーカイブ
 

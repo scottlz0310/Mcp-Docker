@@ -53,8 +53,8 @@ uv run python scripts/check-docs-consistency.py --fail-on-issues
 
 ```markdown
 <!-- 例：壊れたリンク -->
-[存在しないファイル](./nonexistent.md)  # broken_link
-[存在しないアンカー](./README.md#nonexistent-section)  # broken_anchor
+[存在しないファイル](./nonexistent.md)  # テスト用の例：broken_link
+[存在しないアンカー](../README.md#nonexistent-section)  # テスト用の例：broken_anchor
 ```
 
 ### 2. バージョン整合性チェック
@@ -132,7 +132,7 @@ consistency_check:
 
 🔗 リンクの問題 (4件):
   ❌ docs/TROUBLESHOOTING.md:682
-     リンク: \[クイックスタートガイド\](./QUICK_START.md)
+     リンク: \[クイックスタートガイド\](../README.md#クイックスタート)
      問題: リンク先ファイルが存在しません
 ```
 

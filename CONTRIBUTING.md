@@ -423,7 +423,7 @@ make test
 よくある問題と解決方法
 
 ## 関連リソース
-- [関連ドキュメント](link)
+- [関連ドキュメント](docs/)
 ```
 
 ## 🌍 国際化・多言語対応
@@ -480,7 +480,7 @@ docs/en/TROUBLESHOOTING.md
 ### 貢献者向けリソース
 - **開発ガイド**: [docs/DEVELOPMENT_WORKFLOW_INTEGRATION.md](docs/DEVELOPMENT_WORKFLOW_INTEGRATION.md)
 - **リリースプロセス**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
-- **アーキテクチャ**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **アーキテクチャ**: [docs/VALUE_PROPOSITION.md](docs/VALUE_PROPOSITION.md)
 
 ## 🎉 貢献者一覧
 
