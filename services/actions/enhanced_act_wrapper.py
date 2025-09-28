@@ -29,7 +29,10 @@ from .logger import ActionsLogger
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
-from performance_monitor import PerformanceMonitor
+try:
+    from performance_monitor import PerformanceMonitor
+except ImportError:
+    from src.performance_monitor import PerformanceMonitor
 
 
 class DeadlockType(Enum):

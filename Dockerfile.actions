@@ -33,6 +33,7 @@ COPY pyproject.toml uv.lock ./
 COPY LICENSE ./
 COPY README.md ./
 COPY services ./services
+COPY src ./src
 COPY main.py ./
 
 RUN uv python install "${PYTHON_VERSION}" \
@@ -84,6 +85,7 @@ COPY --from=builder /app/LICENSE /app/LICENSE
 COPY --from=builder /app/README.md /app/README.md
 COPY --from=builder /app/main.py /app/main.py
 COPY --from=builder /app/services /app/services
+COPY --from=builder /app/src /app/src
 
 RUN useradd --system --create-home --shell /bin/bash actions \
     && install -d -m 0755 -o actions -g actions /opt/act/cache /app/output

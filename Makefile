@@ -2,7 +2,9 @@
 
 help:
 	@echo "MCP Docker Environment Commands:"
-	@echo "  make build     - Build unified image"
+	@echo "  make build     - Build all Docker images (main + actions)"
+	@echo "  make build-main - Build main services only (github-mcp + datetime)"
+	@echo "  make build-actions - Build actions-simulator only"
 	@echo "  make start     - Start all MCP services (GitHub MCP + DateTime validator)"
 	@echo "  make stop      - Stop all services"
 	@echo "  make logs      - Show logs"
@@ -62,7 +64,20 @@ help:
 	@echo "  Use: docker run -e GITHUB_PERSONAL_ACCESS_TOKEN=\$GITHUB_PERSONAL_ACCESS_TOKEN mcp-docker-github-mcp"
 
 build:
+	@echo "🔨 Building all Docker images..."
 	docker compose build
+	docker compose --profile tools build actions-simulator
+	@echo "✅ All images built successfully"
+
+build-main:
+	@echo "🔨 Building main services (github-mcp + datetime)..."
+	docker compose build
+	@echo "✅ Main services built successfully"
+
+build-actions:
+	@echo "🔨 Building actions-simulator..."
+	docker compose --profile tools build actions-simulator
+	@echo "✅ Actions simulator built successfully"
 
 start:
 	docker compose up -d github-mcp datetime-validator
