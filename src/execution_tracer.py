@@ -141,9 +141,12 @@ class ExecutionTracer:
         self.record_event("docker_operation_update", kwargs)
         return docker_op
 
-    def update_thread_state(self, thread_trace, **kwargs):
+    def update_thread_state(self, thread_trace, state=None, error_message=None):
         """スレッド状態を更新（互換性のため）"""
-        self.record_event("thread_state_update", kwargs)
+        self.record_event(
+            "thread_state_update",
+            {"state": str(state) if state else None, "error_message": error_message},
+        )
         return thread_trace
 
     def log_heartbeat(self, message=None, details=None):
