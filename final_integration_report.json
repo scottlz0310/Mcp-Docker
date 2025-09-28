@@ -1,0 +1,40 @@
+{
+  "test_execution_time": 1759057391.4620557,
+  "test_results": {
+    "component_integration": {
+      "diagnostic_service": true,
+      "execution_tracer": true,
+      "hangup_detector": true,
+      "auto_recovery": true
+    },
+    "workflow_execution": {
+      "workflow_execution": {
+        "parsing_success": false,
+        "error": "Unexpected error: ExecutionTracer.start_trace() takes 1 positional argument but 2 were given"
+      }
+    },
+    "performance_stability": {
+      "total_runs": 10,
+      "successful_runs": 10,
+      "success_rate": 1.0,
+      "total_time_seconds": 0.017328977584838867,
+      "average_time_per_run": 0.0017328977584838868,
+      "initial_memory_mb": 33.0625,
+      "final_memory_mb": 33.0625,
+      "memory_increase_mb": 0.0,
+      "performance_acceptable": true
+    }
+  },
+  "summary": {
+    "component_success_rate": 1.0,
+    "workflow_execution_success": false,
+    "performance_stability_success": true,
+    "overall_success": false
+  },
+  "requirements_validation": {
+    "requirement_5_1": false,
+    "requirement_5_2": true,
+    "requirement_5_3": true,
+    "requirement_5_4": true
+  }
+}

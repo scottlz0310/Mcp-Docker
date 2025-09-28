@@ -289,7 +289,7 @@ def run_simulate(
                         )
                         console.print(f"  📍 {stage_name}{duration}")
 
-            # ハングアップ検出とデバッグバンドル作成の処理
+            # ハングアップ検出とエラーレポート表示の処理
             if detailed_result.hang_analysis or (
                 hasattr(detailed_result, "error_report")
                 and detailed_result.error_report
@@ -298,17 +298,56 @@ def run_simulate(
                     "[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]"
                 )
 
+                # 詳細なハングアップ分析の表示
                 if detailed_result.hang_analysis:
-                    console.print(
-                        f"[yellow]分析ID: {detailed_result.hang_analysis.analysis_id}[/yellow]"
-                    )
-                    if detailed_result.hang_analysis.primary_cause:
-                        console.print(
-                            f"[red]主要な問題: {detailed_result.hang_analysis.primary_cause.title}[/red]"
-                        )
-                        console.print(
-                            f"[red]説明: {detailed_result.hang_analysis.primary_cause.description}[/red]"
-                        )
+                    analysis = detailed_result.hang_analysis
+                    console.print(f"[yellow]📋 分析ID: {analysis.analysis_id}[/yellow]")
+
+                    if analysis.primary_cause:
+                        console.print(f"[red]🚨 主要な問題: {analysis.primary_cause.title}[/red]")
+                        console.print(f"[red]   説明: {analysis.primary_cause.description}[/red]")
+                        console.print(f"[red]   重要度: {analysis.primary_cause.severity.value if hasattr(analysis.primary_cause.severity, 'value') else analysis.primary_cause.severity}[/red]")
+
+                        # 推奨事項の表示
+                        if hasattr(analysis.primary_cause, 'recommendations') and analysis.primary_cause.recommendations:
+                            console.print("[cyan]💡 推奨される対処法:[/cyan]")
+                            for i, rec in enumerate(analysis.primary_cause.recommendations[:3], 1):
+                                console.print(f"   {i}. {rec}")
+
+                        # 修正コマンドの表示
+                        if hasattr(analysis.primary_cause, 'fix_commands') and analysis.primary_cause.fix_commands:
+                            console.print("[green]🔧 修正コマンド:[/green]")
+                            for cmd in analysis.primary_cause.fix_commands[:2]:
+                                console.print(f"   $ {cmd}")
+
+                    # 復旧提案の表示
+                    if hasattr(analysis, 'recovery_suggestions') and analysis.recovery_suggestions:
+                        console.print("[blue]🔄 復旧提案:[/blue]")
+                        for i, suggestion in enumerate(analysis.recovery_suggestions[:3], 1):
+                            console.print(f"   {i}. {suggestion}")
+
+                    # 予防策の表示
+                    if hasattr(analysis, 'prevention_measures') and analysis.prevention_measures:
+                        console.print("[magenta]🛡️  予防策:[/magenta]")
+                        for i, measure in enumerate(analysis.prevention_measures[:2], 1):
+                            console.print(f"   {i}. {measure}")
+
+                # エラーレポートの詳細表示
+                if hasattr(detailed_result, "error_report") and detailed_result.error_report:
+                    error_report = detailed_result.error_report
+                    console.print(f"[dim]📄 エラーレポートID: {error_report.report_id}[/dim]")
+
+                    # トラブルシューティングガイドの表示
+                    if hasattr(error_report, 'troubleshooting_guide') and error_report.troubleshooting_guide:
+                        console.print("[cyan]📖 トラブルシューティングガイド:[/cyan]")
+                        for i, step in enumerate(error_report.troubleshooting_guide[:3], 1):
+                            console.print(f"   {i}. {step}")
+
+                    # 次のステップの表示
+                    if hasattr(error_report, 'next_steps') and error_report.next_steps:
+                        console.print("[yellow]➡️  次のステップ:[/yellow]")
+                        for i, step in enumerate(error_report.next_steps[:3], 1):
+                            console.print(f"   {i}. {step}")
 
                 # デバッグバンドルの自動作成
                 if (
@@ -331,16 +370,21 @@ def run_simulate(
                                 )
                             )
 
-                            if debug_bundle and debug_bundle.bundle_path:
+                            if debug_bundle and hasattr(debug_bundle, 'bundle_path') and debug_bundle.bundle_path:
                                 console.print(
                                     f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]"
                                 )
-                                console.print(
-                                    f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]"
-                                )
-                                console.print(
-                                    f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]"
-                                )
+                                if hasattr(debug_bundle, 'total_size_bytes'):
+                                    console.print(
+                                        f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]"
+                                    )
+                                if hasattr(debug_bundle, 'included_files'):
+                                    console.print(
+                                        f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]"
+                                    )
+
+                                # デバッグバンドルの使用方法を案内
+                                console.print("[dim]💡 このデバッグバンドルを技術サポートに送信して詳細な分析を依頼できます[/dim]")
                             else:
                                 console.print(
                                     "[red]❌ デバッグバンドルの作成に失敗しました[/red]"
@@ -610,12 +654,53 @@ def run_diagnose(
 
         console.print(table)
 
-        # ハングアップの潜在的原因
+        # ハングアップの潜在的原因と復旧提案
         if hangup_causes:
             console.print()
-            console.print(Rule("ハングアップの潜在的原因"))
+            console.print(Rule("ハングアップの潜在的原因と復旧提案"))
             for i, cause in enumerate(hangup_causes, 1):
                 console.print(f"{i}. {cause}")
+
+            # 復旧提案を生成
+            recovery_suggestions = _generate_recovery_suggestions_from_causes(hangup_causes, health_report)
+            if recovery_suggestions:
+                console.print()
+                console.print("[cyan]🔄 推奨される復旧手順:[/cyan]")
+                for i, suggestion in enumerate(recovery_suggestions, 1):
+                    console.print(f"   {i}. {suggestion}")
+
+        # エラーレポートと詳細なトラブルシューティング
+        error_results = [r for r in health_report.results if r.status == DiagnosticStatus.ERROR]
+        if error_results:
+            console.print()
+            console.print(Rule("エラー詳細とトラブルシューティング"))
+
+            for error_result in error_results:
+                console.print(f"[red]❌ {error_result.component}[/red]")
+                console.print(f"   問題: {error_result.message}")
+
+                if error_result.recommendations:
+                    console.print("   [yellow]対処法:[/yellow]")
+                    for rec in error_result.recommendations:
+                        console.print(f"     • {rec}")
+
+                # 詳細情報がある場合は表示
+                if error_result.details:
+                    important_details = _extract_important_details(error_result.details)
+                    if important_details:
+                        console.print("   [dim]詳細情報:[/dim]")
+                        for key, value in important_details.items():
+                            console.print(f"     {key}: {value}")
+                console.print()
+
+        # 次のステップの提案
+        next_steps = _generate_next_steps(health_report, hangup_causes)
+        if next_steps:
+            console.print()
+            console.print(Rule("次のステップ"))
+            console.print("[green]推奨される次のアクション:[/green]")
+            for i, step in enumerate(next_steps, 1):
+                console.print(f"   {i}. {step}")
 
         # パフォーマンス分析の表示
         if performance_analysis and "error" not in performance_analysis:
@@ -699,10 +784,11 @@ def run_diagnose(
 GitHub Actions ワークフローをローカルでシミュレート/検証するためのCLIツールです。
 
 利用可能なサブコマンド:
-  - simulate   ワークフローを実行する（--diagnose で事前診断、--show-performance-metrics でメトリクス表示）
-  - validate   ワークフローの構文をチェックする
-  - list-jobs  ジョブ一覧を表示する
-  - diagnose   システムヘルスチェックを実行する（--include-performance, --include-trace で詳細分析）
+  - simulate             ワークフローを実行する（--diagnose で事前診断、--enhanced で拡張機能、--show-performance-metrics でメトリクス表示）
+  - validate             ワークフローの構文をチェックする
+  - list-jobs            ジョブ一覧を表示する
+  - diagnose             システムヘルスチェックを実行する（--include-performance, --include-trace で詳細分析）
+  - create-debug-bundle  デバッグバンドルを作成する（トラブルシューティング用）
 """,
 )
 @click.option("-v", "--verbose", is_flag=True, help="詳細ログを表示")
@@ -1387,6 +1473,115 @@ def trace_test(
     raise SystemExit(0 if result.success else 1)
 
 
+@cli.command(name="create-debug-bundle", short_help="デバッグバンドルを作成")
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    help="デバッグバンドルの出力ディレクトリ",
+)
+@click.option(
+    "--include-logs",
+    is_flag=True,
+    default=True,
+    help="ログファイルを含める（デフォルト: 有効）",
+)
+@click.option(
+    "--include-config",
+    is_flag=True,
+    default=True,
+    help="設定ファイルを含める（デフォルト: 有効）",
+)
+@click.option(
+    "--include-system-info",
+    is_flag=True,
+    default=True,
+    help="システム情報を含める（デフォルト: 有効）",
+)
+@click.pass_context
+def create_debug_bundle(
+    ctx: click.Context,
+    output_dir: Path | None,
+    include_logs: bool,
+    include_config: bool,
+    include_system_info: bool,
+) -> None:
+    """デバッグバンドルを作成するサブコマンド"""
+
+    context = _build_context(ctx)
+    logger = context.logger
+    assert logger is not None
+    console = context.console
+
+    console.print("[blue]🔧 デバッグバンドルを作成中...[/blue]")
+
+    try:
+        from .hangup_detector import HangupDetector
+        from .enhanced_act_wrapper import EnhancedActWrapper
+
+        # HangupDetectorを使用してデバッグバンドルを作成
+        detector = HangupDetector(logger=logger)
+
+        # 基本的なエラーレポートを作成
+        from .hangup_detector import ErrorReport
+        import uuid
+
+        error_report = ErrorReport(
+            report_id=str(uuid.uuid4()),
+            system_information={
+                "created_by": "CLI debug bundle command",
+                "include_logs": include_logs,
+                "include_config": include_config,
+                "include_system_info": include_system_info,
+            }
+        )
+
+        debug_bundle = detector.create_debug_bundle(
+            error_report=error_report,
+            output_directory=output_dir,
+            include_logs=include_logs,
+            include_config_files=include_config,
+            include_system_info=include_system_info,
+        )
+
+        if debug_bundle and hasattr(debug_bundle, 'bundle_path') and debug_bundle.bundle_path:
+            console.print(f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]")
+
+            if hasattr(debug_bundle, 'total_size_bytes'):
+                size_mb = debug_bundle.total_size_bytes / (1024 * 1024)
+                console.print(f"[green]   サイズ: {size_mb:.2f} MB[/green]")
+
+            if hasattr(debug_bundle, 'included_files'):
+                console.print(f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]")
+
+                # 含まれるファイルの一部を表示
+                if debug_bundle.included_files:
+                    console.print("[dim]   主要なファイル:[/dim]")
+                    for file_info in debug_bundle.included_files[:5]:
+                        if isinstance(file_info, dict) and 'path' in file_info:
+                            console.print(f"[dim]     • {file_info['path']}[/dim]")
+                        else:
+                            console.print(f"[dim]     • {file_info}[/dim]")
+
+                    if len(debug_bundle.included_files) > 5:
+                        console.print(f"[dim]     ... 他 {len(debug_bundle.included_files) - 5} ファイル[/dim]")
+
+            console.print("[cyan]💡 このデバッグバンドルを技術サポートに送信して詳細な分析を依頼できます[/cyan]")
+        else:
+            console.print("[red]❌ デバッグバンドルの作成に失敗しました[/red]")
+            raise SystemExit(1)
+
+    except ImportError as e:
+        console.print(f"[red]❌ 必要なモジュールが見つかりません: {e}[/red]")
+        console.print("[yellow]💡 --enhanced オプションを使用してワークフローを実行してください[/yellow]")
+        raise SystemExit(1)
+    except Exception as e:
+        logger.error(f"デバッグバンドル作成中にエラーが発生しました: {e}")
+        console.print(f"[red]❌ エラー: {e}[/red]")
+        raise SystemExit(1)
+
+    raise SystemExit(0)
+
+
 @cli.command(short_help="HTTPサーバーモードで起動（デバッグ用）")
 @click.option(
     "--host",
@@ -1993,6 +2188,92 @@ ${JSON.stringify(result.metadata, null, 2)}
         return HTMLResponse(content=html_content)
 
     return app
+
+
+def _generate_recovery_suggestions_from_causes(
+    hangup_causes: List[str], health_report: Any
+) -> List[str]:
+    """ハングアップ原因から復旧提案を生成"""
+    suggestions = []
+
+    for cause in hangup_causes:
+        cause_lower = cause.lower()
+
+        if "docker" in cause_lower and "socket" in cause_lower:
+            suggestions.extend([
+                "Docker Desktopを再起動してください",
+                "ユーザーをdockerグループに追加: sudo usermod -aG docker $USER",
+                "Docker daemonの状態を確認: sudo systemctl status docker"
+            ])
+        elif "permission" in cause_lower:
+            suggestions.extend([
+                "ファイル権限を確認してください: ls -la /var/run/docker.sock",
+                "現在のユーザーのグループを確認: groups",
+                "必要に応じてsudoでコマンドを実行してください"
+            ])
+        elif "timeout" in cause_lower:
+            suggestions.extend([
+                "タイムアウト値を増加させてください",
+                "システムリソースを確認してください",
+                "不要なプロセスを終了してください"
+            ])
+        elif "memory" in cause_lower or "resource" in cause_lower:
+            suggestions.extend([
+                "メモリ使用量を確認: free -h",
+                "不要なDockerコンテナを停止: docker container prune",
+                "システムの負荷を確認: top または htop"
+            ])
+
+    # 重複を除去
+    return list(dict.fromkeys(suggestions))
+
+
+def _extract_important_details(details: Dict[str, Any]) -> Dict[str, str]:
+    """診断結果の詳細から重要な情報を抽出"""
+    important = {}
+
+    # 重要なキーのリスト
+    important_keys = [
+        "version", "path", "error", "stderr", "docker_socket_exists",
+        "docker_socket_accessible", "in_docker_group", "is_root"
+    ]
+
+    for key in important_keys:
+        if key in details:
+            value = details[key]
+            if isinstance(value, (str, int, float, bool)):
+                important[key] = str(value)
+            elif isinstance(value, list) and len(value) <= 3:
+                important[key] = ", ".join(str(v) for v in value)
+
+    return important
+
+
+def _generate_next_steps(health_report: Any, hangup_causes: List[str]) -> List[str]:
+    """診断結果に基づいて次のステップを生成"""
+    steps = []
+
+    # エラーがある場合
+    if hasattr(health_report, 'has_errors') and health_report.has_errors:
+        steps.append("まず、エラー状態のコンポーネントを修正してください")
+        steps.append("修正後、再度診断を実行してください: actions diagnose")
+
+    # 警告がある場合
+    elif hasattr(health_report, 'has_warnings') and health_report.has_warnings:
+        steps.append("警告項目を確認し、可能であれば修正してください")
+        steps.append("ワークフローの実行を試してみてください")
+
+    # 正常な場合
+    else:
+        steps.append("システムは正常です。ワークフローの実行を開始できます")
+        steps.append("問題が発生した場合は --enhanced オプションを使用してください")
+
+    # ハングアップ原因がある場合
+    if hangup_causes:
+        steps.append("ハングアップ問題の修正後、テストワークフローで動作確認してください")
+        steps.append("問題が継続する場合は --create-debug-bundle オプションでデバッグ情報を収集してください")
+
+    return steps
 
 
 def main() -> None:

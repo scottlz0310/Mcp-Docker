@@ -330,23 +330,64 @@ uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --aut
 }
 ```
 
+## 🆕 強化機能の活用
+
+### EnhancedActWrapper機能
+
+```bash
+# 基本的な強化機能（デッドロック検出・プロセス監視）
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced
+
+# 診断機能と組み合わせ
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --diagnose
+
+# 自動復旧機能も有効化
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
+
+# 全機能を有効化
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --enhanced --diagnose --auto-recovery --create-debug-bundle \
+  --show-performance-metrics --show-execution-trace
+```
+
+### 強化機能の詳細
+
+#### デッドロック検出
+- **プロセス状態監視**: プロセスの応答性を継続的に監視
+- **出力ストリーム監視**: stdout/stderr の流れを追跡
+- **タイムアウト管理**: 段階的なタイムアウト制御
+
+#### プロセス監視
+- **ハートビート機能**: プロセスの生存確認
+- **リソース監視**: CPU・メモリ使用量の追跡
+- **異常検出**: 異常なリソース使用パターンの検出
+
+#### 自動復旧
+- **段階的復旧**: 軽度→中度→重度の段階的アプローチ
+- **復旧統計**: 復旧試行の詳細な記録
+- **フォールバック**: 代替実行モードへの自動切り替え
+
 ## 🚨 緊急時の対応
 
 ### 即座に実行すべきコマンド
 
 ```bash
-# 1. システム診断の実行
-uv run python main.py actions diagnose
+# 1. 包括的システム診断の実行
+uv run python main.py actions diagnose --include-performance --include-trace
 
-# 2. Docker環境の確認
+# 2. デバッグバンドルの作成
+uv run python main.py actions diagnose --create-debug-bundle
+
+# 3. Docker環境の詳細確認
 docker system info
 docker ps -a
+docker system df
 
-# 3. 実行中プロセスの確認
-ps aux | grep act
-ps aux | grep docker
+# 4. 実行中プロセスの確認
+ps aux | grep -E "(act|docker)"
+pgrep -f "act|docker" | xargs -I {} ps -p {} -o pid,ppid,state,wchan,comm
 
-# 4. リソース使用量の確認
+# 5. リソース使用量の確認
 free -h
 df -h
 docker system df
@@ -455,6 +496,106 @@ echo "サポート情報が support_info.txt に保存されました"
 ```bash
 chmod +x support_info_collector.sh
 ./support_info_collector.sh
+```
+
+## 📋 実用的な使用例
+
+### 日常的な診断ルーチン
+
+```bash
+#!/bin/bash
+# daily_health_check.sh - 日次ヘルスチェックスクリプト
+
+echo "=== GitHub Actions Simulator 日次ヘルスチェック ==="
+echo "実行日時: $(date)"
+
+# 基本診断
+echo "1. 基本システム診断を実行中..."
+uv run python main.py actions diagnose --output-format json --output-file daily_diagnosis.json
+
+# 診断結果の確認
+OVERALL_STATUS=$(cat daily_diagnosis.json | jq -r '.overall_status')
+echo "診断結果: $OVERALL_STATUS"
+
+if [ "$OVERALL_STATUS" != "OK" ]; then
+    echo "⚠️ 問題が検出されました。詳細な診断を実行します..."
+    uv run python main.py actions diagnose --include-performance --include-trace \
+      --create-debug-bundle --debug-bundle-dir ./daily_debug
+fi
+
+# Docker環境のクリーンアップ
+echo "2. Docker環境のクリーンアップを実行中..."
+docker system prune -f > /dev/null 2>&1
+
+echo "ヘルスチェック完了"
+```
+
+### トラブルシューティング用スクリプト
+
+```bash
+#!/bin/bash
+# troubleshoot_hangup.sh - ハングアップ問題の包括的診断
+
+WORKFLOW_FILE="${1:-.github/workflows/ci.yml}"
+
+echo "=== ハングアップ問題診断スクリプト ==="
+echo "対象ワークフロー: $WORKFLOW_FILE"
+
+# 事前診断
+echo "1. 事前システム診断..."
+uv run python main.py actions diagnose --include-performance --include-trace
+
+# 強化機能付きでワークフロー実行
+echo "2. 強化機能付きワークフロー実行..."
+uv run python main.py actions simulate "$WORKFLOW_FILE" \
+  --enhanced --diagnose --auto-recovery --create-debug-bundle \
+  --show-performance-metrics --show-execution-trace \
+  --timeout 300
+
+# 実行後の状態確認
+echo "3. 実行後の状態確認..."
+docker ps -a
+ps aux | grep -E "(act|docker)" || echo "関連プロセスは見つかりませんでした"
+
+echo "診断完了。デバッグバンドルが作成されている場合は確認してください。"
+```
+
+### パフォーマンス分析用スクリプト
+
+```bash
+#!/bin/bash
+# performance_analysis.sh - パフォーマンス分析スクリプト
+
+WORKFLOW_FILE="${1:-.github/workflows/ci.yml}"
+OUTPUT_DIR="./performance_analysis_$(date +%Y%m%d_%H%M%S)"
+
+mkdir -p "$OUTPUT_DIR"
+
+echo "=== パフォーマンス分析開始 ==="
+echo "出力ディレクトリ: $OUTPUT_DIR"
+
+# ベースライン測定
+echo "1. ベースライン測定（通常実行）..."
+time uv run python main.py actions simulate "$WORKFLOW_FILE" \
+  --output-format json --output-file "$OUTPUT_DIR/baseline.json"
+
+# 強化機能付き測定
+echo "2. 強化機能付き測定..."
+time uv run python main.py actions simulate "$WORKFLOW_FILE" \
+  --enhanced --show-performance-metrics --show-execution-trace \
+  --output-format json --output-file "$OUTPUT_DIR/enhanced.json"
+
+# 診断情報の収集
+echo "3. 詳細診断情報の収集..."
+uv run python main.py actions diagnose --include-performance --include-trace \
+  --output-format json --output-file "$OUTPUT_DIR/diagnosis.json"
+
+# 結果の分析
+echo "4. 結果の分析..."
+echo "ベースライン実行時間:" $(cat "$OUTPUT_DIR/baseline.json" | jq -r '.execution_time // "N/A"')
+echo "強化機能実行時間:" $(cat "$OUTPUT_DIR/enhanced.json" | jq -r '.execution_time // "N/A"')
+
+echo "分析完了。結果は $OUTPUT_DIR に保存されました。"
 ```
 
 ## 🔗 関連ドキュメント

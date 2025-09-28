@@ -2,22 +2,49 @@
 
 ## 概要
 
-GitHub Actions Simulatorでワークフローがハングアップする問題の診断と解決方法を説明します。このガイドでは、一般的なハングアップシナリオ、診断コマンド、および解決策を提供します。
+GitHub Actions Simulatorでワークフローがハングアップする問題の診断と解決方法を説明します。このガイドでは、包括的な診断機能、強化されたプロセス監視、自動復旧メカニズム、デバッグバンドル作成機能を活用した問題解決方法を提供します。
+
+## 🆕 新機能概要
+
+### 診断・デバッグ機能
+- **包括的システム診断**: Docker接続、act バイナリ、権限、リソース使用量の自動チェック
+- **実行トレース機能**: ワークフロー実行の詳細な追跡とボトルネック分析
+- **パフォーマンス監視**: リアルタイムリソース監視とメトリクス収集
+- **デバッグバンドル**: ハングアップ時の詳細情報を自動収集・パッケージ化
+
+### 強化されたプロセス管理
+- **EnhancedActWrapper**: デッドロック検出とプロセス監視機能を統合
+- **自動復旧機能**: Docker再接続、プロセス再起動、バッファクリアの自動実行
+- **タイムアウト管理**: より精密なタイムアウト制御と段階的エスカレーション
+
+### CLI統合機能
+- `--diagnose`: 実行前システム診断
+- `--enhanced`: 強化されたプロセス監視とエラー検出
+- `--auto-recovery`: 自動復旧機能の有効化
+- `--create-debug-bundle`: ハングアップ時のデバッグ情報自動収集
+- `--show-performance-metrics`: リアルタイムパフォーマンス監視
 
 ## 🚨 緊急対応手順
 
 ### 1. 即座に実行すべき診断コマンド
 
 ```bash
-# システム全体の診断を実行
+# 包括的システム診断（推奨）
 uv run python main.py actions diagnose
 
-# 詳細な診断（パフォーマンス分析含む）
+# 詳細診断（パフォーマンス・トレース分析含む）
 uv run python main.py actions diagnose --include-performance --include-trace
 
-# Docker統合の確認
+# JSON形式で診断結果を保存
+uv run python main.py actions diagnose --output-format json --output-file diagnosis.json
+
+# デバッグバンドルの手動作成
+uv run python main.py actions diagnose --create-debug-bundle
+
+# Docker環境の基本確認
 docker system info
 docker ps -a
+docker system df
 ```
 
 ### 2. ハングアップ発生時の緊急停止
@@ -27,10 +54,18 @@ docker ps -a
 docker compose down --timeout 10
 
 # 全てのactions-simulatorコンテナを停止
-docker stop $(docker ps -q --filter "name=actions-simulator")
+docker stop $(docker ps -q --filter "name=actions-simulator") 2>/dev/null || true
 
-# 必要に応じてDocker環境をリセット
+# プロセスの強制終了
+pkill -f "act" 2>/dev/null || true
+pkill -f "actions" 2>/dev/null || true
+
+# Docker環境の完全リセット
 make clean
+docker system prune -f
+
+# 自動復旧機能付きで再実行を試行
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
 ```
 
 ## 📋 一般的なハングアップシナリオと解決策
@@ -102,6 +137,7 @@ chmod +x $(which act)
 - プロセスが応答しないが終了もしない
 - stdout/stderr の出力が停止
 - CPU使用率が0%のまま
+- デッドロック状態の発生
 
 #### 診断方法
 ```bash
@@ -109,17 +145,27 @@ chmod +x $(which act)
 ps aux | grep act
 ps aux | grep docker
 
-# 詳細診断の実行
-uv run python main.py actions diagnose --include-performance
+# 詳細診断とパフォーマンス分析
+uv run python main.py actions diagnose --include-performance --include-trace
+
+# プロセス状態の詳細確認
+pgrep -f "act|docker" | xargs -I {} ps -p {} -o pid,ppid,state,wchan,comm
 ```
 
 #### 解決策
 ```bash
+# 強化されたプロセス監視とデッドロック検出を有効化
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced
+
+# 自動復旧機能付きで実行
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
+
 # タイムアウト値の調整
 export ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=300
+export ACTIONS_SIMULATOR_PERFORMANCE_INTERVAL=1.0
 
-# 強化されたプロセス監視を有効化
-uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --diagnose
+# デバッグバンドル自動作成付きで実行
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --create-debug-bundle
 ```
 
 ### シナリオ 4: メモリ・リソース不足
@@ -188,11 +234,14 @@ docker network create mcp-network
 ### 基本診断コマンド
 
 ```bash
-# システム全体の健康状態チェック
+# 包括的システム健康状態チェック
 uv run python main.py actions diagnose
 
 # JSON形式での診断結果出力
 uv run python main.py actions diagnose --output-format json --output-file diagnosis.json
+
+# 診断結果の詳細表示
+uv run python main.py actions diagnose --verbose
 ```
 
 ### 詳細診断コマンド
@@ -206,6 +255,9 @@ uv run python main.py actions diagnose --include-trace
 
 # 全ての詳細分析を含む診断
 uv run python main.py actions diagnose --include-performance --include-trace
+
+# デバッグバンドル作成付き診断
+uv run python main.py actions diagnose --create-debug-bundle --debug-bundle-dir ./debug_output
 ```
 
 ### ワークフロー実行時の診断
@@ -214,11 +266,19 @@ uv run python main.py actions diagnose --include-performance --include-trace
 # 事前診断付きでワークフローを実行
 uv run python main.py actions simulate .github/workflows/ci.yml --diagnose
 
-# 強化されたラッパーと診断を使用
+# 強化されたプロセス監視と診断を使用
 uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --diagnose
 
 # パフォーマンス監視付きで実行
 uv run python main.py actions simulate .github/workflows/ci.yml --show-performance-metrics
+
+# 実行トレース表示付きで実行
+uv run python main.py actions simulate .github/workflows/ci.yml --show-execution-trace
+
+# 全機能を有効化した実行
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --enhanced --diagnose --auto-recovery --create-debug-bundle \
+  --show-performance-metrics --show-execution-trace
 ```
 
 ## 📊 診断結果の解釈ガイド
@@ -257,43 +317,136 @@ uv run python main.py actions simulate .github/workflows/ci.yml --show-performan
 
 ### デバッグバンドルの作成
 
-ハングアップが発生した場合、詳細な診断情報を含むデバッグバンドルを作成できます：
+ハングアップが発生した場合、詳細な診断情報を含むデバッグバンドルを自動作成できます：
 
 ```bash
 # ハングアップ発生時にデバッグバンドルを自動作成
 uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --create-debug-bundle
 
+# 出力ディレクトリを指定してデバッグバンドルを作成
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --create-debug-bundle --debug-bundle-dir ./debug_output
+
 # 手動でデバッグバンドルを作成
-uv run python main.py actions diagnose --create-debug-bundle --debug-bundle-dir ./debug_output
+uv run python main.py actions diagnose --create-debug-bundle
+
+# 詳細分析付きデバッグバンドル作成
+uv run python main.py actions diagnose --create-debug-bundle \
+  --include-performance --include-trace --debug-bundle-dir ./debug_output
 ```
 
 ### デバッグバンドルの内容
 
 デバッグバンドルには以下の情報が含まれます：
 
-- システム診断結果
-- 実行トレース情報
-- プロセス状態のスナップショット
-- Docker環境の詳細
-- ログファイル
-- 環境変数情報
-- エラーレポート
+#### 基本診断情報
+- **システム診断結果** (`diagnosis.json`) - 全診断項目の詳細結果
+- **環境変数情報** (`environment.json`) - システム・Docker・アプリケーション環境変数
+- **システム情報** (`system_info.json`) - OS、ハードウェア、Docker情報
+
+#### 実行・パフォーマンス情報
+- **実行トレース情報** (`execution_trace.json`) - ワークフロー実行の詳細ログ
+- **プロセス状態スナップショット** (`process_state.json`) - 実行時のプロセス状態
+- **パフォーマンスメトリクス** (`performance_metrics.json`) - CPU、メモリ、I/O使用量
+
+#### Docker・コンテナ情報
+- **Docker環境詳細** (`docker_info.json`) - Docker daemon、ネットワーク、ボリューム情報
+- **コンテナ状態** (`container_state.json`) - 実行中・停止中コンテナの詳細
+- **Docker ログ** (`logs/docker/`) - コンテナログとDocker daemon ログ
+
+#### エラー・ログ情報
+- **エラーレポート** (`error_report.json`) - 検出されたエラーと推奨解決策
+- **アプリケーションログ** (`logs/application/`) - アプリケーション実行ログ
+- **システムログ** (`logs/system/`) - システムレベルのログ（可能な場合）
+
+### デバッグバンドルの分析
+
+```bash
+# デバッグバンドルの展開
+tar -xzf debug_bundle_$(date +%Y%m%d_%H%M%S).tar.gz
+
+# 診断結果の確認（エラー・警告のみ）
+cat debug_bundle/diagnosis.json | jq '.results[] | select(.status != "OK")'
+
+# エラーレポートの確認
+cat debug_bundle/error_report.json | jq '.issues[] | select(.severity == "ERROR")'
+
+# パフォーマンス問題の確認
+cat debug_bundle/performance_metrics.json | jq '.bottlenecks'
+
+# 実行トレースの確認（ハング箇所の特定）
+cat debug_bundle/execution_trace.json | jq '.stages[] | select(.status == "HANGING")'
+
+# Docker関連問題の確認
+cat debug_bundle/docker_info.json | jq '.connectivity_issues'
+```
 
 ## 🔄 自動復旧機能
+
+### 復旧メカニズム
+
+自動復旧機能は以下の段階的なアプローチでハングアップ問題を解決します：
+
+#### 1. 軽度復旧（Level 1）
+- **出力バッファクリア** - stdout/stderr バッファの詰まり解消
+- **プロセス状態リフレッシュ** - プロセス監視状態のリセット
+- **一時ファイルクリーンアップ** - 不要な一時ファイルの削除
+
+#### 2. 中度復旧（Level 2）
+- **Docker再接続** - Docker daemon接続の自動復旧
+- **ネットワーク再初期化** - Docker ネットワークの再構築
+- **プロセス再起動** - ハングしたプロセスの安全な再起動
+
+#### 3. 重度復旧（Level 3）
+- **コンテナリセット** - コンテナ状態の完全初期化
+- **Docker環境リセット** - Docker環境の部分的リセット
+- **フォールバック実行** - 代替実行モードへの切り替え
 
 ### 自動復旧の有効化
 
 ```bash
-# 自動復旧機能付きでワークフローを実行
+# 基本的な自動復旧機能
+uv run python main.py actions simulate .github/workflows/ci.yml --auto-recovery
+
+# 強化機能と組み合わせた自動復旧
 uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
+
+# 診断機能も含めた包括的復旧
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --enhanced --auto-recovery --diagnose --create-debug-bundle
+
+# 復旧レベルの指定
+export ACTIONS_SIMULATOR_RECOVERY_LEVEL=2  # 1-3の範囲
+uv run python main.py actions simulate .github/workflows/ci.yml --auto-recovery
 ```
 
-### 復旧メカニズム
+### 復旧統計の確認
 
-1. **Docker再接続**: Docker daemon接続の自動復旧
-2. **プロセス再起動**: ハングしたプロセスの安全な再起動
-3. **バッファクリア**: 出力バッファの詰まり解消
-4. **コンテナリセット**: コンテナ状態の初期化
+自動復旧機能の実行結果は詳細な統計として記録されます：
+
+```json
+{
+  "recovery_statistics": {
+    "total_recovery_attempts": 7,
+    "successful_recoveries": 6,
+    "failed_recoveries": 1,
+    "recovery_by_level": {
+      "level_1": {"attempts": 3, "successes": 3},
+      "level_2": {"attempts": 3, "successes": 2},
+      "level_3": {"attempts": 1, "successes": 1}
+    },
+    "recovery_types": {
+      "docker_reconnections": 2,
+      "process_restarts": 1,
+      "buffer_clears": 3,
+      "container_resets": 1,
+      "network_resets": 1
+    },
+    "average_recovery_time_seconds": 15.3,
+    "total_recovery_time_seconds": 107.1
+  }
+}
+```
 
 ## 📈 パフォーマンス監視
 
@@ -303,17 +456,64 @@ uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --aut
 # パフォーマンス監視付きで実行
 uv run python main.py actions simulate .github/workflows/ci.yml --show-performance-metrics
 
+# 実行トレースも同時に表示
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --show-performance-metrics --show-execution-trace
+
 # 監視間隔の調整
 export ACTIONS_SIMULATOR_PERFORMANCE_INTERVAL=1.0
+export ACTIONS_SIMULATOR_TRACE_LEVEL=DEBUG
 ```
 
 ### 監視項目
 
-- CPU使用率
-- メモリ使用量
-- ディスクI/O
-- ネットワーク通信
-- Docker操作の応答時間
+#### システムリソース
+- **CPU使用率** - プロセス別CPU消費量とシステム全体の負荷
+- **メモリ使用量** - 物理メモリ・仮想メモリ・スワップ使用量
+- **ディスクI/O** - 読み書き速度・IOPS・待機時間
+- **ネットワーク通信** - Docker API通信量・レスポンス時間
+
+#### Docker固有メトリクス
+- **Docker操作応答時間** - コンテナ作成・起動・停止時間
+- **イメージプル時間** - ベースイメージのダウンロード時間
+- **ボリュームマウント時間** - ファイルシステム操作時間
+- **ネットワーク設定時間** - Docker ネットワーク構築時間
+
+#### アプリケーションメトリクス
+- **ワークフロー解析時間** - YAML パース・検証時間
+- **act実行時間** - 実際のワークフロー実行時間
+- **出力処理時間** - stdout/stderr 処理時間
+- **ログ書き込み時間** - ファイルI/O処理時間
+
+### パフォーマンス分析結果の解釈
+
+```json
+{
+  "performance_summary": {
+    "total_execution_time": 45.8,
+    "bottlenecks": [
+      {
+        "component": "Docker Image Pull",
+        "time_seconds": 23.4,
+        "percentage": 51.1,
+        "recommendation": "ローカルイメージキャッシュの活用を推奨"
+      },
+      {
+        "component": "Workflow Parsing",
+        "time_seconds": 8.2,
+        "percentage": 17.9,
+        "recommendation": "YAML構文の最適化を検討"
+      }
+    ],
+    "resource_usage": {
+      "peak_cpu_percent": 85.2,
+      "peak_memory_mb": 512.3,
+      "total_disk_io_mb": 156.7,
+      "docker_api_calls": 47
+    }
+  }
+}
+```
 
 ## 🚀 予防策とベストプラクティス
 

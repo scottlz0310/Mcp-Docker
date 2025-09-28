@@ -349,8 +349,8 @@ class EnhancedActWrapper(ActWrapper):
             )
 
         # 実行トレースを開始
-        if trace_id:
-            self.execution_tracer.start_trace(trace_id)
+        if trace_id and self.execution_tracer:
+            self.execution_tracer.start_trace()
 
         try:
             # コマンドを構築
@@ -400,8 +400,8 @@ class EnhancedActWrapper(ActWrapper):
             self._stop_all_monitoring()
 
             # トレースを終了
-            if trace_id:
-                self.execution_tracer.end_trace()
+            if trace_id and self.execution_tracer:
+                self.execution_tracer.stop_trace()
 
     def _build_enhanced_command(
         self,

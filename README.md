@@ -76,23 +76,61 @@ uv run python main.py actions --help
 
 グローバルオプションとして `-v/--verbose`, `-q/--quiet`, `--debug`, `--config <path>`, `--version` をサポートしています。設定ファイルは TOML 形式で、`[simulator]` や `[environment]` セクションからデフォルト値を読み込みます。
 
+#### 🆕 強化機能概要
+
+**診断・デバッグ機能**
+- 包括的システム診断（Docker接続、act バイナリ、権限、リソース使用量）
+- 実行トレース機能（ワークフロー実行の詳細追跡）
+- パフォーマンス監視（リアルタイムリソース監視）
+- デバッグバンドル（ハングアップ時の詳細情報自動収集）
+
+**強化されたプロセス管理**
+- EnhancedActWrapper（デッドロック検出・プロセス監視）
+- 自動復旧機能（Docker再接続・プロセス再起動・バッファクリア）
+- 段階的タイムアウト管理（軽度→中度→重度の復旧アプローチ）
+
+**CLI統合オプション**
+- `--diagnose`: 実行前システム診断
+- `--enhanced`: 強化されたプロセス監視とエラー検出
+- `--auto-recovery`: 自動復旧機能の有効化
+- `--create-debug-bundle`: ハングアップ時のデバッグ情報自動収集
+- `--show-performance-metrics`: リアルタイムパフォーマンス監視
+- `--show-execution-trace`: 実行トレース表示
+
 #### 🔧 診断・トラブルシューティング機能
 
 ```bash
-# システム全体の健康状態チェック
+# 包括的システム健康状態チェック
 uv run python main.py actions diagnose
 
 # 詳細診断（パフォーマンス分析・実行トレース含む）
 uv run python main.py actions diagnose --include-performance --include-trace
 
+# JSON形式での診断結果保存
+uv run python main.py actions diagnose --output-format json --output-file diagnosis.json
+
 # ワークフロー実行前の事前診断
 uv run python main.py actions simulate .github/workflows/ci.yml --diagnose
 
-# 強化されたエラー検出・自動復旧機能
+# 強化されたプロセス監視とデッドロック検出
+uv run python main.py actions simulate .github/workflows/ci.yml --enhanced
+
+# 自動復旧機能（Docker再接続・プロセス再起動・バッファクリア）
 uv run python main.py actions simulate .github/workflows/ci.yml --enhanced --auto-recovery
 
 # ハングアップ時のデバッグバンドル自動作成
 uv run python main.py actions simulate .github/workflows/ci.yml --create-debug-bundle
+
+# リアルタイムパフォーマンス監視
+uv run python main.py actions simulate .github/workflows/ci.yml --show-performance-metrics
+
+# 実行トレース表示
+uv run python main.py actions simulate .github/workflows/ci.yml --show-execution-trace
+
+# 全機能を有効化した包括的実行
+uv run python main.py actions simulate .github/workflows/ci.yml \
+  --enhanced --diagnose --auto-recovery --create-debug-bundle \
+  --show-performance-metrics --show-execution-trace
 ```
 
 代表的な実行例:
