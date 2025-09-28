@@ -38,7 +38,7 @@ class ExecutionTracer:
         self.event_counters = defaultdict(int)
         self.performance_metrics = {}
 
-    def start_trace(self):
+    def start_trace(self, trace_id: Optional[str] = None):
         """トレースを開始"""
         with self.lock:
             self.tracing_active = True
@@ -47,6 +47,8 @@ class ExecutionTracer:
             self.events.clear()
             self.event_counters.clear()
             self.performance_metrics.clear()
+            # trace_idは互換性のために受け取るが、この実装では使用しない
+            return self
 
             self.record_event(
                 "trace_started",
@@ -77,6 +79,26 @@ class ExecutionTracer:
 
             self._calculate_performance_metrics()
             self.logger.info(f"実行トレース停止 - 総イベント数: {len(self.events)}")
+
+    def end_trace(self):
+        """トレースを終了（stop_traceのエイリアス）"""
+        self.stop_trace()
+        return self
+
+    def set_stage(self, stage, details=None):
+        """実行段階を設定（互換性のため）"""
+        self.record_event("stage_change", {"stage": str(stage), "details": details})
+
+    def monitor_docker_communication(self, operation, success=True, error_message=None):
+        """Docker通信を監視（互換性のため）"""
+        self.record_event(
+            "docker_communication",
+            {
+                "operation": operation,
+                "success": success,
+                "error_message": error_message,
+            },
+        )
 
     def is_tracing(self) -> bool:
         """トレース中かどうかを確認"""
