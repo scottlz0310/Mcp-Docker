@@ -3,3 +3,5 @@
 --bind
 --rm
 --quiet
+--detect-event
+--defaultbranch main

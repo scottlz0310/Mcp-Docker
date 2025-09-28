@@ -141,7 +141,12 @@ actions:
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
-	docker compose --profile tools run --rm -e WORKFLOW_FILE="$$selected" actions-simulator \
+	docker compose --profile tools run --rm \
+		-e WORKFLOW_FILE="$$selected" \
+		-e ACT_LOG_LEVEL=info \
+		-e ACT_PLATFORM=ubuntu-latest=catthehacker/ubuntu:act-latest \
+		-e DOCKER_HOST=unix:///var/run/docker.sock \
+		actions-simulator \
 		uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,) $(if $(JOB),--job $(JOB),)
 
 actions-auto:
@@ -150,7 +155,11 @@ actions-auto:
 	@find .github/workflows -name "*.yml" -o -name "*.yaml" | head -5
 	@echo ""
 	@echo "🚀 デフォルト実行: CI ワークフロー"
-	docker compose --profile tools run --rm actions-simulator \
+	docker compose --profile tools run --rm \
+		-e ACT_LOG_LEVEL=info \
+		-e ACT_PLATFORM=ubuntu-latest=catthehacker/ubuntu:act-latest \
+		-e DOCKER_HOST=unix:///var/run/docker.sock \
+		actions-simulator \
 		uv run python main.py actions simulate .github/workflows/ci.yml --fail-fast
 
 actions-list:

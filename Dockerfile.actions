@@ -30,6 +30,8 @@ ENV UV_LINK_MODE=copy
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
+COPY LICENSE ./
+COPY README.md ./
 COPY services ./services
 COPY main.py ./
 
@@ -69,6 +71,8 @@ ENV UV_LINK_MODE=copy
 ENV PATH="/app/.venv/bin:/usr/local/bin:${PATH}"
 ENV ACT_CACHE_DIR=/opt/act/cache
 ENV PYTHONUNBUFFERED=1
+ENV ACT_LOG_LEVEL=info
+ENV ACT_PLATFORM=ubuntu-latest=catthehacker/ubuntu:act-latest
 
 WORKDIR /app
 
@@ -76,11 +80,17 @@ COPY --from=builder /opt/uv /opt/uv
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/pyproject.toml /app/pyproject.toml
 COPY --from=builder /app/uv.lock /app/uv.lock
+COPY --from=builder /app/LICENSE /app/LICENSE
+COPY --from=builder /app/README.md /app/README.md
 COPY --from=builder /app/main.py /app/main.py
 COPY --from=builder /app/services /app/services
 
 RUN useradd --system --create-home --shell /bin/bash actions \
     && install -d -m 0755 -o actions -g actions /opt/act/cache /app/output
+
+# Copy act configuration to prevent interactive prompts
+COPY .actrc /home/actions/.actrc
+RUN chown actions:actions /home/actions/.actrc
 
 USER actions
 

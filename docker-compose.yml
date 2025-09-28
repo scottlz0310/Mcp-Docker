@@ -46,7 +46,9 @@ services:
       - NET_BIND_SERVICE # 必要最小限の権限のみ
 
   actions-simulator:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.actions
     container_name: mcp-actions-simulator
     volumes:
       - ./.github:/app/.github:ro # ワークフローファイル（読み取り専用）

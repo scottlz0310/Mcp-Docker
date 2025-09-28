@@ -150,6 +150,10 @@ class ActWrapper:
 
     def _compose_runner_flags(self) -> list[str]:
         flags: list[str] = []
+
+        # 非対話的実行を強制するフラグを追加
+        flags.extend(["--quiet", "--rm"])
+
         if self.settings.container_workdir:
             flags.extend(["--container-workdir", self.settings.container_workdir])
         if self.settings.image:
@@ -159,6 +163,10 @@ class ActWrapper:
         elif self.settings.platforms:
             for platform in self.settings.platforms:
                 flags.extend(["--platform", platform])
+        else:
+            # デフォルトプラットフォームを明示的に設定
+            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:act-latest"])
+
         return flags
 
     def _compose_env_args(
@@ -180,6 +188,12 @@ class ActWrapper:
         overrides: Mapping[str, str] | None,
     ) -> Dict[str, str]:
         env = os.environ.copy()
+
+        # 非対話的実行を強制する環境変数を設定
+        env["ACT_LOG_LEVEL"] = "info"
+        env["ACT_PLATFORM"] = "ubuntu-latest=catthehacker/ubuntu:act-latest"
+        env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
+
         if self.settings.cache_dir:
             env.setdefault("ACT_CACHE_DIR", self.settings.cache_dir)
         if default_event and "GITHUB_EVENT_NAME" not in env:
