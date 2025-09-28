@@ -72,13 +72,13 @@ repos:
         description: "Dockerfileのベストプラクティス準拠を確認"
         args:
           - --ignore
-          - DL3008  # パッケージバージョン固定（開発環境では柔軟性を優先）
+          - DL3008 # パッケージバージョン固定（開発環境では柔軟性を優先）
           - --ignore
-          - DL3009  # apt-get clean（マルチステージビルドで対応）
+          - DL3009 # apt-get clean（マルチステージビルドで対応）
           - --ignore
-          - DL3018  # パッケージバージョン固定（Alpine用）
+          - DL3018 # パッケージバージョン固定（Alpine用）
           - --ignore
-          - DL3059  # 複数RUNコマンド（可読性を優先）
+          - DL3059 # 複数RUNコマンド（可読性を優先）
 
   - repo: https://github.com/koalaman/shellcheck-precommit
     rev: v0.10.0
@@ -89,11 +89,11 @@ repos:
         args:
           - --severity=warning
           - --shell=bash
-          - --exclude=SC2034  # 未使用変数（設定ファイルで許可）
-          - --exclude=SC1091  # 外部ファイル読み込み（動的パスで許可）
-          - --exclude=SC2155  # 変数宣言と代入の分離（可読性を優先）
-          - --exclude=SC2206  # 配列の単語分割（意図的な使用）
-          - --exclude=SC2064  # trap文の引用符（動的変数使用）
+          - --exclude=SC2034 # 未使用変数（設定ファイルで許可）
+          - --exclude=SC1091 # 外部ファイル読み込み（動的パスで許可）
+          - --exclude=SC2155 # 変数宣言と代入の分離（可読性を優先）
+          - --exclude=SC2206 # 配列の単語分割（意図的な使用）
+          - --exclude=SC2064 # trap文の引用符（動的変数使用）
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.37.1
