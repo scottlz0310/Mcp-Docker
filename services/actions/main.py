@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, cast
@@ -13,6 +14,16 @@ import tomllib
 from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
+
+# サーバーモード用のインポート
+try:
+    from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+    from fastapi.responses import JSONResponse, HTMLResponse
+    from fastapi.staticfiles import StaticFiles
+    import uvicorn
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    FASTAPI_AVAILABLE = False
 
 from . import DEFAULT_CONFIG_PATH, __version__ as simulator_version
 from .logger import ActionsLogger
@@ -1374,6 +1385,614 @@ def trace_test(
         raise SystemExit(1)
 
     raise SystemExit(0 if result.success else 1)
+
+
+@cli.command(short_help="HTTPサーバーモードで起動（デバッグ用）")
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    help="バインドするホスト（デフォルト: 127.0.0.1）",
+)
+@click.option(
+    "--port",
+    default=8000,
+    type=int,
+    help="バインドするポート（デフォルト: 8000）",
+)
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="デバッグモードで起動",
+)
+@click.option(
+    "--reload",
+    is_flag=True,
+    help="ファイル変更時の自動リロード（開発用）",
+)
+@click.pass_context
+def server(
+    ctx: click.Context,
+    host: str,
+    port: int,
+    debug: bool,
+    reload: bool,
+) -> None:
+    """
+    Actions SimulatorをHTTPサーバーモードで起動します。
+
+    デバッグ用の常駐サーバーとして動作し、REST APIでワークフローの実行や
+    システム情報の取得ができます。
+
+    Examples:
+        # ローカルホストで起動
+        actions server
+
+        # 外部からアクセス可能にして起動
+        actions server --host 0.0.0.0 --port 8080
+
+        # デバッグモードで起動
+        actions server --debug --reload
+    """
+    if not FASTAPI_AVAILABLE:
+        console = Console()
+        console.print("[red]❌ サーバーモードにはFastAPIが必要です[/red]")
+        console.print("[yellow]インストール方法: uv add fastapi uvicorn[/yellow]")
+        raise SystemExit(1)
+
+    cli_ctx = cast(CLIContext, ctx.obj)
+    console = Console()
+
+    console.print(f"[green]🚀 Actions Simulator Server 起動中...[/green]")
+    console.print(f"   ホスト: {host}")
+    console.print(f"   ポート: {port}")
+    console.print(f"   デバッグ: {'有効' if debug else '無効'}")
+    console.print(f"   リロード: {'有効' if reload else '無効'}")
+
+    # FastAPIアプリケーションを作成
+    app = create_fastapi_app(cli_ctx)
+
+    # Uvicornサーバーを起動
+    try:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=reload,
+            log_level="debug" if debug else "info",
+        )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]サーバーを停止しています...[/yellow]")
+    except Exception as e:
+        console.print(f"[red]サーバー起動エラー: {e}[/red]")
+        raise SystemExit(1)
+
+
+def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
+    """FastAPIアプリケーションを作成"""
+    app = FastAPI(
+        title="Actions Simulator API",
+        description="GitHub Actions Simulator REST API",
+        version=simulator_version,
+    )
+
+    @app.get("/")
+    async def root():
+        """ルートエンドポイント"""
+        return {
+            "name": "Actions Simulator API",
+            "version": simulator_version,
+            "status": "running",
+            "endpoints": {
+                "health": "/health",
+                "workflows": "/workflows",
+                "simulate": "/simulate",
+                "diagnose": "/diagnose",
+            }
+        }
+
+    @app.get("/health")
+    async def health_check():
+        """ヘルスチェックエンドポイント"""
+        try:
+            # 基本的なシステムチェック
+            diagnostic_service = DiagnosticService(
+                logger=ActionsLogger(verbose=cli_ctx.verbose)
+            )
+            docker_result = diagnostic_service.check_docker_connectivity()
+            act_result = diagnostic_service.check_act_binary()
+
+            return {
+                "status": "healthy",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "checks": {
+                    "docker": {
+                        "status": docker_result.status.value,
+                        "message": docker_result.message,
+                    },
+                    "act": {
+                        "status": act_result.status.value,
+                        "message": act_result.message,
+                    },
+                }
+            }
+        except Exception as e:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unhealthy",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "error": str(e),
+                }
+            )
+
+    @app.get("/workflows")
+    async def list_workflows():
+        """利用可能なワークフローファイルを一覧表示"""
+        try:
+            workflows_dir = Path(".github/workflows")
+            if not workflows_dir.exists():
+                raise HTTPException(status_code=404, detail="ワークフローディレクトリが見つかりません")
+
+            workflows = []
+            for workflow_file in workflows_dir.glob("*.yml"):
+                try:
+                    parser = WorkflowParser()
+                    workflow_data = parser.parse_file(workflow_file)
+                    workflows.append({
+                        "file": str(workflow_file),
+                        "name": workflow_data.get("name", workflow_file.stem),
+                        "jobs": list(workflow_data.get("jobs", {}).keys()),
+                    })
+                except Exception as e:
+                    workflows.append({
+                        "file": str(workflow_file),
+                        "name": workflow_file.stem,
+                        "error": str(e),
+                    })
+
+            return {
+                "workflows": workflows,
+                "count": len(workflows),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/simulate")
+    async def simulate_workflow(request: dict):
+        """ワークフローをシミュレート実行"""
+        try:
+            workflow_file = request.get("workflow_file")
+            if not workflow_file:
+                raise HTTPException(status_code=400, detail="workflow_fileが必要です")
+
+            workflow_path = Path(workflow_file)
+            if not workflow_path.exists():
+                raise HTTPException(status_code=404, detail=f"ワークフローファイルが見つかりません: {workflow_file}")
+
+            # シミュレーションパラメータを構築
+            params = SimulationParameters(
+                workflow_file=workflow_path,
+                job=request.get("job_name"),
+                dry_run=request.get("dry_run", False),
+                verbose=request.get("verbose", cli_ctx.verbose),
+            )
+
+            # シミュレーション実行
+            def logger_factory(verbose: bool) -> ActionsLogger:
+                return ActionsLogger(verbose=verbose)
+
+            service = SimulationService(logger_factory=logger_factory)
+            result = service.run_simulation(params)
+
+            return {
+                "success": result.success,
+                "return_code": result.return_code,
+                "engine": result.engine,
+                "stdout": result.stdout[:1000] if result.stdout else "",  # 最初の1000文字のみ
+                "stderr": result.stderr[:1000] if result.stderr else "",  # 最初の1000文字のみ
+                "metadata": result.metadata,
+            }
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/diagnose")
+    async def diagnose_system():
+        """システム診断を実行"""
+        try:
+            logger = ActionsLogger(verbose=cli_ctx.verbose)
+            diagnostic_service = DiagnosticService(logger=logger)
+
+            # 包括的なヘルスチェックを実行
+            health_report = diagnostic_service.run_comprehensive_health_check()
+
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "health_report": health_report,
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # @app.post("/upload-workflow")
+    # async def upload_workflow(
+    #     file: UploadFile = File(...),
+    #     overwrite: bool = Form(False)
+    # ):
+    #     """ワークフローファイルをアップロード"""
+    #     try:
+    #         # ファイル名の検証
+    #         if not file.filename or not file.filename.endswith(('.yml', '.yaml')):
+    #             raise HTTPException(
+    #                 status_code=400,
+    #                 detail="YAMLファイル（.yml または .yaml）のみアップロード可能です"
+    #             )
+
+    #         # アップロード先ディレクトリの確保
+    #         workflows_dir = Path(".github/workflows")
+    #         workflows_dir.mkdir(parents=True, exist_ok=True)
+
+    #         # ファイルパス
+    #         file_path = workflows_dir / file.filename
+
+    #         # 既存ファイルのチェック
+    #         if file_path.exists() and not overwrite:
+    #             raise HTTPException(
+    #                 status_code=409,
+    #                 detail=f"ファイル '{file.filename}' は既に存在します。上書きする場合は overwrite=true を指定してください"
+    #             )
+
+    #         # ファイル内容の読み取りと検証
+    #         content = await file.read()
+    #         try:
+    #             content_str = content.decode('utf-8')
+    #             # YAML構文の基本チェック
+    #             import yaml
+    #             yaml.safe_load(content_str)
+    #         except UnicodeDecodeError:
+    #             raise HTTPException(status_code=400, detail="ファイルはUTF-8エンコーディングである必要があります")
+    #         except yaml.YAMLError as e:
+    #             raise HTTPException(status_code=400, detail=f"YAML構文エラー: {str(e)}")
+
+    #         # ファイル保存
+    #         with open(file_path, 'w', encoding='utf-8') as f:
+    #             f.write(content_str)
+
+    #         # ワークフロー解析
+    #         try:
+    #             parser = WorkflowParser()
+    #             workflow_data = parser.parse_file(file_path)
+    #             jobs = list(workflow_data.get("jobs", {}).keys())
+    #         except Exception as e:
+    #             jobs = []
+    #             workflow_data = {"error": str(e)}
+
+    #         return {
+    #             "success": True,
+    #             "filename": file.filename,
+    #             "path": str(file_path),
+    #             "size": len(content),
+    #             "overwritten": file_path.exists() and overwrite,
+    #             "workflow": {
+    #                 "name": workflow_data.get("name", file_path.stem),
+    #                 "jobs": jobs,
+    #                 "valid": "error" not in workflow_data,
+    #             }
+    #         }
+
+    #     except HTTPException:
+    #         raise
+    #     except Exception as e:
+    #         raise HTTPException(status_code=500, detail=str(e))
+
+    @app.delete("/workflows/{filename}")
+    async def delete_workflow(filename: str):
+        """ワークフローファイルを削除"""
+        try:
+            if not filename.endswith(('.yml', '.yaml')):
+                raise HTTPException(status_code=400, detail="YAMLファイル名を指定してください")
+
+            file_path = Path(".github/workflows") / filename
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail=f"ファイル '{filename}' が見つかりません")
+
+            file_path.unlink()
+            return {
+                "success": True,
+                "filename": filename,
+                "message": f"ファイル '{filename}' を削除しました"
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/ui", response_class=HTMLResponse)
+    async def web_ui():
+        """Web UI for workflow management"""
+        html_content = """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actions Simulator - Web UI</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .upload-area { border: 2px dashed #007acc; padding: 20px; text-align: center; border-radius: 5px; }
+        .upload-area:hover { background: #f0f8ff; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        .workflow-list { display: grid; gap: 10px; }
+        .workflow-item { padding: 10px; border: 1px solid #ddd; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .workflow-item:hover { background: #f9f9f9; }
+        .job-list { font-size: 0.9em; color: #666; }
+        .status { padding: 2px 8px; border-radius: 3px; font-size: 0.8em; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .log-area { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; height: 300px; overflow-y: auto; }
+        .form-group { margin: 10px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; }
+        .checkbox-group input { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Actions Simulator - Web UI</h1>
+
+        <!-- ワークフローアップロード -->
+        <div class="section">
+            <h2>📁 ワークフローファイルアップロード</h2>
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <p>📄 クリックしてワークフローファイル（.yml/.yaml）を選択</p>
+                <input type="file" id="fileInput" accept=".yml,.yaml" style="display: none;" onchange="uploadFile()">
+            </div>
+            <div class="checkbox-group" style="margin-top: 10px;">
+                <input type="checkbox" id="overwrite">
+                <label for="overwrite">既存ファイルを上書き</label>
+            </div>
+        </div>
+
+        <!-- ワークフロー一覧 -->
+        <div class="section">
+            <h2>📋 ワークフロー一覧</h2>
+            <button onclick="loadWorkflows()">🔄 更新</button>
+            <div id="workflowList" class="workflow-list"></div>
+        </div>
+
+        <!-- ワークフロー実行 -->
+        <div class="section">
+            <h2>🚀 ワークフロー実行</h2>
+            <div class="form-group">
+                <label for="workflowSelect">ワークフロー:</label>
+                <select id="workflowSelect" onchange="loadJobs()">
+                    <option value="">選択してください</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="jobSelect">ジョブ (オプション):</label>
+                <select id="jobSelect">
+                    <option value="">全ジョブ実行</option>
+                </select>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="dryRun" checked>
+                <label for="dryRun">ドライラン実行</label>
+            </div>
+            <button onclick="runWorkflow()">▶️ 実行</button>
+        </div>
+
+        <!-- 実行ログ -->
+        <div class="section">
+            <h2>📊 実行ログ</h2>
+            <div id="logArea" class="log-area">ログがここに表示されます...</div>
+        </div>
+    </div>
+
+    <script>
+        let workflows = [];
+
+        // ページ読み込み時の初期化
+        window.onload = function() {
+            loadWorkflows();
+        };
+
+        // ファイルアップロード
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const overwrite = document.getElementById('overwrite').checked;
+            const file = fileInput.files[0];
+
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('overwrite', overwrite);
+
+            try {
+                const response = await fetch('/upload-workflow', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ アップロード成功: ${result.filename}`);
+                    loadWorkflows();
+                } else {
+                    alert(`❌ アップロード失敗: ${result.detail}`);
+                }
+            } catch (error) {
+                alert(`❌ エラー: ${error.message}`);
+            }
+        }
+
+        // ワークフロー一覧読み込み
+        async function loadWorkflows() {
+            try {
+                const response = await fetch('/workflows');
+                const data = await response.json();
+                workflows = data.workflows;
+
+                displayWorkflows();
+                updateWorkflowSelect();
+            } catch (error) {
+                console.error('ワークフロー読み込みエラー:', error);
+            }
+        }
+
+        // ワークフロー一覧表示
+        function displayWorkflows() {
+            const listElement = document.getElementById('workflowList');
+            listElement.innerHTML = '';
+
+            workflows.forEach(workflow => {
+                const item = document.createElement('div');
+                item.className = 'workflow-item';
+
+                const info = document.createElement('div');
+                info.innerHTML = `
+                    <strong>${workflow.name}</strong><br>
+                    <small>${workflow.file}</small><br>
+                    <div class="job-list">ジョブ: ${workflow.jobs ? workflow.jobs.join(', ') : 'N/A'}</div>
+                `;
+
+                const actions = document.createElement('div');
+                const status = workflow.error ? 'error' : 'success';
+                actions.innerHTML = `
+                    <span class="status ${status}">${workflow.error ? 'エラー' : '正常'}</span>
+                    <button onclick="deleteWorkflow('${workflow.file.split('/').pop()}')" style="margin-left: 10px; background: #dc3545;">🗑️ 削除</button>
+                `;
+
+                item.appendChild(info);
+                item.appendChild(actions);
+                listElement.appendChild(item);
+            });
+        }
+
+        // ワークフロー選択肢更新
+        function updateWorkflowSelect() {
+            const select = document.getElementById('workflowSelect');
+            select.innerHTML = '<option value="">選択してください</option>';
+
+            workflows.forEach(workflow => {
+                if (!workflow.error) {
+                    const option = document.createElement('option');
+                    option.value = workflow.file;
+                    option.textContent = workflow.name;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        // ジョブ一覧読み込み
+        function loadJobs() {
+            const workflowFile = document.getElementById('workflowSelect').value;
+            const jobSelect = document.getElementById('jobSelect');
+
+            jobSelect.innerHTML = '<option value="">全ジョブ実行</option>';
+
+            const workflow = workflows.find(w => w.file === workflowFile);
+            if (workflow && workflow.jobs) {
+                workflow.jobs.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job;
+                    option.textContent = job;
+                    jobSelect.appendChild(option);
+                });
+            }
+        }
+
+        // ワークフロー実行
+        async function runWorkflow() {
+            const workflowFile = document.getElementById('workflowSelect').value;
+            const jobName = document.getElementById('jobSelect').value;
+            const dryRun = document.getElementById('dryRun').checked;
+
+            if (!workflowFile) {
+                alert('ワークフローを選択してください');
+                return;
+            }
+
+            const logArea = document.getElementById('logArea');
+            logArea.textContent = '🚀 実行中...\n';
+
+            const payload = {
+                workflow_file: workflowFile,
+                dry_run: dryRun
+            };
+
+            if (jobName) {
+                payload.job_name = jobName;
+            }
+
+            try {
+                const response = await fetch('/simulate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                logArea.textContent = `
+📊 実行結果:
+成功: ${result.success ? '✅' : '❌'}
+終了コード: ${result.return_code}
+エンジン: ${result.engine}
+
+📤 標準出力:
+${result.stdout}
+
+📥 標準エラー:
+${result.stderr}
+
+🔧 メタデータ:
+${JSON.stringify(result.metadata, null, 2)}
+                `;
+            } catch (error) {
+                logArea.textContent = `❌ エラー: ${error.message}`;
+            }
+        }
+
+        // ワークフロー削除
+        async function deleteWorkflow(filename) {
+            if (!confirm(`ファイル '${filename}' を削除しますか？`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/workflows/${filename}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ 削除成功: ${filename}`);
+                    loadWorkflows();
+                } else {
+                    alert(`❌ 削除失敗: ${result.detail}`);
+                }
+            } catch (error) {
+                alert(`❌ エラー: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
+        """
+        return HTMLResponse(content=html_content)
+
+    return app
 
 
 def main() -> None:

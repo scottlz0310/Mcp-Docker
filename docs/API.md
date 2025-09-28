@@ -10,11 +10,11 @@
 # 基本診断
 uv run python main.py actions diagnose
 
-# 詳細診断
+# 詳細診断（パフォーマンス分析・実行トレース含む）
 uv run python main.py actions diagnose --include-performance --include-trace
 
 # JSON出力
-uv run python main.py actions diagnose --output-format json --output-file diagnosis.json
+uv run python main.py actions diagnose --include-performance --include-trace --output-format json --output-file diagnosis.json
 ```
 
 #### 診断結果の構造

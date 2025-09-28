@@ -151,8 +151,8 @@ class ActWrapper:
     def _compose_runner_flags(self) -> list[str]:
         flags: list[str] = []
 
-        # 非対話的実行を強制するフラグを追加
-        flags.extend(["--quiet", "--rm"])
+        # 非対話的実行を強制するフラグを追加（quietは削除して出力を表示）
+        flags.extend(["--rm"])
 
         if self.settings.container_workdir:
             flags.extend(["--container-workdir", self.settings.container_workdir])
@@ -367,6 +367,8 @@ class ActWrapper:
                             line = raw_line.rstrip("\n")
                             if not line:
                                 continue
+                            # 常に出力を表示（デバッグ用）
+                            print(f"[{label}] {line}")
                             if self.logger.verbose:
                                 self.logger.debug(f"[{label}] {line}")
                     self.execution_tracer.update_thread_state(
@@ -389,6 +391,7 @@ class ActWrapper:
                     text=True,
                     env=process_env,
                 )
+                self.logger.info(f"actプロセス開始: PID={process.pid}")
             except (OSError, subprocess.SubprocessError) as exc:
                 self.logger.error(f"act実行エラー: {exc}")
                 self.execution_tracer.update_docker_operation(

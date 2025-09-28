@@ -156,7 +156,9 @@ actions:
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
-	docker compose --profile tools run --rm \
+	echo "🔧 Preparing environment..."; \
+	./scripts/fix-permissions.sh; \
+	USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose --profile tools run --rm \
 		-e WORKFLOW_FILE="$$selected" \
 		-e ACT_LOG_LEVEL=info \
 		-e ACT_PLATFORM=ubuntu-latest=catthehacker/ubuntu:act-latest \
@@ -395,6 +397,91 @@ actions-verify:
 	@echo "🔍 Actions Simulatorコンテナ検証"
 	@./scripts/verify-container-startup.sh --actions-simulator
 	@echo "✅ Actions Simulator検証完了"
+
+# Actions Simulator - デバッグ用常駐サーバー
+actions-server:
+	@echo "🚀 Actions Simulator - 常駐サーバーモード起動"
+	@echo "📋 デバッグ用HTTPサーバーを起動します"
+	@echo "   - ポート: http://localhost:8000"
+	@echo "   - ログレベル: DEBUG"
+	@echo "   - ホットリロード: 有効"
+	@echo ""
+	@./scripts/fix-permissions.sh
+	USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose --profile debug up -d actions-server
+	@echo ""
+	@echo "✅ Actions Simulatorサーバーが起動しました"
+	@echo "📋 アクセス方法:"
+	@echo "   - HTTP API: http://localhost:8000"
+	@echo "   - ログ確認: make actions-server-logs"
+	@echo "   - シェル接続: make actions-shell"
+	@echo "   - 停止: make actions-server-stop"
+
+actions-server-logs:
+	@echo "📋 Actions Simulatorサーバーログ"
+	docker compose --profile debug logs -f actions-server
+
+actions-server-stop:
+	@echo "🛑 Actions Simulatorサーバー停止"
+	docker compose --profile debug stop actions-server
+	docker compose --profile debug rm -f actions-server
+
+actions-server-restart:
+	@echo "🔄 Actions Simulatorサーバー再起動"
+	@make actions-server-stop
+	@make actions-server
+
+# Actions Simulator - インタラクティブシェル
+actions-shell:
+	@echo "🐚 Actions Simulator - インタラクティブシェル"
+	@echo "📋 デバッグ用シェルに接続します"
+	@echo ""
+	@./scripts/fix-permissions.sh
+	USER_ID=$(id -u) GROUP_ID=$(id -g) docker compose --profile debug run --rm actions-shell
+
+actions-shell-exec:
+	@echo "🐚 Actions Simulator - 既存コンテナにシェル接続"
+	docker compose --profile debug exec actions-server bash
+
+# Actions Simulator - デバッグ用ユーティリティ
+actions-debug:
+	@echo "🐛 Actions Simulator - デバッグ情報"
+	@echo ""
+	@echo "📋 コンテナ状態:"
+	@docker compose --profile debug ps actions-server actions-shell 2>/dev/null || echo "  デバッグコンテナは起動していません"
+	@echo ""
+	@echo "📋 ログファイル:"
+	@ls -la logs/ 2>/dev/null || echo "  ログディレクトリが見つかりません"
+	@echo ""
+	@echo "📋 出力ファイル:"
+	@ls -la output/actions/ 2>/dev/null || echo "  出力ディレクトリが見つかりません"
+	@echo ""
+	@echo "📋 利用可能なコマンド:"
+	@echo "  make actions-server      - 常駐サーバー起動"
+	@echo "  make actions-shell       - インタラクティブシェル"
+	@echo "  make actions-server-logs - サーバーログ表示"
+	@echo "  make actions-debug       - デバッグ情報表示"
+
+actions-test-server:
+	@echo "🧪 Actions Simulatorサーバーテスト"
+	@echo "📋 HTTPサーバーの動作確認"
+	@if curl -s http://localhost:8000/health >/dev/null 2>&1; then \
+		echo "✅ サーバーは正常に動作しています"; \
+		echo "📋 ヘルスチェック:"; \
+		curl -s http://localhost:8000/health | jq . 2>/dev/null || curl -s http://localhost:8000/health; \
+	else \
+		echo "❌ サーバーに接続できません"; \
+		echo "💡 サーバーを起動してください: make actions-server"; \
+	fi
+
+# Actions Simulator - デバッグスクリプトエイリアス
+actions-debug-script:
+	@./scripts/actions-debug.sh $(ARGS)
+
+actions-status:
+	@./scripts/actions-debug.sh status
+
+actions-clean:
+	@./scripts/actions-debug.sh clean
 
 # Quick health check targets
 health-daemon:

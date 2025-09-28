@@ -49,12 +49,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.actions
+      args:
+        USER_ID: "${USER_ID:-1000}"
+        GROUP_ID: "${GROUP_ID:-1000}"
     container_name: mcp-actions-simulator
     volumes:
       - ./.github:/app/.github:ro # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw # 実行結果出力
       - ./logs:/app/logs:rw # ログファイル出力
       - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
+      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
       - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
       - /tmp:/tmp:rw # 一時ファイル用
       - act-workspace:/github/workspace:rw # actワークスペース
@@ -74,11 +78,124 @@ services:
       - RUNNER_DEBUG=${RUNNER_DEBUG:-false} # ランナーデバッグ
       - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
       - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
+      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
+      - HOME=/app # Set HOME directory for user
     profiles:
       - tools
     command: ["bash", "-c", "uv run python main.py actions --help"]
     networks:
       - mcp-network
+
+  # Actions Simulator - 常駐サーバーモード（デバッグ用）
+  actions-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.actions
+      args:
+        USER_ID: "${USER_ID:-1000}"
+        GROUP_ID: "${GROUP_ID:-1000}"
+    container_name: mcp-actions-server
+    ports:
+      - "8000:8000" # HTTPサーバーポート
+    volumes:
+      - ./.github:/app/.github:rw # ワークフローファイル（読み書き可能 - デバッグ用）
+      - ./output:/app/output:rw # 実行結果出力
+      - ./logs:/app/logs:rw # ログファイル出力
+      - ./services:/app/services:rw # ソースコード（ホットリロード用）
+      - ./src:/app/src:rw # ソースコード（ホットリロード用）
+      - ./main.py:/app/main.py:rw # メインファイル（ホットリロード用）
+      - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
+      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
+      - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
+      - /tmp:/tmp:rw # 一時ファイル用
+      - act-workspace:/github/workspace:rw # actワークスペース
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST=0.0.0.0
+      - PORT=8000
+      - ACT_CACHE_DIR=/opt/act/cache
+      - ACTIONS_SIMULATOR_ENGINE=act
+      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
+      - DOCKER_BUILDKIT=1 # BuildKit有効化
+      - COMPOSE_DOCKER_CLI_BUILD=1 # Docker Compose CLI Build有効化
+      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-debug} # デバッグ用にログレベルを上げる
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41} # Docker APIバージョン
+      - PYTHONUNBUFFERED=1 # Python出力バッファリング無効化
+      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-true} # GitHub Actionsデバッグ有効
+      - RUNNER_DEBUG=${RUNNER_DEBUG:-true} # ランナーデバッグ有効
+      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
+      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
+      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
+      - HOME=/app # Set HOME directory for user
+      - ACTIONS_SIMULATOR_VERBOSE=true # 詳細ログ有効
+      - ACTIONS_SIMULATOR_DEBUG=true # デバッグモード有効
+    profiles:
+      - debug
+    command: ["bash", "-c", "uv run python main.py actions server --host 0.0.0.0 --port 8000 --debug"]
+    networks:
+      - mcp-network
+    stdin_open: true # インタラクティブモード
+    tty: true # TTY有効
+    restart: unless-stopped
+
+  # Actions Simulator - インタラクティブシェル（デバッグ用）
+  actions-shell:
+    build:
+      context: .
+      dockerfile: Dockerfile.actions
+      args:
+        USER_ID: "${USER_ID:-1000}"
+        GROUP_ID: "${GROUP_ID:-1000}"
+    container_name: mcp-actions-shell
+    volumes:
+      - ./.github:/app/.github:rw # ワークフローファイル（読み書き可能）
+      - ./output:/app/output:rw # 実行結果出力
+      - ./logs:/app/logs:rw # ログファイル出力
+      - ./services:/app/services:rw # ソースコード（ホットリロード用）
+      - ./src:/app/src:rw # ソースコード（ホットリロード用）
+      - ./main.py:/app/main.py:rw # メインファイル（ホットリロード用）
+      - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
+      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
+      - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
+      - /tmp:/tmp:rw # 一時ファイル用
+      - act-workspace:/github/workspace:rw # actワークスペース
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST=0.0.0.0
+      - PORT=8000
+      - ACT_CACHE_DIR=/opt/act/cache
+      - ACTIONS_SIMULATOR_ENGINE=act
+      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
+      - DOCKER_BUILDKIT=1 # BuildKit有効化
+      - COMPOSE_DOCKER_CLI_BUILD=1 # Docker Compose CLI Build有効化
+      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-debug} # デバッグ用にログレベルを上げる
+      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41} # Docker APIバージョン
+      - PYTHONUNBUFFERED=1 # Python出力バッファリング無効化
+      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-true} # GitHub Actionsデバッグ有効
+      - RUNNER_DEBUG=${RUNNER_DEBUG:-true} # ランナーデバッグ有効
+      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
+      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
+      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
+      - HOME=/app # Set HOME directory for user
+      - ACTIONS_SIMULATOR_VERBOSE=true # 詳細ログ有効
+      - ACTIONS_SIMULATOR_DEBUG=true # デバッグモード有効
+    profiles:
+      - debug
+    command:
+      - "bash"
+      - "-c"
+      - >
+        echo '🐚 Actions Simulator Debug Shell';
+        echo '使用可能なコマンド:';
+        echo '  uv run python main.py actions --help';
+        echo '  act --help';
+        echo '  docker ps';
+        echo '';
+        exec bash
+    networks:
+      - mcp-network
+    stdin_open: true # インタラクティブモード
+    tty: true # TTY有効
     # 改良されたヘルスチェック設定
     healthcheck:
       test: [
@@ -159,3 +276,4 @@ networks:
 volumes:
   act-cache:
   act-workspace:
+  uv-cache:
