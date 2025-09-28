@@ -473,8 +473,7 @@ jobs:
     uses: ./.github/workflows/quality-gates.yml
     with:
       quality_level: ${{ github.event_name == 'push' && 'standard' || 'basic' }}
-      skip_slow_tests: ${{ github.event_name == 'pull_request' }}
-      generate_reports: true
+      release_mode: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
       security-events: write
