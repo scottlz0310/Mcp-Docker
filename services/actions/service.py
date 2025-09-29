@@ -263,9 +263,26 @@ class SimulationService:
         tracer = self._execution_tracer or ExecutionTracer(logger=logger)
 
         # EnhancedActWrapperを統一使用（診断機能の有効/無効で制御）
+        # ワークフローの親ディレクトリからリポジトリルートを推定
+        resolved_workflow = workflow_path.resolve()
+        working_directory = resolved_workflow.parent
+
+        for parent in resolved_workflow.parents:
+            if (parent / ".git").exists() or (parent / "pyproject.toml").exists() or (parent / "uv.lock").exists():
+                working_directory = parent
+                break
+
+        if (
+            working_directory.name == "workflows"
+            and working_directory.parent.name == ".github"
+        ):
+            working_directory = working_directory.parent.parent
+        elif working_directory.name == ".github":
+            working_directory = working_directory.parent
+
         wrapper_factory = EnhancedActWrapper
         wrapper_kwargs = {
-            "working_directory": str(workflow_path.parent),
+            "working_directory": str(working_directory),
             "config": self._config,
             "logger": logger,
             "execution_tracer": tracer,

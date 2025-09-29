@@ -7,6 +7,8 @@ GitHub Actions Simulator - Enhanced Act Wrapper
 from __future__ import annotations
 
 import os
+import secrets
+import socket
 import signal
 import subprocess
 import threading
@@ -417,10 +419,139 @@ class EnhancedActWrapper:
             args.extend(["--env", f"{key}={value}"])
         return args
 
+    def _resolve_artifact_settings(
+        self,
+        base_env: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Resolve artifact server configuration ensuring sensible defaults."""
+        source_env = dict(base_env or {})
+
+        artifact_path = source_env.get("ACT_ARTIFACT_SERVER_PATH")
+        if not artifact_path:
+            default_artifact_dir = self.working_directory / "output" / "artifacts"
+            try:
+                default_artifact_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                self.logger.debug(
+                    f"アーティファクトディレクトリの作成に失敗しました: {exc}"
+                )
+            artifact_path = str(default_artifact_dir)
+        else:
+            try:
+                Path(artifact_path).mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                self.logger.debug(
+                    f"既存のアーティファクトディレクトリ作成に失敗しました: {exc}"
+                )
+
+        artifact_port = str(
+            source_env.get("ACT_ARTIFACT_SERVER_PORT")
+            or os.getenv("ACT_ARTIFACT_SERVER_PORT")
+            or "34567"
+        )
+
+        configured_host = (
+            source_env.get("ACT_ARTIFACT_SERVER_HOST")
+            or os.getenv("ACT_ARTIFACT_SERVER_HOST")
+        )
+        artifact_host = self._determine_artifact_host(configured_host)
+
+        runtime_token = (
+            source_env.get("ACTIONS_RUNTIME_TOKEN")
+            or os.getenv("ACTIONS_RUNTIME_TOKEN")
+            or self._generate_runtime_token()
+        )
+
+        base_url = f"http://{artifact_host}:{artifact_port}"
+
+        runtime_url = (
+            source_env.get("ACTIONS_RUNTIME_URL")
+            or os.getenv("ACTIONS_RUNTIME_URL")
+            or f"{base_url}/_apis/pipelines/workflows"
+        )
+
+        cache_url = (
+            source_env.get("ACTIONS_CACHE_URL")
+            or os.getenv("ACTIONS_CACHE_URL")
+            or f"{base_url}/_apis/artifacts_apis/artifactcache"
+        )
+
+        results_url = (
+            source_env.get("ACTIONS_RESULTS_URL")
+            or os.getenv("ACTIONS_RESULTS_URL")
+            or runtime_url
+        )
+
+        resolved_env = {
+            "ACT_ARTIFACT_SERVER_PATH": artifact_path,
+            "ACT_ARTIFACT_SERVER_TYPE": source_env.get(
+                "ACT_ARTIFACT_SERVER_TYPE",
+                "local",
+            ),
+            "ACT_ARTIFACT_SERVER_PORT": artifact_port,
+            "ACT_ARTIFACT_SERVER_HOST": artifact_host,
+            "ACTIONS_RUNTIME_TOKEN": runtime_token,
+            "ACTIONS_RUNTIME_URL": runtime_url,
+            "ACTIONS_CACHE_URL": cache_url,
+            "ACTIONS_RESULTS_URL": results_url,
+        }
+
+        self.logger.debug(f"Resolved artifact env: {resolved_env}")
+        return resolved_env
+
+    def _determine_artifact_host(self, configured_host: str | None) -> str:
+        """Determine a host name/IP reachable from workflow containers."""
+
+        def is_loopback(candidate: str | None) -> bool:
+            if not candidate:
+                return True
+            normalized = candidate.strip().lower()
+            if not normalized:
+                return True
+            if normalized in {"localhost", "0.0.0.0", "::1"}:
+                return True
+            if normalized.startswith("127."):
+                return True
+            return False
+
+        if configured_host and not is_loopback(configured_host):
+            return configured_host.strip()
+
+        env_host = os.getenv("ACT_ARTIFACT_SERVER_HOST")
+        if env_host and not is_loopback(env_host):
+            return env_host.strip()
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect(("10.255.255.255", 1))
+                candidate = sock.getsockname()[0]
+                if not is_loopback(candidate):
+                    return candidate
+        except OSError as exc:
+            self.logger.debug(f"UDP経路でのホスト解決に失敗しました: {exc}")
+
+        try:
+            candidate = socket.gethostbyname(socket.gethostname())
+            if not is_loopback(candidate):
+                return candidate
+        except OSError as exc:
+            self.logger.debug(f"ホスト名解決に失敗しました: {exc}")
+
+        self.logger.debug("ループバックアドレスを使用します: 127.0.0.1")
+        return "127.0.0.1"
+
+    @staticmethod
+    def _generate_runtime_token() -> str:
+        """Generate a deterministic-looking bearer token for local runs."""
+
+        return f"ghs_{secrets.token_urlsafe(32)}"
+
     def _build_process_env(
         self,
         default_event: str | None,
         overrides: Mapping[str, str] | None,
+        *,
+        artifact_env: Mapping[str, str] | None = None,
     ) -> Dict[str, str]:
         """Build process environment variables."""
         env = os.environ.copy()
@@ -455,6 +586,15 @@ class EnhancedActWrapper:
             env["ACT_WORKFLOW_DIR"] = str(workflows_dir)
             # actの作業ディレクトリを設定
             env["ACT_WORKDIR"] = str(self.working_directory)
+
+        # アーティファクトサーバーパスを初期化（未設定の場合はローカルディレクトリに作成）
+        resolved_artifact_env = (
+            dict(artifact_env)
+            if artifact_env is not None
+            else self._resolve_artifact_settings(env)
+        )
+        for key, value in resolved_artifact_env.items():
+            env[key] = value
 
         # Docker関連の環境変数
         env["DOCKER_BUILDKIT"] = "1"
@@ -676,16 +816,28 @@ class EnhancedActWrapper:
             self.execution_tracer.start_trace()
 
         try:
+            artifact_env_base: Dict[str, str] = os.environ.copy()
+            if env_vars:
+                artifact_env_base.update(
+                    {str(k): str(v) for k, v in env_vars.items()}
+                )
+            artifact_env = self._resolve_artifact_settings(artifact_env_base)
+
             # コマンドを構築
             cmd = self._build_enhanced_command(
                 workflow_file=workflow_file,
                 job=job,
                 dry_run=dry_run,
                 verbose=verbose,
-                env_vars=env_vars
+                env_vars=env_vars,
+                artifact_env=artifact_env,
             )
 
-            process_env = self._build_process_env(event, env_vars)
+            process_env = self._build_process_env(
+                event,
+                env_vars,
+                artifact_env=artifact_env,
+            )
 
             self.logger.info(f"拡張監視付きactコマンド実行: {' '.join(cmd)}")
 
@@ -733,6 +885,7 @@ class EnhancedActWrapper:
         dry_run: bool = False,
         verbose: bool = False,
         env_vars: Optional[Dict[str, str]] = None,
+        artifact_env: Optional[Mapping[str, str]] = None,
     ) -> List[str]:
         """
         拡張監視用のコマンドを構築
@@ -747,8 +900,15 @@ class EnhancedActWrapper:
         Returns:
             List[str]: 構築されたコマンド
         """
+        artifact_env = (
+            dict(artifact_env)
+            if artifact_env is not None
+            else self._resolve_artifact_settings()
+        )
+
         cmd: List[str] = [self.act_binary]
         cmd.extend(self._compose_runner_flags())
+        cmd.extend(["-C", str(self.working_directory)])
 
         if workflow_file:
             # 環境設定を確実に実行
@@ -783,6 +943,11 @@ class EnhancedActWrapper:
         # 拡張監視用のフラグを追加
         cmd.extend(["--rm"])  # コンテナの自動削除
 
+        # アーティファクトサーバー設定を明示的に指定
+        cmd.extend(["--artifact-server-path", artifact_env["ACT_ARTIFACT_SERVER_PATH"]])
+        if artifact_env.get("ACT_ARTIFACT_SERVER_PORT"):
+            cmd.extend(["--artifact-server-port", artifact_env["ACT_ARTIFACT_SERVER_PORT"]])
+
         # デフォルトのGitHub Actions環境変数を追加
         default_env_vars = {
             "GITHUB_USER": "local-runner",
@@ -790,7 +955,9 @@ class EnhancedActWrapper:
             "GITHUB_REPOSITORY": "local/example",
             "GITHUB_EVENT_NAME": "push",
             "GITHUB_REF": "refs/heads/main",
+            "GITHUB_WORKSPACE": str(self.working_directory),
         }
+        default_env_vars.update(artifact_env)
 
         # ユーザー指定の環境変数とマージ
         merged_env_vars = {**default_env_vars, **(env_vars or {})}

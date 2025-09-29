@@ -34,6 +34,8 @@ COPY LICENSE ./
 COPY README.md ./
 COPY services ./services
 COPY src ./src
+COPY scripts ./scripts
+COPY tests ./tests
 COPY main.py ./
 
 RUN uv python install "${PYTHON_VERSION}" \
@@ -88,6 +90,8 @@ COPY --from=builder /app/README.md /app/README.md
 COPY --from=builder /app/main.py /app/main.py
 COPY --from=builder /app/services /app/services
 COPY --from=builder /app/src /app/src
+COPY --from=builder /app/scripts /app/scripts
+COPY --from=builder /app/tests /app/tests
 
 RUN groupadd -g "${GROUP_ID}" actions \
     && useradd -l -u "${USER_ID}" -g "${GROUP_ID}" --create-home --shell /bin/bash actions \
