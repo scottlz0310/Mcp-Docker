@@ -195,7 +195,7 @@ uv run python main.py actions simulate .github/workflows/ci.yml
 uv run python main.py actions --help
 ```
 
-### 軽量actベースの強化機能
+## 🔧 軽量actベースの強化機能
 
 **インテリジェント診断システム**
 
@@ -227,7 +227,7 @@ uv run python main.py actions --help
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --show-execution-trace
 ```
 
-### 実用的な使用例
+## 📋 実用的な使用例
 
 **基本的なワークフロー実行**
 
@@ -293,7 +293,7 @@ INDEX=1 ./scripts/run-actions.sh
   --show-performance-metrics --show-execution-trace
 ```
 
-### 開発者向けMakeコマンド
+## 🛠️ 開発者向けMakeコマンド
 
 ```bash
 # 対話的ワークフロー選択
