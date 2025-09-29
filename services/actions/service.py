@@ -10,8 +10,8 @@ from typing import Any, Callable, Mapping, Optional
 import time
 import sys
 
-from .act_wrapper import ActWrapper
 from .enhanced_act_wrapper import EnhancedActWrapper
+# 基本のActWrapperは EnhancedActWrapper の親クラスとして利用
 from .logger import ActionsLogger
 
 # 遅延インポートでサイクル依存を回避
@@ -262,24 +262,15 @@ class SimulationService:
         # ExecutionTracerを作成（まだ存在しない場合）
         tracer = self._execution_tracer or ExecutionTracer(logger=logger)
 
-        # EnhancedActWrapperまたは通常のActWrapperを選択
-        if self._use_enhanced_wrapper:
-            wrapper_factory = EnhancedActWrapper
-            wrapper_kwargs = {
-                "working_directory": str(workflow_path.parent),
-                "config": self._config,
-                "logger": logger,
-                "execution_tracer": tracer,
-                "enable_diagnostics": self._enable_diagnostics,
-            }
-        else:
-            wrapper_factory = ActWrapper
-            wrapper_kwargs = {
-                "working_directory": str(workflow_path.parent),
-                "config": self._config,
-                "logger": logger,
-                "execution_tracer": tracer,
-            }
+        # EnhancedActWrapperを統一使用（診断機能の有効/無効で制御）
+        wrapper_factory = EnhancedActWrapper
+        wrapper_kwargs = {
+            "working_directory": str(workflow_path.parent),
+            "config": self._config,
+            "logger": logger,
+            "execution_tracer": tracer,
+            "enable_diagnostics": self._enable_diagnostics or self._use_enhanced_wrapper,
+        }
 
         try:
             wrapper = wrapper_factory(**wrapper_kwargs)
@@ -301,8 +292,8 @@ class SimulationService:
         except RuntimeError as exc:
             raise SimulationServiceError(str(exc)) from exc
 
-        # EnhancedActWrapperの場合は診断機能付きメソッドを使用
-        if self._use_enhanced_wrapper and hasattr(wrapper, "run_workflow_with_diagnostics"):
+        # 診断機能が有効な場合は診断機能付きメソッドを使用
+        if (self._enable_diagnostics or self._use_enhanced_wrapper) and hasattr(wrapper, "run_workflow_with_diagnostics"):
             detailed_result = wrapper.run_workflow_with_diagnostics(
                 workflow_file=workflow_path.name,
                 job=params.job,
@@ -366,7 +357,7 @@ class SimulationService:
                 metadata["resource_usage"] = detailed_result.resource_usage
 
         else:
-            # 通常のActWrapperを使用
+            # 基本機能のみ使用（診断機能無効）
             result = wrapper.run_workflow(
                 workflow_file=workflow_path.name,
                 job=params.job,

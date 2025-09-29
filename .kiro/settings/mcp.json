@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "aws-docs": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-documentation-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "github-docker": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-github",
+        "node",
+        "/usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "github/list_repositories",
+        "github/get_repository",
+        "github/list_issues",
+        "github/get_issue",
+        "list_issues",
+        "list_pull_requests",
+        "list_commits"
+      ]
+    }
+  }
+}

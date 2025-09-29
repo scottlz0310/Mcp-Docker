@@ -5,21 +5,25 @@ GitHub Actions Simulatorプロジェクトへの貢献を歓迎します！こ�
 ## 🎯 貢献の種類
 
 ### 🐛 バグ修正
+
 - 既存の問題の修正
 - エラーハンドリングの改善
 - パフォーマンスの最適化
 
 ### ✨ 新機能開発
+
 - 新しいシミュレーション機能
 - プラットフォーム対応の拡張
 - ユーザビリティの向上
 
 ### 📚 ドキュメント改善
+
 - 使用方法の説明追加
 - トラブルシューティングガイド更新
 - コード例の追加
 
 ### 🧪 テスト強化
+
 - テストカバレッジの向上
 - 新しいテストケースの追加
 - CI/CDパイプラインの改善
@@ -29,6 +33,7 @@ GitHub Actions Simulatorプロジェクトへの貢献を歓迎します！こ�
 ### 1. 事前準備
 
 #### Issue作成
+
 ```bash
 # 機能追加・バグ修正前にIssueを作成
 # テンプレートに従って詳細を記載
@@ -36,6 +41,7 @@ GitHub Actions Simulatorプロジェクトへの貢献を歓迎します！こ�
 ```
 
 #### 開発環境セットアップ
+
 ```bash
 # リポジトリをフォーク・クローン
 git clone https://github.com/your-username/mcp-docker.git
@@ -76,6 +82,7 @@ git checkout -b ci/add-security-scan
 ### 3. 開発・テスト
 
 #### 基本開発サイクル
+
 ```bash
 # 開発開始
 make actions  # 動作確認
@@ -97,6 +104,7 @@ make build
 ```
 
 #### 品質基準チェックリスト
+
 - [ ] **Docker build成功**: `make build`
 - [ ] **全サービス起動確認**: `make actions`
 - [ ] **テスト通過**: `make test-all`
@@ -107,6 +115,7 @@ make build
 ### 4. Pull Request
 
 #### PR作成前チェック
+
 ```bash
 # 最新のmainブランチと同期
 git checkout main
@@ -120,6 +129,7 @@ make security
 ```
 
 #### PR作成
+
 - **ドラフトPR**: 早期フィードバックのため
 - **詳細な説明**: 変更内容と理由を明記
 - **関連Issue**: `Closes #123` でIssueをリンク
@@ -181,6 +191,7 @@ update: ファイル更新
 ### 必要なツール
 
 #### 必須
+
 - **Docker** (20.10+) & **Docker Compose** (2.0+)
 - **Python** (3.13+)
 - **uv** (パッケージ管理)
@@ -188,12 +199,14 @@ update: ファイル更新
 - **Make** (ビルドツール)
 
 #### 推奨
+
 - **pre-commit** (品質チェック)
 - **act** (ローカルGitHub Actions実行)
 
 ### 開発環境セットアップ
 
 #### 初期セットアップ
+
 ```bash
 # 1. 依存関係確認
 ./scripts/run-actions.sh --check-deps
@@ -215,6 +228,7 @@ make test
 ```
 
 #### 日常的な開発コマンド
+
 ```bash
 # 開発サーバー起動
 make actions
@@ -237,16 +251,19 @@ make clean
 ## 🔍 レビュープロセス
 
 ### 自動チェック
+
 1. **CI/CDパイプライン**: GitHub Actionsでの自動テスト
 2. **品質ゲート**: pre-commit、セキュリティスキャン
 3. **プラットフォームテスト**: Linux、macOS、Windows (WSL)
 
 ### 人的レビュー
+
 1. **コードレビュー**: 最低1名の承認必要
 2. **設計レビュー**: 大きな変更の場合
 3. **ドキュメントレビュー**: 使いやすさの確認
 
 ### マージ要件
+
 - [ ] 全自動テスト通過
 - [ ] 最低1名の承認
 - [ ] 競合解決済み
@@ -255,6 +272,7 @@ make clean
 ## 🎨 コーディング規約
 
 ### Python
+
 ```python
 # PEP 8準拠
 # Type hintsの使用
@@ -278,6 +296,7 @@ def simulate_workflow(workflow_file: str, options: Dict[str, Any]) -> Simulation
 ```
 
 ### Shell Script
+
 ```bash
 #!/bin/bash
 # POSIX準拠
@@ -299,6 +318,7 @@ check_dependencies() {
 ```
 
 ### Docker
+
 ```dockerfile
 # マルチステージビルド
 # 非rootユーザー実行
@@ -321,6 +341,7 @@ COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/pytho
 ### テストの種類
 
 #### 単体テスト
+
 ```bash
 # Python単体テスト
 uv run pytest tests/unit/
@@ -330,6 +351,7 @@ bats tests/unit/test_scripts.bats
 ```
 
 #### 統合テスト
+
 ```bash
 # Docker環境テスト
 make test
@@ -339,6 +361,7 @@ make test-e2e
 ```
 
 #### セキュリティテスト
+
 ```bash
 # 脆弱性スキャン
 make security
@@ -383,6 +406,7 @@ class TestWorkflowSimulation:
 ## 📚 ドキュメント貢献
 
 ### ドキュメント構造
+
 ```
 docs/
 ├── README.md                    # プロジェクト概要
@@ -417,13 +441,17 @@ make test
 ```
 
 ### ステップ2
+
 次の手順
 
 ## トラブルシューティング
+
 よくある問題と解決方法
 
 ## 関連リソース
+
 - [関連ドキュメント](docs/)
+
 ```
 
 ## 🌍 国際化・多言語対応
@@ -448,21 +476,25 @@ docs/en/TROUBLESHOOTING.md
 ### 貢献レベル
 
 #### 🥉 ブロンズ貢献者
+
 - 初回PR マージ
 - ドキュメント改善
 - バグ報告
 
 #### 🥈 シルバー貢献者
+
 - 複数のPR マージ
 - 機能追加
 - テスト改善
 
 #### 🥇 ゴールド貢献者
+
 - 継続的な貢献
 - メンテナンス支援
 - コミュニティサポート
 
 ### 認定特典
+
 - **README.md**: 貢献者リストに掲載
 - **GitHub Profile**: 貢献バッジ表示
 - **優先サポート**: 問題報告時の優先対応
@@ -470,14 +502,17 @@ docs/en/TROUBLESHOOTING.md
 ## 📞 質問・サポート
 
 ### 開発に関する質問
+
 - **GitHub Discussions**: [技術的な質問・アイデア共有](https://github.com/scottlz0310/mcp-docker/discussions)
 - **GitHub Issues**: [バグ報告・機能要望](https://github.com/scottlz0310/mcp-docker/issues)
 
 ### リアルタイムサポート
+
 - **Issue コメント**: 迅速な回答
 - **PR レビュー**: 建設的なフィードバック
 
 ### 貢献者向けリソース
+
 - **開発ガイド**: [docs/DEVELOPMENT_WORKFLOW_INTEGRATION.md](docs/DEVELOPMENT_WORKFLOW_INTEGRATION.md)
 - **リリースプロセス**: [docs/RELEASE_SYSTEM.md](docs/RELEASE_SYSTEM.md)
 - **アーキテクチャ**: [docs/VALUE_PROPOSITION.md](docs/VALUE_PROPOSITION.md)
@@ -485,6 +520,7 @@ docs/en/TROUBLESHOOTING.md
 ## 🎉 貢献者一覧
 
 ### メンテナー
+
 - **scottlz0310** - プロジェクト創設者・メインメンテナー
 
 ### 貢献者

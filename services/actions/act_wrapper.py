@@ -148,6 +148,116 @@ class ActWrapper:
             "  - brew install act"
         )
 
+    def _normalize_workflow_path(self, workflow_file: str) -> str:
+        """
+        Normalize workflow file path to handle act's path resolution issues.
+
+        This addresses the common issue where act duplicates .github/workflows
+        in the path when resolving workflow_call references.
+        """
+        # Convert to Path for easier manipulation
+        workflow_path = Path(workflow_file)
+
+        # If it's already an absolute path, use it as-is
+        if workflow_path.is_absolute():
+            return str(workflow_path)
+
+        # Handle relative paths
+        if str(workflow_path).startswith(".github/workflows/"):
+            # Already properly formatted
+            return str(workflow_path)
+        elif workflow_path.name.endswith(".yml") or workflow_path.name.endswith(
+            ".yaml"
+        ):
+            # Just a filename, assume it's in .github/workflows/
+            return f".github/workflows/{workflow_path.name}"
+        else:
+            # Use as-is for other cases
+            return str(workflow_path)
+
+    def _create_act_workaround(self, workflow_file: str | None) -> str | None:
+        """
+        Create a workaround for act's path resolution issues.
+
+        This copies the workflow file to a temporary location to avoid
+        act's workflow_call path duplication bug.
+        """
+        if not workflow_file:
+            self.logger.debug("ワークフローファイルが指定されていません")
+            return None
+
+        workflows_dir = self.working_directory / ".github" / "workflows"
+        self.logger.debug(
+            f"ワークフローディレクトリ: {workflows_dir}, 存在: {workflows_dir.exists()}"
+        )
+
+        if not workflows_dir.exists():
+            self.logger.debug(
+                "ワークフローディレクトリが存在しないため、元のパスを使用"
+            )
+            return workflow_file
+
+        # Create temporary directory for act workaround
+        temp_dir = self.working_directory / ".act-temp"
+        self.logger.debug(f"一時ディレクトリ: {temp_dir}")
+
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+        try:
+            temp_dir.mkdir(parents=True)
+            temp_workflows_dir = temp_dir / ".github" / "workflows"
+            temp_workflows_dir.mkdir(parents=True)
+            self.logger.debug(
+                f"一時ワークフローディレクトリを作成: {temp_workflows_dir}"
+            )
+
+            # Copy all workflow files to temporary location
+            copied_files = []
+            for source_file in workflows_dir.glob("*.yml"):
+                dest_file = temp_workflows_dir / source_file.name
+                shutil.copy2(source_file, dest_file)
+                copied_files.append(source_file.name)
+
+            for source_file in workflows_dir.glob("*.yaml"):
+                dest_file = temp_workflows_dir / source_file.name
+                shutil.copy2(source_file, dest_file)
+                copied_files.append(source_file.name)
+
+            self.logger.debug(f"コピーしたワークフローファイル: {copied_files}")
+
+            # Return the path relative to temp directory
+            workflow_name = Path(workflow_file).name
+            temp_workflow_path = temp_workflows_dir / workflow_name
+
+            self.logger.debug(
+                f"対象ワークフローファイル: {workflow_name}, 一時パス: {temp_workflow_path}, 存在: {temp_workflow_path.exists()}"
+            )
+
+            if temp_workflow_path.exists():
+                # Return path relative to temp_dir
+                result_path = f".github/workflows/{workflow_name}"
+                self.logger.debug(f"一時ワークフローパスを返却: {result_path}")
+                return result_path
+            else:
+                self.logger.warning(
+                    f"一時ワークフローファイルが見つかりません: {workflow_name}"
+                )
+                return workflow_file
+
+        except (OSError, PermissionError) as e:
+            self.logger.warning(f"一時ワークフロー作成に失敗しました: {e}")
+            # Clean up on failure
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            return workflow_file
+
+    def _cleanup_act_workaround(self) -> None:
+        """Clean up temporary workflow files created for act."""
+        temp_dir = self.working_directory / ".act-temp"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     def _compose_runner_flags(self) -> list[str]:
         flags: list[str] = []
 
@@ -193,6 +303,12 @@ class ActWrapper:
         env["ACT_LOG_LEVEL"] = "info"
         env["ACT_PLATFORM"] = "ubuntu-latest=catthehacker/ubuntu:act-latest"
         env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
+
+        # ワークフローディレクトリを明示的に指定（パス解決問題の回避）
+        workflows_dir = self.working_directory / ".github" / "workflows"
+        if workflows_dir.exists():
+            env["GITHUB_WORKFLOW_DIR"] = str(workflows_dir)
+            env["ACT_WORKFLOW_DIR"] = str(workflows_dir)
 
         if self.settings.cache_dir:
             env.setdefault("ACT_CACHE_DIR", self.settings.cache_dir)
@@ -294,11 +410,26 @@ class ActWrapper:
     ) -> Dict[str, Any]:
         """Execute a workflow through act and return structured output."""
 
+        # ワークフローファイルパスの正規化
+        if workflow_file:
+            workflow_file = self._normalize_workflow_path(workflow_file)
+            self.logger.debug(f"正規化されたワークフローパス: {workflow_file}")
+
         # 実行トレースを開始
         trace_id = f"act_workflow_{int(time.time() * 1000)}"
         self.execution_tracer.start_trace(trace_id)
 
         try:
+            # act実行前に一時ワークフローを作成（パス解決問題の回避）
+            temp_workflow_file = self._create_act_workaround(workflow_file)
+            working_dir = self.working_directory
+            if temp_workflow_file != workflow_file:
+                workflow_file = temp_workflow_file
+                working_dir = self.working_directory / ".act-temp"
+                self.logger.debug(
+                    f"一時ワークフローファイルを使用: {workflow_file}, 作業ディレクトリ: {working_dir}"
+                )
+
             # 初期化段階
             self.execution_tracer.set_stage(
                 ExecutionStage.INITIALIZATION,
@@ -334,7 +465,19 @@ class ActWrapper:
             if verbose:
                 cmd.append("--verbose")
 
-            env_args = self._compose_env_args(env_vars)
+            # デフォルトのGitHub Actions環境変数を追加
+            default_env_vars = {
+                "GITHUB_USER": "local-runner",
+                "GITHUB_ACTOR": "local-runner",
+                "GITHUB_REPOSITORY": "local/example",
+                "GITHUB_EVENT_NAME": event or "push",
+                "GITHUB_REF": "refs/heads/main",
+            }
+
+            # ユーザー指定の環境変数とマージ
+            merged_env_vars = {**default_env_vars, **(env_vars or {})}
+
+            env_args = self._compose_env_args(merged_env_vars)
             cmd.extend(env_args)
 
             process_env = self._build_process_env(event or None, env_vars)
@@ -385,7 +528,7 @@ class ActWrapper:
             try:
                 process = subprocess.Popen(
                     cmd,
-                    cwd=self.working_directory,
+                    cwd=working_dir,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
@@ -567,6 +710,9 @@ class ActWrapper:
             }
 
         finally:
+            # 一時ワークフローファイルのクリーンアップ
+            self._cleanup_act_workaround()
+
             # トレースを終了
             final_trace = self.execution_tracer.end_trace()
             if final_trace and self.logger.verbose:
