@@ -31,9 +31,7 @@ class TestOutputModule:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_output_dir = Path(temp_dir) / "test_output"
 
-            with patch.dict(
-                os.environ, {"MCP_ACTIONS_OUTPUT_DIR": str(test_output_dir)}
-            ):
+            with patch.dict(os.environ, {"MCP_ACTIONS_OUTPUT_DIR": str(test_output_dir)}):
                 root = get_output_root()
 
                 assert root == test_output_dir.resolve()
@@ -58,16 +56,12 @@ class TestOutputModule:
         """権限エラー時のフォールバック動作テスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
             # 権限エラーをシミュレート
-            with patch(
-                "pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")
-            ):
+            with patch("pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")):
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                     root = get_output_root()
 
                     # フォールバックパスが使用される
-                    expected_fallback = (
-                        Path(temp_dir) / ".cache" / "mcp-docker" / "actions"
-                    )
+                    expected_fallback = Path(temp_dir) / ".cache" / "mcp-docker" / "actions"
                     assert root == expected_fallback
                     assert root.exists()
 

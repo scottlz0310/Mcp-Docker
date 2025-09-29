@@ -111,9 +111,7 @@ class TestWorkflowParser:
         """名前フィールドが不足している場合のテスト"""
         invalid_data = {
             "on": ["push"],
-            "jobs": {
-                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
-            },
+            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}},
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:
@@ -125,9 +123,7 @@ class TestWorkflowParser:
         """onフィールドが不足している場合のテスト"""
         invalid_data = {
             "name": "Test",
-            "jobs": {
-                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
-            },
+            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}},
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:
@@ -158,9 +154,7 @@ class TestWorkflowParser:
         invalid_data = {
             "name": "Test",
             "on": ["unsupported_event"],
-            "jobs": {
-                "test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}
-            },
+            "jobs": {"test": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo test"}]}},
         }
 
         with pytest.raises(WorkflowParseError) as exc_info:

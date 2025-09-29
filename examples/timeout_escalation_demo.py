@@ -44,9 +44,7 @@ def demo_timeout_escalation():
             text=True,
         )
 
-        monitored_process = MonitoredProcess(
-            process=process, command=["sleep", "15"], start_time=time.time()
-        )
+        monitored_process = MonitoredProcess(process=process, command=["sleep", "15"], start_time=time.time())
 
         print(f"🔍 プロセス監視を開始: PID {process.pid}")
         print()
@@ -61,9 +59,7 @@ def demo_timeout_escalation():
         print("📊 監視結果:")
         print(f"  - タイムアウト発生: {'はい' if timed_out else 'いいえ'}")
         print(f"  - 警告送信: {'はい' if monitor._warning_sent else 'いいえ'}")
-        print(
-            f"  - エスカレーション開始: {'はい' if monitor._escalation_started else 'いいえ'}"
-        )
+        print(f"  - エスカレーション開始: {'はい' if monitor._escalation_started else 'いいえ'}")
         print(f"  - 強制終了: {'はい' if monitored_process.force_killed else 'いいえ'}")
         print(f"  - デッドロック指標数: {len(deadlock_indicators)}")
 
@@ -113,9 +109,7 @@ def demo_normal_completion():
             text=True,
         )
 
-        monitored_process = MonitoredProcess(
-            process=process, command=["sleep", "3"], start_time=time.time()
-        )
+        monitored_process = MonitoredProcess(process=process, command=["sleep", "3"], start_time=time.time())
 
         print(f"🔍 プロセス監視を開始: PID {process.pid}")
         print()

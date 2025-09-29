@@ -153,11 +153,7 @@ class TestPerformanceMonitor:
         # ボトルネックが検出されることを確認
         assert len(self.monitor.bottlenecks) > 0
         cpu_bottleneck = next(
-            (
-                b
-                for b in self.monitor.bottlenecks
-                if b.bottleneck_type == "CPU_HIGH_USAGE"
-            ),
+            (b for b in self.monitor.bottlenecks if b.bottleneck_type == "CPU_HIGH_USAGE"),
             None,
         )
         assert cpu_bottleneck is not None

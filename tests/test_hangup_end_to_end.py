@@ -559,9 +559,7 @@ jobs:
 
         try:
             # 最初の実行（失敗をシミュレート）
-            with patch.object(
-                self.enhanced_wrapper, "_create_monitored_subprocess"
-            ) as mock_subprocess:
+            with patch.object(self.enhanced_wrapper, "_create_monitored_subprocess") as mock_subprocess:
                 mock_process = Mock()
                 mock_process.pid = 12345
                 mock_process.poll.return_value = 1  # 失敗
@@ -648,9 +646,7 @@ jobs:
             if not result.success:
                 # タイムアウトの場合、適切なエラーメッセージが含まれることを確認
                 self.assertTrue(
-                    "タイムアウト" in result.stderr
-                    or "timeout" in result.stderr.lower()
-                    or result.returncode != 0
+                    "タイムアウト" in result.stderr or "timeout" in result.stderr.lower() or result.returncode != 0
                 )
 
         finally:
@@ -687,9 +683,7 @@ jobs:
 
         try:
             # 1. 初回実行（エラーをシミュレート）
-            with patch.object(
-                self.enhanced_wrapper, "run_workflow_with_diagnostics"
-            ) as mock_run:
+            with patch.object(self.enhanced_wrapper, "run_workflow_with_diagnostics") as mock_run:
                 from services.actions.enhanced_act_wrapper import DetailedResult
 
                 # 失敗結果を返す
@@ -703,9 +697,7 @@ jobs:
                 )
                 mock_run.return_value = failed_result
 
-                result = self.enhanced_wrapper.run_workflow_with_diagnostics(
-                    workflow_file="ci.yml"
-                )
+                result = self.enhanced_wrapper.run_workflow_with_diagnostics(workflow_file="ci.yml")
 
                 # 失敗が検出されることを確認
                 self.assertFalse(result.success)
@@ -715,9 +707,7 @@ jobs:
             self.assertIsNotNone(analysis.analysis_id)
 
             # 3. エラーレポート生成
-            report = self.hangup_detector.generate_detailed_error_report(
-                hangup_analysis=analysis
-            )
+            report = self.hangup_detector.generate_detailed_error_report(hangup_analysis=analysis)
             self.assertIsNotNone(report.report_id)
 
             # 4. 自動復旧試行
@@ -820,10 +810,7 @@ jobs:
             self.assertIsNotNone(result)
 
             # メモリリークがないことを確認（簡易チェック）
-            if (
-                hasattr(result, "process_monitoring_data")
-                and result.process_monitoring_data
-            ):
+            if hasattr(result, "process_monitoring_data") and result.process_monitoring_data:
                 monitoring_data = result.process_monitoring_data
                 self.assertIsInstance(monitoring_data, dict)
 

@@ -65,9 +65,7 @@ jobs:
             # 1. DiagnosticService テスト
             diagnostic_service = DiagnosticService(logger=self.logger)
             health_report = diagnostic_service.run_comprehensive_health_check()
-            results["diagnostic_service"] = (
-                health_report.overall_status != DiagnosticStatus.ERROR
-            )
+            results["diagnostic_service"] = health_report.overall_status != DiagnosticStatus.ERROR
 
             # 2. ExecutionTracer テスト（修正版）
             execution_tracer = ExecutionTracer(logger=self.logger)
@@ -114,9 +112,7 @@ jobs:
             )
 
             start_time = time.time()
-            result = simulation_service.run_simulation(
-                params, logger=self.logger, capture_output=True
-            )
+            result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
             execution_time = time.time() - start_time
 
             results["workflow_execution"] = {
@@ -229,19 +225,13 @@ jobs:
 
         # コンポーネント統合の成功率
         component_results = self.test_results.get("component_integration", {})
-        component_success_count = sum(
-            1 for v in component_results.values() if v is True
-        )
+        component_success_count = sum(1 for v in component_results.values() if v is True)
         component_total = len([k for k in component_results.keys() if k != "error"])
-        component_success_rate = (
-            component_success_count / component_total if component_total > 0 else 0
-        )
+        component_success_rate = component_success_count / component_total if component_total > 0 else 0
 
         # ワークフロー実行の成功判定
         workflow_results = self.test_results.get("workflow_execution", {})
-        workflow_success = workflow_results.get("workflow_execution", {}).get(
-            "simulation_success", False
-        )
+        workflow_success = workflow_results.get("workflow_execution", {}).get("simulation_success", False)
 
         # パフォーマンス・安定性の成功判定
         performance_results = self.test_results.get("performance_stability", {})
@@ -287,26 +277,14 @@ def main():
 
     print(f"\n総合成功: {'✅' if summary['overall_success'] else '❌'}")
     print(f"コンポーネント統合成功率: {summary['component_success_rate']:.1%}")
-    print(
-        f"ワークフロー実行成功: {'✅' if summary['workflow_execution_success'] else '❌'}"
-    )
-    print(
-        f"パフォーマンス・安定性: {'✅' if summary['performance_stability_success'] else '❌'}"
-    )
+    print(f"ワークフロー実行成功: {'✅' if summary['workflow_execution_success'] else '❌'}")
+    print(f"パフォーマンス・安定性: {'✅' if summary['performance_stability_success'] else '❌'}")
 
     print("\n要件検証結果:")
-    print(
-        f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}"
-    )
+    print(f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}")
+    print(f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}")
+    print(f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}")
+    print(f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}")
 
     # 詳細結果
     print("\n詳細結果:")
@@ -318,17 +296,14 @@ def main():
                 success_items = [
                     k
                     for k, v in results.items()
-                    if v is True
-                    or (isinstance(v, dict) and v.get("simulation_success", False))
+                    if v is True or (isinstance(v, dict) and v.get("simulation_success", False))
                 ]
                 total_items = len(results)
                 print(f"  {category}: {len(success_items)}/{total_items} 成功")
 
     # レポートファイルを保存
     report_file = Path("final_integration_report.json")
-    report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n詳細レポートが保存されました: {report_file}")
 
     return 0 if summary["overall_success"] else 1

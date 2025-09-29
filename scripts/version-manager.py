@@ -34,9 +34,7 @@ def update_version(new_version):
     main_path = Path("main.py")
     if main_path.exists():
         content = main_path.read_text()
-        content = re.sub(
-            r'__version__ = "[^"]+"', f'__version__ = "{new_version}"', content
-        )
+        content = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{new_version}"', content)
         main_path.write_text(content)
 
 
@@ -172,9 +170,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="Show current version")
     parser.add_argument("--smart-check", metavar="VERSION", help="Smart version check")
     parser.add_argument("--update", metavar="VERSION", help="Update version")
-    parser.add_argument(
-        "--update-changelog", metavar="VERSION", help="Update CHANGELOG"
-    )
+    parser.add_argument("--update-changelog", metavar="VERSION", help="Update CHANGELOG")
 
     args = parser.parse_args()
 

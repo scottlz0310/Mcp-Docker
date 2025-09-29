@@ -156,9 +156,7 @@ def generate_task_15_completion_report():
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "report_version": "1.0",
             "total_test_files_created": len(implemented_tests),
-            "total_lines_of_test_code": sum(
-                t["lines_of_code"] for t in implemented_tests
-            ),
+            "total_lines_of_test_code": sum(t["lines_of_code"] for t in implemented_tests),
             "total_test_scenarios": sum(t["test_scenarios"] for t in implemented_tests),
         },
         "test_results": test_results,
@@ -200,11 +198,7 @@ def main():
     print("\n要件検証状況:")
     for req_id, req_data in report["requirements_validation"].items():
         status_icon = (
-            "✅"
-            if req_data["status"] == "verified"
-            else "⚠️"
-            if req_data["status"] == "partially_verified"
-            else "❌"
+            "✅" if req_data["status"] == "verified" else "⚠️" if req_data["status"] == "partially_verified" else "❌"
         )
         print(f"  {status_icon} {req_id}: {req_data['status']}")
 
@@ -218,9 +212,7 @@ def main():
     for test in report["implemented_tests"]:
         print(f"  📁 {test['file']}")
         print(f"     {test['description']}")
-        print(
-            f"     コード行数: {test['lines_of_code']}, シナリオ数: {test['test_scenarios']}"
-        )
+        print(f"     コード行数: {test['lines_of_code']}, シナリオ数: {test['test_scenarios']}")
 
     # 検出された問題
     if report["identified_issues"]:
@@ -232,9 +224,7 @@ def main():
 
     # レポートファイルを保存
     report_file = Path("task_15_completion_report.json")
-    report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n詳細レポートが保存されました: {report_file}")
 

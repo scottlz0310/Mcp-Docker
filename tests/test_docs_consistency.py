@@ -63,9 +63,7 @@ version = "1.0.0"
         link_issues = checker.check_links()
 
         # 壊れたリンクが1つ検出されることを確認
-        broken_links = [
-            issue for issue in link_issues if issue.issue_type == "broken_link"
-        ]
+        broken_links = [issue for issue in link_issues if issue.issue_type == "broken_link"]
         assert len(broken_links) == 1
         assert "nonexistent.md" in broken_links[0].target_path
 

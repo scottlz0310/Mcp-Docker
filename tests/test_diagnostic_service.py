@@ -142,9 +142,7 @@ class TestDiagnosticService:
     @patch("subprocess.run")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.stat")
-    def test_check_container_permissions_success(
-        self, mock_stat, mock_exists, mock_run, mock_getgid, mock_getuid
-    ):
+    def test_check_container_permissions_success(self, mock_stat, mock_exists, mock_run, mock_getgid, mock_getuid):
         """コンテナ権限チェック成功のテスト"""
         # モックの設定
         mock_getuid.return_value = 1000
@@ -174,30 +172,16 @@ class TestDiagnosticService:
         """包括的ヘルスチェックのテスト"""
         # 個別チェックメソッドをモック
         with (
-            patch.object(
-                self.diagnostic_service, "check_docker_connectivity"
-            ) as mock_docker,
+            patch.object(self.diagnostic_service, "check_docker_connectivity") as mock_docker,
             patch.object(self.diagnostic_service, "check_act_binary") as mock_act,
-            patch.object(
-                self.diagnostic_service, "check_container_permissions"
-            ) as mock_permissions,
-            patch.object(
-                self.diagnostic_service, "check_docker_socket_access"
-            ) as mock_socket,
-            patch.object(
-                self.diagnostic_service, "check_container_communication"
-            ) as mock_comm,
-            patch.object(
-                self.diagnostic_service, "check_environment_variables"
-            ) as mock_env,
-            patch.object(
-                self.diagnostic_service, "check_resource_usage"
-            ) as mock_resource,
+            patch.object(self.diagnostic_service, "check_container_permissions") as mock_permissions,
+            patch.object(self.diagnostic_service, "check_docker_socket_access") as mock_socket,
+            patch.object(self.diagnostic_service, "check_container_communication") as mock_comm,
+            patch.object(self.diagnostic_service, "check_environment_variables") as mock_env,
+            patch.object(self.diagnostic_service, "check_resource_usage") as mock_resource,
         ):
             # 全て成功の結果を設定
-            success_result = DiagnosticResult(
-                component="Test", status=DiagnosticStatus.OK, message="Test success"
-            )
+            success_result = DiagnosticResult(component="Test", status=DiagnosticStatus.OK, message="Test success")
 
             mock_docker.return_value = success_result
             mock_act.return_value = success_result
@@ -221,33 +205,17 @@ class TestDiagnosticService:
     def test_run_comprehensive_health_check_with_errors(self):
         """エラーがある場合の包括的ヘルスチェックのテスト"""
         with (
-            patch.object(
-                self.diagnostic_service, "check_docker_connectivity"
-            ) as mock_docker,
+            patch.object(self.diagnostic_service, "check_docker_connectivity") as mock_docker,
             patch.object(self.diagnostic_service, "check_act_binary") as mock_act,
-            patch.object(
-                self.diagnostic_service, "check_container_permissions"
-            ) as mock_permissions,
-            patch.object(
-                self.diagnostic_service, "check_docker_socket_access"
-            ) as mock_socket,
-            patch.object(
-                self.diagnostic_service, "check_container_communication"
-            ) as mock_comm,
-            patch.object(
-                self.diagnostic_service, "check_environment_variables"
-            ) as mock_env,
-            patch.object(
-                self.diagnostic_service, "check_resource_usage"
-            ) as mock_resource,
+            patch.object(self.diagnostic_service, "check_container_permissions") as mock_permissions,
+            patch.object(self.diagnostic_service, "check_docker_socket_access") as mock_socket,
+            patch.object(self.diagnostic_service, "check_container_communication") as mock_comm,
+            patch.object(self.diagnostic_service, "check_environment_variables") as mock_env,
+            patch.object(self.diagnostic_service, "check_resource_usage") as mock_resource,
         ):
             # エラー結果を設定
-            error_result = DiagnosticResult(
-                component="Test", status=DiagnosticStatus.ERROR, message="Test error"
-            )
-            success_result = DiagnosticResult(
-                component="Test", status=DiagnosticStatus.OK, message="Test success"
-            )
+            error_result = DiagnosticResult(component="Test", status=DiagnosticStatus.ERROR, message="Test error")
+            success_result = DiagnosticResult(component="Test", status=DiagnosticStatus.OK, message="Test success")
 
             mock_docker.return_value = error_result  # エラー
             mock_act.return_value = success_result
@@ -268,13 +236,9 @@ class TestDiagnosticService:
     def test_identify_hangup_causes(self):
         """ハングアップ原因特定のテスト"""
         # run_comprehensive_health_checkをモック
-        with patch.object(
-            self.diagnostic_service, "run_comprehensive_health_check"
-        ) as mock_health_check:
+        with patch.object(self.diagnostic_service, "run_comprehensive_health_check") as mock_health_check:
             # 正常な結果を設定
-            success_result = DiagnosticResult(
-                component="Test", status=DiagnosticStatus.OK, message="Test success"
-            )
+            success_result = DiagnosticResult(component="Test", status=DiagnosticStatus.OK, message="Test success")
 
             mock_report = SystemHealthReport(
                 overall_status=DiagnosticStatus.OK,
@@ -293,12 +257,8 @@ class TestDiagnosticService:
 
     def test_identify_hangup_causes_with_execution_trace(self):
         """実行トレース付きハングアップ原因特定のテスト"""
-        with patch.object(
-            self.diagnostic_service, "run_comprehensive_health_check"
-        ) as mock_health_check:
-            success_result = DiagnosticResult(
-                component="Test", status=DiagnosticStatus.OK, message="Test success"
-            )
+        with patch.object(self.diagnostic_service, "run_comprehensive_health_check") as mock_health_check:
+            success_result = DiagnosticResult(component="Test", status=DiagnosticStatus.OK, message="Test success")
 
             mock_report = SystemHealthReport(
                 overall_status=DiagnosticStatus.OK,
@@ -359,9 +319,7 @@ class TestSystemHealthReport:
             status=DiagnosticStatus.WARNING,
             message="Warning message",
         )
-        ok_result = DiagnosticResult(
-            component="OK Component", status=DiagnosticStatus.OK, message="OK message"
-        )
+        ok_result = DiagnosticResult(component="OK Component", status=DiagnosticStatus.OK, message="OK message")
 
         report = SystemHealthReport(
             overall_status=DiagnosticStatus.ERROR,
@@ -376,13 +334,9 @@ class TestSystemHealthReport:
 
     def test_system_health_report_no_issues(self):
         """問題がない場合のSystemHealthReportテスト"""
-        ok_result = DiagnosticResult(
-            component="OK Component", status=DiagnosticStatus.OK, message="OK message"
-        )
+        ok_result = DiagnosticResult(component="OK Component", status=DiagnosticStatus.OK, message="OK message")
 
-        report = SystemHealthReport(
-            overall_status=DiagnosticStatus.OK, results=[ok_result], summary="All good"
-        )
+        report = SystemHealthReport(overall_status=DiagnosticStatus.OK, results=[ok_result], summary="All good")
 
         assert report.has_errors is False
         assert report.has_warnings is False

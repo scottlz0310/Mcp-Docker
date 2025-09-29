@@ -97,15 +97,11 @@ jobs:
       - name: Run tests
         run: pytest tests/
 """
-            (user_project / ".github" / "workflows" / "ci.yml").write_text(
-                workflow_content
-            )
+            (user_project / ".github" / "workflows" / "ci.yml").write_text(workflow_content)
 
             # サンプルPythonファイル
             (user_project / "src" / "main.py").write_text('print("Hello, World!")')
-            (user_project / "tests" / "test_main.py").write_text(
-                "def test_example():\n    assert True"
-            )
+            (user_project / "tests" / "test_main.py").write_text("def test_example():\n    assert True")
 
             yield user_project
 
@@ -152,9 +148,7 @@ jobs:
 
         # 依存関係チェックが実行されることを確認
         output = result.stdout + result.stderr
-        assert (
-            "依存関係" in output or "プラットフォーム" in output or "Docker" in output
-        )
+        assert "依存関係" in output or "プラットフォーム" in output or "Docker" in output
 
         # Step 3: ヘルプ情報の確認
         help_result = subprocess.run(
@@ -168,9 +162,7 @@ jobs:
         assert help_result.returncode == 0, "ヘルプオプションが失敗しました"
         assert "使用方法" in help_result.stdout, "ヘルプに使用方法が含まれていません"
 
-    def test_template_based_setup_flow(
-        self, new_user_project, clean_project_environment
-    ):
+    def test_template_based_setup_flow(self, new_user_project, clean_project_environment):
         """テンプレートベースのセットアップフローのテスト"""
         simulator_dir = clean_project_environment
         user_project = new_user_project
@@ -193,9 +185,7 @@ jobs:
 
         # Step 2: ユーザープロジェクトに.envファイルを作成
         user_env = user_project / ".env"
-        user_env.write_text(
-            env_content.replace("your_github_token_here", "dummy_token_for_test")
-        )
+        user_env.write_text(env_content.replace("your_github_token_here", "dummy_token_for_test"))
 
         # Step 3: pre-commitテンプレートの確認
         precommit_sample = simulator_dir / ".pre-commit-config.yaml.sample"
@@ -209,9 +199,7 @@ jobs:
             (user_project / ".pre-commit-config.yaml").write_text(precommit_content)
 
         # Step 4: GitHub Workflowテンプレートの確認
-        workflow_samples = list(
-            (simulator_dir / ".github" / "workflows").glob("*.sample")
-        )
+        workflow_samples = list((simulator_dir / ".github" / "workflows").glob("*.sample"))
         assert len(workflow_samples) > 0, "ワークフローサンプルが存在しません"
 
         for sample in workflow_samples:
@@ -220,9 +208,7 @@ jobs:
             assert "on:" in content, f"無効なワークフローサンプル: {sample.name}"
             assert "jobs:" in content, f"無効なワークフローサンプル: {sample.name}"
 
-    def test_first_time_execution_flow(
-        self, new_user_project, clean_project_environment
-    ):
+    def test_first_time_execution_flow(self, new_user_project, clean_project_environment):
         """初回実行フローのテスト"""
         simulator_dir = clean_project_environment
         user_project = new_user_project
@@ -257,9 +243,7 @@ jobs:
             "タイムアウト",
         ]
 
-        assert any(
-            indicator in output for indicator in execution_indicators
-        ), f"実行が試行されませんでした: {output}"
+        assert any(indicator in output for indicator in execution_indicators), f"実行が試行されませんでした: {output}"
 
     def test_error_guidance_for_new_users(self, clean_project_environment):
         """新規ユーザー向けエラーガイダンスのテスト"""
@@ -305,9 +289,7 @@ jobs:
         )
 
         # 無効なオプションが適切に処理されることを確認
-        assert (
-            invalid_option_result.returncode != 127
-        ), "無効なオプションでコマンドエラーが発生"
+        assert invalid_option_result.returncode != 127, "無効なオプションでコマンドエラーが発生"
 
     def test_documentation_guided_workflow(self, clean_project_environment):
         """ドキュメントガイド付きワークフローのテスト"""
@@ -404,9 +386,7 @@ jobs:
                 )
 
                 if help_result.returncode == 0:
-                    assert (
-                        len(help_result.stdout) > 0
-                    ), "make helpが出力を生成しませんでした"
+                    assert len(help_result.stdout) > 0, "make helpが出力を生成しませんでした"
 
 
 class TestUserExperienceEdgeCases:
@@ -518,14 +498,10 @@ class TestUserExperienceEdgeCases:
         ]
 
         # ネットワーク問題が言及されるか、正常に処理されることを確認
-        has_network_mention = any(
-            indicator in output for indicator in network_indicators
-        )
+        has_network_mention = any(indicator in output for indicator in network_indicators)
         has_normal_output = "依存関係" in output or "プラットフォーム" in output
 
-        assert (
-            has_network_mention or has_normal_output
-        ), f"ネットワーク問題が適切に処理されませんでした: {output}"
+        assert has_network_mention or has_normal_output, f"ネットワーク問題が適切に処理されませんでした: {output}"
 
     def test_large_project_handling(self, project_root):
         """大規模プロジェクトでの処理テスト"""
@@ -570,9 +546,7 @@ jobs:
             execution_time = end_time - start_time
 
             # 大規模プロジェクトでも合理的な時間で処理されることを確認
-            assert (
-                execution_time < 120
-            ), f"大規模プロジェクトの処理が遅すぎます: {execution_time:.2f}秒"
+            assert execution_time < 120, f"大規模プロジェクトの処理が遅すぎます: {execution_time:.2f}秒"
 
             # 適切に処理されることを確認
             output = result.stdout + result.stderr
@@ -609,18 +583,14 @@ class TestUserExperienceAccessibility:
         # （色だけに依存しない情報伝達）
         visual_indicators = ["✅", "❌", "⚠️", "🔍", "📋", "🚀", "💡"]
 
-        has_visual_indicators = any(
-            indicator in output for indicator in visual_indicators
-        )
+        has_visual_indicators = any(indicator in output for indicator in visual_indicators)
 
         # テキストベースの状態表示も確認
         text_indicators = ["成功", "エラー", "警告", "情報", "OK", "FAIL", "WARNING"]
         has_text_indicators = any(indicator in output for indicator in text_indicators)
 
         # どちらかの方法で状態が表現されていることを確認
-        assert (
-            has_visual_indicators or has_text_indicators
-        ), "アクセシブルな状態表示が不足しています"
+        assert has_visual_indicators or has_text_indicators, "アクセシブルな状態表示が不足しています"
 
     def test_screen_reader_friendly_output(self, project_root):
         """スクリーンリーダー対応出力のテスト"""
@@ -656,9 +626,7 @@ class TestUserExperienceAccessibility:
 
         has_labels = any(indicator in output for indicator in label_indicators)
 
-        assert (
-            has_structure or has_labels
-        ), "スクリーンリーダー対応の構造化出力が不足しています"
+        assert has_structure or has_labels, "スクリーンリーダー対応の構造化出力が不足しています"
 
 
 if __name__ == "__main__":

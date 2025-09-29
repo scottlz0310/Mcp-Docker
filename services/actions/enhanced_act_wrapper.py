@@ -16,10 +16,14 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 # ActWrapperの機能は直接統合されました
-from services.actions.execution_tracer import ExecutionTracer, ExecutionStage, ThreadState
+from services.actions.execution_tracer import (
+    ExecutionTracer,
+    ExecutionStage,
+    ThreadState,
+)
 from services.actions.logger import ActionsLogger
 
 
@@ -30,9 +34,7 @@ class DeadlockIndicator:
     indicator_type: str  # "thread_blocked", "process_hung", "output_stalled"
     severity: str  # "low", "medium", "high", "critical"
     description: str
-    detected_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     thread_id: Optional[int] = None
     process_id: Optional[int] = None
     details: Dict[str, Any] = field(default_factory=dict)
@@ -122,11 +124,13 @@ class EnhancedActWrapper:
             output_stall_threshold: 出力停止と判断する時間（秒）
         """
         # ActWrapperの初期化ロジックを統合
+        self._config: Dict[str, Any] = dict(config) if isinstance(config, Mapping) else {}
+        tokens_section = self._config.get("tokens")
+        self._token_config: Dict[str, Any] = dict(tokens_section) if isinstance(tokens_section, Mapping) else {}
+
         self.working_directory = Path(working_directory or os.getcwd()).resolve()
         if not self.working_directory.exists():
-            raise RuntimeError(
-                f"作業ディレクトリが存在しません: {self.working_directory}"
-            )
+            raise RuntimeError(f"作業ディレクトリが存在しません: {self.working_directory}")
         self.logger = logger or ActionsLogger(verbose=False)
         self.execution_tracer = execution_tracer or ExecutionTracer(logger=self.logger)
 
@@ -138,9 +142,7 @@ class EnhancedActWrapper:
         self._mock_mode = self._engine in {"mock", "stub", "fake", "noop"}
         mock_delay = os.getenv("ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS")
         try:
-            self._mock_delay_seconds = (
-                max(0.0, float(mock_delay)) if mock_delay else 0.0
-            )
+            self._mock_delay_seconds = max(0.0, float(mock_delay)) if mock_delay else 0.0
         except ValueError:
             self._mock_delay_seconds = 0.0
 
@@ -218,7 +220,6 @@ class EnhancedActWrapper:
     def _create_default_settings(self, config: Mapping[str, Any] | None):
         """デフォルト設定を作成"""
         from dataclasses import dataclass, field
-        from typing import Dict
 
         @dataclass(frozen=True)
         class ActRunnerSettings:
@@ -273,8 +274,6 @@ class EnhancedActWrapper:
 
         return timeout_value
 
-
-
     def _ensure_git_repository(self) -> None:
         """Ensure the working directory is a proper Git repository."""
         git_dir = self.working_directory / ".git"
@@ -318,7 +317,13 @@ class EnhancedActWrapper:
             # Add a remote origin if it doesn't exist
             try:
                 subprocess.run(
-                    ["git", "remote", "add", "origin", "https://github.com/local/example.git"],
+                    [
+                        "git",
+                        "remote",
+                        "add",
+                        "origin",
+                        "https://github.com/local/example.git",
+                    ],
                     cwd=self.working_directory,
                     capture_output=True,
                     text=True,
@@ -349,7 +354,11 @@ class EnhancedActWrapper:
             else:
                 self.logger.warning(f"Docker接続テスト失敗: {result.stderr}")
 
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ) as e:
             self.logger.warning(f"Docker接続確認エラー: {e}")
 
         # Try to fix common Docker permission issues
@@ -426,61 +435,40 @@ class EnhancedActWrapper:
         """Resolve artifact server configuration ensuring sensible defaults."""
         source_env = dict(base_env or {})
 
+        token_overrides = self._collect_token_overrides(source_env)
+        if token_overrides:
+            source_env.update(token_overrides)
+
         artifact_path = source_env.get("ACT_ARTIFACT_SERVER_PATH")
         if not artifact_path:
             default_artifact_dir = self.working_directory / "output" / "artifacts"
             try:
                 default_artifact_dir.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
-                self.logger.debug(
-                    f"アーティファクトディレクトリの作成に失敗しました: {exc}"
-                )
+                self.logger.debug(f"アーティファクトディレクトリの作成に失敗しました: {exc}")
             artifact_path = str(default_artifact_dir)
         else:
             try:
                 Path(artifact_path).mkdir(parents=True, exist_ok=True)
             except OSError as exc:
-                self.logger.debug(
-                    f"既存のアーティファクトディレクトリ作成に失敗しました: {exc}"
-                )
+                self.logger.debug(f"既存のアーティファクトディレクトリ作成に失敗しました: {exc}")
 
         artifact_port = str(
-            source_env.get("ACT_ARTIFACT_SERVER_PORT")
-            or os.getenv("ACT_ARTIFACT_SERVER_PORT")
-            or "34567"
+            source_env.get("ACT_ARTIFACT_SERVER_PORT") or os.getenv("ACT_ARTIFACT_SERVER_PORT") or "34567"
         )
 
-        configured_host = (
-            source_env.get("ACT_ARTIFACT_SERVER_HOST")
-            or os.getenv("ACT_ARTIFACT_SERVER_HOST")
-        )
+        configured_host = source_env.get("ACT_ARTIFACT_SERVER_HOST") or os.getenv("ACT_ARTIFACT_SERVER_HOST")
         artifact_host = self._determine_artifact_host(configured_host)
 
-        runtime_token = (
-            source_env.get("ACTIONS_RUNTIME_TOKEN")
-            or os.getenv("ACTIONS_RUNTIME_TOKEN")
-            or self._generate_runtime_token()
-        )
+        runtime_token = source_env.get("ACTIONS_RUNTIME_TOKEN") or self._generate_runtime_token()
 
         base_url = f"http://{artifact_host}:{artifact_port}"
 
-        runtime_url = (
-            source_env.get("ACTIONS_RUNTIME_URL")
-            or os.getenv("ACTIONS_RUNTIME_URL")
-            or f"{base_url}/_apis/pipelines/workflows"
-        )
+        runtime_url = source_env.get("ACTIONS_RUNTIME_URL") or f"{base_url}/_apis/pipelines/workflows"
 
-        cache_url = (
-            source_env.get("ACTIONS_CACHE_URL")
-            or os.getenv("ACTIONS_CACHE_URL")
-            or f"{base_url}/_apis/artifacts_apis/artifactcache"
-        )
+        cache_url = source_env.get("ACTIONS_CACHE_URL") or f"{base_url}/_apis/artifacts_apis/artifactcache"
 
-        results_url = (
-            source_env.get("ACTIONS_RESULTS_URL")
-            or os.getenv("ACTIONS_RESULTS_URL")
-            or runtime_url
-        )
+        results_url = source_env.get("ACTIONS_RESULTS_URL") or runtime_url
 
         resolved_env = {
             "ACT_ARTIFACT_SERVER_PATH": artifact_path,
@@ -496,7 +484,8 @@ class EnhancedActWrapper:
             "ACTIONS_RESULTS_URL": results_url,
         }
 
-        self.logger.debug(f"Resolved artifact env: {resolved_env}")
+        masked_env = self._mask_sensitive_env(resolved_env)
+        self.logger.debug(f"Resolved artifact env: {masked_env}")
         return resolved_env
 
     def _determine_artifact_host(self, configured_host: str | None) -> str:
@@ -546,6 +535,174 @@ class EnhancedActWrapper:
 
         return f"ghs_{secrets.token_urlsafe(32)}"
 
+    @staticmethod
+    def _mask_sensitive_env(env: Mapping[str, str]) -> Dict[str, str]:
+        """Mask sensitive values before logging."""
+
+        masked: Dict[str, str] = {}
+        sensitive_markers = ("TOKEN", "SECRET", "KEY", "PASSWORD")
+        for key, value in env.items():
+            if any(marker in key for marker in sensitive_markers):
+                masked[key] = "***"
+            else:
+                masked[key] = value
+        return masked
+
+    def _read_secret_from_file(self, path: str | None) -> Optional[str]:
+        """Read secret value from file if possible."""
+
+        if not path:
+            return None
+        try:
+            content = Path(path).expanduser().read_text(encoding="utf-8")
+        except OSError as exc:
+            self.logger.debug(f"トークンファイルの読み込みに失敗しました: {path}: {exc}")
+            return None
+        value = content.strip()
+        return value or None
+
+    def _extract_config_token_value(self, key: str) -> Optional[str]:
+        """Extract token value from configuration."""
+
+        if not self._token_config:
+            return None
+
+        candidates = [key]
+        if "_token" not in key and not key.endswith("_token"):
+            candidates.append(f"{key}_token")
+        for candidate in candidates:
+            if candidate in self._token_config:
+                raw_value = self._token_config[candidate]
+                if isinstance(raw_value, Mapping):
+                    if "value" in raw_value:
+                        value = str(raw_value["value"]).strip()
+                        if value:
+                            return value
+                    if "file" in raw_value:
+                        file_path = str(raw_value["file"])
+                        return self._read_secret_from_file(file_path)
+                elif isinstance(raw_value, str):
+                    value = raw_value.strip()
+                    if value:
+                        return value
+            file_key = f"{candidate}_file"
+            if file_key in self._token_config:
+                file_path = str(self._token_config[file_key])
+                return self._read_secret_from_file(file_path)
+
+        return None
+
+    def _collect_token_overrides(
+        self,
+        existing: Mapping[str, str] | None = None,
+    ) -> Dict[str, str]:
+        """Collect token overrides from env/config sources."""
+
+        env_view = dict(existing or {})
+        overrides: Dict[str, str] = {}
+
+        def pick(
+            target_key: str,
+            *,
+            env_keys: tuple[str, ...] = (),
+            file_env_keys: tuple[str, ...] = (),
+            config_keys: tuple[str, ...] = (),
+            default_factory: Callable[[], str] | None = None,
+        ) -> None:
+            if env_view.get(target_key):
+                return
+
+            for env_key in (*env_keys, target_key):
+                value = os.getenv(env_key) or env_view.get(env_key)
+                if value:
+                    overrides[target_key] = value.strip()
+                    return
+
+            for file_key in file_env_keys:
+                file_path = os.getenv(file_key) or env_view.get(file_key)
+                if file_path:
+                    value = self._read_secret_from_file(file_path)
+                    if value:
+                        overrides[target_key] = value
+                        return
+
+            for cfg_key in (*config_keys, target_key.lower()):
+                value = self._extract_config_token_value(cfg_key)
+                if value:
+                    overrides[target_key] = value
+                    return
+
+            if default_factory and target_key not in overrides:
+                generated = default_factory()
+                if generated:
+                    overrides[target_key] = generated
+
+        pick(
+            "ACTIONS_RUNTIME_TOKEN",
+            env_keys=(
+                "ACTIONS_SIMULATOR_RUNTIME_TOKEN",
+                "ACTIONS_RUNTIME_TOKEN",
+            ),
+            file_env_keys=(
+                "ACTIONS_SIMULATOR_RUNTIME_TOKEN_FILE",
+                "ACTIONS_RUNTIME_TOKEN_FILE",
+            ),
+            config_keys=("runtime", "runtime_token"),
+            default_factory=self._generate_runtime_token,
+        )
+        pick(
+            "ACTIONS_RUNTIME_URL",
+            env_keys=(
+                "ACTIONS_SIMULATOR_RUNTIME_URL",
+                "ACTIONS_RUNTIME_URL",
+            ),
+            config_keys=("runtime_url",),
+        )
+        pick(
+            "ACTIONS_CACHE_URL",
+            env_keys=(
+                "ACTIONS_SIMULATOR_CACHE_URL",
+                "ACTIONS_CACHE_URL",
+            ),
+            config_keys=("cache_url",),
+        )
+        pick(
+            "ACTIONS_RESULTS_URL",
+            env_keys=(
+                "ACTIONS_SIMULATOR_RESULTS_URL",
+                "ACTIONS_RESULTS_URL",
+            ),
+            config_keys=("results_url",),
+        )
+        pick(
+            "GITHUB_TOKEN",
+            env_keys=(
+                "ACTIONS_SIMULATOR_GITHUB_TOKEN",
+                "GITHUB_PERSONAL_ACCESS_TOKEN",
+                "GITHUB_TOKEN",
+            ),
+            file_env_keys=(
+                "ACTIONS_SIMULATOR_GITHUB_TOKEN_FILE",
+                "GITHUB_PERSONAL_ACCESS_TOKEN_FILE",
+                "GITHUB_TOKEN_FILE",
+            ),
+            config_keys=("github", "github_pat", "github_token"),
+        )
+        pick(
+            "ACTIONS_ID_TOKEN",
+            env_keys=(
+                "ACTIONS_SIMULATOR_ID_TOKEN",
+                "ACTIONS_ID_TOKEN",
+            ),
+            file_env_keys=(
+                "ACTIONS_SIMULATOR_ID_TOKEN_FILE",
+                "ACTIONS_ID_TOKEN_FILE",
+            ),
+            config_keys=("id", "id_token"),
+        )
+
+        return {k: v for k, v in overrides.items() if v}
+
     def _build_process_env(
         self,
         default_event: str | None,
@@ -588,17 +745,24 @@ class EnhancedActWrapper:
             env["ACT_WORKDIR"] = str(self.working_directory)
 
         # アーティファクトサーバーパスを初期化（未設定の場合はローカルディレクトリに作成）
-        resolved_artifact_env = (
-            dict(artifact_env)
-            if artifact_env is not None
-            else self._resolve_artifact_settings(env)
-        )
+        resolved_artifact_env = dict(artifact_env) if artifact_env is not None else self._resolve_artifact_settings(env)
         for key, value in resolved_artifact_env.items():
             env[key] = value
 
         # Docker関連の環境変数
         env["DOCKER_BUILDKIT"] = "1"
         env["COMPOSE_DOCKER_CLI_BUILD"] = "1"
+
+        token_overrides = self._collect_token_overrides({**env, **resolved_artifact_env})
+        for key, value in token_overrides.items():
+            if key not in env or env[key] != value:
+                env[key] = value
+
+        if "GITHUB_TOKEN" not in env:
+            env["GITHUB_TOKEN"] = token_overrides.get(
+                "GITHUB_TOKEN",
+                self._generate_runtime_token(),
+            )
 
         if self.settings.cache_dir:
             env.setdefault("ACT_CACHE_DIR", self.settings.cache_dir)
@@ -613,6 +777,7 @@ class EnhancedActWrapper:
         try:
             # 遅延インポートでサイクル依存を回避
             import sys
+
             sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
             from diagnostic_service import DiagnosticService
 
@@ -627,7 +792,9 @@ class EnhancedActWrapper:
         """自動復旧機能を初期化"""
         try:
             from services.actions.auto_recovery import AutoRecovery
-            from services.actions.docker_integration_checker import DockerIntegrationChecker
+            from services.actions.docker_integration_checker import (
+                DockerIntegrationChecker,
+            )
 
             docker_checker = DockerIntegrationChecker(logger=self.logger)
             self._auto_recovery = AutoRecovery(
@@ -700,11 +867,13 @@ class EnhancedActWrapper:
         if self.enable_diagnostics and self._diagnostic_service:
             self.logger.info("実行前診断チェックを開始します...")
             pre_check = self._diagnostic_service.run_comprehensive_health_check()
-            diagnostic_results.append({
-                "phase": "pre_execution",
-                "timestamp": time.time(),
-                "results": pre_check
-            })
+            diagnostic_results.append(
+                {
+                    "phase": "pre_execution",
+                    "timestamp": time.time(),
+                    "results": pre_check,
+                }
+            )
 
             # 重大な問題がある場合は実行を中止
             if pre_check.get("overall_status") == "ERROR":
@@ -718,7 +887,7 @@ class EnhancedActWrapper:
                     command="enhanced-act (診断失敗)",
                     execution_time_ms=(time.time() - start_time) * 1000,
                     diagnostic_results=diagnostic_results,
-                    trace_id=trace_id
+                    trace_id=trace_id,
                 )
 
         try:
@@ -730,18 +899,20 @@ class EnhancedActWrapper:
                 dry_run=dry_run,
                 verbose=verbose,
                 env_vars=env_vars,
-                trace_id=trace_id
+                trace_id=trace_id,
             )
 
             # 実行後診断チェック
             if self.enable_diagnostics and self._diagnostic_service:
                 self.logger.info("実行後診断チェックを開始します...")
                 post_check = self._diagnostic_service.run_comprehensive_health_check()
-                diagnostic_results.append({
-                    "phase": "post_execution",
-                    "timestamp": time.time(),
-                    "results": post_check
-                })
+                diagnostic_results.append(
+                    {
+                        "phase": "post_execution",
+                        "timestamp": time.time(),
+                        "results": post_check,
+                    }
+                )
 
             # 詳細結果を構築
             execution_time_ms = (time.time() - start_time) * 1000
@@ -753,7 +924,7 @@ class EnhancedActWrapper:
                 command=result.get("command", ""),
                 execution_time_ms=execution_time_ms,
                 diagnostic_results=diagnostic_results,
-                trace_id=trace_id
+                trace_id=trace_id,
             )
 
             # ハングアップ分析を追加
@@ -772,7 +943,7 @@ class EnhancedActWrapper:
                 command="enhanced-act (実行エラー)",
                 execution_time_ms=(time.time() - start_time) * 1000,
                 diagnostic_results=diagnostic_results,
-                trace_id=trace_id
+                trace_id=trace_id,
             )
 
     def _run_workflow_with_enhanced_monitoring(
@@ -818,9 +989,7 @@ class EnhancedActWrapper:
         try:
             artifact_env_base: Dict[str, str] = os.environ.copy()
             if env_vars:
-                artifact_env_base.update(
-                    {str(k): str(v) for k, v in env_vars.items()}
-                )
+                artifact_env_base.update({str(k): str(v) for k, v in env_vars.items()})
             artifact_env = self._resolve_artifact_settings(artifact_env_base)
 
             # コマンドを構築
@@ -842,9 +1011,7 @@ class EnhancedActWrapper:
             self.logger.info(f"拡張監視付きactコマンド実行: {' '.join(cmd)}")
 
             # 監視付きサブプロセスを作成
-            monitored_process = self._create_monitored_subprocess(
-                cmd, process_env, self._timeout_seconds
-            )
+            monitored_process = self._create_monitored_subprocess(cmd, process_env, self._timeout_seconds)
 
             # 安全な出力ストリーミングを実行
             stream_result = self._handle_output_streaming_safely(monitored_process)
@@ -900,11 +1067,7 @@ class EnhancedActWrapper:
         Returns:
             List[str]: 構築されたコマンド
         """
-        artifact_env = (
-            dict(artifact_env)
-            if artifact_env is not None
-            else self._resolve_artifact_settings()
-        )
+        artifact_env = dict(artifact_env) if artifact_env is not None else self._resolve_artifact_settings()
 
         cmd: List[str] = [self.act_binary]
         cmd.extend(self._compose_runner_flags())
@@ -944,9 +1107,19 @@ class EnhancedActWrapper:
         cmd.extend(["--rm"])  # コンテナの自動削除
 
         # アーティファクトサーバー設定を明示的に指定
-        cmd.extend(["--artifact-server-path", artifact_env["ACT_ARTIFACT_SERVER_PATH"]])
+        cmd.extend(
+            [
+                "--artifact-server-path",
+                artifact_env["ACT_ARTIFACT_SERVER_PATH"],
+            ]
+        )
         if artifact_env.get("ACT_ARTIFACT_SERVER_PORT"):
-            cmd.extend(["--artifact-server-port", artifact_env["ACT_ARTIFACT_SERVER_PORT"]])
+            cmd.extend(
+                [
+                    "--artifact-server-port",
+                    artifact_env["ACT_ARTIFACT_SERVER_PORT"],
+                ]
+            )
 
         # デフォルトのGitHub Actions環境変数を追加
         default_env_vars = {
@@ -992,7 +1165,7 @@ class EnhancedActWrapper:
                 stderr=subprocess.PIPE,
                 text=True,
                 env=env,
-                preexec_fn=os.setsid if hasattr(os, 'setsid') else None,  # プロセスグループを作成
+                preexec_fn=os.setsid if hasattr(os, "setsid") else None,  # プロセスグループを作成
             )
 
             self.logger.info(f"監視付きプロセス開始: PID={process.pid}")
@@ -1011,9 +1184,7 @@ class EnhancedActWrapper:
             self._active_processes[process.pid] = monitored_process
 
             # 実行トレースに追加
-            self.execution_tracer.trace_subprocess_execution(
-                cmd, process, str(self.working_directory)
-            )
+            self.execution_tracer.trace_subprocess_execution(cmd, process, str(self.working_directory))
 
             # デッドロック監視スレッドを開始
             self._start_deadlock_monitoring(monitored_process)
@@ -1048,9 +1219,7 @@ class EnhancedActWrapper:
         ) -> None:
             """安全な出力ストリーミング関数"""
             try:
-                self.execution_tracer.update_thread_state(
-                    thread_trace, ThreadState.RUNNING
-                )
+                self.execution_tracer.update_thread_state(thread_trace, ThreadState.RUNNING)
 
                 if pipe is None:
                     return
@@ -1068,14 +1237,10 @@ class EnhancedActWrapper:
                             if self.logger.verbose:
                                 self.logger.debug(f"[{label}] {line}")
 
-                self.execution_tracer.update_thread_state(
-                    thread_trace, ThreadState.TERMINATED
-                )
+                self.execution_tracer.update_thread_state(thread_trace, ThreadState.TERMINATED)
 
             except Exception as e:
-                self.execution_tracer.update_thread_state(
-                    thread_trace, ThreadState.ERROR, str(e)
-                )
+                self.execution_tracer.update_thread_state(thread_trace, ThreadState.ERROR, str(e))
                 stream_result.error_message = str(e)
 
         # 出力ストリーミングスレッドを作成
@@ -1087,17 +1252,25 @@ class EnhancedActWrapper:
         if process.stdout:
             t_out = threading.Thread(
                 target=_safe_stream_output,
-                args=(process.stdout, stream_result.stdout_lines, "act stdout", None),
+                args=(
+                    process.stdout,
+                    stream_result.stdout_lines,
+                    "act stdout",
+                    None,
+                ),
                 daemon=True,
                 name="EnhancedActWrapper-StdoutStream",
             )
-            thread_trace_out = self.execution_tracer.track_thread_lifecycle(
-                t_out, "_safe_stream_output"
-            )
+            thread_trace_out = self.execution_tracer.track_thread_lifecycle(t_out, "_safe_stream_output")
             # スレッド関数の引数を更新
             t_out = threading.Thread(
                 target=_safe_stream_output,
-                args=(process.stdout, stream_result.stdout_lines, "act stdout", thread_trace_out),
+                args=(
+                    process.stdout,
+                    stream_result.stdout_lines,
+                    "act stdout",
+                    thread_trace_out,
+                ),
                 daemon=True,
                 name="EnhancedActWrapper-StdoutStream",
             )
@@ -1108,17 +1281,25 @@ class EnhancedActWrapper:
         if process.stderr:
             t_err = threading.Thread(
                 target=_safe_stream_output,
-                args=(process.stderr, stream_result.stderr_lines, "act stderr", None),
+                args=(
+                    process.stderr,
+                    stream_result.stderr_lines,
+                    "act stderr",
+                    None,
+                ),
                 daemon=True,
                 name="EnhancedActWrapper-StderrStream",
             )
-            thread_trace_err = self.execution_tracer.track_thread_lifecycle(
-                t_err, "_safe_stream_output"
-            )
+            thread_trace_err = self.execution_tracer.track_thread_lifecycle(t_err, "_safe_stream_output")
             # スレッド関数の引数を更新
             t_err = threading.Thread(
                 target=_safe_stream_output,
-                args=(process.stderr, stream_result.stderr_lines, "act stderr", thread_trace_err),
+                args=(
+                    process.stderr,
+                    stream_result.stderr_lines,
+                    "act stderr",
+                    thread_trace_err,
+                ),
                 daemon=True,
                 name="EnhancedActWrapper-StderrStream",
             )
@@ -1144,8 +1325,8 @@ class EnhancedActWrapper:
 
         # 結果を更新
         stream_result.threads_completed = all(not t.is_alive() for t in threads)
-        stream_result.stdout_bytes = sum(len(line.encode('utf-8')) for line in stream_result.stdout_lines)
-        stream_result.stderr_bytes = sum(len(line.encode('utf-8')) for line in stream_result.stderr_lines)
+        stream_result.stdout_bytes = sum(len(line.encode("utf-8")) for line in stream_result.stdout_lines)
+        stream_result.stderr_bytes = sum(len(line.encode("utf-8")) for line in stream_result.stderr_lines)
         stream_result.stream_duration_ms = (time.time() - start_time) * 1000
 
         # デッドロック指標を統合
@@ -1228,6 +1409,7 @@ class EnhancedActWrapper:
         Args:
             monitored_process: 監視対象プロセス
         """
+
         def _deadlock_monitoring_loop():
             """デッドロック監視ループ"""
             while not self._stop_monitoring.is_set():
@@ -1298,7 +1480,10 @@ class EnhancedActWrapper:
                             severity="high",
                             description=f"プロセスが {execution_time:.1f} 秒間実行中（タイムアウト間近）",
                             process_id=process.pid,
-                            details={"execution_time": execution_time, "timeout": monitored_process.timeout_seconds},
+                            details={
+                                "execution_time": execution_time,
+                                "timeout": monitored_process.timeout_seconds,
+                            },
                         )
                     )
 
@@ -1327,7 +1512,7 @@ class EnhancedActWrapper:
                 self.logger.warning(f"プロセスを強制終了します: PID {process.pid}")
 
                 # まずSIGTERMを送信
-                if hasattr(os, 'killpg') and hasattr(process, 'pid'):
+                if hasattr(os, "killpg") and hasattr(process, "pid"):
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                         time.sleep(2.0)  # 終了を待機
@@ -1389,11 +1574,13 @@ class EnhancedActWrapper:
         if returncode == -1:
             analysis["failure_type"] = "timeout"
             analysis["probable_causes"].append("実行タイムアウト")
-            analysis["recommendations"].extend([
-                "タイムアウト時間を延長してください",
-                "ワークフローの複雑さを確認してください",
-                "システムリソースを確認してください"
-            ])
+            analysis["recommendations"].extend(
+                [
+                    "タイムアウト時間を延長してください",
+                    "ワークフローの複雑さを確認してください",
+                    "システムリソースを確認してください",
+                ]
+            )
         elif returncode != 0:
             analysis["failure_type"] = "execution_error"
             analysis["probable_causes"].append(f"act実行エラー (終了コード: {returncode})")
@@ -1402,18 +1589,22 @@ class EnhancedActWrapper:
         if stream_result and stream_result.deadlock_detected:
             analysis["failure_type"] = "deadlock"
             analysis["probable_causes"].append("デッドロック検出")
-            analysis["recommendations"].extend([
-                "出力ストリーミングの問題を確認してください",
-                "プロセス間通信の問題を調査してください"
-            ])
+            analysis["recommendations"].extend(
+                [
+                    "出力ストリーミングの問題を確認してください",
+                    "プロセス間通信の問題を調査してください",
+                ]
+            )
 
         # エラーメッセージ分析
         if "docker" in stderr.lower():
             analysis["probable_causes"].append("Docker関連の問題")
-            analysis["recommendations"].extend([
-                "Docker daemonが実行されているか確認してください",
-                "Docker権限を確認してください"
-            ])
+            analysis["recommendations"].extend(
+                [
+                    "Docker daemonが実行されているか確認してください",
+                    "Docker権限を確認してください",
+                ]
+            )
 
         if "permission" in stderr.lower():
             analysis["probable_causes"].append("権限の問題")

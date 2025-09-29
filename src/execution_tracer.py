@@ -70,9 +70,7 @@ class ExecutionTracer:
                 "trace_stopped",
                 {
                     "end_time": self.end_time,
-                    "duration": self.end_time - self.start_time
-                    if self.start_time
-                    else 0,
+                    "duration": self.end_time - self.start_time if self.start_time else 0,
                     "total_events": len(self.events),
                 },
             )
@@ -89,9 +87,7 @@ class ExecutionTracer:
         """実行段階を設定（互換性のため）"""
         self.record_event("stage_change", {"stage": str(stage), "details": details})
 
-    def monitor_docker_communication(
-        self, operation_type, command=None, success=True, error_message=None
-    ):
+    def monitor_docker_communication(self, operation_type, command=None, success=True, error_message=None):
         """Docker通信を監視（互換性のため）"""
         self.record_event(
             "docker_communication",
@@ -202,13 +198,9 @@ class ExecutionTracer:
             },
         )
 
-    def record_performance_marker(
-        self, marker: str, value: float, unit: str = "seconds"
-    ):
+    def record_performance_marker(self, marker: str, value: float, unit: str = "seconds"):
         """パフォーマンスマーカーを記録"""
-        self.record_event(
-            "performance_marker", {"marker": marker, "value": value, "unit": unit}
-        )
+        self.record_event("performance_marker", {"marker": marker, "value": value, "unit": unit})
 
     def get_events(self) -> List[Dict[str, Any]]:
         """記録されたイベントを取得"""
@@ -229,11 +221,7 @@ class ExecutionTracer:
                 duration = current_time - self.start_time if self.start_time else 0
             else:
                 # トレース停止済みの場合は保存されたメトリクスを返す
-                duration = (
-                    self.end_time - self.start_time
-                    if self.start_time and self.end_time
-                    else 0
-                )
+                duration = self.end_time - self.start_time if self.start_time and self.end_time else 0
 
             return {
                 "duration": duration,
@@ -288,9 +276,7 @@ class ExecutionTracer:
             {
                 "thread_count": len(thread_stats),
                 "thread_stats": dict(thread_stats),
-                "avg_event_interval": sum(intervals) / len(intervals)
-                if intervals
-                else 0,
+                "avg_event_interval": sum(intervals) / len(intervals) if intervals else 0,
                 "max_event_interval": max(intervals) if intervals else 0,
                 "min_event_interval": min(intervals) if intervals else 0,
             }
@@ -317,9 +303,7 @@ class ExecutionTracer:
             "total_events": len(self.events),
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "duration_seconds": (self.end_time - self.start_time)
-            if (self.end_time and self.start_time)
-            else 0,
+            "duration_seconds": (self.end_time - self.start_time) if (self.end_time and self.start_time) else 0,
             "event_types": dict(self.event_counters),
             "performance_metrics": self.performance_metrics,
             "tracing_active": self.tracing_active,

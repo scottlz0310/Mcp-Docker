@@ -153,9 +153,7 @@ jobs:
             self.logger.info("DiagnosticService統合テストを実行中...")
             diagnostic_service = DiagnosticService(logger=self.logger)
             health_report = diagnostic_service.run_comprehensive_health_check()
-            results["diagnostic_service"] = (
-                health_report.overall_status != DiagnosticStatus.ERROR
-            )
+            results["diagnostic_service"] = health_report.overall_status != DiagnosticStatus.ERROR
 
             # 2. ExecutionTracer統合テスト
             self.logger.info("ExecutionTracer統合テストを実行中...")
@@ -177,9 +175,7 @@ jobs:
             self.logger.info("AutoRecovery統合テストを実行中...")
             auto_recovery = AutoRecovery(logger=self.logger)
             # Docker再接続テスト（モック環境）
-            with patch.object(
-                auto_recovery.docker_checker, "test_docker_daemon_connection_with_retry"
-            ) as mock_check:
+            with patch.object(auto_recovery.docker_checker, "test_docker_daemon_connection_with_retry") as mock_check:
                 from services.actions.docker_integration_checker import (
                     DockerConnectionStatus,
                 )
@@ -242,9 +238,7 @@ jobs:
                 )
 
                 start_time = time.time()
-                simulation_result = simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                simulation_result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                 execution_time = time.time() - start_time
 
                 results[workflow_name] = {
@@ -254,20 +248,14 @@ jobs:
                     "simulation_success": simulation_result.success,
                     "execution_time_seconds": execution_time,
                     "return_code": simulation_result.return_code,
-                    "has_output": bool(
-                        simulation_result.stdout or simulation_result.stderr
-                    ),
+                    "has_output": bool(simulation_result.stdout or simulation_result.stderr),
                 }
 
                 # パフォーマンスメトリクスを記録
-                self.performance_metrics[f"{workflow_name}_execution_time"] = (
-                    execution_time
-                )
+                self.performance_metrics[f"{workflow_name}_execution_time"] = execution_time
 
             except Exception as e:
-                self.logger.error(
-                    f"ワークフロー '{workflow_name}' のテスト中にエラー: {e}"
-                )
+                self.logger.error(f"ワークフロー '{workflow_name}' のテスト中にエラー: {e}")
                 results[workflow_name] = {
                     "parsing_success": False,
                     "error": str(e),
@@ -276,16 +264,12 @@ jobs:
 
         return results
 
-    def test_enhanced_act_wrapper_integration(
-        self, workspace_dir: Path
-    ) -> Dict[str, any]:
+    def test_enhanced_act_wrapper_integration(self, workspace_dir: Path) -> Dict[str, any]:
         """EnhancedActWrapper統合テスト"""
         self.logger.info("EnhancedActWrapper統合テストを実行中...")
 
         try:
-            wrapper = EnhancedActWrapper(
-                working_directory=str(workspace_dir), logger=self.logger
-            )
+            wrapper = EnhancedActWrapper(working_directory=str(workspace_dir), logger=self.logger)
 
             # 診断機能テスト
             diagnostic_results = wrapper.run_pre_execution_diagnostics()
@@ -304,9 +288,7 @@ jobs:
 
             return {
                 "diagnostics_available": diagnostic_results is not None,
-                "execution_success": result.success
-                if hasattr(result, "success")
-                else True,
+                "execution_success": result.success if hasattr(result, "success") else True,
                 "execution_time_seconds": execution_time,
                 "has_detailed_result": hasattr(result, "detailed_result"),
                 "auto_recovery_available": hasattr(wrapper, "auto_recovery"),
@@ -316,9 +298,7 @@ jobs:
             self.logger.error(f"EnhancedActWrapper統合テスト中にエラー: {e}")
             return {"error": str(e), "execution_success": False}
 
-    def test_concurrent_execution_stability(
-        self, workspace_dir: Path
-    ) -> Dict[str, any]:
+    def test_concurrent_execution_stability(self, workspace_dir: Path) -> Dict[str, any]:
         """並行実行安定性テスト"""
         self.logger.info("並行実行安定性テストを実行中...")
 
@@ -326,9 +306,7 @@ jobs:
             """単一シミュレーション実行"""
             try:
                 service = SimulationService()
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=False
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=False)
 
                 start_time = time.time()
                 result = service.run_simulation(params, logger=self.logger)
@@ -374,9 +352,7 @@ jobs:
                     result = future.result()
                     results.append(result)
                 except Exception as e:
-                    results.append(
-                        {"success": False, "error": str(e), "execution_time": 0}
-                    )
+                    results.append({"success": False, "error": str(e), "execution_time": 0})
 
         total_time = time.time() - start_time
 
@@ -384,11 +360,7 @@ jobs:
         successful_runs = sum(1 for r in results if r.get("success", False))
         total_runs = len(results)
         success_rate = successful_runs / total_runs if total_runs > 0 else 0
-        avg_execution_time = (
-            sum(r.get("execution_time", 0) for r in results) / total_runs
-            if total_runs > 0
-            else 0
-        )
+        avg_execution_time = sum(r.get("execution_time", 0) for r in results) / total_runs if total_runs > 0 else 0
 
         return {
             "total_runs": total_runs,
@@ -478,9 +450,7 @@ jobs:
                 "initial_memory_mb": initial_memory,
                 "final_memory_mb": final_memory,
                 "memory_increase_mb": memory_increase,
-                "memory_increase_percentage": (memory_increase / initial_memory) * 100
-                if initial_memory > 0
-                else 0,
+                "memory_increase_percentage": (memory_increase / initial_memory) * 100 if initial_memory > 0 else 0,
             }
 
         except ImportError:
@@ -549,8 +519,7 @@ jobs:
             "summary": {
                 "total_test_categories": len(self.test_results),
                 "overall_success": all(
-                    isinstance(result, dict) and result.get("success", True)
-                    for result in self.test_results.values()
+                    isinstance(result, dict) and result.get("success", True) for result in self.test_results.values()
                 ),
                 "performance_acceptable": all(
                     metric < 5000  # 5秒以下
@@ -659,9 +628,7 @@ class TestComprehensiveIntegration:
         # レポートをファイルに保存
         report_file = Path("output") / "comprehensive_integration_report.json"
         report_file.parent.mkdir(exist_ok=True)
-        report_file.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
         print(f"\n包括的統合テストレポートが保存されました: {report_file}")
         print(f"総合成功率: {report['summary']['overall_success']}")
@@ -681,18 +648,14 @@ def main():
     print(f"\n実行時刻: {report['test_execution_time']}")
     print(f"テストカテゴリ数: {report['summary']['total_test_categories']}")
     print(f"総合成功: {'✅' if report['summary']['overall_success'] else '❌'}")
-    print(
-        f"パフォーマンス要件: {'✅' if report['summary']['performance_acceptable'] else '❌'}"
-    )
+    print(f"パフォーマンス要件: {'✅' if report['summary']['performance_acceptable'] else '❌'}")
 
     # 詳細結果
     print("\n詳細結果:")
     for category, results in report["test_results"].items():
         if isinstance(results, dict):
             success_count = sum(
-                1
-                for v in results.values()
-                if v is True or (isinstance(v, dict) and v.get("success", False))
+                1 for v in results.values() if v is True or (isinstance(v, dict) and v.get("success", False))
             )
             total_count = len(results)
             print(f"  {category}: {success_count}/{total_count} 成功")
@@ -710,9 +673,7 @@ def main():
 
     # レポートファイルを保存
     report_file = Path("comprehensive_integration_report.json")
-    report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n詳細レポートが保存されました: {report_file}")
 
     return 0 if report["summary"]["overall_success"] else 1

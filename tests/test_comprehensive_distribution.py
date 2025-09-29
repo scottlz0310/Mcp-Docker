@@ -60,24 +60,18 @@ jobs:
       - name: Run tests
         run: echo "Running tests"
 """
-            (project_dir / ".github" / "workflows" / "ci.yml").write_text(
-                workflow_content
-            )
+            (project_dir / ".github" / "workflows" / "ci.yml").write_text(workflow_content)
 
             yield project_dir
 
     def test_script_exists_and_executable(self, script_path):
         """配布スクリプトが存在し、実行可能であることを確認"""
         assert script_path.exists(), f"配布スクリプトが見つかりません: {script_path}"
-        assert os.access(
-            script_path, os.X_OK
-        ), f"配布スクリプトが実行可能ではありません: {script_path}"
+        assert os.access(script_path, os.X_OK), f"配布スクリプトが実行可能ではありません: {script_path}"
 
     def test_help_option(self, script_path):
         """ヘルプオプションの動作テスト"""
-        result = subprocess.run(
-            [str(script_path), "--help"], capture_output=True, text=True, timeout=30
-        )
+        result = subprocess.run([str(script_path), "--help"], capture_output=True, text=True, timeout=30)
 
         assert result.returncode == 0, f"ヘルプオプションが失敗: {result.stderr}"
         assert "GitHub Actions Simulator" in result.stdout
@@ -181,9 +175,7 @@ jobs:
     steps:
       - run: echo "Additional test"
 """
-        (temp_project_dir / ".github" / "workflows" / "additional.yml").write_text(
-            additional_workflow
-        )
+        (temp_project_dir / ".github" / "workflows" / "additional.yml").write_text(additional_workflow)
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
@@ -222,11 +214,7 @@ jobs:
             # 適切なエラーメッセージが表示されることを確認
             output = result.stdout + result.stderr
             assert result.returncode != 0, "エラーが適切に検出されませんでした"
-            assert (
-                "ワークフロー" in output
-                or "見つかりません" in output
-                or "Docker" in output
-            )
+            assert "ワークフロー" in output or "見つかりません" in output or "Docker" in output
 
     def test_log_directory_creation(self, script_path, temp_project_dir):
         """ログディレクトリの作成テスト"""
@@ -338,9 +326,7 @@ jobs:
 
         # 無効なオプションが適切に処理されることを確認
         # （エラーまたは無視される）
-        assert (
-            result.returncode != 127
-        ), "無効なオプションでコマンドが見つからないエラーが発生"
+        assert result.returncode != 127, "無効なオプションでコマンドが見つからないエラーが発生"
 
 
 class TestDistributionScriptIntegration:
@@ -369,9 +355,7 @@ class TestDistributionScriptIntegration:
 
         # 実際のプロジェクトでの依存関係チェックが動作することを確認
         output = result.stdout + result.stderr
-        assert (
-            "依存関係" in output or "プラットフォーム" in output or "Docker" in output
-        )
+        assert "依存関係" in output or "プラットフォーム" in output or "Docker" in output
 
     def test_real_project_workflow_discovery(self, script_path):
         """実際のプロジェクトでのワークフロー発見"""
@@ -419,9 +403,7 @@ class TestDistributionScriptIntegration:
         execution_time = end_time - start_time
 
         # 依存関係チェックが合理的な時間内に完了することを確認
-        assert (
-            execution_time < 120
-        ), f"依存関係チェックが遅すぎます: {execution_time:.2f}秒"
+        assert execution_time < 120, f"依存関係チェックが遅すぎます: {execution_time:.2f}秒"
 
         # 結果が得られることを確認
         output = result.stdout + result.stderr

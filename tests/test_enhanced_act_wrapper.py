@@ -40,9 +40,7 @@ class TestEnhancedActWrapper(unittest.TestCase):
         self.working_directory = Path(self.temp_dir)
 
         # テスト用のワークフローファイルを作成
-        self.workflow_file = (
-            self.working_directory / ".github" / "workflows" / "test.yml"
-        )
+        self.workflow_file = self.working_directory / ".github" / "workflows" / "test.yml"
         self.workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.workflow_file, "w") as f:
@@ -146,9 +144,7 @@ jobs:
         env = {"TEST": "value"}
         timeout_seconds = 60.0
 
-        monitored_process = wrapper._create_monitored_subprocess(
-            cmd, env, timeout_seconds
-        )
+        monitored_process = wrapper._create_monitored_subprocess(cmd, env, timeout_seconds)
 
         self.assertIsInstance(monitored_process, MonitoredProcess)
         self.assertEqual(monitored_process.process, mock_process)
@@ -381,9 +377,7 @@ jobs:
 
         self.assertEqual(analysis["failure_type"], "deadlock")
         self.assertIn("デッドロック検出", analysis["probable_causes"])
-        self.assertIn(
-            "出力ストリーミングの問題を確認してください", analysis["recommendations"]
-        )
+        self.assertIn("出力ストリーミングの問題を確認してください", analysis["recommendations"])
 
     def test_stream_result_initialization(self):
         """StreamResult初期化テスト"""
@@ -467,9 +461,7 @@ class TestEnhancedActWrapperIntegration(unittest.TestCase):
     def test_full_workflow_execution_mock_mode(self):
         """モックモードでの完全なワークフロー実行テスト"""
         # テスト用のワークフローファイルを作成
-        workflow_file = (
-            self.working_directory / ".github" / "workflows" / "integration_test.yml"
-        )
+        workflow_file = self.working_directory / ".github" / "workflows" / "integration_test.yml"
         workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(workflow_file, "w") as f:
@@ -511,9 +503,7 @@ jobs:
     def test_workflow_execution_with_environment_variables(self):
         """環境変数付きワークフロー実行テスト"""
         # テスト用のワークフローファイルを作成
-        workflow_file = (
-            self.working_directory / ".github" / "workflows" / "env_test.yml"
-        )
+        workflow_file = self.working_directory / ".github" / "workflows" / "env_test.yml"
         workflow_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(workflow_file, "w") as f:

@@ -159,9 +159,7 @@ class PerformanceMonitor:
                 self.end_stage()
 
             # 新しい段階を開始
-            self.current_stage = ExecutionStage(
-                stage_name=stage_name, start_time=time.time()
-            )
+            self.current_stage = ExecutionStage(stage_name=stage_name, start_time=time.time())
             self.execution_stages.append(self.current_stage)
 
             self.logger.debug(f"実行段階開始: {stage_name}")
@@ -173,33 +171,24 @@ class PerformanceMonitor:
                 return
 
             self.current_stage.end_time = time.time()
-            self.current_stage.duration_ms = (
-                self.current_stage.end_time - self.current_stage.start_time
-            ) * 1000
+            self.current_stage.duration_ms = (self.current_stage.end_time - self.current_stage.start_time) * 1000
 
             # 段階中のピーク値を計算
             stage_metrics = [
                 m
                 for m in self.metrics_history
-                if self.current_stage.start_time
-                <= m.timestamp
-                <= self.current_stage.end_time
+                if self.current_stage.start_time <= m.timestamp <= self.current_stage.end_time
             ]
 
             if stage_metrics:
                 self.current_stage.peak_cpu = max(m.cpu_percent for m in stage_metrics)
-                self.current_stage.peak_memory_mb = max(
-                    m.memory_rss_mb for m in stage_metrics
-                )
+                self.current_stage.peak_memory_mb = max(m.memory_rss_mb for m in stage_metrics)
 
             self.logger.debug(
-                f"実行段階終了: {self.current_stage.stage_name} "
-                f"({self.current_stage.duration_ms:.2f}ms)"
+                f"実行段階終了: {self.current_stage.stage_name} " f"({self.current_stage.duration_ms:.2f}ms)"
             )
 
-    def record_docker_operation(
-        self, operation_type: str, container_id: Optional[str] = None
-    ):
+    def record_docker_operation(self, operation_type: str, container_id: Optional[str] = None):
         """Docker操作を記録"""
         with self.lock:
             self.docker_operations_count += 1
@@ -207,9 +196,7 @@ class PerformanceMonitor:
             if self.current_stage:
                 self.current_stage.docker_operations += 1
 
-            self.logger.debug(
-                f"Docker操作記録: {operation_type} (container: {container_id or 'N/A'})"
-            )
+            self.logger.debug(f"Docker操作記録: {operation_type} (container: {container_id or 'N/A'})")
 
     def _collect_current_metrics(self) -> PerformanceMetrics:
         """現在のメトリクスを収集"""
@@ -253,8 +240,7 @@ class PerformanceMonitor:
                             - stats["precpu_stats"]["cpu_usage"]["total_usage"]
                         )
                         system_delta = (
-                            stats["cpu_stats"]["system_cpu_usage"]
-                            - stats["precpu_stats"]["system_cpu_usage"]
+                            stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
                         )
 
                         if system_delta > 0:
@@ -270,9 +256,7 @@ class PerformanceMonitor:
                         docker_memory_mb += memory_usage / (1024 * 1024)
 
                     except Exception as e:
-                        self.logger.debug(
-                            f"コンテナ統計取得エラー {container.id[:12]}: {e}"
-                        )
+                        self.logger.debug(f"コンテナ統計取得エラー {container.id[:12]}: {e}")
 
             except Exception as e:
                 self.logger.debug(f"Docker統計取得エラー: {e}")
@@ -372,9 +356,7 @@ class PerformanceMonitor:
             )
 
         # Docker ボトルネック検出
-        docker_cpu_values = [
-            m.docker_cpu_usage for m in metrics_list if m.docker_cpu_usage > 0
-        ]
+        docker_cpu_values = [m.docker_cpu_usage for m in metrics_list if m.docker_cpu_usage > 0]
         if docker_cpu_values:
             avg_docker_cpu = statistics.mean(docker_cpu_values)
             if avg_docker_cpu > 70:
@@ -397,18 +379,14 @@ class PerformanceMonitor:
         # 実行段階別ボトルネック検出
         for stage in self.execution_stages:
             if stage.duration_ms and stage.duration_ms > 30000:  # 30秒以上
-                severity = (
-                    "HIGH" if stage.duration_ms > 120000 else "MEDIUM"
-                )  # 2分以上は高重要度
+                severity = "HIGH" if stage.duration_ms > 120000 else "MEDIUM"  # 2分以上は高重要度
                 self.bottlenecks.append(
                     BottleneckAnalysis(
                         bottleneck_type="STAGE_SLOW_EXECUTION",
                         severity=severity,
                         description=f"実行段階 '{stage.stage_name}' の実行時間が長すぎます ({stage.duration_ms / 1000:.1f}秒)",
                         affected_stage=stage.stage_name,
-                        impact_score=min(
-                            stage.duration_ms / 60000, 1.0
-                        ),  # 1分を最大とする
+                        impact_score=min(stage.duration_ms / 60000, 1.0),  # 1分を最大とする
                         recommendations=[
                             "この段階の処理を並列化できないか検討してください",
                             "不要な処理が含まれていないか確認してください",
@@ -455,9 +433,7 @@ class PerformanceMonitor:
         # network_recv_values = [m.network_bytes_recv for m in metrics_list]  # 将来の使用のため保留
 
         if len(network_sent_values) > 1:
-            network_sent_rate = (
-                max(network_sent_values) - min(network_sent_values)
-            ) / (
+            network_sent_rate = (max(network_sent_values) - min(network_sent_values)) / (
                 (metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60
             )  # bytes/分
 
@@ -474,10 +450,7 @@ class PerformanceMonitor:
                             "データ圧縮の使用を検討してください",
                             "不要な通信の削減を検討してください",
                         ],
-                        metrics_evidence={
-                            "network_sent_rate_mb_per_min": network_sent_rate
-                            / (1024 * 1024)
-                        },
+                        metrics_evidence={"network_sent_rate_mb_per_min": network_sent_rate / (1024 * 1024)},
                     )
                 )
 
@@ -534,10 +507,7 @@ class PerformanceMonitor:
         memory_values = [m.memory_rss_mb for m in metrics_list]
         if memory_values:
             peak_memory = max(memory_values)
-            if (
-                self.baseline_metrics
-                and peak_memory > self.baseline_metrics.memory_rss_mb * 3
-            ):
+            if self.baseline_metrics and peak_memory > self.baseline_metrics.memory_rss_mb * 3:
                 self.optimization_opportunities.append(
                     OptimizationOpportunity(
                         opportunity_type="MEMORY_USAGE_OPTIMIZATION",
@@ -555,13 +525,9 @@ class PerformanceMonitor:
                 )
 
         # 実行時間の最適化機会
-        long_stages = [
-            s for s in self.execution_stages if s.duration_ms and s.duration_ms > 10000
-        ]
+        long_stages = [s for s in self.execution_stages if s.duration_ms and s.duration_ms > 10000]
         if len(long_stages) > 2:
-            total_long_stage_time = sum(
-                s.duration_ms for s in long_stages if s.duration_ms is not None
-            )
+            total_long_stage_time = sum(s.duration_ms for s in long_stages if s.duration_ms is not None)
             self.optimization_opportunities.append(
                 OptimizationOpportunity(
                     opportunity_type="EXECUTION_TIME_OPTIMIZATION",
@@ -606,9 +572,7 @@ class PerformanceMonitor:
         # Docker最適化機会の詳細化
         if self.execution_stages:
             docker_heavy_stages = [
-                s
-                for s in self.execution_stages
-                if s.docker_operations > 10 and s.duration_ms and s.duration_ms > 5000
+                s for s in self.execution_stages if s.docker_operations > 10 and s.duration_ms and s.duration_ms > 5000
             ]
 
             if docker_heavy_stages:
@@ -637,18 +601,12 @@ class PerformanceMonitor:
                 current_stage = self.execution_stages[i]
                 next_stage = self.execution_stages[i + 1]
 
-                if (
-                    current_stage.end_time
-                    and next_stage.start_time
-                    and next_stage.start_time > current_stage.end_time
-                ):
+                if current_stage.end_time and next_stage.start_time and next_stage.start_time > current_stage.end_time:
                     gap_ms = (next_stage.start_time - current_stage.end_time) * 1000
                     if gap_ms > 1000:  # 1秒以上のギャップ
                         stage_gaps.append(gap_ms)
 
-            if (
-                stage_gaps and statistics.mean(stage_gaps) > 2000
-            ):  # 平均2秒以上のギャップ
+            if stage_gaps and statistics.mean(stage_gaps) > 2000:  # 平均2秒以上のギャップ
                 total_gap_time = sum(stage_gaps) / 1000
                 self.optimization_opportunities.append(
                     OptimizationOpportunity(
@@ -667,13 +625,9 @@ class PerformanceMonitor:
                 )
 
         # ワークフロー特有の最適化機会
-        workflow_stages = [
-            s for s in self.execution_stages if "workflow" in s.stage_name.lower()
-        ]
+        workflow_stages = [s for s in self.execution_stages if "workflow" in s.stage_name.lower()]
         if len(workflow_stages) > 1:
-            workflow_total_time = sum(
-                s.duration_ms for s in workflow_stages if s.duration_ms is not None
-            )
+            workflow_total_time = sum(s.duration_ms for s in workflow_stages if s.duration_ms is not None)
             if workflow_total_time > 60000:  # 1分以上のワークフロー処理
                 self.optimization_opportunities.append(
                     OptimizationOpportunity(
@@ -705,18 +659,12 @@ class PerformanceMonitor:
 
         total_duration = 0
         if self.execution_stages:
-            completed_stages = [
-                s for s in self.execution_stages if s.duration_ms is not None
-            ]
-            total_duration = sum(
-                s.duration_ms for s in completed_stages if s.duration_ms is not None
-            )
+            completed_stages = [s for s in self.execution_stages if s.duration_ms is not None]
+            total_duration = sum(s.duration_ms for s in completed_stages if s.duration_ms is not None)
 
         return {
             "monitoring_duration_seconds": (
-                metrics_list[-1].timestamp - metrics_list[0].timestamp
-                if len(metrics_list) > 1
-                else 0
+                metrics_list[-1].timestamp - metrics_list[0].timestamp if len(metrics_list) > 1 else 0
             ),
             "total_execution_time_ms": total_duration,
             "metrics_collected": len(metrics_list),
@@ -733,8 +681,7 @@ class PerformanceMonitor:
             "docker_operations": {
                 "total_count": self.docker_operations_count,
                 "operations_per_minute": (
-                    self.docker_operations_count
-                    / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
+                    self.docker_operations_count / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
                     if len(metrics_list) > 1
                     else 0
                 ),
@@ -817,9 +764,7 @@ class PerformanceMonitor:
                     encoding="utf-8",
                 )
 
-                self.logger.info(
-                    f"パフォーマンスメトリクスを {output_path} にエクスポートしました"
-                )
+                self.logger.info(f"パフォーマンスメトリクスを {output_path} にエクスポートしました")
                 return True
 
             else:
@@ -873,9 +818,7 @@ class PerformanceMonitor:
             self.bottlenecks.clear()
             self.optimization_opportunities.clear()
 
-            self.monitor_thread = threading.Thread(
-                target=self._monitoring_loop, daemon=True, name="PerformanceMonitor"
-            )
+            self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True, name="PerformanceMonitor")
             self.monitor_thread.start()
 
             # 初期段階を開始（指定された場合）
@@ -891,9 +834,7 @@ class PerformanceMonitor:
                 self.end_stage()
 
             # 新しい段階を開始
-            self.current_stage = ExecutionStage(
-                stage_name=f"{stage_type}:{stage_name}", start_time=time.time()
-            )
+            self.current_stage = ExecutionStage(stage_name=f"{stage_type}:{stage_name}", start_time=time.time())
             self.execution_stages.append(self.current_stage)
 
             self.logger.debug(f"ワークフロー段階開始: {stage_type}:{stage_name}")
@@ -906,9 +847,7 @@ class PerformanceMonitor:
 
         # 最近のメトリクス履歴から傾向を分析
         recent_metrics = (
-            list(self.metrics_history)[-10:]
-            if len(self.metrics_history) >= 10
-            else list(self.metrics_history)
+            list(self.metrics_history)[-10:] if len(self.metrics_history) >= 10 else list(self.metrics_history)
         )
 
         trends = {}
@@ -936,12 +875,8 @@ class PerformanceMonitor:
             trends = {
                 "cpu_trend": cpu_trend,
                 "memory_trend": memory_trend,
-                "cpu_change_percent": cpu_values[-1] - cpu_values[0]
-                if len(cpu_values) >= 2
-                else 0,
-                "memory_change_percent": memory_values[-1] - memory_values[0]
-                if len(memory_values) >= 2
-                else 0,
+                "cpu_change_percent": cpu_values[-1] - cpu_values[0] if len(cpu_values) >= 2 else 0,
+                "memory_change_percent": memory_values[-1] - memory_values[0] if len(memory_values) >= 2 else 0,
             }
 
         return {
@@ -959,9 +894,7 @@ class PerformanceMonitor:
             "monitoring_status": {
                 "is_active": self.monitoring_active,
                 "metrics_collected": len(self.metrics_history),
-                "current_stage": self.current_stage.stage_name
-                if self.current_stage
-                else None,
+                "current_stage": self.current_stage.stage_name if self.current_stage else None,
                 "total_stages": len(self.execution_stages),
             },
         }
@@ -985,9 +918,7 @@ class PerformanceMonitor:
             issues.append(
                 {
                     "type": "HIGH_CPU_USAGE",
-                    "severity": "CRITICAL"
-                    if current_metrics.cpu_percent > 95
-                    else "HIGH",
+                    "severity": "CRITICAL" if current_metrics.cpu_percent > 95 else "HIGH",
                     "message": f"CPU使用率が非常に高い状態です ({current_metrics.cpu_percent:.1f}%)",
                     "value": current_metrics.cpu_percent,
                     "threshold": 90,
@@ -1003,9 +934,7 @@ class PerformanceMonitor:
             issues.append(
                 {
                     "type": "HIGH_MEMORY_USAGE",
-                    "severity": "CRITICAL"
-                    if current_metrics.memory_percent > 95
-                    else "HIGH",
+                    "severity": "CRITICAL" if current_metrics.memory_percent > 95 else "HIGH",
                     "message": f"メモリ使用率が非常に高い状態です ({current_metrics.memory_percent:.1f}%)",
                     "value": current_metrics.memory_percent,
                     "threshold": 85,
@@ -1086,8 +1015,7 @@ class PerformanceMonitor:
         docker_stats = {
             "total_operations": max(docker_ops_values) if docker_ops_values else 0,
             "operations_per_minute": (
-                max(docker_ops_values)
-                / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
+                max(docker_ops_values) / ((metrics_list[-1].timestamp - metrics_list[0].timestamp) / 60)
                 if len(metrics_list) > 1 and docker_ops_values
                 else 0
             ),
@@ -1099,11 +1027,7 @@ class PerformanceMonitor:
         for stage in self.execution_stages:
             if stage.duration_ms is not None:
                 stage_metrics = [
-                    m
-                    for m in metrics_list
-                    if stage.start_time
-                    <= m.timestamp
-                    <= (stage.end_time or time.time())
+                    m for m in metrics_list if stage.start_time <= m.timestamp <= (stage.end_time or time.time())
                 ]
 
                 stage_info = {
@@ -1117,12 +1041,8 @@ class PerformanceMonitor:
                 }
 
                 if stage_metrics:
-                    stage_cpu_avg = statistics.mean(
-                        m.cpu_percent for m in stage_metrics
-                    )
-                    stage_memory_avg = statistics.mean(
-                        m.memory_percent for m in stage_metrics
-                    )
+                    stage_cpu_avg = statistics.mean(m.cpu_percent for m in stage_metrics)
+                    stage_memory_avg = statistics.mean(m.memory_percent for m in stage_metrics)
                     stage_info.update(
                         {
                             "average_cpu": stage_cpu_avg,
@@ -1133,17 +1053,13 @@ class PerformanceMonitor:
                 stage_analysis.append(stage_info)
 
         # パフォーマンス評価
-        performance_score = self._calculate_performance_score(
-            cpu_stats, memory_stats, docker_stats
-        )
+        performance_score = self._calculate_performance_score(cpu_stats, memory_stats, docker_stats)
 
         return {
             "report_metadata": {
                 "generated_at": time.time(),
                 "monitoring_duration_seconds": (
-                    metrics_list[-1].timestamp - metrics_list[0].timestamp
-                    if len(metrics_list) > 1
-                    else 0
+                    metrics_list[-1].timestamp - metrics_list[0].timestamp if len(metrics_list) > 1 else 0
                 ),
                 "total_metrics_collected": len(metrics_list),
                 "performance_score": performance_score,
@@ -1155,9 +1071,7 @@ class PerformanceMonitor:
             },
             "execution_analysis": {
                 "total_stages": len(self.execution_stages),
-                "completed_stages": len(
-                    [s for s in self.execution_stages if s.duration_ms is not None]
-                ),
+                "completed_stages": len([s for s in self.execution_stages if s.duration_ms is not None]),
                 "stage_details": stage_analysis,
             },
             "bottlenecks": [
@@ -1183,14 +1097,10 @@ class PerformanceMonitor:
                 }
                 for o in self.optimization_opportunities
             ],
-            "recommendations": self._generate_overall_recommendations(
-                cpu_stats, memory_stats, docker_stats
-            ),
+            "recommendations": self._generate_overall_recommendations(cpu_stats, memory_stats, docker_stats),
         }
 
-    def _calculate_performance_score(
-        self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict
-    ) -> float:
+    def _calculate_performance_score(self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict) -> float:
         """パフォーマンススコアを計算（0-100）"""
         # CPU スコア（低い使用率ほど高スコア）
         cpu_score = max(0, 100 - cpu_stats["average"])
@@ -1209,16 +1119,12 @@ class PerformanceMonitor:
         overall_score = cpu_score * 0.4 + memory_score * 0.4 + docker_score * 0.2
         return round(max(0, min(100, overall_score)), 2)
 
-    def _generate_overall_recommendations(
-        self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict
-    ) -> List[str]:
+    def _generate_overall_recommendations(self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict) -> List[str]:
         """全体的な推奨事項を生成"""
         recommendations = []
 
         if cpu_stats["average"] > 70:
-            recommendations.append(
-                "CPU使用率が高いため、並列処理の最適化や処理の分散を検討してください"
-            )
+            recommendations.append("CPU使用率が高いため、並列処理の最適化や処理の分散を検討してください")
 
         if memory_stats["average"] > 80:
             recommendations.append(
@@ -1236,17 +1142,13 @@ class PerformanceMonitor:
             )
 
         # 段階別の推奨事項
-        long_stages = [
-            s for s in self.execution_stages if s.duration_ms and s.duration_ms > 30000
-        ]
+        long_stages = [s for s in self.execution_stages if s.duration_ms and s.duration_ms > 30000]
         if len(long_stages) > 2:
             recommendations.append(
                 "長時間実行される段階が複数あるため、処理の最適化やタイムアウト設定の見直しを検討してください"
             )
 
         if not recommendations:
-            recommendations.append(
-                "パフォーマンスは良好です。現在の設定を維持してください"
-            )
+            recommendations.append("パフォーマンスは良好です。現在の設定を維持してください")
 
         return recommendations

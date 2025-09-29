@@ -49,9 +49,7 @@ class ProcessMonitor:
 
             if not self.monitoring_active:
                 self.monitoring_active = True
-                self.monitor_thread = threading.Thread(
-                    target=self._monitor_loop, daemon=True
-                )
+                self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
                 self.monitor_thread.start()
 
             self.logger.info(f"プロセス監視開始: PID {pid}")
@@ -83,11 +81,7 @@ class ProcessMonitor:
                 self.logger.info("全プロセス監視停止")
 
         # スレッドの終了を待機（タイムアウト付き）
-        if (
-            not self.monitoring_active
-            and self.monitor_thread
-            and self.monitor_thread.is_alive()
-        ):
+        if not self.monitoring_active and self.monitor_thread and self.monitor_thread.is_alive():
             self.monitor_thread.join(timeout=2.0)
             if self.monitor_thread.is_alive():
                 self.logger.warning("監視スレッドの終了がタイムアウトしました")
@@ -180,9 +174,7 @@ class ProcessMonitor:
 
                             self.metrics_history[pid].append(metrics)
                             if len(self.metrics_history[pid]) > 100:
-                                self.metrics_history[pid] = self.metrics_history[pid][
-                                    -100:
-                                ]
+                                self.metrics_history[pid] = self.metrics_history[pid][-100:]
 
                         except psutil.NoSuchProcess:
                             pids_to_remove.append(pid)
@@ -212,15 +204,12 @@ class ProcessMonitor:
 
                 # CPU使用率が0%で状態が変わらない場合
                 if all(m.cpu_percent == 0 for m in recent_metrics):
-                    if all(
-                        m.status == recent_metrics[0].status for m in recent_metrics
-                    ):
+                    if all(m.status == recent_metrics[0].status for m in recent_metrics):
                         hanging_processes.append(
                             {
                                 "pid": pid,
                                 "reason": "no_cpu_activity",
-                                "duration": recent_metrics[-1].timestamp
-                                - recent_metrics[0].timestamp,
+                                "duration": recent_metrics[-1].timestamp - recent_metrics[0].timestamp,
                                 "status": recent_metrics[0].status,
                             }
                         )

@@ -122,11 +122,7 @@ jobs:
             health_report = self.diagnostic_service.run_comprehensive_health_check()
 
             # Docker関連の問題が検出されることを確認
-            docker_issues = [
-                result
-                for result in health_report.results
-                if "Docker" in result.component
-            ]
+            docker_issues = [result for result in health_report.results if "Docker" in result.component]
             self.assertTrue(len(docker_issues) > 0)
 
             # ハングアップ分析
@@ -261,9 +257,7 @@ jobs:
         original_command = ["act", "--list"]
 
         # フォールバックモードを実行
-        result = self.auto_recovery.execute_fallback_mode(
-            workflow_file, original_command
-        )
+        result = self.auto_recovery.execute_fallback_mode(workflow_file, original_command)
 
         # フォールバック実行が成功することを確認
         self.assertTrue(result.success)
@@ -290,9 +284,7 @@ jobs:
         analysis = self.hangup_detector.analyze_hangup_conditions()
 
         # エラーレポートを生成
-        report = self.hangup_detector.generate_detailed_error_report(
-            hangup_analysis=analysis
-        )
+        report = self.hangup_detector.generate_detailed_error_report(hangup_analysis=analysis)
 
         # デバッグバンドルを作成
         bundle = self.hangup_detector.create_debug_bundle(
@@ -406,11 +398,7 @@ jobs:
     def test_memory_management_integration(self):
         """メモリ管理統合テスト"""
         # 複数回の実行でメモリリークがないことを確認
-        initial_trace_count = (
-            len(self.execution_tracer._traces)
-            if hasattr(self.execution_tracer, "_traces")
-            else 0
-        )
+        initial_trace_count = len(self.execution_tracer._traces) if hasattr(self.execution_tracer, "_traces") else 0
 
         for i in range(5):
             self.execution_tracer.start_trace(f"memory_test_{i}")
@@ -435,9 +423,7 @@ jobs:
 
         with patch.dict(os.environ, test_configs):
             # 設定が正しく読み込まれることを確認
-            wrapper = EnhancedActWrapper(
-                working_directory=str(self.workspace), logger=self.logger
-            )
+            wrapper = EnhancedActWrapper(working_directory=str(self.workspace), logger=self.logger)
 
             # 設定値が反映されることを確認
             self.assertIsNotNone(wrapper)

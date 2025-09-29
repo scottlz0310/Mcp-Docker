@@ -118,20 +118,12 @@ jobs:
             if result.diagnostic_results:
                 print(f"\n=== 診断結果 ({len(result.diagnostic_results)}項目) ===")
                 for diag in result.diagnostic_results:
-                    status_icon = (
-                        "✅"
-                        if diag.status.value == "OK"
-                        else "⚠️"
-                        if diag.status.value == "WARNING"
-                        else "❌"
-                    )
+                    status_icon = "✅" if diag.status.value == "OK" else "⚠️" if diag.status.value == "WARNING" else "❌"
                     print(f"{status_icon} {diag.component}: {diag.message}")
 
             # デッドロック指標を表示
             if result.deadlock_indicators:
-                print(
-                    f"\n=== デッドロック指標 ({len(result.deadlock_indicators)}項目) ==="
-                )
+                print(f"\n=== デッドロック指標 ({len(result.deadlock_indicators)}項目) ===")
                 for indicator in result.deadlock_indicators:
                     print(f"⚠️ {indicator.deadlock_type.value}: {indicator.details}")
                     for rec in indicator.recommendations:

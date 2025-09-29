@@ -124,9 +124,7 @@ jobs:
 
         if result.diagnostic_results:
             print(f"\n診断結果数: {len(result.diagnostic_results)}")
-            for i, diag in enumerate(
-                result.diagnostic_results[:3]
-            ):  # 最初の3個のみ表示
+            for i, diag in enumerate(result.diagnostic_results[:3]):  # 最初の3個のみ表示
                 print(f"  {i + 1}. {diag.component}: {diag.message}")
 
         print("\n4. 自動復旧統計（実行後）")
@@ -159,17 +157,13 @@ def demo_comprehensive_recovery():
 
         print(f"復旧セッションID: {session.session_id}")
         print(f"全体的成功: {'はい' if session.overall_success else 'いいえ'}")
-        print(
-            f"フォールバックモード使用: {'はい' if session.fallback_mode_activated else 'いいえ'}"
-        )
+        print(f"フォールバックモード使用: {'はい' if session.fallback_mode_activated else 'いいえ'}")
         print(f"復旧試行数: {len(session.attempts)}")
 
         if session.attempts:
             print("\n復旧試行詳細:")
             for i, attempt in enumerate(session.attempts):
-                print(
-                    f"  {i + 1}. {attempt.recovery_type.value}: {attempt.status.value}"
-                )
+                print(f"  {i + 1}. {attempt.recovery_type.value}: {attempt.status.value}")
                 if attempt.message:
                     print(f"     メッセージ: {attempt.message}")
 

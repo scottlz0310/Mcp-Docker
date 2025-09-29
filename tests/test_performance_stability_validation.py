@@ -34,9 +34,7 @@ class PerformanceStabilityValidator:
     """パフォーマンスと安定性検証クラス"""
 
     def __init__(self):
-        self.logger = ActionsLogger(
-            verbose=False, debug=False
-        )  # パフォーマンステストでは詳細ログを抑制
+        self.logger = ActionsLogger(verbose=False, debug=False)  # パフォーマンステストでは詳細ログを抑制
         self.process = psutil.Process()
         self.baseline_metrics = {}
         self.test_results = {}
@@ -155,9 +153,7 @@ jobs:
             "memory_vms_mb": memory_info.vms / 1024 / 1024,
             "cpu_percent": self.process.cpu_percent(interval=1),
             "num_threads": self.process.num_threads(),
-            "num_fds": self.process.num_fds()
-            if hasattr(self.process, "num_fds")
-            else 0,
+            "num_fds": self.process.num_fds() if hasattr(self.process, "num_fds") else 0,
             "timestamp": time.time(),
         }
 
@@ -173,9 +169,7 @@ jobs:
             "memory_vms_mb": memory_info.vms / 1024 / 1024,
             "cpu_percent": self.process.cpu_percent(),
             "num_threads": self.process.num_threads(),
-            "num_fds": self.process.num_fds()
-            if hasattr(self.process, "num_fds")
-            else 0,
+            "num_fds": self.process.num_fds() if hasattr(self.process, "num_fds") else 0,
             "timestamp": time.time(),
         }
 
@@ -194,13 +188,9 @@ jobs:
         iterations = 100
         for i in range(iterations):
             try:
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=False
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=False)
 
-                simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
 
                 # 10回ごとにメモリ使用量をサンプリング
                 if i % 10 == 0:
@@ -219,12 +209,8 @@ jobs:
         memory_samples.append(final_metrics["memory_rss_mb"])
 
         # メモリリーク分析
-        memory_increase = (
-            final_metrics["memory_rss_mb"] - initial_metrics["memory_rss_mb"]
-        )
-        memory_increase_percent = (
-            memory_increase / initial_metrics["memory_rss_mb"]
-        ) * 100
+        memory_increase = final_metrics["memory_rss_mb"] - initial_metrics["memory_rss_mb"]
+        memory_increase_percent = (memory_increase / initial_metrics["memory_rss_mb"]) * 100
 
         # メモリ使用量の傾向を分析
         memory_trend = self._analyze_memory_trend(memory_samples)
@@ -237,10 +223,8 @@ jobs:
             "memory_increase_percent": memory_increase_percent,
             "memory_samples": memory_samples,
             "memory_trend": memory_trend,
-            "leak_detected": memory_increase_percent
-            > 20,  # 20%以上の増加をリークとみなす
-            "acceptable_memory_usage": memory_increase_percent
-            < 10,  # 10%未満を許容範囲とする
+            "leak_detected": memory_increase_percent > 20,  # 20%以上の増加をリークとみなす
+            "acceptable_memory_usage": memory_increase_percent < 10,  # 10%未満を許容範囲とする
         }
 
     def test_concurrent_execution_stability(self, workspace: Path) -> Dict[str, any]:
@@ -253,9 +237,7 @@ jobs:
             workspace / ".github" / "workflows" / "complex.yml",
         ]
 
-        def run_simulation_worker(
-            workflow_file: Path, worker_id: int, iterations: int
-        ) -> Dict:
+        def run_simulation_worker(workflow_file: Path, worker_id: int, iterations: int) -> Dict:
             """ワーカー関数：指定された回数だけシミュレーションを実行"""
             worker_results = {
                 "worker_id": worker_id,
@@ -269,14 +251,10 @@ jobs:
 
             for i in range(iterations):
                 try:
-                    params = SimulationParameters(
-                        workflow_file=workflow_file, dry_run=True, verbose=False
-                    )
+                    params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=False)
 
                     start_time = time.time()
-                    result = simulation_service.run_simulation(
-                        params, logger=self.logger, capture_output=True
-                    )
+                    result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                     execution_time = time.time() - start_time
 
                     worker_results["total_execution_time"] += execution_time
@@ -341,9 +319,7 @@ jobs:
         success_rate = total_successful / total_runs if total_runs > 0 else 0
 
         total_execution_time = sum(r["total_execution_time"] for r in worker_results)
-        average_execution_time = (
-            total_execution_time / total_runs if total_runs > 0 else 0
-        )
+        average_execution_time = total_execution_time / total_runs if total_runs > 0 else 0
 
         return {
             "num_workers": num_workers,
@@ -354,16 +330,11 @@ jobs:
             "success_rate": success_rate,
             "total_test_time_seconds": total_time,
             "average_execution_time_seconds": average_execution_time,
-            "throughput_runs_per_second": total_runs / total_time
-            if total_time > 0
-            else 0,
-            "memory_increase_mb": final_metrics["memory_rss_mb"]
-            - initial_metrics["memory_rss_mb"],
-            "thread_count_increase": final_metrics["num_threads"]
-            - initial_metrics["num_threads"],
+            "throughput_runs_per_second": total_runs / total_time if total_time > 0 else 0,
+            "memory_increase_mb": final_metrics["memory_rss_mb"] - initial_metrics["memory_rss_mb"],
+            "thread_count_increase": final_metrics["num_threads"] - initial_metrics["num_threads"],
             "worker_results": worker_results,
-            "stability_acceptable": success_rate >= 0.95
-            and total_time < 120,  # 95%成功率、2分以内
+            "stability_acceptable": success_rate >= 0.95 and total_time < 120,  # 95%成功率、2分以内
         }
 
     def test_long_running_stability(self, workspace: Path) -> Dict[str, any]:
@@ -389,14 +360,10 @@ jobs:
 
         while time.time() < end_time:
             try:
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=False
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=False)
 
                 execution_start = time.time()
-                result = simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                 execution_time = time.time() - execution_start
 
                 execution_count += 1
@@ -426,11 +393,7 @@ jobs:
         final_metrics = self.capture_current_metrics()
 
         # 安定性分析
-        success_rate = (
-            (execution_count - error_count) / execution_count
-            if execution_count > 0
-            else 0
-        )
+        success_rate = (execution_count - error_count) / execution_count if execution_count > 0 else 0
         throughput = execution_count / total_time if total_time > 0 else 0
 
         # メモリ使用量の安定性分析
@@ -446,13 +409,11 @@ jobs:
             "throughput_executions_per_second": throughput,
             "initial_memory_mb": initial_metrics["memory_rss_mb"],
             "final_memory_mb": final_metrics["memory_rss_mb"],
-            "memory_increase_mb": final_metrics["memory_rss_mb"]
-            - initial_metrics["memory_rss_mb"],
+            "memory_increase_mb": final_metrics["memory_rss_mb"] - initial_metrics["memory_rss_mb"],
             "memory_stability": memory_stability,
             "metrics_history": metrics_history,
             "errors": errors[:10],  # 最初の10個のエラーのみ保存
-            "stability_acceptable": success_rate >= 0.98
-            and memory_stability["is_stable"],
+            "stability_acceptable": success_rate >= 0.98 and memory_stability["is_stable"],
         }
 
     def test_component_performance_benchmarks(self) -> Dict[str, Dict]:
@@ -540,16 +501,12 @@ jobs:
         # 50回実行してリソース使用量をモニタリング
         for i in range(50):
             try:
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=False
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=False)
 
                 # 実行前のリソース状況
                 # pre_metrics = self.capture_current_metrics()
 
-                simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
 
                 # 実行後のリソース状況
                 post_metrics = self.capture_current_metrics()
@@ -579,15 +536,9 @@ jobs:
                 self.logger.error(f"リソース使用量テスト反復 {i} でエラー: {e}")
 
         # リソース使用量の分析
-        avg_memory = sum(s["memory_mb"] for s in resource_samples) / len(
-            resource_samples
-        )
-        avg_cpu = sum(s["cpu_percent"] for s in resource_samples) / len(
-            resource_samples
-        )
-        avg_threads = sum(s["threads"] for s in resource_samples) / len(
-            resource_samples
-        )
+        avg_memory = sum(s["memory_mb"] for s in resource_samples) / len(resource_samples)
+        avg_cpu = sum(s["cpu_percent"] for s in resource_samples) / len(resource_samples)
+        avg_threads = sum(s["threads"] for s in resource_samples) / len(resource_samples)
         avg_fds = sum(s["fds"] for s in resource_samples) / len(resource_samples)
 
         return {
@@ -621,11 +572,7 @@ jobs:
         slope = (n * xy_sum - x_sum * y_sum) / (n * x2_sum - x_sum * x_sum)
 
         return {
-            "trend": "increasing"
-            if slope > 0.1
-            else "decreasing"
-            if slope < -0.1
-            else "stable",
+            "trend": "increasing" if slope > 0.1 else "decreasing" if slope < -0.1 else "stable",
             "slope_mb_per_sample": slope,
             "initial_memory": memory_samples[0],
             "final_memory": memory_samples[-1],
@@ -642,9 +589,7 @@ jobs:
 
         # 標準偏差を計算
         mean_memory = sum(memory_values) / len(memory_values)
-        variance = sum((x - mean_memory) ** 2 for x in memory_values) / len(
-            memory_values
-        )
+        variance = sum((x - mean_memory) ** 2 for x in memory_values) / len(memory_values)
         std_dev = variance**0.5
 
         # 変動係数を計算（標準偏差/平均）
@@ -713,28 +658,17 @@ jobs:
             except Exception as e:
                 self.logger.warning(f"テスト環境のクリーンアップ中にエラー: {e}")
 
-    def generate_performance_stability_report(
-        self, baseline: Dict, final_metrics: Dict
-    ) -> Dict[str, any]:
+    def generate_performance_stability_report(self, baseline: Dict, final_metrics: Dict) -> Dict[str, any]:
         """パフォーマンス・安定性レポートを生成"""
 
         # 各テストの成功判定
-        memory_leak_ok = self.test_results.get("memory_leak_detection", {}).get(
-            "acceptable_memory_usage", False
-        )
-        concurrent_ok = self.test_results.get("concurrent_execution_stability", {}).get(
-            "stability_acceptable", False
-        )
-        long_running_ok = self.test_results.get("long_running_stability", {}).get(
-            "stability_acceptable", False
-        )
+        memory_leak_ok = self.test_results.get("memory_leak_detection", {}).get("acceptable_memory_usage", False)
+        concurrent_ok = self.test_results.get("concurrent_execution_stability", {}).get("stability_acceptable", False)
+        long_running_ok = self.test_results.get("long_running_stability", {}).get("stability_acceptable", False)
 
         # コンポーネントベンチマークの成功判定
         benchmark_results = self.test_results.get("component_benchmarks", {})
-        benchmark_ok = all(
-            component.get("acceptable_performance", False)
-            for component in benchmark_results.values()
-        )
+        benchmark_ok = all(component.get("acceptable_performance", False) for component in benchmark_results.values())
 
         # リソース使用量の成功判定
         resource_results = self.test_results.get("resource_usage_limits", {})
@@ -748,9 +682,7 @@ jobs:
         )
 
         # 総合成功判定
-        overall_success = all(
-            [memory_leak_ok, concurrent_ok, long_running_ok, benchmark_ok, resource_ok]
-        )
+        overall_success = all([memory_leak_ok, concurrent_ok, long_running_ok, benchmark_ok, resource_ok])
 
         return {
             "test_execution_time": datetime.now(timezone.utc).isoformat(),
@@ -766,15 +698,12 @@ jobs:
                 "overall_success": overall_success,
             },
             "performance_metrics": {
-                "total_memory_increase_mb": final_metrics["memory_rss_mb"]
-                - baseline["memory_rss_mb"],
+                "total_memory_increase_mb": final_metrics["memory_rss_mb"] - baseline["memory_rss_mb"],
                 "total_memory_increase_percent": (
-                    (final_metrics["memory_rss_mb"] - baseline["memory_rss_mb"])
-                    / baseline["memory_rss_mb"]
+                    (final_metrics["memory_rss_mb"] - baseline["memory_rss_mb"]) / baseline["memory_rss_mb"]
                 )
                 * 100,
-                "thread_count_change": final_metrics["num_threads"]
-                - baseline["num_threads"],
+                "thread_count_change": final_metrics["num_threads"] - baseline["num_threads"],
                 "fd_count_change": final_metrics["num_fds"] - baseline["num_fds"],
             },
             "requirements_validation": {
@@ -803,49 +732,33 @@ class TestPerformanceStabilityValidation:
         requirements = report["requirements_validation"]
 
         # 安定性要件の検証
-        assert requirements[
-            "requirement_5_3_stability"
-        ], "Requirement 5.3 failed: 安定性要件未達成"
+        assert requirements["requirement_5_3_stability"], "Requirement 5.3 failed: 安定性要件未達成"
 
         # パフォーマンス要件の検証
-        assert requirements[
-            "requirement_5_3_performance"
-        ], "Requirement 5.3 failed: パフォーマンス要件未達成"
+        assert requirements["requirement_5_3_performance"], "Requirement 5.3 failed: パフォーマンス要件未達成"
 
         # メモリ管理要件の検証
-        assert requirements[
-            "requirement_5_3_memory_management"
-        ], "Requirement 5.3 failed: メモリ管理要件未達成"
+        assert requirements["requirement_5_3_memory_management"], "Requirement 5.3 failed: メモリ管理要件未達成"
 
         # 総合成功判定
-        assert report["summary"][
-            "overall_success"
-        ], "パフォーマンス・安定性テストの総合判定が失敗"
+        assert report["summary"]["overall_success"], "パフォーマンス・安定性テストの総合判定が失敗"
 
         # 個別テスト結果の検証
         summary = report["summary"]
         assert summary["memory_leak_detection_passed"], "メモリリーク検出テストが失敗"
-        assert summary[
-            "concurrent_execution_stability_passed"
-        ], "並行実行安定性テストが失敗"
+        assert summary["concurrent_execution_stability_passed"], "並行実行安定性テストが失敗"
         assert summary["long_running_stability_passed"], "長時間実行安定性テストが失敗"
-        assert summary[
-            "component_benchmarks_passed"
-        ], "コンポーネントベンチマークテストが失敗"
+        assert summary["component_benchmarks_passed"], "コンポーネントベンチマークテストが失敗"
         assert summary["resource_usage_limits_passed"], "リソース使用量制限テストが失敗"
 
         # パフォーマンスメトリクスの検証
         perf_metrics = report["performance_metrics"]
-        assert (
-            perf_metrics["total_memory_increase_percent"] < 50
-        ), "メモリ使用量の増加が許容範囲を超過"
+        assert perf_metrics["total_memory_increase_percent"] < 50, "メモリ使用量の増加が許容範囲を超過"
 
         # レポートをファイルに保存
         report_file = Path("output") / "performance_stability_report.json"
         report_file.parent.mkdir(exist_ok=True)
-        report_file.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
         print(f"\nパフォーマンス・安定性レポートが保存されました: {report_file}")
         print(f"総合成功: {'✅' if report['summary']['overall_success'] else '❌'}")
@@ -866,21 +779,11 @@ def main():
     perf_metrics = report["performance_metrics"]
 
     print(f"\n総合成功: {'✅' if summary['overall_success'] else '❌'}")
-    print(
-        f"メモリリーク検出: {'✅' if summary['memory_leak_detection_passed'] else '❌'}"
-    )
-    print(
-        f"並行実行安定性: {'✅' if summary['concurrent_execution_stability_passed'] else '❌'}"
-    )
-    print(
-        f"長時間実行安定性: {'✅' if summary['long_running_stability_passed'] else '❌'}"
-    )
-    print(
-        f"コンポーネントベンチマーク: {'✅' if summary['component_benchmarks_passed'] else '❌'}"
-    )
-    print(
-        f"リソース使用量制限: {'✅' if summary['resource_usage_limits_passed'] else '❌'}"
-    )
+    print(f"メモリリーク検出: {'✅' if summary['memory_leak_detection_passed'] else '❌'}")
+    print(f"並行実行安定性: {'✅' if summary['concurrent_execution_stability_passed'] else '❌'}")
+    print(f"長時間実行安定性: {'✅' if summary['long_running_stability_passed'] else '❌'}")
+    print(f"コンポーネントベンチマーク: {'✅' if summary['component_benchmarks_passed'] else '❌'}")
+    print(f"リソース使用量制限: {'✅' if summary['resource_usage_limits_passed'] else '❌'}")
 
     print("\nパフォーマンスメトリクス:")
     print(f"  メモリ使用量増加: {perf_metrics['total_memory_increase_percent']:.1f}%")
@@ -889,9 +792,7 @@ def main():
 
     # レポートファイルを保存
     report_file = Path("performance_stability_report.json")
-    report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n詳細レポートが保存されました: {report_file}")
 
     return 0 if summary["overall_success"] else 1

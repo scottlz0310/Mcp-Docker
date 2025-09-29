@@ -57,9 +57,7 @@ class TestActWrapperWithTracer:
             logger = ActionsLogger(verbose=True)
             tracer = ExecutionTracer(logger=logger, heartbeat_interval=1.0)
 
-            wrapper = ActWrapper(
-                working_directory=str(temp_path), logger=logger, execution_tracer=tracer
-            )
+            wrapper = ActWrapper(working_directory=str(temp_path), logger=logger, execution_tracer=tracer)
 
             # ワークフローを実行
             result = wrapper.run_workflow(
@@ -102,9 +100,7 @@ class TestActWrapperWithTracer:
             logger = ActionsLogger(verbose=False)
             tracer = ExecutionTracer(logger=logger)
 
-            wrapper = ActWrapper(
-                working_directory=str(temp_path), logger=logger, execution_tracer=tracer
-            )
+            wrapper = ActWrapper(working_directory=str(temp_path), logger=logger, execution_tracer=tracer)
 
             # ワークフローを実行
             result = wrapper.run_workflow(workflow_file="simple-workflow.yml")
@@ -171,9 +167,7 @@ class TestActWrapperWithTracer:
             logger = ActionsLogger(verbose=False)
             tracer = ExecutionTracer(logger=logger)
 
-            wrapper = ActWrapper(
-                working_directory=str(temp_path), logger=logger, execution_tracer=tracer
-            )
+            wrapper = ActWrapper(working_directory=str(temp_path), logger=logger, execution_tracer=tracer)
 
             # 存在しないワークフローファイルで実行
             result = wrapper.run_workflow(workflow_file="nonexistent-workflow.yml")
@@ -213,9 +207,7 @@ class TestActWrapperWithTracer:
                 resource_monitoring_interval=0.05,
             )
 
-            wrapper = ActWrapper(
-                working_directory=str(temp_path), logger=logger, execution_tracer=tracer
-            )
+            wrapper = ActWrapper(working_directory=str(temp_path), logger=logger, execution_tracer=tracer)
 
             # ワークフローを実行
             result = wrapper.run_workflow(workflow_file="heartbeat-test-workflow.yml")
@@ -231,9 +223,7 @@ class TestActWrapperWithTracer:
             logger = ActionsLogger(verbose=False)
             tracer = ExecutionTracer(logger=logger)
 
-            wrapper = ActWrapper(
-                working_directory=str(temp_path), logger=logger, execution_tracer=tracer
-            )
+            wrapper = ActWrapper(working_directory=str(temp_path), logger=logger, execution_tracer=tracer)
 
             # 複数のワークフローファイルを作成
             for i in range(3):
@@ -243,9 +233,7 @@ class TestActWrapperWithTracer:
                     "jobs": {
                         f"test_{i + 1}": {
                             "runs-on": "ubuntu-latest",
-                            "steps": [
-                                {"name": f"Step {i + 1}", "run": f'echo "Test {i + 1}"'}
-                            ],
+                            "steps": [{"name": f"Step {i + 1}", "run": f'echo "Test {i + 1}"'}],
                         }
                     },
                 }
@@ -255,9 +243,7 @@ class TestActWrapperWithTracer:
                     yaml.dump(workflow_content, f)
 
                 # ワークフローを実行
-                result = wrapper.run_workflow(
-                    workflow_file=f"test-workflow-{i + 1}.yml"
-                )
+                result = wrapper.run_workflow(workflow_file=f"test-workflow-{i + 1}.yml")
 
                 # 各実行が成功することを確認
                 assert result["success"] is True

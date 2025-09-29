@@ -53,27 +53,19 @@ class TestComprehensiveIntegration:
 
         # Phase 1: 配布スクリプトの動作確認
         distribution_result = self._test_distribution_script_integration(project_root)
-        assert distribution_result[
-            "success"
-        ], f"配布スクリプト統合テスト失敗: {distribution_result['error']}"
+        assert distribution_result["success"], f"配布スクリプト統合テスト失敗: {distribution_result['error']}"
 
         # Phase 2: ドキュメント整合性の確認
         documentation_result = self._test_documentation_integration(project_root)
-        assert documentation_result[
-            "success"
-        ], f"ドキュメント統合テスト失敗: {documentation_result['error']}"
+        assert documentation_result["success"], f"ドキュメント統合テスト失敗: {documentation_result['error']}"
 
         # Phase 3: テンプレート検証の確認
         template_result = self._test_template_integration(project_root)
-        assert template_result[
-            "success"
-        ], f"テンプレート統合テスト失敗: {template_result['error']}"
+        assert template_result["success"], f"テンプレート統合テスト失敗: {template_result['error']}"
 
         # Phase 4: エンドツーエンド体験の確認
         e2e_result = self._test_end_to_end_integration(project_root)
-        assert e2e_result[
-            "success"
-        ], f"エンドツーエンド統合テスト失敗: {e2e_result['error']}"
+        assert e2e_result["success"], f"エンドツーエンド統合テスト失敗: {e2e_result['error']}"
 
         # 統合結果のサマリー
         integration_summary = {
@@ -278,9 +270,7 @@ jobs:
       - uses: actions/checkout@v5
       - run: echo "Test completed"
 """
-                (test_project / ".github" / "workflows" / "test.yml").write_text(
-                    workflow_content
-                )
+                (test_project / ".github" / "workflows" / "test.yml").write_text(workflow_content)
 
                 # 配布スクリプトでテストプロジェクトを実行
                 run_script = project_root / "scripts" / "run-actions.sh"
@@ -311,9 +301,7 @@ jobs:
                     "エラー",
                 ]
 
-                execution_attempted = any(
-                    indicator in output for indicator in execution_indicators
-                )
+                execution_attempted = any(indicator in output for indicator in execution_indicators)
 
                 if not execution_attempted:
                     return {
@@ -351,8 +339,7 @@ jobs:
         # 並列実行
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             future_to_test = {
-                executor.submit(test_func, project_root): test_name
-                for test_name, test_func in test_functions
+                executor.submit(test_func, project_root): test_name for test_name, test_func in test_functions
             }
 
             for future in concurrent.futures.as_completed(future_to_test):
@@ -437,19 +424,13 @@ jobs:
         performance_issues = []
 
         if benchmarks.get("help_execution_time", 0) > 10:
-            performance_issues.append(
-                f"ヘルプ実行が遅い: {benchmarks['help_execution_time']:.2f}秒"
-            )
+            performance_issues.append(f"ヘルプ実行が遅い: {benchmarks['help_execution_time']:.2f}秒")
 
         if benchmarks.get("deps_check_time", 0) > 60:
-            performance_issues.append(
-                f"依存関係チェックが遅い: {benchmarks['deps_check_time']:.2f}秒"
-            )
+            performance_issues.append(f"依存関係チェックが遅い: {benchmarks['deps_check_time']:.2f}秒")
 
         if benchmarks.get("template_validation_time", 0) > 120:
-            performance_issues.append(
-                f"テンプレート検証が遅い: {benchmarks['template_validation_time']:.2f}秒"
-            )
+            performance_issues.append(f"テンプレート検証が遅い: {benchmarks['template_validation_time']:.2f}秒")
 
         assert not performance_issues, f"パフォーマンス問題: {performance_issues}"
 
@@ -484,8 +465,7 @@ jobs:
 
             # エラーメッセージが有用であることを確認
             helpful_error = any(
-                indicator in output
-                for indicator in ["見つかりません", "存在しません", "確認", "ヘルプ"]
+                indicator in output for indicator in ["見つかりません", "存在しません", "確認", "ヘルプ"]
             )
 
             recovery_tests.append(
@@ -519,12 +499,8 @@ jobs:
         failed_recoveries = []
         for test in recovery_tests:
             if test["scenario"] == "nonexistent_workflow" and not test["helpful_error"]:
-                failed_recoveries.append(
-                    "存在しないワークフローファイルのエラーメッセージが不適切"
-                )
-            elif (
-                test["scenario"] == "invalid_option" and not test["handled_gracefully"]
-            ):
+                failed_recoveries.append("存在しないワークフローファイルのエラーメッセージが不適切")
+            elif test["scenario"] == "invalid_option" and not test["handled_gracefully"]:
                 failed_recoveries.append("無効なオプションが適切に処理されていない")
 
         assert not failed_recoveries, f"エラー回復に問題: {failed_recoveries}"
@@ -540,9 +516,7 @@ jobs:
         # GitHub Workflowファイルの存在確認
         workflows_dir = project_root / ".github" / "workflows"
         if workflows_dir.exists():
-            workflow_files = list(workflows_dir.glob("*.yml")) + list(
-                workflows_dir.glob("*.yaml")
-            )
+            workflow_files = list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml"))
             quality_checks["workflow_files_count"] = len(workflow_files)
 
             # ワークフローファイルの基本的な検証
@@ -576,9 +550,7 @@ jobs:
             content = makefile.read_text(encoding="utf-8")
             import re
 
-            targets = re.findall(
-                r"^([a-zA-Z][a-zA-Z0-9_-]*):(?!.*=)", content, re.MULTILINE
-            )
+            targets = re.findall(r"^([a-zA-Z][a-zA-Z0-9_-]*):(?!.*=)", content, re.MULTILINE)
             quality_checks["makefile_targets"] = len(targets)
 
         # 品質基準の確認
@@ -587,10 +559,7 @@ jobs:
         if quality_checks.get("workflow_files_count", 0) == 0:
             quality_issues.append("GitHub Workflowファイルが存在しません")
 
-        if (
-            quality_checks.get("valid_workflows", 0) == 0
-            and quality_checks.get("workflow_files_count", 0) > 0
-        ):
+        if quality_checks.get("valid_workflows", 0) == 0 and quality_checks.get("workflow_files_count", 0) > 0:
             quality_issues.append("有効なGitHub Workflowファイルがありません")
 
         # 品質問題があっても警告レベル（テスト失敗にはしない）
@@ -658,9 +627,7 @@ class TestSystemStabilityAndReliability:
         min_time = min(execution_times)
         time_variation = (max_time - min_time) / min_time if min_time > 0 else 0
 
-        assert (
-            time_variation < 2.0
-        ), f"実行時間の変動が大きすぎます: {time_variation:.2f}"
+        assert time_variation < 2.0, f"実行時間の変動が大きすぎます: {time_variation:.2f}"
 
         # 出力長の一貫性を確認
         assert len(set(output_lengths)) <= 2, f"出力長が不安定: {output_lengths}"
@@ -714,12 +681,8 @@ class TestSystemStabilityAndReliability:
         return_codes = [r["return_code"] for r in successful_results]
         output_lengths = [r["output_length"] for r in successful_results]
 
-        assert (
-            len(set(return_codes)) == 1
-        ), f"並行実行で終了コードが不一致: {return_codes}"
-        assert (
-            len(set(output_lengths)) <= 2
-        ), f"並行実行で出力長が大きく異なる: {output_lengths}"
+        assert len(set(return_codes)) == 1, f"並行実行で終了コードが不一致: {return_codes}"
+        assert len(set(output_lengths)) <= 2, f"並行実行で出力長が大きく異なる: {output_lengths}"
 
         return results
 
@@ -756,9 +719,7 @@ class TestSystemStabilityAndReliability:
         # プロセス数の増加が合理的な範囲内であることを確認
         process_increase = final_processes - initial_processes
 
-        assert (
-            process_increase <= 5
-        ), f"プロセスリークの可能性: 増加数 {process_increase}"
+        assert process_increase <= 5, f"プロセスリークの可能性: 増加数 {process_increase}"
 
         return {
             "initial_processes": initial_processes,
@@ -769,19 +730,14 @@ class TestSystemStabilityAndReliability:
     def _count_related_processes(self) -> int:
         """関連プロセス数をカウント"""
         try:
-            result = subprocess.run(
-                ["ps", "aux"], capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=10)
 
             # GitHub Actions Simulator関連のプロセスをカウント
             lines = result.stdout.split("\n")
             related_count = 0
 
             for line in lines:
-                if any(
-                    keyword in line.lower()
-                    for keyword in ["run-actions", "github-actions", "simulator", "act"]
-                ):
+                if any(keyword in line.lower() for keyword in ["run-actions", "github-actions", "simulator", "act"]):
                     related_count += 1
 
             return related_count

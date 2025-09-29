@@ -181,9 +181,7 @@ class FinalIntegrationValidator:
                     results["details"].append("トラブルシューティングが最新")
 
             # ドキュメント整合性チェックスクリプトの実行
-            consistency_script = (
-                self.project_root / "scripts" / "check-docs-consistency.py"
-            )
+            consistency_script = self.project_root / "scripts" / "check-docs-consistency.py"
             if consistency_script.exists():
                 result = subprocess.run(
                     [sys.executable, str(consistency_script)],
@@ -247,9 +245,7 @@ class FinalIntegrationValidator:
                     results["details"].append("pre-commit設定が有効")
 
             # Docker override設定の確認
-            docker_override_path = (
-                self.project_root / "docker-compose.override.yml.sample"
-            )
+            docker_override_path = self.project_root / "docker-compose.override.yml.sample"
             if docker_override_path.exists():
                 # YAML構文チェック
                 result = subprocess.run(
@@ -307,9 +303,7 @@ class FinalIntegrationValidator:
                     results["details"].append("CI パイプラインが設定済み")
 
             # 品質ゲートの確認
-            quality_gates_path = (
-                self.project_root / ".github" / "workflows" / "quality-gates.yml"
-            )
+            quality_gates_path = self.project_root / ".github" / "workflows" / "quality-gates.yml"
             if quality_gates_path.exists():
                 content = quality_gates_path.read_text()
                 if "quality" in content.lower():
@@ -355,9 +349,7 @@ class FinalIntegrationValidator:
                 "scripts/install-macos.sh",
                 "scripts/install-windows.ps1",
             ]
-            existing_scripts = sum(
-                1 for script in install_scripts if (self.project_root / script).exists()
-            )
+            existing_scripts = sum(1 for script in install_scripts if (self.project_root / script).exists())
 
             if existing_scripts >= 2:
                 results["cross_platform_scripts"] = True
@@ -370,9 +362,7 @@ class FinalIntegrationValidator:
                 platforms = ["Linux", "macOS", "Windows"]
                 if all(platform in content for platform in platforms):
                     results["installation_guides"] = True
-                    results["details"].append(
-                        "プラットフォーム別インストールガイドが完備"
-                    )
+                    results["details"].append("プラットフォーム別インストールガイドが完備")
 
             # プラットフォーム検出機能の確認
             run_actions_script = self.project_root / "scripts" / "run-actions.sh"
@@ -425,9 +415,7 @@ class FinalIntegrationValidator:
                 content = readme_path.read_text(encoding="utf-8")
                 if "クイック" in content or "Quick" in content:
                     results["readme_quick_start"] = True
-                    results["details"].append(
-                        "README にクイックスタートセクションが存在"
-                    )
+                    results["details"].append("README にクイックスタートセクションが存在")
 
             # ワンコマンドセットアップの確認
             run_actions_script = self.project_root / "scripts" / "run-actions.sh"
@@ -484,23 +472,17 @@ class FinalIntegrationValidator:
                 content = user_guide_path.read_text(encoding="utf-8")
                 if "1." in content and "2." in content:  # 番号付きステップがあるか
                     results["step_by_step_guides"] = True
-                    results["details"].append(
-                        "ステップバイステップガイドが提供されている"
-                    )
+                    results["details"].append("ステップバイステップガイドが提供されている")
 
             # トラブルシューティングカバレッジの確認
             troubleshooting_path = self.project_root / "docs" / "TROUBLESHOOTING.md"
             if troubleshooting_path.exists():
                 content = troubleshooting_path.read_text(encoding="utf-8")
                 common_issues = ["Docker", "permission", "network", "port"]
-                covered_issues = sum(
-                    1 for issue in common_issues if issue.lower() in content.lower()
-                )
+                covered_issues = sum(1 for issue in common_issues if issue.lower() in content.lower())
                 if covered_issues >= 3:
                     results["troubleshooting_coverage"] = True
-                    results["details"].append(
-                        "包括的なトラブルシューティングが提供されている"
-                    )
+                    results["details"].append("包括的なトラブルシューティングが提供されている")
 
             # 例の完全性確認
             examples_dir = self.project_root / "examples"
@@ -537,11 +519,7 @@ class FinalIntegrationValidator:
             # 回復提案の確認
             if run_actions_script.exists():
                 content = run_actions_script.read_text()
-                if (
-                    "解決" in content
-                    or "fix" in content.lower()
-                    or "install" in content.lower()
-                ):
+                if "解決" in content or "fix" in content.lower() or "install" in content.lower():
                     results["recovery_suggestions"] = True
                     results["details"].append("回復提案が提供される")
 
@@ -581,11 +559,7 @@ class FinalIntegrationValidator:
             readme_path = self.project_root / "README.md"
             if readme_path.exists():
                 content = readme_path.read_text(encoding="utf-8")
-                if (
-                    "前提" in content
-                    or "requirement" in content.lower()
-                    or "prerequisite" in content.lower()
-                ):
+                if "前提" in content or "requirement" in content.lower() or "prerequisite" in content.lower():
                     results["prerequisites_clear"] = True
                     results["details"].append("前提条件が明確に示されている")
 
@@ -653,9 +627,7 @@ class FinalIntegrationValidator:
                 "docker-compose.yml",
                 ".env.example",
             ]
-            existing_files = sum(
-                1 for file in essential_files if (self.project_root / file).exists()
-            )
+            existing_files = sum(1 for file in essential_files if (self.project_root / file).exists())
 
             if existing_files >= len(essential_files) * 0.8:  # 80%以上存在
                 results["essential_files_present"] = True
@@ -681,11 +653,7 @@ class FinalIntegrationValidator:
                 ".pre-commit-config.yaml",
                 "docker-compose.override.yml.sample",
             ]
-            existing_templates = sum(
-                1
-                for template in template_files
-                if (self.project_root / template).exists()
-            )
+            existing_templates = sum(1 for template in template_files if (self.project_root / template).exists())
 
             if existing_templates >= 2:
                 results["configuration_templates"] = True
@@ -814,17 +782,13 @@ class FinalIntegrationValidator:
 
         try:
             # CI パイプラインの準備確認
-            ci_workflows = list(
-                (self.project_root / ".github" / "workflows").glob("*.yml")
-            )
+            ci_workflows = list((self.project_root / ".github" / "workflows").glob("*.yml"))
             if len(ci_workflows) >= 2:  # 複数のワークフローがあるか
                 results["ci_pipeline_ready"] = True
                 results["details"].append("CI パイプラインが準備されている")
 
             # 品質ゲートの設定確認
-            quality_workflow = (
-                self.project_root / ".github" / "workflows" / "quality-gates.yml"
-            )
+            quality_workflow = self.project_root / ".github" / "workflows" / "quality-gates.yml"
             if quality_workflow.exists():
                 results["quality_gates_configured"] = True
                 results["details"].append("品質ゲートが設定されている")
@@ -834,9 +798,7 @@ class FinalIntegrationValidator:
                 ".github/workflows/security-scan.yml.sample",
                 "scripts/run_security_scan.py",
             ]
-            existing_security = sum(
-                1 for file in security_files if (self.project_root / file).exists()
-            )
+            existing_security = sum(1 for file in security_files if (self.project_root / file).exists())
 
             if existing_security >= 1:
                 results["security_scans_active"] = True
@@ -847,9 +809,7 @@ class FinalIntegrationValidator:
                 "scripts/manage-changelog.sh",
                 "scripts/version-manager.py",
             ]
-            existing_release = sum(
-                1 for script in release_scripts if (self.project_root / script).exists()
-            )
+            existing_release = sum(1 for script in release_scripts if (self.project_root / script).exists())
 
             if existing_release >= 1:
                 results["release_automation"] = True
@@ -913,20 +873,12 @@ class FinalIntegrationValidator:
         logger.info("全体的なステータスを計算中...")
 
         # 各カテゴリのスコア計算
-        component_score = self._calculate_category_score(
-            self.test_results["component_tests"]
-        )
-        user_experience_score = self._calculate_category_score(
-            self.test_results["new_user_experience"]
-        )
-        distribution_score = self._calculate_category_score(
-            self.test_results["distribution_readiness"]
-        )
+        component_score = self._calculate_category_score(self.test_results["component_tests"])
+        user_experience_score = self._calculate_category_score(self.test_results["new_user_experience"])
+        distribution_score = self._calculate_category_score(self.test_results["distribution_readiness"])
 
         # 全体スコア計算
-        overall_score = (
-            component_score + user_experience_score + distribution_score
-        ) / 3
+        overall_score = (component_score + user_experience_score + distribution_score) / 3
 
         # ステータス決定
         if overall_score >= 0.8:
@@ -945,9 +897,7 @@ class FinalIntegrationValidator:
             "overall": overall_score,
         }
 
-        logger.info(
-            f"全体スコア: {overall_score:.2f}, ステータス: {self.test_results['overall_status']}"
-        )
+        logger.info(f"全体スコア: {overall_score:.2f}, ステータス: {self.test_results['overall_status']}")
 
     def _calculate_category_score(self, category_data: Dict[str, Any]) -> float:
         """カテゴリスコアを計算"""

@@ -53,9 +53,7 @@ class ValidationResult:
 
     def is_valid(self) -> bool:
         """テンプレートが有効かどうかを判定"""
-        return (
-            self.syntax_valid and self.functionality_valid and not self.security_issues
-        )
+        return self.syntax_valid and self.functionality_valid and not self.security_issues
 
 
 @dataclass
@@ -105,9 +103,7 @@ class TemplateValidator:
         logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
 
         handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
@@ -194,9 +190,7 @@ class TemplateValidator:
         else:
             return "unknown"
 
-    def validate_template(
-        self, file_path: Path, template_type: str
-    ) -> ValidationResult:
+    def validate_template(self, file_path: Path, template_type: str) -> ValidationResult:
         """個別テンプレートファイルの検証"""
         start_time = datetime.now()
         self.logger.info(f"🔍 検証中: {file_path}")
@@ -238,9 +232,7 @@ class TemplateValidator:
 
         return result
 
-    def _validate_syntax(
-        self, file_path: Path, template_type: str, result: ValidationResult
-    ):
+    def _validate_syntax(self, file_path: Path, template_type: str, result: ValidationResult):
         """構文チェック"""
         self.logger.debug(f"🔍 構文チェック: {file_path}")
 
@@ -248,9 +240,7 @@ class TemplateValidator:
             content = file_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             result.syntax_valid = False
-            result.syntax_errors.append(
-                "ファイルエンコーディングエラー（UTF-8で読み取れません）"
-            )
+            result.syntax_errors.append("ファイルエンコーディングエラー（UTF-8で読み取れません）")
             return
 
         if template_type == "yaml" or template_type in [
@@ -278,9 +268,7 @@ class TemplateValidator:
 
             for line in lines:
                 # サンプル用のコメントアウト行をスキップ
-                if line.strip().startswith("# ") and (
-                    "例:" in line or "sample:" in line.lower()
-                ):
+                if line.strip().startswith("# ") and ("例:" in line or "sample:" in line.lower()):
                     continue
                 filtered_lines.append(line)
 
@@ -357,9 +345,7 @@ class TemplateValidator:
 
             # 環境変数の形式チェック
             if "=" not in line:
-                result.syntax_errors.append(
-                    f"行 {line_num}: 環境変数の形式が正しくありません: {line}"
-                )
+                result.syntax_errors.append(f"行 {line_num}: 環境変数の形式が正しくありません: {line}")
                 result.syntax_valid = False
                 continue
 
@@ -367,15 +353,11 @@ class TemplateValidator:
 
             # 変数名の検証
             if not re.match(r"^[A-Z][A-Z0-9_]*$", var_name):
-                result.warnings.append(
-                    f"行 {line_num}: 変数名が推奨形式ではありません: {var_name}"
-                )
+                result.warnings.append(f"行 {line_num}: 変数名が推奨形式ではありません: {var_name}")
 
             # 値の検証
             if var_value and not var_value.startswith('"') and " " in var_value:
-                result.warnings.append(
-                    f"行 {line_num}: スペースを含む値はクォートすることを推奨: {var_name}"
-                )
+                result.warnings.append(f"行 {line_num}: スペースを含む値はクォートすることを推奨: {var_name}")
 
     def _validate_common_syntax(self, content: str, result: ValidationResult):
         """共通構文チェック"""
@@ -397,9 +379,7 @@ class TemplateValidator:
                 f"行末に空白があります: 行 {', '.join(map(str, lines_with_trailing_whitespace[:5]))}"
             )
 
-    def _validate_functionality(
-        self, file_path: Path, template_type: str, result: ValidationResult
-    ):
+    def _validate_functionality(self, file_path: Path, template_type: str, result: ValidationResult):
         """機能チェック"""
         self.logger.debug(f"🧪 機能チェック: {file_path}")
 
@@ -412,9 +392,7 @@ class TemplateValidator:
         elif template_type == "env":
             self._test_env_functionality(file_path, result)
 
-    def _test_docker_compose_functionality(
-        self, file_path: Path, result: ValidationResult
-    ):
+    def _test_docker_compose_functionality(self, file_path: Path, result: ValidationResult):
         """Docker Compose機能テスト"""
         try:
             # docker-compose configでの検証
@@ -425,9 +403,7 @@ class TemplateValidator:
 
                     # 環境変数の設定
                     env = os.environ.copy()
-                    env.update(
-                        {"USER_ID": "1000", "GROUP_ID": "1000", "DOCKER_GID": "999"}
-                    )
+                    env.update({"USER_ID": "1000", "GROUP_ID": "1000", "DOCKER_GID": "999"})
 
                     cmd_result = subprocess.run(
                         ["docker-compose", "-f", str(temp_file), "config"],
@@ -440,22 +416,16 @@ class TemplateValidator:
 
                     if cmd_result.returncode != 0:
                         result.functionality_valid = False
-                        result.functionality_errors.append(
-                            f"Docker Compose設定エラー: {cmd_result.stderr}"
-                        )
+                        result.functionality_errors.append(f"Docker Compose設定エラー: {cmd_result.stderr}")
             else:
-                result.warnings.append(
-                    "DockerまたはDocker Composeが利用できないため機能テストをスキップしました"
-                )
+                result.warnings.append("DockerまたはDocker Composeが利用できないため機能テストをスキップしました")
 
         except subprocess.TimeoutExpired:
             result.warnings.append("Docker Compose機能テストがタイムアウトしました")
         except Exception as e:
             result.warnings.append(f"Docker Compose機能テストエラー: {str(e)}")
 
-    def _test_github_workflow_functionality(
-        self, file_path: Path, result: ValidationResult
-    ):
+    def _test_github_workflow_functionality(self, file_path: Path, result: ValidationResult):
         """GitHub Workflow機能テスト"""
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -470,9 +440,7 @@ class TemplateValidator:
 
             if missing_elements:
                 result.functionality_valid = False
-                result.functionality_errors.append(
-                    f"必須要素が不足: {', '.join(missing_elements)}"
-                )
+                result.functionality_errors.append(f"必須要素が不足: {', '.join(missing_elements)}")
 
             # actでの検証（利用可能な場合）
             if shutil.which("act"):
@@ -486,15 +454,10 @@ class TemplateValidator:
                 if cmd_result.returncode != 0:
                     # act特有のエラーを除外
                     stderr = cmd_result.stderr
-                    if (
-                        "unable to get git repo" not in stderr.lower()
-                        and "no workflows found" not in stderr.lower()
-                    ):
+                    if "unable to get git repo" not in stderr.lower() and "no workflows found" not in stderr.lower():
                         result.warnings.append(f"Act検証警告: {stderr}")
             else:
-                result.warnings.append(
-                    "actが利用できないため詳細な機能テストをスキップしました"
-                )
+                result.warnings.append("actが利用できないため詳細な機能テストをスキップしました")
 
         except Exception as e:
             result.warnings.append(f"GitHub Workflow機能テストエラー: {str(e)}")
@@ -513,13 +476,9 @@ class TemplateValidator:
 
                 if cmd_result.returncode != 0:
                     result.functionality_valid = False
-                    result.functionality_errors.append(
-                        f"pre-commit設定エラー: {cmd_result.stderr}"
-                    )
+                    result.functionality_errors.append(f"pre-commit設定エラー: {cmd_result.stderr}")
             else:
-                result.warnings.append(
-                    "pre-commitが利用できないため機能テストをスキップしました"
-                )
+                result.warnings.append("pre-commitが利用できないため機能テストをスキップしました")
 
         except subprocess.TimeoutExpired:
             result.warnings.append("pre-commit機能テストがタイムアウトしました")
@@ -545,9 +504,7 @@ class TemplateValidator:
                     missing_vars.append(var)
 
             if missing_vars:
-                result.warnings.append(
-                    f"重要な環境変数が不足している可能性があります: {', '.join(missing_vars)}"
-                )
+                result.warnings.append(f"重要な環境変数が不足している可能性があります: {', '.join(missing_vars)}")
 
             # 環境変数の読み込みテスト
             env_vars = {}
@@ -564,9 +521,7 @@ class TemplateValidator:
         except Exception as e:
             result.warnings.append(f"環境変数ファイル機能テストエラー: {str(e)}")
 
-    def _validate_security(
-        self, file_path: Path, template_type: str, result: ValidationResult
-    ):
+    def _validate_security(self, file_path: Path, template_type: str, result: ValidationResult):
         """セキュリティチェック"""
         self.logger.debug(f"🔒 セキュリティチェック: {file_path}")
 
@@ -612,9 +567,7 @@ class TemplateValidator:
                     result.security_issues.append("特権モードが有効になっています")
 
                 if "cap_add:" in content and "SYS_ADMIN" in content:
-                    result.security_issues.append(
-                        "危険なケーパビリティ (SYS_ADMIN) が追加されています"
-                    )
+                    result.security_issues.append("危険なケーパビリティ (SYS_ADMIN) が追加されています")
 
             # ファイル権限の確認
             file_stat = file_path.stat()
@@ -624,9 +577,7 @@ class TemplateValidator:
         except Exception as e:
             result.warnings.append(f"セキュリティチェックエラー: {str(e)}")
 
-    def validate_all_templates(
-        self, check_only: bool = False, test_only: bool = False
-    ) -> ValidationSummary:
+    def validate_all_templates(self, check_only: bool = False, test_only: bool = False) -> ValidationSummary:
         """全テンプレートの検証"""
         start_time = datetime.now()
         self.logger.info("🚀 テンプレート検証を開始...")
@@ -667,15 +618,11 @@ class TemplateValidator:
         )
 
         self.logger.info(f"✅ 検証完了: {execution_time:.2f}秒")
-        self.logger.info(
-            f"📊 結果: {valid_templates}/{total_templates} 成功 ({summary.success_rate():.1f}%)"
-        )
+        self.logger.info(f"📊 結果: {valid_templates}/{total_templates} 成功 ({summary.success_rate():.1f}%)")
 
         return summary
 
-    def _syntax_check_only(
-        self, file_path: Path, template_type: str
-    ) -> ValidationResult:
+    def _syntax_check_only(self, file_path: Path, template_type: str) -> ValidationResult:
         """構文チェックのみ実行"""
         result = ValidationResult(
             file_path=str(file_path),
@@ -696,9 +643,7 @@ class TemplateValidator:
 
         return result
 
-    def _functionality_test_only(
-        self, file_path: Path, template_type: str
-    ) -> ValidationResult:
+    def _functionality_test_only(self, file_path: Path, template_type: str) -> ValidationResult:
         """機能テストのみ実行"""
         result = ValidationResult(
             file_path=str(file_path),
@@ -719,9 +664,7 @@ class TemplateValidator:
 
         return result
 
-    def generate_report(
-        self, summary: ValidationSummary, format_type: str = "text"
-    ) -> str:
+    def generate_report(self, summary: ValidationSummary, format_type: str = "text") -> str:
         """検証レポートの生成"""
         if format_type == "json":
             return json.dumps(asdict(summary), indent=2, ensure_ascii=False)
@@ -761,12 +704,8 @@ class TemplateValidator:
         )
 
         for template_type, stats in type_stats.items():
-            success_rate = (
-                (stats["valid"] / stats["total"]) * 100 if stats["total"] > 0 else 0
-            )
-            report_lines.append(
-                f"  {template_type}: {stats['valid']}/{stats['total']} ({success_rate:.1f}%)"
-            )
+            success_rate = (stats["valid"] / stats["total"]) * 100 if stats["total"] > 0 else 0
+            report_lines.append(f"  {template_type}: {stats['valid']}/{stats['total']} ({success_rate:.1f}%)")
 
         report_lines.append("")
 
@@ -780,9 +719,7 @@ class TemplateValidator:
 
         for result in summary.results:
             status_icon = "✅" if result.is_valid() else "❌"
-            report_lines.append(
-                f"{status_icon} {result.file_path} ({result.template_type})"
-            )
+            report_lines.append(f"{status_icon} {result.file_path} ({result.template_type})")
 
             if result.syntax_errors:
                 report_lines.append("  🔍 構文エラー:")
@@ -845,9 +782,7 @@ def main():
         """,
     )
 
-    parser.add_argument(
-        "--check-only", action="store_true", help="構文チェックのみ実行"
-    )
+    parser.add_argument("--check-only", action="store_true", help="構文チェックのみ実行")
 
     parser.add_argument("--test-only", action="store_true", help="機能テストのみ実行")
 
@@ -860,9 +795,7 @@ def main():
         help="出力形式 (デフォルト: text)",
     )
 
-    parser.add_argument(
-        "--output", type=str, help="出力ファイルパス（指定しない場合は標準出力）"
-    )
+    parser.add_argument("--output", type=str, help="出力ファイルパス（指定しない場合は標準出力）")
 
     args = parser.parse_args()
 
@@ -875,9 +808,7 @@ def main():
         validator = TemplateValidator(verbose=args.verbose)
 
         # 検証の実行
-        summary = validator.validate_all_templates(
-            check_only=args.check_only, test_only=args.test_only
-        )
+        summary = validator.validate_all_templates(check_only=args.check_only, test_only=args.test_only)
 
         # レポートの生成
         report = validator.generate_report(summary, args.format)

@@ -190,9 +190,7 @@ class TestEnhancedPerformanceMonitor:
         issues = self.monitor.detect_performance_issues()
 
         # 長時間実行段階の問題が検出されることを確認
-        long_stage_issue = next(
-            (i for i in issues if i["type"] == "LONG_RUNNING_STAGE"), None
-        )
+        long_stage_issue = next((i for i in issues if i["type"] == "LONG_RUNNING_STAGE"), None)
         assert long_stage_issue is not None
         assert long_stage_issue["severity"] == "MEDIUM"
         assert "stage_name" in long_stage_issue
@@ -281,11 +279,7 @@ class TestEnhancedPerformanceMonitor:
 
         # 長時間実行段階のボトルネックが検出されることを確認
         slow_stage_bottleneck = next(
-            (
-                b
-                for b in self.monitor.bottlenecks
-                if b.bottleneck_type == "STAGE_SLOW_EXECUTION"
-            ),
+            (b for b in self.monitor.bottlenecks if b.bottleneck_type == "STAGE_SLOW_EXECUTION"),
             None,
         )
         assert slow_stage_bottleneck is not None
@@ -328,22 +322,14 @@ class TestEnhancedPerformanceMonitor:
 
         # 実行時間最適化の機会が検出されることを確認
         execution_time_opt = next(
-            (
-                o
-                for o in self.monitor.optimization_opportunities
-                if o.opportunity_type == "EXECUTION_TIME_OPTIMIZATION"
-            ),
+            (o for o in self.monitor.optimization_opportunities if o.opportunity_type == "EXECUTION_TIME_OPTIMIZATION"),
             None,
         )
         assert execution_time_opt is not None
 
         # リソース使用率最適化の機会が検出されることを確認
         resource_opt = next(
-            (
-                o
-                for o in self.monitor.optimization_opportunities
-                if o.opportunity_type == "RESOURCE_UNDERUTILIZATION"
-            ),
+            (o for o in self.monitor.optimization_opportunities if o.opportunity_type == "RESOURCE_UNDERUTILIZATION"),
             None,
         )
         assert resource_opt is not None
@@ -355,9 +341,7 @@ class TestEnhancedPerformanceMonitor:
         good_memory_stats = {"average": 40.0}
         good_docker_stats = {"operations_per_minute": 5.0, "peak_containers": 3}
 
-        good_score = self.monitor._calculate_performance_score(
-            good_cpu_stats, good_memory_stats, good_docker_stats
-        )
+        good_score = self.monitor._calculate_performance_score(good_cpu_stats, good_memory_stats, good_docker_stats)
         assert 70 <= good_score <= 100
 
         # 悪いパフォーマンス
@@ -365,9 +349,7 @@ class TestEnhancedPerformanceMonitor:
         bad_memory_stats = {"average": 85.0}
         bad_docker_stats = {"operations_per_minute": 50.0, "peak_containers": 20}
 
-        bad_score = self.monitor._calculate_performance_score(
-            bad_cpu_stats, bad_memory_stats, bad_docker_stats
-        )
+        bad_score = self.monitor._calculate_performance_score(bad_cpu_stats, bad_memory_stats, bad_docker_stats)
         assert 0 <= bad_score <= 50
 
     def test_overall_recommendations_generation(self):

@@ -40,9 +40,7 @@ class PlatformSupportTest(unittest.TestCase):
         if system == "linux":
             try:
                 # ディストリビューション情報を取得
-                result = subprocess.run(
-                    ["lsb_release", "-a"], capture_output=True, text=True, check=False
-                )
+                result = subprocess.run(["lsb_release", "-a"], capture_output=True, text=True, check=False)
                 if result.returncode == 0:
                     info["distro"] = result.stdout
                 else:
@@ -57,9 +55,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         elif system == "darwin":
             try:
-                result = subprocess.run(
-                    ["sw_vers"], capture_output=True, text=True, check=True
-                )
+                result = subprocess.run(["sw_vers"], capture_output=True, text=True, check=True)
                 info["macos_version"] = result.stdout
             except (subprocess.CalledProcessError, FileNotFoundError):
                 info["macos_version"] = "Unknown"
@@ -69,9 +65,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         return info
 
-    def _run_command(
-        self, cmd: List[str], cwd: Optional[Path] = None
-    ) -> Tuple[int, str, str]:
+    def _run_command(self, cmd: List[str], cwd: Optional[Path] = None) -> Tuple[int, str, str]:
         """コマンドを実行して結果を返す"""
         try:
             result = subprocess.run(
@@ -93,31 +87,23 @@ class PlatformSupportTest(unittest.TestCase):
         self.assertTrue(script_path.exists(), "run-actions.sh が見つかりません")
 
         # プラットフォーム検出機能をテスト
-        returncode, stdout, stderr = self._run_command(
-            ["bash", str(script_path), "--check-deps"]
-        )
+        returncode, stdout, stderr = self._run_command(["bash", str(script_path), "--check-deps"])
 
         # 基本的な出力確認
-        self.assertIn(
-            "プラットフォーム:", stdout, "プラットフォーム情報が出力されていません"
-        )
+        self.assertIn("プラットフォーム:", stdout, "プラットフォーム情報が出力されていません")
 
         # プラットフォーム固有の確認
         system = self.platform_info["system"]
         if system == "linux":
             # Linux の場合、"ubuntu", "fedora", "linux" のいずれかが検出されればOK
             linux_platforms = ["ubuntu", "fedora", "arch", "opensuse", "linux"]
-            found_linux = any(
-                platform in stdout.lower() for platform in linux_platforms
-            )
+            found_linux = any(platform in stdout.lower() for platform in linux_platforms)
             self.assertTrue(
                 found_linux,
                 f"Linux プラットフォームが検出されていません。出力: {stdout}",
             )
         elif system == "darwin":
-            self.assertIn(
-                "macos", stdout.lower(), "macOS プラットフォームが検出されていません"
-            )
+            self.assertIn("macos", stdout.lower(), "macOS プラットフォームが検出されていません")
         elif system == "windows":
             self.assertIn(
                 "windows",
@@ -129,20 +115,12 @@ class PlatformSupportTest(unittest.TestCase):
         """拡張依存関係チェックのテスト"""
         script_path = self.scripts_dir / "run-actions.sh"
 
-        returncode, stdout, stderr = self._run_command(
-            ["bash", str(script_path), "--check-deps-extended"]
-        )
+        returncode, stdout, stderr = self._run_command(["bash", str(script_path), "--check-deps-extended"])
 
         # 拡張チェックの出力確認
-        self.assertIn(
-            "拡張依存関係チェック", stdout, "拡張チェックが実行されていません"
-        )
-        self.assertIn(
-            "プラットフォーム固有の最適化提案", stdout, "最適化提案が表示されていません"
-        )
-        self.assertIn(
-            "システムリソース情報", stdout, "システムリソース情報が表示されていません"
-        )
+        self.assertIn("拡張依存関係チェック", stdout, "拡張チェックが実行されていません")
+        self.assertIn("プラットフォーム固有の最適化提案", stdout, "最適化提案が表示されていません")
+        self.assertIn("システムリソース情報", stdout, "システムリソース情報が表示されていません")
 
     def test_platform_specific_installer_exists(self):
         """プラットフォーム固有のインストーラーの存在確認"""
@@ -150,9 +128,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         if system == "linux":
             installer_path = self.scripts_dir / "install-linux.sh"
-            self.assertTrue(
-                installer_path.exists(), "Linux インストーラーが見つかりません"
-            )
+            self.assertTrue(installer_path.exists(), "Linux インストーラーが見つかりません")
             self.assertTrue(
                 os.access(installer_path, os.X_OK),
                 "Linux インストーラーが実行可能ではありません",
@@ -160,9 +136,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         elif system == "darwin":
             installer_path = self.scripts_dir / "install-macos.sh"
-            self.assertTrue(
-                installer_path.exists(), "macOS インストーラーが見つかりません"
-            )
+            self.assertTrue(installer_path.exists(), "macOS インストーラーが見つかりません")
             self.assertTrue(
                 os.access(installer_path, os.X_OK),
                 "macOS インストーラーが実行可能ではありません",
@@ -170,9 +144,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         elif system == "windows":
             installer_path = self.scripts_dir / "install-windows.ps1"
-            self.assertTrue(
-                installer_path.exists(), "Windows インストーラーが見つかりません"
-            )
+            self.assertTrue(installer_path.exists(), "Windows インストーラーが見つかりません")
 
     def test_unified_installer_exists(self):
         """統合インストーラーの存在確認"""
@@ -186,9 +158,7 @@ class PlatformSupportTest(unittest.TestCase):
     def test_platform_documentation_exists(self):
         """プラットフォームドキュメントの存在確認"""
         docs_path = self.project_root / "docs" / "PLATFORM_SUPPORT.md"
-        self.assertTrue(
-            docs_path.exists(), "プラットフォームサポートドキュメントが見つかりません"
-        )
+        self.assertTrue(docs_path.exists(), "プラットフォームサポートドキュメントが見つかりません")
 
         # ドキュメントの内容確認
         with open(docs_path, "r", encoding="utf-8") as f:
@@ -205,9 +175,7 @@ class PlatformSupportTest(unittest.TestCase):
         ]
 
         for section in required_sections:
-            self.assertIn(
-                section, content, f"必要なセクションが見つかりません: {section}"
-            )
+            self.assertIn(section, content, f"必要なセクションが見つかりません: {section}")
 
     def test_docker_availability(self):
         """Docker の利用可能性テスト"""
@@ -264,9 +232,7 @@ class PlatformSupportTest(unittest.TestCase):
         # systemd サービスの確認（利用可能な場合）
         returncode, stdout, stderr = self._run_command(["which", "systemctl"])
         if returncode == 0:
-            returncode, stdout, stderr = self._run_command(
-                ["systemctl", "is-active", "docker"]
-            )
+            returncode, stdout, stderr = self._run_command(["systemctl", "is-active", "docker"])
             if returncode != 0:
                 self.skipTest(f"Docker サービスが起動していません: {stderr}")
 
@@ -294,9 +260,7 @@ class PlatformSupportTest(unittest.TestCase):
         # Windows パスへのアクセス確認
         windows_path = Path("/mnt/c")
         if windows_path.exists():
-            self.assertTrue(
-                windows_path.is_dir(), "Windows ファイルシステムにアクセスできません"
-            )
+            self.assertTrue(windows_path.is_dir(), "Windows ファイルシステムにアクセスできません")
 
     def test_performance_baseline(self):
         """基本的なパフォーマンステスト"""
@@ -307,17 +271,13 @@ class PlatformSupportTest(unittest.TestCase):
         import time
 
         start_time = time.time()
-        returncode, stdout, stderr = self._run_command(
-            ["docker", "run", "--rm", "hello-world"]
-        )
+        returncode, stdout, stderr = self._run_command(["docker", "run", "--rm", "hello-world"])
         end_time = time.time()
 
         self.assertEqual(returncode, 0, f"Docker テストコンテナの実行に失敗: {stderr}")
 
         duration = end_time - start_time
-        self.assertLess(
-            duration, 60, f"Docker コンテナの実行が遅すぎます: {duration:.2f}秒"
-        )
+        self.assertLess(duration, 60, f"Docker コンテナの実行が遅すぎます: {duration:.2f}秒")
 
         # プラットフォーム別の期待値
         system = self.platform_info["system"]
@@ -331,9 +291,7 @@ class PlatformSupportTest(unittest.TestCase):
             expected_max = 60
 
         if duration > expected_max:
-            print(
-                f"警告: Docker の実行時間が期待値を超えています: {duration:.2f}秒 > {expected_max}秒"
-            )
+            print(f"警告: Docker の実行時間が期待値を超えています: {duration:.2f}秒 > {expected_max}秒")
 
     def _is_docker_available(self) -> bool:
         """Docker が利用可能かチェック"""
@@ -344,23 +302,17 @@ class PlatformSupportTest(unittest.TestCase):
         """インストーラーのヘルプ出力テスト"""
         # 統合インストーラーのヘルプ
         installer_path = self.scripts_dir / "install.sh"
-        returncode, stdout, stderr = self._run_command(
-            ["bash", str(installer_path), "--help"]
-        )
+        returncode, stdout, stderr = self._run_command(["bash", str(installer_path), "--help"])
         self.assertEqual(returncode, 0, "統合インストーラーのヘルプ表示に失敗")
         self.assertIn("使用方法", stdout, "ヘルプにUsage情報が含まれていません")
 
         # プラットフォーム固有インストーラーのヘルプ
         system = self.platform_info["system"]
         if system in ["linux", "darwin"]:
-            platform_installer = (
-                f"install-{system if system != 'darwin' else 'macos'}.sh"
-            )
+            platform_installer = f"install-{system if system != 'darwin' else 'macos'}.sh"
             installer_path = self.scripts_dir / platform_installer
 
-            returncode, stdout, stderr = self._run_command(
-                ["bash", str(installer_path), "--help"]
-            )
+            returncode, stdout, stderr = self._run_command(["bash", str(installer_path), "--help"])
             self.assertEqual(returncode, 0, f"{platform_installer} のヘルプ表示に失敗")
             self.assertIn("使用方法", stdout, "ヘルプにUsage情報が含まれていません")
 
@@ -378,9 +330,7 @@ class PlatformSpecificTest(unittest.TestCase):
         """Linux 固有機能のテスト"""
         # systemd の確認
         if Path("/bin/systemctl").exists():
-            result = subprocess.run(
-                ["systemctl", "--version"], capture_output=True, text=True
-            )
+            result = subprocess.run(["systemctl", "--version"], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, "systemctl が利用できません")
 
         # パッケージマネージャーの確認
@@ -392,36 +342,26 @@ class PlatformSpecificTest(unittest.TestCase):
                 found_pm = True
                 break
 
-        self.assertTrue(
-            found_pm, "サポートされているパッケージマネージャーが見つかりません"
-        )
+        self.assertTrue(found_pm, "サポートされているパッケージマネージャーが見つかりません")
 
     @unittest.skipUnless(platform.system().lower() == "darwin", "macOS でのみ実行")
     def test_macos_specific_features(self):
         """macOS 固有機能のテスト"""
         # macOS バージョンの確認
-        result = subprocess.run(
-            ["sw_vers", "-productVersion"], capture_output=True, text=True
-        )
+        result = subprocess.run(["sw_vers", "-productVersion"], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, "macOS バージョンの取得に失敗")
 
         version = result.stdout.strip()
         major_version = int(version.split(".")[0])
-        self.assertGreaterEqual(
-            major_version, 12, f"macOS 12.0 以降が必要です。現在: {version}"
-        )
+        self.assertGreaterEqual(major_version, 12, f"macOS 12.0 以降が必要です。現在: {version}")
 
         # Homebrew の確認（インストールされている場合）
         result = subprocess.run(["which", "brew"], capture_output=True)
         if result.returncode == 0:
-            result = subprocess.run(
-                ["brew", "--version"], capture_output=True, text=True
-            )
+            result = subprocess.run(["brew", "--version"], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, "Homebrew の確認に失敗")
 
-    @unittest.skipUnless(
-        "microsoft" in platform.uname().release.lower(), "WSL でのみ実行"
-    )
+    @unittest.skipUnless("microsoft" in platform.uname().release.lower(), "WSL でのみ実行")
     def test_wsl_specific_features(self):
         """WSL 固有機能のテスト"""
         # WSL 環境変数の確認
@@ -430,15 +370,11 @@ class PlatformSpecificTest(unittest.TestCase):
 
         # Windows ファイルシステムへのアクセス確認
         windows_root = Path("/mnt/c")
-        self.assertTrue(
-            windows_root.exists(), "Windows ファイルシステムにアクセスできません"
-        )
+        self.assertTrue(windows_root.exists(), "Windows ファイルシステムにアクセスできません")
 
         # WSL バージョンの確認
         wsl_version = os.environ.get("WSL_INTEROP")
-        self.assertIsNotNone(
-            wsl_version, "WSL_INTEROP が設定されていません（WSL2 が必要）"
-        )
+        self.assertIsNotNone(wsl_version, "WSL_INTEROP が設定されていません（WSL2 が必要）")
 
 
 def main():
@@ -471,9 +407,7 @@ def main():
         print("✅ すべてのテストが成功しました！")
         return 0
     else:
-        print(
-            f"❌ {len(result.failures)} 個の失敗、{len(result.errors)} 個のエラーが発生しました"
-        )
+        print(f"❌ {len(result.failures)} 個の失敗、{len(result.errors)} 個のエラーが発生しました")
         return 1
 
 

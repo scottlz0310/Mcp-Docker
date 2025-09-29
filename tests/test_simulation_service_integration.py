@@ -84,9 +84,7 @@ jobs:
     @patch("services.actions.service.DiagnosticService")
     @patch("services.actions.service.PerformanceMonitor")
     @patch("services.actions.service.ExecutionTracer")
-    def test_pre_execution_diagnostics(
-        self, mock_tracer, mock_perf_monitor, mock_diagnostic
-    ):
+    def test_pre_execution_diagnostics(self, mock_tracer, mock_perf_monitor, mock_diagnostic):
         """実行前診断チェックのテスト"""
         # モックの設定
         mock_diagnostic_instance = Mock()
@@ -152,9 +150,7 @@ jobs:
                 detailed_result_reporting=True,
             )
 
-            params = SimulationParameters(
-                workflow_file=self.workflow_file, verbose=True
-            )
+            params = SimulationParameters(workflow_file=self.workflow_file, verbose=True)
 
             result = service.run_simulation(params)
 
@@ -194,9 +190,7 @@ jobs:
                 "timestamp": 1234567890.0,
             }
 
-            params = SimulationParameters(
-                workflow_file=self.workflow_file, verbose=True
-            )
+            params = SimulationParameters(workflow_file=self.workflow_file, verbose=True)
 
             result = service.run_simulation(params)
 
@@ -209,15 +203,11 @@ jobs:
     @patch("services.actions.service.EnhancedActWrapper")
     @patch("services.actions.service.DiagnosticService")
     @patch("services.actions.service.PerformanceMonitor")
-    def test_detailed_result_reporting(
-        self, mock_perf_monitor, mock_diagnostic, mock_wrapper
-    ):
+    def test_detailed_result_reporting(self, mock_perf_monitor, mock_diagnostic, mock_wrapper):
         """詳細結果レポートのテスト"""
         # モックの設定
         mock_diagnostic_instance = Mock()
-        mock_diagnostic_instance.check_system_health.return_value = {
-            "status": "healthy"
-        }
+        mock_diagnostic_instance.check_system_health.return_value = {"status": "healthy"}
         mock_diagnostic.return_value = mock_diagnostic_instance
 
         mock_perf_instance = Mock()
@@ -243,9 +233,7 @@ jobs:
         opportunity_mock.title = "キャッシュ最適化"
         opportunity_mock.description = "依存関係のキャッシュを有効化"
         opportunity_mock.recommendations = ["actions/cache@v3を使用してください"]
-        mock_perf_instance.identify_optimization_opportunities.return_value = [
-            opportunity_mock
-        ]
+        mock_perf_instance.identify_optimization_opportunities.return_value = [opportunity_mock]
         mock_perf_monitor.return_value = mock_perf_instance
 
         mock_wrapper_instance = Mock()
@@ -332,9 +320,7 @@ jobs:
             }
             mock_wrapper.return_value = mock_wrapper_instance
 
-            params = SimulationParameters(
-                workflow_file=self.workflow_file, verbose=False
-            )
+            params = SimulationParameters(workflow_file=self.workflow_file, verbose=False)
 
             result = service.run_simulation(params)
 

@@ -29,9 +29,7 @@ class TestDockerIntegrationComplete:
     def test_enhanced_act_wrapper_docker_integration(self):
         """EnhancedActWrapperのDocker統合機能テスト"""
         # モックの設定
-        with patch(
-            "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
@@ -42,9 +40,7 @@ class TestDockerIntegrationComplete:
             }
 
             # EnhancedActWrapperを初期化
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # Docker統合チェッカーが正しく初期化されていることを確認
             assert wrapper.docker_integration_checker is not None
@@ -53,9 +49,7 @@ class TestDockerIntegrationComplete:
 
     def test_enhanced_act_wrapper_docker_verification_success(self):
         """EnhancedActWrapperのDocker検証成功テスト"""
-        with patch(
-            "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
@@ -65,9 +59,7 @@ class TestDockerIntegrationComplete:
                 "summary": "Docker統合は正常です",
             }
 
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # Docker検証メソッドをテスト
             result = wrapper._verify_docker_integration_with_retry()
@@ -78,9 +70,7 @@ class TestDockerIntegrationComplete:
 
     def test_enhanced_act_wrapper_docker_verification_failure(self):
         """EnhancedActWrapperのDocker検証失敗テスト"""
-        with patch(
-            "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
@@ -89,13 +79,9 @@ class TestDockerIntegrationComplete:
                 "overall_success": False,
                 "summary": "Docker統合に問題があります",
             }
-            mock_checker.generate_docker_fix_recommendations.return_value = [
-                "Docker Desktopを起動してください"
-            ]
+            mock_checker.generate_docker_fix_recommendations.return_value = ["Docker Desktopを起動してください"]
 
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # Docker検証メソッドをテスト
             result = wrapper._verify_docker_integration_with_retry()
@@ -106,24 +92,18 @@ class TestDockerIntegrationComplete:
 
     def test_enhanced_act_wrapper_ensure_docker_connection(self):
         """EnhancedActWrapperのDocker接続確保テスト"""
-        with patch(
-            "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
             # Docker daemon接続テストの成功をモック
-            mock_checker.test_docker_daemon_connection_with_retry.return_value = (
-                DockerConnectionResult(
-                    status=DockerConnectionStatus.CONNECTED,
-                    message="接続成功",
-                    response_time_ms=100.0,
-                )
+            mock_checker.test_docker_daemon_connection_with_retry.return_value = DockerConnectionResult(
+                status=DockerConnectionStatus.CONNECTED,
+                message="接続成功",
+                response_time_ms=100.0,
             )
 
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # Docker接続確保メソッドをテスト
             result = wrapper._ensure_docker_connection()
@@ -134,12 +114,8 @@ class TestDockerIntegrationComplete:
     def test_enhanced_act_wrapper_workflow_with_docker_check_failure(self):
         """Docker統合チェック失敗時のワークフロー実行テスト"""
         with (
-            patch(
-                "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-            ) as mock_checker_class,
-            patch(
-                "services.actions.enhanced_act_wrapper.DiagnosticService"
-            ) as mock_diag_class,
+            patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class,
+            patch("services.actions.enhanced_act_wrapper.DiagnosticService") as mock_diag_class,
         ):
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
@@ -151,9 +127,7 @@ class TestDockerIntegrationComplete:
                 "overall_success": False,
                 "summary": "Docker統合に問題があります",
             }
-            mock_checker.generate_docker_fix_recommendations.return_value = [
-                "Docker Desktopを起動してください"
-            ]
+            mock_checker.generate_docker_fix_recommendations.return_value = ["Docker Desktopを起動してください"]
 
             # 診断サービスの成功をモック
             mock_health_report = Mock()
@@ -161,14 +135,10 @@ class TestDockerIntegrationComplete:
             mock_health_report.results = []
             mock_diag.run_comprehensive_health_check.return_value = mock_health_report
 
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # ワークフロー実行をテスト
-            result = wrapper.run_workflow_with_diagnostics(
-                workflow_file="test.yml", pre_execution_diagnostics=True
-            )
+            result = wrapper.run_workflow_with_diagnostics(workflow_file="test.yml", pre_execution_diagnostics=True)
 
             # Docker統合エラーで失敗することを確認
             assert result.success is False
@@ -178,9 +148,7 @@ class TestDockerIntegrationComplete:
 
     def test_diagnostic_service_with_docker_integration_checker(self):
         """DiagnosticServiceのDocker統合チェッカー連携テスト"""
-        with patch(
-            "services.actions.diagnostic.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.diagnostic.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
@@ -223,9 +191,7 @@ class TestDockerIntegrationComplete:
 
         mock_run.side_effect = mock_run_side_effect
 
-        with patch(
-            "services.actions.diagnostic.DockerIntegrationChecker"
-        ) as mock_checker_class:
+        with patch("services.actions.diagnostic.DockerIntegrationChecker") as mock_checker_class:
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
 
@@ -244,9 +210,7 @@ class TestDockerIntegrationComplete:
             assert "docker_integration_status" in result.details
             assert "docker_integration_summary" in result.details
             assert result.details["docker_integration_status"] is True
-            assert (
-                result.details["docker_integration_summary"] == "Docker統合は正常です"
-            )
+            assert result.details["docker_integration_summary"] == "Docker統合は正常です"
 
     def test_docker_integration_checker_comprehensive_workflow(self):
         """DockerIntegrationCheckerの包括的ワークフローテスト"""
@@ -256,17 +220,11 @@ class TestDockerIntegrationComplete:
             patch.object(checker, "verify_socket_access", return_value=True),
             patch.object(checker, "test_container_communication") as mock_comm,
             patch.object(checker, "check_act_docker_compatibility") as mock_compat,
-            patch.object(
-                checker, "test_docker_daemon_connection_with_retry"
-            ) as mock_daemon,
+            patch.object(checker, "test_docker_daemon_connection_with_retry") as mock_daemon,
         ):
             # 各チェックの成功をモック
-            mock_comm.return_value = ContainerCommunicationResult(
-                success=True, message="成功"
-            )
-            mock_compat.return_value = CompatibilityResult(
-                compatible=True, message="互換性OK"
-            )
+            mock_comm.return_value = ContainerCommunicationResult(success=True, message="成功")
+            mock_compat.return_value = CompatibilityResult(compatible=True, message="互換性OK")
             mock_daemon.return_value = DockerConnectionResult(
                 status=DockerConnectionStatus.CONNECTED, message="接続成功"
             )
@@ -286,12 +244,8 @@ class TestDockerIntegrationComplete:
     def test_docker_integration_workflow_success_path(self):
         """Docker統合が成功した場合のワークフロー実行パステスト"""
         with (
-            patch(
-                "services.actions.enhanced_act_wrapper.DockerIntegrationChecker"
-            ) as mock_checker_class,
-            patch(
-                "services.actions.enhanced_act_wrapper.DiagnosticService"
-            ) as mock_diag_class,
+            patch("services.actions.enhanced_act_wrapper.DockerIntegrationChecker") as mock_checker_class,
+            patch("services.actions.enhanced_act_wrapper.DiagnosticService") as mock_diag_class,
         ):
             mock_checker = Mock()
             mock_checker_class.return_value = mock_checker
@@ -309,9 +263,7 @@ class TestDockerIntegrationComplete:
             mock_health_report.results = []
             mock_diag.run_comprehensive_health_check.return_value = mock_health_report
 
-            wrapper = EnhancedActWrapper(
-                working_directory="/tmp", logger=self.logger, enable_diagnostics=True
-            )
+            wrapper = EnhancedActWrapper(working_directory="/tmp", logger=self.logger, enable_diagnostics=True)
 
             # Docker統合チェックが成功することを確認
             docker_result = wrapper._verify_docker_integration_with_retry()

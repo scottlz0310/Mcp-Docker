@@ -68,6 +68,10 @@ build-backend = "hatchling.build"
 packages = ["."]
 
 [tool.ruff]
+line-length = 120
 exclude = [
     "archive/",
 ]
+
+[tool.ruff.format]
+line-ending = "lf"

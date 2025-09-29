@@ -20,9 +20,7 @@ from datetime import datetime
 import logging
 
 # テスト用ログ設定
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -99,9 +97,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 
         for section_keywords in required_sections:
             section_found = any(keyword in content for keyword in section_keywords)
-            self.assertTrue(
-                section_found, f"README.md に必要なセクションが不足: {section_keywords}"
-            )
+            self.assertTrue(section_found, f"README.md に必要なセクションが不足: {section_keywords}")
 
         logger.info("✅ README.md の品質が適切")
 
@@ -111,9 +107,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 
         run_actions_script = self.project_root / "scripts" / "run-actions.sh"
         self.assertTrue(run_actions_script.exists(), "run-actions.sh が存在しない")
-        self.assertTrue(
-            os.access(run_actions_script, os.X_OK), "run-actions.sh が実行不可"
-        )
+        self.assertTrue(os.access(run_actions_script, os.X_OK), "run-actions.sh が実行不可")
 
         # ヘルプ機能の確認
         try:
@@ -128,8 +122,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
             # ヘルプが表示されるか、または適切なエラーメッセージが表示されるか
             help_indicators = ["help", "usage", "ヘルプ", "使用法", "option"]
             help_found = any(
-                indicator.lower() in result.stdout.lower()
-                or indicator.lower() in result.stderr.lower()
+                indicator.lower() in result.stdout.lower() or indicator.lower() in result.stderr.lower()
                 for indicator in help_indicators
             )
 
@@ -212,9 +205,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 
                 # ファイル内容の基本確認
                 content = full_path.read_text(encoding="utf-8")
-                self.assertGreater(
-                    len(content.strip()), 50, f"{template_path} の内容が不十分"
-                )
+                self.assertGreater(len(content.strip()), 50, f"{template_path} の内容が不十分")
 
                 # YAML ファイルの構文確認
                 if file_type == "yaml":
@@ -251,9 +242,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
                 )
 
                 # make help が動作するか
-                self.assertIn(
-                    result.returncode, [0, 2], f"Makefile に問題がある: {result.stderr}"
-                )
+                self.assertIn(result.returncode, [0, 2], f"Makefile に問題がある: {result.stderr}")
 
             except subprocess.TimeoutExpired:
                 self.fail("make help がタイムアウト")
@@ -263,13 +252,9 @@ class CompleteDistributionValidationTest(unittest.TestCase):
         # GitHub Actions ワークフローの確認
         workflows_dir = self.project_root / ".github" / "workflows"
         if workflows_dir.exists():
-            workflow_files = list(workflows_dir.glob("*.yml")) + list(
-                workflows_dir.glob("*.yaml")
-            )
+            workflow_files = list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml"))
 
-            self.assertGreater(
-                len(workflow_files), 0, "GitHub Actions ワークフローが存在しない"
-            )
+            self.assertGreater(len(workflow_files), 0, "GitHub Actions ワークフローが存在しない")
 
             # ワークフローファイルの基本構文確認
             for workflow_file in workflow_files[:3]:  # 最初の3つをチェック
@@ -311,9 +296,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 
                 # スクリプトファイルの基本確認
                 content = full_path.read_text(encoding="utf-8")
-                self.assertGreater(
-                    len(content.strip()), 100, f"{script_path} の内容が不十分"
-                )
+                self.assertGreater(len(content.strip()), 100, f"{script_path} の内容が不十分")
 
         # 最低限のプラットフォームサポート
         self.assertGreaterEqual(
@@ -328,9 +311,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
             content = platform_doc.read_text(encoding="utf-8")
             platforms = ["Linux", "macOS", "Windows"]
 
-            supported_platforms = sum(
-                1 for platform in platforms if platform in content
-            )
+            supported_platforms = sum(1 for platform in platforms if platform in content)
 
             self.assertGreaterEqual(
                 supported_platforms,
@@ -352,9 +333,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
             shutil.copytree(
                 self.project_root,
                 temp_project_dir,
-                ignore=shutil.ignore_patterns(
-                    ".git", "__pycache__", "*.pyc", ".pytest_cache"
-                ),
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc", ".pytest_cache"),
             )
 
             # 新規ユーザーとしての基本操作テスト
@@ -422,11 +401,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
             "scripts/run_security_scan.py",
         ]
 
-        security_setup = sum(
-            1
-            for file_path in security_files
-            if (self.project_root / file_path).exists()
-        )
+        security_setup = sum(1 for file_path in security_files if (self.project_root / file_path).exists())
 
         self.assertGreater(security_setup, 0, "セキュリティスキャン設定が不足")
 
@@ -443,16 +418,12 @@ class CompleteDistributionValidationTest(unittest.TestCase):
         )
 
         # ワークフローファイルの確認
-        workflow_files = list(workflows_dir.glob("*.yml")) + list(
-            workflows_dir.glob("*.yaml")
-        )
+        workflow_files = list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml"))
         self.assertGreater(len(workflow_files), 0, "ワークフローファイルが存在しない")
 
         # 重要なワークフローの確認
         important_workflows = ["ci.yml", "quality-gates.yml"]
-        existing_important = sum(
-            1 for workflow in important_workflows if (workflows_dir / workflow).exists()
-        )
+        existing_important = sum(1 for workflow in important_workflows if (workflows_dir / workflow).exists())
 
         self.assertGreater(existing_important, 0, "重要なワークフローが不足")
 
@@ -462,11 +433,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
             "scripts/run-comprehensive-tests.sh",
         ]
 
-        quality_setup = sum(
-            1
-            for script_path in quality_scripts
-            if (self.project_root / script_path).exists()
-        )
+        quality_setup = sum(1 for script_path in quality_scripts if (self.project_root / script_path).exists())
 
         self.assertGreater(quality_setup, 0, "品質ゲート設定が不足")
 
@@ -477,9 +444,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
         logger.info("包括的統合検証を実行中...")
 
         # 最終統合テストスクリプトの実行
-        final_validation_script = (
-            self.project_root / "tests" / "test_final_integration_validation.py"
-        )
+        final_validation_script = self.project_root / "tests" / "test_final_integration_validation.py"
         if final_validation_script.exists():
             try:
                 result = subprocess.run(
@@ -503,12 +468,8 @@ class CompleteDistributionValidationTest(unittest.TestCase):
                 logger.warning(f"最終統合テストスクリプトの実行エラー: {e}")
 
         # 配布検証スクリプトの実行
-        distribution_validation_script = (
-            self.project_root / "scripts" / "final-distribution-validation.sh"
-        )
-        if distribution_validation_script.exists() and os.access(
-            distribution_validation_script, os.X_OK
-        ):
+        distribution_validation_script = self.project_root / "scripts" / "final-distribution-validation.sh"
+        if distribution_validation_script.exists() and os.access(distribution_validation_script, os.X_OK):
             try:
                 result = subprocess.run(
                     ["bash", str(distribution_validation_script)],
@@ -536,9 +497,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
     def tearDownClass(cls):
         """テストクラス終了処理"""
         # テスト結果の保存
-        results_file = (
-            cls.project_root / "complete_distribution_validation_results.json"
-        )
+        results_file = cls.project_root / "complete_distribution_validation_results.json"
 
         cls.test_results["completion_timestamp"] = datetime.utcnow().isoformat()
 
@@ -551,9 +510,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 def run_validation_suite():
     """検証スイートの実行"""
     # テストスイートの作成
-    suite = unittest.TestLoader().loadTestsFromTestCase(
-        CompleteDistributionValidationTest
-    )
+    suite = unittest.TestLoader().loadTestsFromTestCase(CompleteDistributionValidationTest)
 
     # テスト実行
     runner = unittest.TextTestRunner(verbosity=2, stream=sys.stdout, buffer=True)

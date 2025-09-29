@@ -67,11 +67,7 @@ class DocumentationReport:
 
     @property
     def total_issues(self) -> int:
-        return (
-            len(self.link_issues)
-            + len(self.version_issues)
-            + len(self.consistency_issues)
-        )
+        return len(self.link_issues) + len(self.version_issues) + len(self.consistency_issues)
 
     @property
     def has_critical_issues(self) -> bool:
@@ -260,9 +256,7 @@ class DocumentationChecker:
         # プロジェクトバージョンのパターン（より具体的に）
         version_patterns = [
             (
-                re.compile(
-                    r'version["\s]*[:=]["\s]*([0-9]+\.[0-9]+\.[0-9]+)', re.IGNORECASE
-                ),
+                re.compile(r'version["\s]*[:=]["\s]*([0-9]+\.[0-9]+\.[0-9]+)', re.IGNORECASE),
                 "設定ファイル",
             ),
             (
@@ -290,9 +284,7 @@ class DocumentationChecker:
                         for version in matches:
                             if version != self.project_version and version != "unknown":
                                 # 明らかに異なるバージョンのみ報告
-                                if self._is_version_mismatch(
-                                    version, self.project_version
-                                ):
+                                if self._is_version_mismatch(version, self.project_version):
                                     issues.append(
                                         VersionIssue(
                                             file_path=md_file,
@@ -312,9 +304,7 @@ class DocumentationChecker:
         """バージョンの不整合を判定"""
         try:
             # 除外するバージョンパターン（設定ファイルから取得）
-            excluded_patterns = self.config.get("version_check", {}).get(
-                "exclude_patterns", []
-            )
+            excluded_patterns = self.config.get("version_check", {}).get("exclude_patterns", [])
 
             for pattern in excluded_patterns:
                 if re.match(pattern, found):
@@ -329,10 +319,7 @@ class DocumentationChecker:
                 return True
 
             # 同じメジャーバージョンでマイナーバージョンが大きく異なる場合
-            if (
-                found_parts[0] == expected_parts[0]
-                and abs(found_parts[1] - expected_parts[1]) > 2
-            ):
+            if found_parts[0] == expected_parts[0] and abs(found_parts[1] - expected_parts[1]) > 2:
                 return True
 
             return False
@@ -450,9 +437,7 @@ def print_report(
     """レポートを表示"""
     if ci_mode:
         # CI/CD環境向けの簡潔な出力
-        print(
-            f"docs-check: {report.total_files_checked} files, {report.total_issues} issues"
-        )
+        print(f"docs-check: {report.total_files_checked} files, {report.total_issues} issues")
         if report.has_critical_issues:
             print(
                 f"docs-check: CRITICAL - {len(report.link_issues)} broken links, {len(report.version_issues)} version mismatches"
@@ -474,9 +459,7 @@ def print_report(
             if verbose:
                 print(f"     タイプ: {issue.issue_type}")
             if fix_suggestions and issue.issue_type == "broken_link":
-                print(
-                    "     💡 修正提案: ファイルパスを確認し、正しいパスに修正してください"
-                )
+                print("     💡 修正提案: ファイルパスを確認し、正しいパスに修正してください")
 
     if report.version_issues:
         print(f"\n🔢 バージョンの問題 ({len(report.version_issues)}件):")
@@ -486,9 +469,7 @@ def print_report(
             print(f"     発見: {issue.found_version} → 期待: {issue.expected_version}")
             print(f"     コンテキスト: {issue.context}")
             if fix_suggestions:
-                print(
-                    f"     💡 修正提案: バージョンを {issue.expected_version} に更新してください"
-                )
+                print(f"     💡 修正提案: バージョンを {issue.expected_version} に更新してください")
 
     if report.consistency_issues:
         print(f"\n📝 整合性の問題 ({len(report.consistency_issues)}件):")
@@ -515,9 +496,7 @@ def print_report(
     if report.total_issues == 0:
         print("\n✅ 問題は見つかりませんでした！")
     elif report.has_critical_issues:
-        print(
-            f"\n🚨 重要な問題が {len(report.link_issues) + len(report.version_issues)} 件見つかりました。"
-        )
+        print(f"\n🚨 重要な問題が {len(report.link_issues) + len(report.version_issues)} 件見つかりました。")
         print("   修正をお勧めします。")
     else:
         print(f"\n⚠️  軽微な問題が {len(report.consistency_issues)} 件見つかりました。")
@@ -579,15 +558,11 @@ def main():
         help="問題が見つかった場合に終了コード1で終了",
     )
 
-    parser.add_argument(
-        "--ci-mode", action="store_true", help="CI/CD環境向けの簡潔な出力"
-    )
+    parser.add_argument("--ci-mode", action="store_true", help="CI/CD環境向けの簡潔な出力")
 
     parser.add_argument("--fix-suggestions", action="store_true", help="修正提案を表示")
 
-    parser.add_argument(
-        "--config", type=Path, help="設定ファイルのパス (デフォルト: .docs-check.yaml)"
-    )
+    parser.add_argument("--config", type=Path, help="設定ファイルのパス (デフォルト: .docs-check.yaml)")
 
     args = parser.parse_args()
 

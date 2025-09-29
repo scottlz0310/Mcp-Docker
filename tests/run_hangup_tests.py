@@ -303,16 +303,10 @@ class HangupTestRunner:
         }
 
         for category, name in categories.items():
-            category_tests = [
-                test
-                for test, result in self.test_results.items()
-                if result.get("type") == category
-            ]
+            category_tests = [test for test, result in self.test_results.items() if result.get("type") == category]
 
             if category_tests:
-                success_count = sum(
-                    1 for test in category_tests if self.test_results[test]["success"]
-                )
+                success_count = sum(1 for test in category_tests if self.test_results[test]["success"])
                 total_count = len(category_tests)
 
                 status = "✅" if success_count == total_count else "❌"
@@ -326,9 +320,7 @@ class HangupTestRunner:
 
         # 全体統計
         total_tests = len(self.test_results)
-        successful_tests = sum(
-            1 for result in self.test_results.values() if result["success"]
-        )
+        successful_tests = sum(1 for result in self.test_results.values() if result["success"])
 
         print(f"\n📊 全体結果: {successful_tests}/{total_tests} 成功")
         print(f"⏱️ 実行時間: {total_time:.2f}秒")
@@ -422,25 +414,17 @@ class HangupTestRunner:
 
 def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(
-        description="GitHub Actions Simulator ハングアップテスト実行スクリプト"
-    )
+    parser = argparse.ArgumentParser(description="GitHub Actions Simulator ハングアップテスト実行スクリプト")
 
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細な出力を表示")
 
-    parser.add_argument(
-        "--parallel", "-p", action="store_true", help="並行実行を有効にする"
-    )
+    parser.add_argument("--parallel", "-p", action="store_true", help="並行実行を有効にする")
 
     parser.add_argument("--unit-only", action="store_true", help="単体テストのみ実行")
 
-    parser.add_argument(
-        "--integration-only", action="store_true", help="統合テストのみ実行"
-    )
+    parser.add_argument("--integration-only", action="store_true", help="統合テストのみ実行")
 
-    parser.add_argument(
-        "--e2e-only", action="store_true", help="エンドツーエンドテストのみ実行"
-    )
+    parser.add_argument("--e2e-only", action="store_true", help="エンドツーエンドテストのみ実行")
 
     args = parser.parse_args()
 

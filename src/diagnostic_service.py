@@ -107,10 +107,7 @@ class DiagnosticService:
                 recent_metrics = self.health_history[-3:]
 
                 # CPU使用率が継続的に高い
-                if all(
-                    m.cpu_usage > self.hangup_threshold["cpu_high"]
-                    for m in recent_metrics
-                ):
+                if all(m.cpu_usage > self.hangup_threshold["cpu_high"] for m in recent_metrics):
                     conditions.append(
                         {
                             "type": "high_cpu_usage",
@@ -120,10 +117,7 @@ class DiagnosticService:
                     )
 
                 # メモリ使用率が継続的に高い
-                if all(
-                    m.memory_usage > self.hangup_threshold["memory_high"]
-                    for m in recent_metrics
-                ):
+                if all(m.memory_usage > self.hangup_threshold["memory_high"] for m in recent_metrics):
                     conditions.append(
                         {
                             "type": "high_memory_usage",
@@ -183,9 +177,7 @@ class DiagnosticService:
         results.append(
             DiagnosticResult(
                 component="システムヘルス",
-                status=DiagnosticStatus.OK
-                if basic_health.get("status") == "healthy"
-                else DiagnosticStatus.WARNING,
+                status=DiagnosticStatus.OK if basic_health.get("status") == "healthy" else DiagnosticStatus.WARNING,
                 message=f"CPU: {basic_health.get('cpu_usage', 0):.1f}%, メモリ: {basic_health.get('memory_usage', 0):.1f}%",
                 details=basic_health,
                 recommendations=[],
@@ -222,9 +214,7 @@ class DiagnosticService:
 
         if error_count > 0:
             overall_status = DiagnosticStatus.ERROR
-            summary = (
-                f"{error_count}個の重大な問題と{warning_count}個の警告が見つかりました"
-            )
+            summary = f"{error_count}個の重大な問題と{warning_count}個の警告が見つかりました"
         elif warning_count > 0:
             overall_status = DiagnosticStatus.WARNING
             summary = f"{warning_count}個の警告が見つかりました"
@@ -275,9 +265,7 @@ class DiagnosticService:
                 )
 
             # Dockerバージョン確認
-            version_result = subprocess.run(
-                ["docker", "--version"], capture_output=True, text=True, timeout=10
-            )
+            version_result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=10)
 
             if version_result.returncode != 0:
                 return DiagnosticResult(
@@ -296,9 +284,7 @@ class DiagnosticService:
                 )
 
             # Docker daemon接続確認
-            info_result = subprocess.run(
-                ["docker", "info"], capture_output=True, text=True, timeout=15
-            )
+            info_result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=15)
 
             if info_result.returncode != 0:
                 return DiagnosticResult(
@@ -390,9 +376,7 @@ class DiagnosticService:
                 )
 
             # actバージョン確認
-            version_result = subprocess.run(
-                [act_path, "--version"], capture_output=True, text=True, timeout=10
-            )
+            version_result = subprocess.run([act_path, "--version"], capture_output=True, text=True, timeout=10)
 
             if version_result.returncode != 0:
                 return DiagnosticResult(
@@ -408,9 +392,7 @@ class DiagnosticService:
                 )
 
             # actの基本機能テスト（--helpコマンド）
-            help_result = subprocess.run(
-                [act_path, "--help"], capture_output=True, text=True, timeout=10
-            )
+            help_result = subprocess.run([act_path, "--help"], capture_output=True, text=True, timeout=10)
 
             if help_result.returncode != 0:
                 return DiagnosticResult(
@@ -478,9 +460,7 @@ class DiagnosticService:
 
             # Dockerグループの確認
             try:
-                groups_result = subprocess.run(
-                    ["groups"], capture_output=True, text=True, timeout=5
-                )
+                groups_result = subprocess.run(["groups"], capture_output=True, text=True, timeout=5)
                 if groups_result.returncode == 0:
                     groups = groups_result.stdout.strip().split()
                     details["groups"] = groups
@@ -521,15 +501,11 @@ class DiagnosticService:
 
             if not details.get("docker_socket_exists", False):
                 issues.append("Docker socketが見つかりません")
-                recommendations.append(
-                    "Docker daemonが実行されているか確認してください"
-                )
+                recommendations.append("Docker daemonが実行されているか確認してください")
 
             if not details.get("docker_socket_accessible", False):
                 issues.append("Docker socketにアクセスできません")
-                if not details.get("in_docker_group", False) and not details.get(
-                    "is_root", False
-                ):
+                if not details.get("in_docker_group", False) and not details.get("is_root", False):
                     recommendations.extend(
                         [
                             "ユーザーをdockerグループに追加してください: sudo usermod -aG docker $USER",

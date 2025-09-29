@@ -229,8 +229,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.fail_on and return_code != 0:
         print(
-            "❗ Fail-on severity threshold reached. "
-            "Review the report before proceeding.",
+            "❗ Fail-on severity threshold reached. " "Review the report before proceeding.",
             file=sys.stderr,
         )
 

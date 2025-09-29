@@ -151,9 +151,7 @@ class TestActionsLogger:
 
     def test_logger_properties(self):
         """ロガープロパティテスト"""
-        logger = ActionsLogger(
-            verbose=True, quiet=False, debug=True, name="test-logger"
-        )
+        logger = ActionsLogger(verbose=True, quiet=False, debug=True, name="test-logger")
 
         assert hasattr(logger, "logger")
         assert hasattr(logger, "verbose")

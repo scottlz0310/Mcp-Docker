@@ -86,9 +86,7 @@ class ComprehensiveTestRunner:
 
         # 実行するテストスイートをフィルタリング
         if quick_mode:
-            test_suites = [
-                suite for suite in test_suites if suite.get("essential", True)
-            ]
+            test_suites = [suite for suite in test_suites if suite.get("essential", True)]
             print("⚡ クイックモードで実行中...")
         else:
             print("🔍 フルテストスイートで実行中...")
@@ -100,9 +98,7 @@ class ComprehensiveTestRunner:
         for i, suite in enumerate(test_suites, 1):
             print(f"[{i}/{len(test_suites)}] {suite['name']} を実行中...")
 
-            result = self._run_test_suite(
-                suite["module"], suite["name"], suite.get("timeout", 300)
-            )
+            result = self._run_test_suite(suite["module"], suite["name"], suite.get("timeout", 300))
 
             self.test_results[suite["name"]] = result
 
@@ -213,9 +209,7 @@ class ComprehensiveTestRunner:
             lines = output.split("\n")
             for line in lines:
                 # pytest の結果行を探す
-                if "passed" in line and (
-                    "failed" in line or "error" in line or "skipped" in line
-                ):
+                if "passed" in line and ("failed" in line or "error" in line or "skipped" in line):
                     # 例: "5 passed, 2 failed, 1 skipped in 10.5s"
                     import re
 
@@ -235,12 +229,7 @@ class ComprehensiveTestRunner:
                     if error_match:
                         stats["errors"] = int(error_match.group(1))
 
-                    stats["total_tests"] = (
-                        stats["passed"]
-                        + stats["failed"]
-                        + stats["skipped"]
-                        + stats["errors"]
-                    )
+                    stats["total_tests"] = stats["passed"] + stats["failed"] + stats["skipped"] + stats["errors"]
                     break
 
         except Exception:
@@ -252,14 +241,10 @@ class ComprehensiveTestRunner:
     def _generate_summary(self) -> Dict:
         """テスト結果サマリーの生成"""
         total_suites = len(self.test_results)
-        successful_suites = sum(
-            1 for result in self.test_results.values() if result["success"]
-        )
+        successful_suites = sum(1 for result in self.test_results.values() if result["success"])
         failed_suites = total_suites - successful_suites
 
-        total_execution_time = sum(
-            result["execution_time"] for result in self.test_results.values()
-        )
+        total_execution_time = sum(result["execution_time"] for result in self.test_results.values())
 
         # 全体統計の集計
         total_stats = {
@@ -276,18 +261,12 @@ class ComprehensiveTestRunner:
                 total_stats[key] += stats.get(key, 0)
 
         # 警告の集計
-        total_warnings = sum(
-            len(result.get("warnings", [])) for result in self.test_results.values()
-        )
+        total_warnings = sum(len(result.get("warnings", [])) for result in self.test_results.values())
 
         # 成功率の計算
-        success_rate = (
-            (successful_suites / total_suites * 100) if total_suites > 0 else 0
-        )
+        success_rate = (successful_suites / total_suites * 100) if total_suites > 0 else 0
         test_success_rate = (
-            (total_stats["passed"] / total_stats["total_tests"] * 100)
-            if total_stats["total_tests"] > 0
-            else 0
+            (total_stats["passed"] / total_stats["total_tests"] * 100) if total_stats["total_tests"] > 0 else 0
         )
 
         return {
@@ -302,9 +281,7 @@ class ComprehensiveTestRunner:
             "test_statistics": total_stats,
             "execution_summary": {
                 "total_execution_time": total_execution_time,
-                "average_suite_time": total_execution_time / total_suites
-                if total_suites > 0
-                else 0,
+                "average_suite_time": total_execution_time / total_suites if total_suites > 0 else 0,
                 "total_warnings": total_warnings,
             },
         }
@@ -354,9 +331,7 @@ class ComprehensiveTestRunner:
             if result.get("statistics"):
                 stats = result["statistics"]
                 if stats["total_tests"] > 0:
-                    report_lines.append(
-                        f"  🧪 テスト: {stats['passed']}/{stats['total_tests']} 成功"
-                    )
+                    report_lines.append(f"  🧪 テスト: {stats['passed']}/{stats['total_tests']} 成功")
 
             if result.get("warnings"):
                 report_lines.append(f"  ⚠️ 警告: {len(result['warnings'])} 件")
@@ -413,13 +388,9 @@ def main():
         """,
     )
 
-    parser.add_argument(
-        "--quick", action="store_true", help="クイックテストのみ実行（必須テストのみ）"
-    )
+    parser.add_argument("--quick", action="store_true", help="クイックテストのみ実行（必須テストのみ）")
 
-    parser.add_argument(
-        "--full", action="store_true", help="フルテストスイートを実行（デフォルト）"
-    )
+    parser.add_argument("--full", action="store_true", help="フルテストスイートを実行（デフォルト）")
 
     parser.add_argument("--report", action="store_true", help="詳細レポートを生成")
 

@@ -73,9 +73,7 @@ class TestExecutionTracer:
 
         # 簡単なコマンドを実行
         cmd = ["echo", "hello world"]
-        process = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
         # プロセストレースを開始
         process_trace = tracer.trace_subprocess_execution(cmd, process)
@@ -108,9 +106,7 @@ class TestExecutionTracer:
         tracer.start_trace("docker_test")
 
         # Docker操作を監視
-        docker_op = tracer.monitor_docker_communication(
-            "test_command", ["docker", "version"]
-        )
+        docker_op = tracer.monitor_docker_communication("test_command", ["docker", "version"])
 
         assert docker_op.operation_type == "test_command"
         assert docker_op.command == ["docker", "version"]
@@ -206,9 +202,7 @@ class TestExecutionTracer:
     def test_resource_monitoring(self):
         """リソース監視をテスト"""
         logger = ActionsLogger(verbose=False)
-        tracer = ExecutionTracer(
-            logger=logger, heartbeat_interval=0.5, resource_monitoring_interval=0.2
-        )
+        tracer = ExecutionTracer(logger=logger, heartbeat_interval=0.5, resource_monitoring_interval=0.2)
 
         trace = tracer.start_trace("resource_test")
 
@@ -263,9 +257,7 @@ class TestExecutionTracer:
         """モックを使用したリソース監視のテスト"""
         # モックの設定
         mock_cpu.return_value = 25.5
-        mock_memory.return_value = Mock(
-            used=1024 * 1024 * 512, percent=50.0
-        )  # 512MB, 50%
+        mock_memory.return_value = Mock(used=1024 * 1024 * 512, percent=50.0)  # 512MB, 50%
 
         logger = ActionsLogger(verbose=False)
         tracer = ExecutionTracer(logger=logger)
@@ -316,9 +308,7 @@ class TestExecutionTracer:
         process_trace = tracer.trace_subprocess_execution(cmd)
 
         # エラーメッセージを設定
-        tracer.update_process_trace(
-            process_trace, return_code=-1, error_message="Command not found"
-        )
+        tracer.update_process_trace(process_trace, return_code=-1, error_message="Command not found")
 
         assert process_trace.return_code == -1
         assert process_trace.error_message == "Command not found"

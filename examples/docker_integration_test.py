@@ -47,9 +47,7 @@ def main():
         print("\n🔧 3. act-Docker互換性テスト")
         print("-" * 40)
         compat_result = checker.check_act_docker_compatibility()
-        print(
-            f"結果: {'✅ 互換性あり' if compat_result.compatible else '❌ 互換性なし'}"
-        )
+        print(f"結果: {'✅ 互換性あり' if compat_result.compatible else '❌ 互換性なし'}")
         print(f"メッセージ: {compat_result.message}")
         if compat_result.act_version:
             print(f"actバージョン: {compat_result.act_version}")
@@ -79,18 +77,14 @@ def main():
         print("\n🔍 5. 包括的Dockerチェック")
         print("-" * 40)
         comprehensive_result = checker.run_comprehensive_docker_check()
-        print(
-            f"全体結果: {'✅ 成功' if comprehensive_result['overall_success'] else '❌ 失敗'}"
-        )
+        print(f"全体結果: {'✅ 成功' if comprehensive_result['overall_success'] else '❌ 失敗'}")
         print(f"サマリー: {comprehensive_result['summary']}")
 
         # 修正推奨事項の表示
         if not comprehensive_result["overall_success"]:
             print("\n🛠️ 修正推奨事項:")
             print("-" * 40)
-            recommendations = checker.generate_docker_fix_recommendations(
-                comprehensive_result
-            )
+            recommendations = checker.generate_docker_fix_recommendations(comprehensive_result)
             for rec in recommendations:
                 print(f"  {rec}")
 

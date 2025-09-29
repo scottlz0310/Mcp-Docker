@@ -156,9 +156,7 @@ def demo_enhanced_simulation():
             print("\n診断結果の詳細:")
             for i, diag in enumerate(result.diagnostic_results, 1):
                 print(f"  {i}. フェーズ: {diag.get('phase', 'unknown')}")
-                print(
-                    f"     ステータス: {diag.get('results', {}).get('overall_status', 'unknown')}"
-                )
+                print(f"     ステータス: {diag.get('results', {}).get('overall_status', 'unknown')}")
                 print(f"     サマリー: {diag.get('results', {}).get('summary', 'N/A')}")
 
         if result.performance_metrics:

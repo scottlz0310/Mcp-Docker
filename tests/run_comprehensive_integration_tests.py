@@ -83,9 +83,7 @@ class ComprehensiveTestRunner:
                     if result.returncode == 0:
                         self.logger.info(f"✅ {test_file} 成功")
                     else:
-                        self.logger.error(
-                            f"❌ {test_file} 失敗 (終了コード: {result.returncode})"
-                        )
+                        self.logger.error(f"❌ {test_file} 失敗 (終了コード: {result.returncode})")
 
                 except subprocess.TimeoutExpired:
                     self.logger.error(f"⏰ {test_file} タイムアウト")
@@ -152,9 +150,7 @@ class ComprehensiveTestRunner:
                             "error": str(e),
                         }
         else:
-            self.logger.warning(
-                "⚠️ Bats が利用できません。Bats テストをスキップします。"
-            )
+            self.logger.warning("⚠️ Bats が利用できません。Bats テストをスキップします。")
 
         # 3. 統合テストスクリプトの実行
         integration_script = Path("tests/integration_test.sh")
@@ -240,18 +236,14 @@ class ComprehensiveTestRunner:
         e2e_results = self.test_results.get("end_to_end_validation", {})
         req_5_1 = (
             e2e_results.get("requirements_validation", {}).get("requirement_5_1", False)
-            and e2e_results.get("summary", {}).get(
-                "simulation_execution_success_rate", 0
-            )
-            >= 0.8
+            and e2e_results.get("summary", {}).get("simulation_execution_success_rate", 0) >= 0.8
         )
         validation_results["requirement_5_1"] = req_5_1
 
         # Requirement 5.2: タイムアウトシナリオの適切な処理
         req_5_2 = (
             e2e_results.get("requirements_validation", {}).get("requirement_5_2", False)
-            and e2e_results.get("summary", {}).get("timeout_handling_success_rate", 0)
-            >= 0.8
+            and e2e_results.get("summary", {}).get("timeout_handling_success_rate", 0) >= 0.8
         )
         validation_results["requirement_5_2"] = req_5_2
 
@@ -260,26 +252,17 @@ class ComprehensiveTestRunner:
         integration_results = self.test_results.get("comprehensive_integration", {})
 
         req_5_3 = (
-            perf_results.get("requirements_validation", {}).get(
-                "requirement_5_3_stability", False
-            )
-            and perf_results.get("requirements_validation", {}).get(
-                "requirement_5_3_performance", False
-            )
-            and perf_results.get("requirements_validation", {}).get(
-                "requirement_5_3_memory_management", False
-            )
-            and integration_results.get("summary", {}).get(
-                "performance_acceptable", False
-            )
+            perf_results.get("requirements_validation", {}).get("requirement_5_3_stability", False)
+            and perf_results.get("requirements_validation", {}).get("requirement_5_3_performance", False)
+            and perf_results.get("requirements_validation", {}).get("requirement_5_3_memory_management", False)
+            and integration_results.get("summary", {}).get("performance_acceptable", False)
         )
         validation_results["requirement_5_3"] = req_5_3
 
         # Requirement 5.4: 様々なワークフロー設定の処理
         req_5_4 = (
             e2e_results.get("requirements_validation", {}).get("requirement_5_4", False)
-            and e2e_results.get("summary", {}).get("workflow_parsing_success_rate", 0)
-            >= 0.9
+            and e2e_results.get("summary", {}).get("workflow_parsing_success_rate", 0) >= 0.9
         )
         validation_results["requirement_5_4"] = req_5_4
 
@@ -294,26 +277,16 @@ class ComprehensiveTestRunner:
 
         # 既存テストスイートの成功率計算
         existing_tests = self.test_results.get("existing_test_suite", {})
-        pytest_success_rate = self._calculate_test_success_rate(
-            existing_tests.get("pytest_results", {})
-        )
-        bats_success_rate = self._calculate_test_success_rate(
-            existing_tests.get("bats_results", {})
-        )
-        integration_script_success = existing_tests.get(
-            "integration_script_results", {}
-        ).get("success", False)
+        pytest_success_rate = self._calculate_test_success_rate(existing_tests.get("pytest_results", {}))
+        bats_success_rate = self._calculate_test_success_rate(existing_tests.get("bats_results", {}))
+        integration_script_success = existing_tests.get("integration_script_results", {}).get("success", False)
 
         # 新規テストの成功判定
         comprehensive_success = (
-            self.test_results.get("comprehensive_integration", {})
-            .get("summary", {})
-            .get("overall_success", False)
+            self.test_results.get("comprehensive_integration", {}).get("summary", {}).get("overall_success", False)
         )
         e2e_success = (
-            self.test_results.get("end_to_end_validation", {})
-            .get("summary", {})
-            .get("overall_success", False)
+            self.test_results.get("end_to_end_validation", {}).get("summary", {}).get("overall_success", False)
         )
         perf_success = (
             self.test_results.get("performance_stability_validation", {})
@@ -324,19 +297,13 @@ class ComprehensiveTestRunner:
         # 総合成功判定
         all_requirements_met = all(requirements_validation.values())
         all_new_tests_passed = all([comprehensive_success, e2e_success, perf_success])
-        existing_tests_acceptable = (
-            pytest_success_rate >= 0.8 and integration_script_success
-        )
+        existing_tests_acceptable = pytest_success_rate >= 0.8 and integration_script_success
 
-        overall_success = (
-            all_requirements_met and all_new_tests_passed and existing_tests_acceptable
-        )
+        overall_success = all_requirements_met and all_new_tests_passed and existing_tests_acceptable
 
         return {
             "test_execution_summary": {
-                "start_time": datetime.fromtimestamp(
-                    self.start_time, tz=timezone.utc
-                ).isoformat(),
+                "start_time": datetime.fromtimestamp(self.start_time, tz=timezone.utc).isoformat(),
                 "end_time": datetime.now(timezone.utc).isoformat(),
                 "total_duration_seconds": total_time,
                 "total_duration_minutes": total_time / 60,
@@ -370,9 +337,7 @@ class ComprehensiveTestRunner:
         if not test_results:
             return 0.0
 
-        successful = sum(
-            1 for result in test_results.values() if result.get("success", False)
-        )
+        successful = sum(1 for result in test_results.values() if result.get("success", False))
         total = len(test_results)
 
         return successful / total if total > 0 else 0.0
@@ -380,9 +345,7 @@ class ComprehensiveTestRunner:
     def _is_bats_available(self) -> bool:
         """Batsが利用可能かチェック"""
         try:
-            result = subprocess.run(
-                ["bats", "--version"], capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(["bats", "--version"], capture_output=True, text=True, timeout=10)
             return result.returncode == 0
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             return False
@@ -416,9 +379,7 @@ class ComprehensiveTestRunner:
 
         # テスト結果に基づく推奨事項
         existing_tests = self.test_results.get("existing_test_suite", {})
-        pytest_success_rate = self._calculate_test_success_rate(
-            existing_tests.get("pytest_results", {})
-        )
+        pytest_success_rate = self._calculate_test_success_rate(existing_tests.get("pytest_results", {}))
 
         if pytest_success_rate < 0.9:
             recommendations.append(
@@ -426,16 +387,12 @@ class ComprehensiveTestRunner:
             )
 
         perf_results = self.test_results.get("performance_stability_validation", {})
-        if not perf_results.get("summary", {}).get(
-            "memory_leak_detection_passed", True
-        ):
+        if not perf_results.get("summary", {}).get("memory_leak_detection_passed", True):
             recommendations.append(
                 "メモリリークが検出されました。メモリ管理の改善とリソースの適切な解放を実装してください。"
             )
 
-        if not perf_results.get("summary", {}).get(
-            "concurrent_execution_stability_passed", True
-        ):
+        if not perf_results.get("summary", {}).get("concurrent_execution_stability_passed", True):
             recommendations.append(
                 "並行実行時の安定性に問題があります。スレッドセーフティとリソース競合の解決を検討してください。"
             )
@@ -449,9 +406,7 @@ class ComprehensiveTestRunner:
 
     def run_all_tests(self) -> Dict[str, any]:
         """全ての統合テストを実行"""
-        self.logger.info(
-            "GitHub Actions Simulator 包括的統合テストスイートを開始します..."
-        )
+        self.logger.info("GitHub Actions Simulator 包括的統合テストスイートを開始します...")
         self.logger.info("=" * 80)
 
         try:
@@ -461,21 +416,15 @@ class ComprehensiveTestRunner:
 
             # 2. 包括的統合テストを実行
             self.logger.info("フェーズ 2: 包括的統合テスト実行")
-            self.test_results["comprehensive_integration"] = (
-                self.run_comprehensive_integration_tests()
-            )
+            self.test_results["comprehensive_integration"] = self.run_comprehensive_integration_tests()
 
             # 3. エンドツーエンド検証テストを実行
             self.logger.info("フェーズ 3: エンドツーエンド検証テスト実行")
-            self.test_results["end_to_end_validation"] = (
-                self.run_end_to_end_validation()
-            )
+            self.test_results["end_to_end_validation"] = self.run_end_to_end_validation()
 
             # 4. パフォーマンス・安定性検証テストを実行
             self.logger.info("フェーズ 4: パフォーマンス・安定性検証テスト実行")
-            self.test_results["performance_stability_validation"] = (
-                self.run_performance_stability_validation()
-            )
+            self.test_results["performance_stability_validation"] = self.run_performance_stability_validation()
 
             # 5. 最終レポートを生成
             self.logger.info("フェーズ 5: 最終レポート生成")
@@ -483,9 +432,7 @@ class ComprehensiveTestRunner:
 
             # レポートをファイルに保存
             report_file = self.output_dir / "final_integration_test_report.json"
-            report_file.write_text(
-                json.dumps(final_report, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            report_file.write_text(json.dumps(final_report, ensure_ascii=False, indent=2), encoding="utf-8")
 
             self.logger.info(f"最終レポートが保存されました: {report_file}")
 
@@ -509,25 +456,15 @@ class ComprehensiveTestRunner:
         test_suites = final_report["test_suite_results"]
 
         # 総合結果
-        print(
-            f"\n🎯 タスク15完了状況: {'✅ 完了' if summary['task_15_completed'] else '❌ 未完了'}"
-        )
+        print(f"\n🎯 タスク15完了状況: {'✅ 完了' if summary['task_15_completed'] else '❌ 未完了'}")
         print(f"📊 総合成功: {'✅ 成功' if summary['overall_success'] else '❌ 失敗'}")
 
         # 要件検証結果
         print("\n📋 要件検証結果:")
-        print(
-            f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}"
-        )
-        print(
-            f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}"
-        )
-        print(
-            f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}"
-        )
-        print(
-            f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}"
-        )
+        print(f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}")
+        print(f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}")
+        print(f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}")
+        print(f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}")
 
         # テストスイート結果
         print("\n🧪 テストスイート結果:")
@@ -536,20 +473,12 @@ class ComprehensiveTestRunner:
 
         print("  既存テスト:")
         print(f"    pytest成功率: {existing['pytest_success_rate']:.1%}")
-        print(
-            f"    統合スクリプト: {'✅' if existing['integration_script_success'] else '❌'}"
-        )
+        print(f"    統合スクリプト: {'✅' if existing['integration_script_success'] else '❌'}")
 
         print("  新規統合テスト:")
-        print(
-            f"    包括的統合テスト: {'✅' if new_tests['comprehensive_integration_success'] else '❌'}"
-        )
-        print(
-            f"    エンドツーエンド検証: {'✅' if new_tests['end_to_end_validation_success'] else '❌'}"
-        )
-        print(
-            f"    パフォーマンス・安定性: {'✅' if new_tests['performance_stability_success'] else '❌'}"
-        )
+        print(f"    包括的統合テスト: {'✅' if new_tests['comprehensive_integration_success'] else '❌'}")
+        print(f"    エンドツーエンド検証: {'✅' if new_tests['end_to_end_validation_success'] else '❌'}")
+        print(f"    パフォーマンス・安定性: {'✅' if new_tests['performance_stability_success'] else '❌'}")
 
         # 実行時間
         execution = final_report["test_execution_summary"]
@@ -587,9 +516,7 @@ def main():
             print("⚠️ テストは成功しましたが、一部の要件が未達成です。")
             return 1
         else:
-            print(
-                "❌ 統合テストが失敗しました。詳細は上記のレポートを確認してください。"
-            )
+            print("❌ 統合テストが失敗しました。詳細は上記のレポートを確認してください。")
             return 2
 
     except KeyboardInterrupt:

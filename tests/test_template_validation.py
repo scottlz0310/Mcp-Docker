@@ -79,9 +79,7 @@ class TestTemplateValidator:
         for file_name, expected_type in test_cases:
             file_path = Path(file_name)
             result = validator._determine_template_type(file_path)
-            assert (
-                result == expected_type
-            ), f"Failed for {file_name}: expected {expected_type}, got {result}"
+            assert result == expected_type, f"Failed for {file_name}: expected {expected_type}, got {result}"
 
     def test_validate_yaml_syntax_valid(self, validator):
         """有効なYAML構文のテスト"""
@@ -264,10 +262,7 @@ API_KEY=sk-1234567890abcdef1234567890abcdef
             assert len(result.security_issues) > 0
             # 実際のトークンやパスワードが検出されることを確認
             security_text = " ".join(result.security_issues).lower()
-            assert any(
-                keyword in security_text
-                for keyword in ["パスワード", "トークン", "api"]
-            )
+            assert any(keyword in security_text for keyword in ["パスワード", "トークン", "api"])
         finally:
             temp_file.unlink()
 
@@ -715,9 +710,7 @@ class TestTemplateValidationIntegration:
                 assert result.file_path == str(sample_file)
                 assert result.template_type == "github_workflows"
                 # 構文エラーがないことを確認
-                assert (
-                    result.syntax_valid is True
-                ), f"Syntax error in {sample_file}: {result.syntax_errors}"
+                assert result.syntax_valid is True, f"Syntax error in {sample_file}: {result.syntax_errors}"
 
 
 if __name__ == "__main__":

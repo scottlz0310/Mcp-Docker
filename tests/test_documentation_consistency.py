@@ -94,9 +94,7 @@ class TestDocumentationConsistency:
             if section not in content:
                 missing_sections.append(section)
 
-        assert (
-            not missing_sections
-        ), f"README.mdに必須セクションが不足: {missing_sections}"
+        assert not missing_sections, f"README.mdに必須セクションが不足: {missing_sections}"
 
     def test_internal_links_validity(self, documentation_files, project_root):
         """内部リンクの有効性確認"""
@@ -149,9 +147,7 @@ class TestDocumentationConsistency:
         if broken_links:
             error_msg = "無効な内部リンクが見つかりました:\n"
             for link in broken_links[:10]:  # 最初の10個のみ表示
-                error_msg += (
-                    f"  - {link['file']}: [{link['link_text']}]({link['link_url']})\n"
-                )
+                error_msg += f"  - {link['file']}: [{link['link_text']}]({link['link_url']})\n"
             if len(broken_links) > 10:
                 error_msg += f"  ... および他 {len(broken_links) - 10} 個\n"
 
@@ -287,9 +283,7 @@ class TestDocumentationConsistency:
                 )
 
                 if result.returncode != 0:
-                    errors.append(
-                        f"{doc_file.name}: Shell構文エラー - {result.stderr.strip()}"
-                    )
+                    errors.append(f"{doc_file.name}: Shell構文エラー - {result.stderr.strip()}")
 
             finally:
                 os.unlink(temp_file)
@@ -381,17 +375,13 @@ class TestDocumentationConsistency:
             content = doc_file.read_text(encoding="utf-8")
 
             # ファイルパスの参照を抽出
-            file_references = re.findall(
-                r"`([^`]+\.(md|py|sh|yml|yaml|json|toml))`", content
-            )
+            file_references = re.findall(r"`([^`]+\.(md|py|sh|yml|yaml|json|toml))`", content)
             for file_ref, _ in file_references:
                 if not file_ref.startswith(("http://", "https://")):
                     referenced_files.add(file_ref)
 
             # リンクでのファイル参照も抽出
-            link_references = re.findall(
-                r"\]\(([^)]+\.(md|py|sh|yml|yaml|json|toml))\)", content
-            )
+            link_references = re.findall(r"\]\(([^)]+\.(md|py|sh|yml|yaml|json|toml))\)", content)
             for file_ref, _ in link_references:
                 if not file_ref.startswith(("http://", "https://")):
                     referenced_files.add(file_ref)
@@ -410,9 +400,7 @@ class TestDocumentationConsistency:
                 missing_referenced_files.append(file_ref)
 
         if missing_referenced_files:
-            assert (
-                False
-            ), f"参照されているが存在しないファイル: {missing_referenced_files}"
+            assert False, f"参照されているが存在しないファイル: {missing_referenced_files}"
 
     def test_makefile_targets_documentation(self, project_root):
         """Makefileターゲットとドキュメントの整合性"""
@@ -423,9 +411,7 @@ class TestDocumentationConsistency:
 
         # Makefileからターゲットを抽出
         makefile_content = makefile_path.read_text(encoding="utf-8")
-        targets = re.findall(
-            r"^([a-zA-Z][a-zA-Z0-9_-]*):(?!.*=)", makefile_content, re.MULTILINE
-        )
+        targets = re.findall(r"^([a-zA-Z][a-zA-Z0-9_-]*):(?!.*=)", makefile_content, re.MULTILINE)
 
         # ドキュメントでMakeターゲットが言及されているかチェック
         documented_targets = set()
@@ -441,9 +427,7 @@ class TestDocumentationConsistency:
         # 重要なターゲットがドキュメント化されているかチェック
         important_targets = {"setup", "build", "test", "clean", "actions", "diagnostic"}
         existing_important_targets = [t for t in important_targets if t in targets]
-        undocumented_important_targets = [
-            t for t in existing_important_targets if t not in documented_targets
-        ]
+        undocumented_important_targets = [t for t in existing_important_targets if t not in documented_targets]
 
         if undocumented_important_targets:
             assert False, f"重要なMakeターゲットがドキュメント化されていません: {undocumented_important_targets}"
@@ -480,11 +464,7 @@ class TestTemplateValidationIntegration:
 
         # 出力に検証結果が含まれることを確認
         output = result.stdout + result.stderr
-        assert (
-            "テンプレート" in output
-            or "検証" in output
-            or "validation" in output.lower()
-        )
+        assert "テンプレート" in output or "検証" in output or "validation" in output.lower()
 
     def test_ci_template_validation_integration(self, project_root):
         """CI用テンプレート検証の統合テスト"""
@@ -507,11 +487,7 @@ class TestTemplateValidationIntegration:
 
         # エラーがある場合は適切に報告されることを確認
         if result.returncode != 0:
-            assert (
-                "エラー" in output
-                or "error" in output.lower()
-                or "failed" in output.lower()
-            )
+            assert "エラー" in output or "error" in output.lower() or "failed" in output.lower()
 
 
 class TestDocumentationAccessibility:
@@ -539,9 +515,7 @@ class TestDocumentationAccessibility:
 
             # レベルが2以上飛ばないことを確認
             if current_level > prev_level + 1 and prev_level > 0:
-                heading_issues.append(
-                    f"見出しレベルが飛んでいます: {heading_marks} {heading_text}"
-                )
+                heading_issues.append(f"見出しレベルが飛んでいます: {heading_marks} {heading_text}")
 
             prev_level = current_level
 
@@ -565,9 +539,7 @@ class TestDocumentationAccessibility:
                     missing_alt_text.append(f"{doc_file.name}: 空のalt属性")
 
         if missing_alt_text:
-            assert False, "画像にalt属性が不足しています:\n" + "\n".join(
-                missing_alt_text
-            )
+            assert False, "画像にalt属性が不足しています:\n" + "\n".join(missing_alt_text)
 
 
 if __name__ == "__main__":

@@ -68,15 +68,11 @@ class SupportIntegrationTest(unittest.TestCase):
 
         for doc in required_docs:
             doc_path = self.docs_dir / doc
-            self.assertTrue(
-                doc_path.exists(), f"必須サポートドキュメントが見つかりません: {doc}"
-            )
+            self.assertTrue(doc_path.exists(), f"必須サポートドキュメントが見つかりません: {doc}")
 
             # ドキュメントが空でないことを確認
             content = doc_path.read_text(encoding="utf-8")
-            self.assertGreater(
-                len(content.strip()), 100, f"ドキュメントの内容が不十分です: {doc}"
-            )
+            self.assertGreater(len(content.strip()), 100, f"ドキュメントの内容が不十分です: {doc}")
 
     def test_github_issue_templates_exist(self):
         """GitHub Issueテンプレートの存在確認"""
@@ -166,9 +162,7 @@ class SupportIntegrationTest(unittest.TestCase):
         )
 
         # 診断が実行されることを確認（結果は環境依存）
-        self.assertIn(
-            "依存関係を診断中", result.stdout, "依存関係診断が実行されませんでした"
-        )
+        self.assertIn("依存関係を診断中", result.stdout, "依存関係診断が実行されませんでした")
 
     def test_support_info_auto_troubleshoot(self):
         """自動トラブルシューティング機能のテスト"""
@@ -189,9 +183,7 @@ class SupportIntegrationTest(unittest.TestCase):
             timeout=45,
         )
 
-        self.assertEqual(
-            result.returncode, 0, "自動トラブルシューティングが失敗しました"
-        )
+        self.assertEqual(result.returncode, 0, "自動トラブルシューティングが失敗しました")
         self.assertTrue(
             output_file.exists(),
             "トラブルシューティング結果ファイルが作成されませんでした",
@@ -271,9 +263,7 @@ class SupportIntegrationTest(unittest.TestCase):
         ]
 
         for link in support_links:
-            self.assertIn(
-                link, readme_content, f"README.mdに必要なサポートリンクが不足: {link}"
-            )
+            self.assertIn(link, readme_content, f"README.mdに必要なサポートリンクが不足: {link}")
 
     def test_diagnostic_script_options(self):
         """診断スクリプトのオプション機能テスト"""
@@ -289,14 +279,10 @@ class SupportIntegrationTest(unittest.TestCase):
         ]
 
         for options in test_options:
-            output_file = (
-                self.temp_dir / f"test_{'-'.join(options[0].split('--')[1:])}.txt"
-            )
+            output_file = self.temp_dir / f"test_{'-'.join(options[0].split('--')[1:])}.txt"
             cmd = [str(script_path)] + options + ["--output", str(output_file)]
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, cwd=self.project_root, timeout=30
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.project_root, timeout=30)
 
             # オプションが正しく処理されることを確認
             self.assertEqual(
@@ -338,9 +324,7 @@ class SupportIntegrationTest(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 0, "サポートワークフローが失敗しました")
-        self.assertTrue(
-            output_file.exists(), "サポート情報ファイルが作成されませんでした"
-        )
+        self.assertTrue(output_file.exists(), "サポート情報ファイルが作成されませんでした")
 
         # 収集された情報が問題報告に使用可能かチェック
         content = output_file.read_text(encoding="utf-8")
@@ -358,9 +342,7 @@ class SupportIntegrationTest(unittest.TestCase):
         # 設定ファイルの内容確認
         content = config_file.read_text(encoding="utf-8")
         self.assertIn("contact_links", content, "連絡先リンクが設定されていません")
-        self.assertIn(
-            "GitHub Discussions", content, "Discussionsリンクが設定されていません"
-        )
+        self.assertIn("GitHub Discussions", content, "Discussionsリンクが設定されていません")
 
         # ドキュメントのアクセシビリティ
         community_guide = self.docs_dir / "COMMUNITY_SUPPORT_GUIDE.md"
@@ -411,17 +393,13 @@ class SupportToolsPerformanceTest(unittest.TestCase):
         execution_time = end_time - start_time
 
         self.assertEqual(result.returncode, 0, "パフォーマンステストが失敗しました")
-        self.assertLess(
-            execution_time, 30, f"実行時間が長すぎます: {execution_time:.2f}秒"
-        )
+        self.assertLess(execution_time, 30, f"実行時間が長すぎます: {execution_time:.2f}秒")
 
         # 出力ファイルサイズの確認
         if output_file.exists():
             file_size = output_file.stat().st_size
             self.assertGreater(file_size, 1000, "出力ファイルが小さすぎます")
-            self.assertLess(
-                file_size, 1024 * 1024, "出力ファイルが大きすぎます"
-            )  # 1MB未満
+            self.assertLess(file_size, 1024 * 1024, "出力ファイルが大きすぎます")  # 1MB未満
 
     def test_diagnostic_helper_performance(self):
         """診断ヘルパーのパフォーマンステスト"""
@@ -443,9 +421,7 @@ class SupportToolsPerformanceTest(unittest.TestCase):
         execution_time = end_time - start_time
 
         # 診断は15秒以内に完了すべき
-        self.assertLess(
-            execution_time, 15, f"診断実行時間が長すぎます: {execution_time:.2f}秒"
-        )
+        self.assertLess(execution_time, 15, f"診断実行時間が長すぎます: {execution_time:.2f}秒")
 
 
 def run_support_integration_tests():

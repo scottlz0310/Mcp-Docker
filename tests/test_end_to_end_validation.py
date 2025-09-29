@@ -531,9 +531,7 @@ jobs:
 
         return workflows
 
-    def test_workflow_parsing_accuracy(
-        self, workflows: Dict[str, Path]
-    ) -> Dict[str, Dict]:
+    def test_workflow_parsing_accuracy(self, workflows: Dict[str, Path]) -> Dict[str, Dict]:
         """ワークフロー解析精度テスト"""
         self.logger.info("ワークフロー解析精度テストを実行中...")
 
@@ -551,22 +549,15 @@ jobs:
                 total_steps = sum(len(job.get("steps", [])) for job in jobs.values())
 
                 # マトリックス戦略の検出
-                has_matrix = any(
-                    "strategy" in job and "matrix" in job.get("strategy", {})
-                    for job in jobs.values()
-                )
+                has_matrix = any("strategy" in job and "matrix" in job.get("strategy", {}) for job in jobs.values())
 
                 # 条件分岐の検出
                 has_conditions = any("if" in job for job in jobs.values()) or any(
-                    "if" in step
-                    for job in jobs.values()
-                    for step in job.get("steps", [])
+                    "if" in step for job in jobs.values() for step in job.get("steps", [])
                 )
 
                 # 環境変数の検出
-                has_env_vars = "env" in workflow_data or any(
-                    "env" in job for job in jobs.values()
-                )
+                has_env_vars = "env" in workflow_data or any("env" in job for job in jobs.values())
 
                 # needs依存関係の検出
                 has_dependencies = any("needs" in job for job in jobs.values())
@@ -595,9 +586,7 @@ jobs:
 
         return results
 
-    def test_simulation_execution_scenarios(
-        self, workflows: Dict[str, Path]
-    ) -> Dict[str, Dict]:
+    def test_simulation_execution_scenarios(self, workflows: Dict[str, Path]) -> Dict[str, Dict]:
         """シミュレーション実行シナリオテスト"""
         self.logger.info("シミュレーション実行シナリオテストを実行中...")
 
@@ -605,20 +594,14 @@ jobs:
         simulation_service = SimulationService()
 
         for name, workflow_file in workflows.items():
-            self.logger.info(
-                f"ワークフロー '{name}' のシミュレーションテストを実行中..."
-            )
+            self.logger.info(f"ワークフロー '{name}' のシミュレーションテストを実行中...")
 
             try:
                 # 基本的なドライラン実行
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=True
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=True)
 
                 start_time = time.time()
-                result = simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                 execution_time = time.time() - start_time
 
                 # 特定のジョブのみの実行テスト（最初のジョブ）
@@ -649,18 +632,14 @@ jobs:
                     "stderr_length": len(result.stderr) if result.stderr else 0,
                     "job_specific_test": {
                         "tested_job": first_job,
-                        "success": job_specific_result.success
-                        if job_specific_result
-                        else False,
+                        "success": job_specific_result.success if job_specific_result else False,
                     }
                     if first_job
                     else None,
                 }
 
             except Exception as e:
-                self.logger.error(
-                    f"ワークフロー '{name}' のシミュレーション中にエラー: {e}"
-                )
+                self.logger.error(f"ワークフロー '{name}' のシミュレーション中にエラー: {e}")
                 results[name] = {
                     "execution_success": False,
                     "error": str(e),
@@ -722,21 +701,16 @@ jobs:
 
         for name, workflow_file in timeout_workflows.items():
             try:
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=True
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=True)
 
                 start_time = time.time()
-                result = simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                 execution_time = time.time() - start_time
 
                 results[name] = {
                     "execution_success": result.success,
                     "execution_time_seconds": execution_time,
-                    "timeout_handled_properly": execution_time
-                    < 30,  # 30秒以内で完了すべき
+                    "timeout_handled_properly": execution_time < 30,  # 30秒以内で完了すべき
                     "return_code": result.return_code,
                 }
 
@@ -804,14 +778,10 @@ jobs:
 
         for name, workflow_file in error_workflows.items():
             try:
-                params = SimulationParameters(
-                    workflow_file=workflow_file, dry_run=True, verbose=True
-                )
+                params = SimulationParameters(workflow_file=workflow_file, dry_run=True, verbose=True)
 
                 start_time = time.time()
-                result = simulation_service.run_simulation(
-                    params, logger=self.logger, capture_output=True
-                )
+                result = simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                 execution_time = time.time() - start_time
 
                 # エラーが適切に処理されたかチェック
@@ -840,9 +810,7 @@ jobs:
 
         return results
 
-    def test_performance_under_load(
-        self, workflows: Dict[str, Path]
-    ) -> Dict[str, float]:
+    def test_performance_under_load(self, workflows: Dict[str, Path]) -> Dict[str, float]:
         """負荷下でのパフォーマンステスト"""
         self.logger.info("負荷下でのパフォーマンステストを実行中...")
 
@@ -865,9 +833,7 @@ jobs:
                     )
 
                     start_time = time.time()
-                    simulation_service.run_simulation(
-                        params, logger=self.logger, capture_output=True
-                    )
+                    simulation_service.run_simulation(params, logger=self.logger, capture_output=True)
                     execution_time = time.time() - start_time
                     execution_times.append(execution_time)
 
@@ -884,8 +850,7 @@ jobs:
             performance_metrics.update(
                 {
                     "total_execution_time_seconds": total_time,
-                    "average_execution_time_seconds": sum(valid_times)
-                    / len(valid_times),
+                    "average_execution_time_seconds": sum(valid_times) / len(valid_times),
                     "min_execution_time_seconds": min(valid_times),
                     "max_execution_time_seconds": max(valid_times),
                     "successful_executions": len(valid_times),
@@ -976,8 +941,7 @@ jobs:
         performance_data = self.test_results.get("performance_under_load", {})
         performance_acceptable = (
             performance_data.get("success_rate", 0) >= 0.8
-            and performance_data.get("average_execution_time_seconds", float("inf"))
-            < 10
+            and performance_data.get("average_execution_time_seconds", float("inf")) < 10
         )
 
         return {
@@ -1000,13 +964,10 @@ jobs:
                 ),
             },
             "requirements_validation": {
-                "requirement_5_1": execution_success_rate
-                >= 0.8,  # 様々なワークフローファイルでの成功実行
-                "requirement_5_2": timeout_success_rate
-                >= 0.8,  # タイムアウトシナリオの適切な処理
+                "requirement_5_1": execution_success_rate >= 0.8,  # 様々なワークフローファイルでの成功実行
+                "requirement_5_2": timeout_success_rate >= 0.8,  # タイムアウトシナリオの適切な処理
                 "requirement_5_3": performance_acceptable,  # 安定性とパフォーマンス
-                "requirement_5_4": parsing_success_rate
-                >= 0.9,  # 様々なワークフロー設定の処理
+                "requirement_5_4": parsing_success_rate >= 0.9,  # 様々なワークフロー設定の処理
             },
         }
 
@@ -1016,9 +977,7 @@ jobs:
             return 0.0
 
         successful = sum(
-            1
-            for result in results.values()
-            if isinstance(result, dict) and result.get(success_key, False)
+            1 for result in results.values() if isinstance(result, dict) and result.get(success_key, False)
         )
         total = len(results)
 
@@ -1043,45 +1002,29 @@ class TestEndToEndValidation:
         requirements = report["requirements_validation"]
 
         # Requirement 5.1: 様々なワークフローファイルでの成功実行
-        assert requirements[
-            "requirement_5_1"
-        ], "Requirement 5.1 failed: ワークフローの実行成功率が不十分"
+        assert requirements["requirement_5_1"], "Requirement 5.1 failed: ワークフローの実行成功率が不十分"
 
         # Requirement 5.2: タイムアウトシナリオの適切な処理
-        assert requirements[
-            "requirement_5_2"
-        ], "Requirement 5.2 failed: タイムアウト処理が不適切"
+        assert requirements["requirement_5_2"], "Requirement 5.2 failed: タイムアウト処理が不適切"
 
         # Requirement 5.3: 安定性とパフォーマンス
-        assert requirements[
-            "requirement_5_3"
-        ], "Requirement 5.3 failed: パフォーマンス要件未達成"
+        assert requirements["requirement_5_3"], "Requirement 5.3 failed: パフォーマンス要件未達成"
 
         # Requirement 5.4: 様々なワークフロー設定の処理
-        assert requirements[
-            "requirement_5_4"
-        ], "Requirement 5.4 failed: ワークフロー解析成功率が不十分"
+        assert requirements["requirement_5_4"], "Requirement 5.4 failed: ワークフロー解析成功率が不十分"
 
         # 総合成功判定
-        assert report["summary"][
-            "overall_success"
-        ], "エンドツーエンドテストの総合判定が失敗"
+        assert report["summary"]["overall_success"], "エンドツーエンドテストの総合判定が失敗"
 
         # レポートをファイルに保存
         report_file = Path("output") / "end_to_end_validation_report.json"
         report_file.parent.mkdir(exist_ok=True)
-        report_file.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
         print(f"\nエンドツーエンド検証レポートが保存されました: {report_file}")
         print(f"総合成功: {'✅' if report['summary']['overall_success'] else '❌'}")
-        print(
-            f"ワークフロー解析成功率: {report['summary']['workflow_parsing_success_rate']:.1%}"
-        )
-        print(
-            f"シミュレーション実行成功率: {report['summary']['simulation_execution_success_rate']:.1%}"
-        )
+        print(f"ワークフロー解析成功率: {report['summary']['workflow_parsing_success_rate']:.1%}")
+        print(f"シミュレーション実行成功率: {report['summary']['simulation_execution_success_rate']:.1%}")
 
 
 def main():
@@ -1099,32 +1042,20 @@ def main():
 
     print(f"\n総合成功: {'✅' if summary['overall_success'] else '❌'}")
     print(f"ワークフロー解析成功率: {summary['workflow_parsing_success_rate']:.1%}")
-    print(
-        f"シミュレーション実行成功率: {summary['simulation_execution_success_rate']:.1%}"
-    )
+    print(f"シミュレーション実行成功率: {summary['simulation_execution_success_rate']:.1%}")
     print(f"タイムアウト処理成功率: {summary['timeout_handling_success_rate']:.1%}")
     print(f"エラー復旧成功率: {summary['error_recovery_success_rate']:.1%}")
     print(f"パフォーマンス要件: {'✅' if summary['performance_acceptable'] else '❌'}")
 
     print("\n要件検証結果:")
-    print(
-        f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}"
-    )
-    print(
-        f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}"
-    )
+    print(f"  Requirement 5.1 (ワークフロー実行): {'✅' if requirements['requirement_5_1'] else '❌'}")
+    print(f"  Requirement 5.2 (タイムアウト処理): {'✅' if requirements['requirement_5_2'] else '❌'}")
+    print(f"  Requirement 5.3 (安定性・パフォーマンス): {'✅' if requirements['requirement_5_3'] else '❌'}")
+    print(f"  Requirement 5.4 (ワークフロー設定): {'✅' if requirements['requirement_5_4'] else '❌'}")
 
     # レポートファイルを保存
     report_file = Path("end_to_end_validation_report.json")
-    report_file.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n詳細レポートが保存されました: {report_file}")
 
     return 0 if summary["overall_success"] else 1
