@@ -33,7 +33,15 @@
         "list_pull_requests",
         "list_commits",
         "search_code",
-        "get_file_contents"
+        "get_file_contents",
+        "list_workflow_runs",
+        "get_workflow_run",
+        "list_workflow_run_logs",
+        "get_workflow_run_logs",
+        "list_jobs_for_workflow_run",
+        "get_job_for_workflow_run",
+        "list_workflow_run_artifacts",
+        "get_workflow_run_artifact"
       ]
     }
   }

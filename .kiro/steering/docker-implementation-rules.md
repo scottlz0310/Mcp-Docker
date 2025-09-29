@@ -2,9 +2,34 @@
 
 - 日本語の応答、日本語の出力とエラーメッセージ、日本語のコメントとdocstring。
 - 日本語でコミットメッセージを記入(Conventional Commitsは遵守)
-- pipではなくuv による依存関係の管理。
-- aptではなく、homebrewによるツールの管理
-- その他レガシーなツールは使わずにモダンでスマートなツールを提案して使う。
+
+## 🚫 禁止事項・必須ツール
+
+### Python実行・依存関係管理
+- **禁止**: `python3`, `pip`, `python -m pip` の使用
+- **必須**: `uv run python`, `uv sync`, `uv add` の使用
+- **理由**: モダンで高速な依存関係管理、仮想環境の自動管理
+
+#### 正しいコマンド例
+```bash
+# ❌ 禁止
+python3 -m pytest tests/
+python3 main.py
+pip install package
+
+# ✅ 正しい
+uv run python -m pytest tests/
+uv run python main.py
+uv add package
+```
+
+### パッケージ管理
+- **禁止**: `apt`, `apt-get` の使用
+- **推奨**: `homebrew` によるツール管理
+- **理由**: クロスプラットフォーム対応、バージョン管理の一元化
+
+### レガシーツール全般
+- **方針**: レガシーなツールは使わずにモダンでスマートなツールを提案して使う
 
 ## Phase 1: 仕様策定・ドキュメント化・タスク管理
 
