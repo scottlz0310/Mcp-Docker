@@ -445,7 +445,10 @@ curl -X POST http://localhost:8000/actions/simulate \
 **GitHub MCP Server** (ポート: 8080)
 
 - GitHub API連携のMCPサーバー
-- 環境変数: `GITHUB_PERSONAL_ACCESS_TOKEN`
+- 環境変数: 以下のいずれかを設定（優先順位順）
+  - `GITHUB_PERSONAL_ACCESS_TOKEN`
+  - `GITHUB_TOKEN`
+  - `GH_TOKEN`
 
 **DateTime Validator**
 
@@ -497,17 +500,25 @@ make security         # セキュリティテスト
 ### 軽量開発環境セットアップ
 
 ```bash
-# 1. 依存関係の確認
+# 1. GitHub Personal Access Token設定（GitHub MCP Server用）
+export GITHUB_TOKEN="your_token_here"
+# または
+export GITHUB_PERSONAL_ACCESS_TOKEN="your_token_here"
+
+# 2. Docker環境自動セットアップ
+./scripts/setup-docker-env.sh
+
+# 3. 依存関係の確認
 ./scripts/run-actions.sh --check-deps
 
-# 2. 開発依存関係インストール
+# 4. 開発依存関係インストール
 uv sync --group dev
 
-# 3. Pre-commitフック設定（GitHub Actions Simulator統合）
+# 5. Pre-commitフック設定（GitHub Actions Simulator統合）
 cp .pre-commit-config.yaml.sample .pre-commit-config.yaml  # テンプレートをコピー
 pre-commit install                                          # フックをインストール
 
-# 4. 開発用Docker環境構築
+# 6. 開発用Docker環境構築
 make build
 ```
 

@@ -6,7 +6,8 @@ services:
     stdin_open: true
     tty: true
     environment:
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      # GPAT: .env -> 環境変数 -> デフォルト値の順でフォールバック
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-your_token_here}}}
     restart: unless-stopped
     command:
       [
@@ -53,6 +54,9 @@ services:
         USER_ID: "${USER_ID:-1000}"
         GROUP_ID: "${GROUP_ID:-1000}"
     container_name: mcp-actions-simulator
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    group_add:
+      - "${DOCKER_GID:-999}"  # Docker group ID for socket access
     volumes:
       - ./.github:/app/.github:ro # ワークフローファイル（読み取り専用）
       - ./output:/app/output:rw # 実行結果出力
@@ -80,6 +84,9 @@ services:
       - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
       - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
       - HOME=/app # Set HOME directory for user
+      - USER_ID=${USER_ID:-1000}
+      - GROUP_ID=${GROUP_ID:-1000}
+      - DOCKER_GID=${DOCKER_GID:-999}
     profiles:
       - tools
     command: ["bash", "-c", "uv run python main.py actions --help"]
