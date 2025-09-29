@@ -79,19 +79,19 @@ github-actions-simulator/
 
 ## ✨ 軽量actベースアーキテクチャの利点
 
-### 🎯 **シンプルで高速**
+**🎯 シンプルで高速**
 
 - **最小限の依存関係**: Docker + act のみでフル機能
 - **高速起動**: 軽量コンテナで数秒での実行開始
 - **メモリ効率**: 必要最小限のリソース使用
 
-### 🔧 **開発者フレンドリー**
+**🔧 開発者フレンドリー**
 
 - **ゼロ設定**: 依存関係の自動チェックと環境セットアップ
 - **インテリジェントエラー処理**: プラットフォーム別の詳細ガイダンス
 - **段階的復旧**: 自動復旧提案と手動修正支援
 
-### 🚀 **プロダクション対応**
+**🚀 プロダクション対応**
 
 - **CI/CD統合**: 非対話モードでの自動化対応
 - **包括的診断**: システム健康状態の詳細チェック
@@ -135,7 +135,7 @@ github-actions-simulator/
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --show-performance-metrics
 ```
 
-### 🎯 即座に使える実行パターン
+## 🎯 即座に使える実行パターン
 
 ```bash
 # 🔍 対話的選択（初心者向け）
@@ -154,7 +154,7 @@ NON_INTERACTIVE=1 ./scripts/run-actions.sh .github/workflows/ci.yml
 
 ## 🎛️ 使用方法
 
-### 🎯 メイン実行方式
+### メイン実行方式
 
 **1. ワンショットスクリプト（推奨）**
 
@@ -195,7 +195,7 @@ uv run python main.py actions simulate .github/workflows/ci.yml
 uv run python main.py actions --help
 ```
 
-### 🔧 軽量actベースの強化機能
+### 軽量actベースの強化機能
 
 **インテリジェント診断システム**
 
@@ -227,7 +227,7 @@ uv run python main.py actions --help
 ./scripts/run-actions.sh .github/workflows/ci.yml -- --show-execution-trace
 ```
 
-### 📋 実用的な使用例
+### 実用的な使用例
 
 **基本的なワークフロー実行**
 
@@ -293,7 +293,7 @@ INDEX=1 ./scripts/run-actions.sh
   --show-performance-metrics --show-execution-trace
 ```
 
-### 🛠️ 開発者向けMakeコマンド
+### 開発者向けMakeコマンド
 
 ```bash
 # 対話的ワークフロー選択
@@ -311,7 +311,7 @@ make actions WORKFLOW=.github/workflows/ci.yml CLI_ARGS="--job test --enhanced"
 
 **利用可能な変数**: `WORKFLOW`, `INDEX`, `JOB`, `ENV_VARS`, `CLI_ARGS`など
 
-### 📋 利用可能コマンド
+### 利用可能コマンド
 
 **メインコマンド**
 
@@ -366,7 +366,7 @@ make version-sync
 
 このコマンドはpyproject.tomlのバージョンをmain.pyに反映します。
 
-### 🚀 クイックリリース実行
+### クイックリリース実行
 
 **GitHub ActionsのRelease Managementワークフローを使用（推奨）**:
 
@@ -384,13 +384,13 @@ git tag v1.3.7
 git push origin v1.3.7
 ```
 
-### 📄 詳細ドキュメント
+### 詳細ドキュメント
 
 完全なリリースシステムの詳細については、**[📚 リリース自動化システム完全ガイド](docs/RELEASE_SYSTEM.md)**を参照してください。
 
 ## 📚 ドキュメント
 
-### 🚀 ユーザー向けドキュメント
+### ユーザー向けドキュメント
 - **[Actions Simulator ドキュメント](docs/actions/)** - 使用方法、インストール、トラブルシューティング
 - **[クイックスタート](docs/actions/QUICK_START.md)** - 5分で始めるガイド
 - **[インストールガイド](docs/actions/INSTALLATION.md)** - 詳細なセットアップ手順
@@ -399,12 +399,12 @@ git push origin v1.3.7
 - **[トラブルシューティング](docs/actions/TROUBLESHOOTING.md)** - 問題解決ガイド
 - **[FAQ](docs/actions/FAQ.md)** - よくある質問と回答
 
-### 🛠️ 開発・設計ドキュメント
+### 開発・設計ドキュメント
 - **[実装ルール](.kiro/steering/)** - Docker特化の実装・品質ルール
 - **[設計仕様](.kiro/specs/)** - アーキテクチャ・実装・品質ゲート仕様
 - **[プロジェクトガイドライン](.kiro/steering/project-guidelines.md)** - ドキュメント構造とルール
 
-### 📁 アーカイブ
+### アーカイブ
 
 - **🗂️ Sphinx ドキュメント**: `archive/docs/sphinx/` - HTML生成用
 - **🛡️ CodeQL 設定**: `archive/services/codeql/` - 旧静的解析設定
