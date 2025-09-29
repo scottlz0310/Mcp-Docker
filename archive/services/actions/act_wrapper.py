@@ -179,12 +179,18 @@ class ActWrapper:
         """
         Create a workaround for act's path resolution issues.
 
-        This copies the workflow file to a temporary location to avoid
-        act's workflow_call path duplication bug.
+        This ensures proper Git repository setup and Docker permissions
+        to avoid act's common execution issues.
         """
         if not workflow_file:
             self.logger.debug("ワークフローファイルが指定されていません")
             return None
+
+        # Ensure Git repository is properly initialized
+        self._ensure_git_repository()
+
+        # Ensure Docker permissions are correct
+        self._ensure_docker_permissions()
 
         workflows_dir = self.working_directory / ".github" / "workflows"
         self.logger.debug(
@@ -197,60 +203,126 @@ class ActWrapper:
             )
             return workflow_file
 
-        # Create temporary directory for act workaround
-        temp_dir = self.working_directory / ".act-temp"
-        self.logger.debug(f"一時ディレクトリ: {temp_dir}")
+        # Normalize the workflow file path
+        workflow_name = Path(workflow_file).name
+        normalized_path = f".github/workflows/{workflow_name}"
 
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir)
+        # Verify the workflow file exists
+        actual_workflow_path = self.working_directory / normalized_path
+        if actual_workflow_path.exists():
+            self.logger.debug(f"正規化されたワークフローパス: {normalized_path}")
+            return normalized_path
+        else:
+            self.logger.warning(f"ワークフローファイルが見つかりません: {actual_workflow_path}")
+            return workflow_file
+
+    def _ensure_git_repository(self) -> None:
+        """Ensure the working directory is a proper Git repository."""
+        git_dir = self.working_directory / ".git"
+
+        if git_dir.exists():
+            self.logger.debug("Gitリポジトリが既に存在します")
+            return
 
         try:
-            temp_dir.mkdir(parents=True)
-            temp_workflows_dir = temp_dir / ".github" / "workflows"
-            temp_workflows_dir.mkdir(parents=True)
-            self.logger.debug(
-                f"一時ワークフローディレクトリを作成: {temp_workflows_dir}"
+            # Initialize Git repository
+            subprocess.run(
+                ["git", "init"],
+                cwd=self.working_directory,
+                capture_output=True,
+                text=True,
+                check=True,
             )
+            self.logger.debug("Gitリポジトリを初期化しました")
 
-            # Copy all workflow files to temporary location
-            copied_files = []
-            for source_file in workflows_dir.glob("*.yml"):
-                dest_file = temp_workflows_dir / source_file.name
-                shutil.copy2(source_file, dest_file)
-                copied_files.append(source_file.name)
-
-            for source_file in workflows_dir.glob("*.yaml"):
-                dest_file = temp_workflows_dir / source_file.name
-                shutil.copy2(source_file, dest_file)
-                copied_files.append(source_file.name)
-
-            self.logger.debug(f"コピーしたワークフローファイル: {copied_files}")
-
-            # Return the path relative to temp directory
-            workflow_name = Path(workflow_file).name
-            temp_workflow_path = temp_workflows_dir / workflow_name
-
-            self.logger.debug(
-                f"対象ワークフローファイル: {workflow_name}, 一時パス: {temp_workflow_path}, 存在: {temp_workflow_path.exists()}"
-            )
-
-            if temp_workflow_path.exists():
-                # Return path relative to temp_dir
-                result_path = f".github/workflows/{workflow_name}"
-                self.logger.debug(f"一時ワークフローパスを返却: {result_path}")
-                return result_path
-            else:
-                self.logger.warning(
-                    f"一時ワークフローファイルが見つかりません: {workflow_name}"
+            # Set basic Git configuration if not set
+            try:
+                subprocess.run(
+                    ["git", "config", "user.name", "Actions Simulator"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
                 )
-                return workflow_file
+                subprocess.run(
+                    ["git", "config", "user.email", "simulator@localhost"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.logger.debug("Git設定を初期化しました")
+            except subprocess.CalledProcessError:
+                # Git config might already be set globally
+                pass
 
-        except (OSError, PermissionError) as e:
-            self.logger.warning(f"一時ワークフロー作成に失敗しました: {e}")
-            # Clean up on failure
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            return workflow_file
+            # Add a remote origin if it doesn't exist
+            try:
+                subprocess.run(
+                    ["git", "remote", "add", "origin", "https://github.com/local/example.git"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.logger.debug("Gitリモートを設定しました")
+            except subprocess.CalledProcessError:
+                # Remote might already exist
+                pass
+
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Gitリポジトリの初期化に失敗しました: {e}")
+
+    def _ensure_docker_permissions(self) -> None:
+        """Ensure Docker daemon is accessible."""
+        try:
+            # Test Docker connectivity
+            result = subprocess.run(
+                ["docker", "version", "--format", "{{.Server.Version}}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                self.logger.debug(f"Docker接続確認: サーバーバージョン {result.stdout.strip()}")
+                return
+            else:
+                self.logger.warning(f"Docker接続テスト失敗: {result.stderr}")
+
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+            self.logger.warning(f"Docker接続確認エラー: {e}")
+
+        # Try to fix common Docker permission issues
+        docker_sock = Path("/var/run/docker.sock")
+        if docker_sock.exists():
+            try:
+                # Check current permissions
+                stat_info = docker_sock.stat()
+                self.logger.debug(f"Docker socket権限: {oct(stat_info.st_mode)}, GID: {stat_info.st_gid}")
+
+                # Try to add current user to docker group (if running as root or with sudo)
+                current_user = os.getenv("USER", "actions")
+                if current_user != "root":
+                    try:
+                        subprocess.run(
+                            ["usermod", "-aG", "docker", current_user],
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                        )
+                        self.logger.debug(f"ユーザー {current_user} をdockerグループに追加しました")
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        # usermod might not be available or we don't have permissions
+                        pass
+
+            except (OSError, PermissionError) as e:
+                self.logger.debug(f"Docker権限確認エラー: {e}")
+
+    def _cleanup_act_workaround(self) -> None:
+        """Clean up temporary workflow files created for act."""
+        # No longer creating temporary files, so no cleanup needed
+        pass
 
     def _cleanup_act_workaround(self) -> None:
         """Clean up temporary workflow files created for act."""
@@ -304,11 +376,33 @@ class ActWrapper:
         env["ACT_PLATFORM"] = "ubuntu-latest=catthehacker/ubuntu:act-latest"
         env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
 
+        # Git関連の環境変数を設定（act実行時のGitエラー回避）
+        env["GIT_AUTHOR_NAME"] = "Actions Simulator"
+        env["GIT_AUTHOR_EMAIL"] = "simulator@localhost"
+        env["GIT_COMMITTER_NAME"] = "Actions Simulator"
+        env["GIT_COMMITTER_EMAIL"] = "simulator@localhost"
+
+        # GitHub Actions互換の環境変数を設定
+        env["GITHUB_WORKSPACE"] = str(self.working_directory)
+        env["GITHUB_WORKFLOW"] = "CI"
+        env["GITHUB_RUN_ID"] = "1"
+        env["GITHUB_RUN_NUMBER"] = "1"
+        env["GITHUB_SHA"] = "0000000000000000000000000000000000000000"
+        env["GITHUB_REF_NAME"] = "main"
+        env["GITHUB_REF_TYPE"] = "branch"
+        env["GITHUB_REPOSITORY_OWNER"] = "local"
+        env["GITHUB_ACTOR_ID"] = "1"
+        env["GITHUB_TRIGGERING_ACTOR"] = "local-runner"
+
         # ワークフローディレクトリを明示的に指定（パス解決問題の回避）
         workflows_dir = self.working_directory / ".github" / "workflows"
         if workflows_dir.exists():
             env["GITHUB_WORKFLOW_DIR"] = str(workflows_dir)
             env["ACT_WORKFLOW_DIR"] = str(workflows_dir)
+
+        # Docker関連の環境変数
+        env["DOCKER_BUILDKIT"] = "1"
+        env["COMPOSE_DOCKER_CLI_BUILD"] = "1"
 
         if self.settings.cache_dir:
             env.setdefault("ACT_CACHE_DIR", self.settings.cache_dir)

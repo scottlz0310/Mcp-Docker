@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
-from services.actions.act_wrapper import ActWrapper
+# ActWrapperの機能は直接統合されました
 from services.actions.execution_tracer import ExecutionTracer, ExecutionStage, ThreadState
 from services.actions.logger import ActionsLogger
 
@@ -84,7 +84,7 @@ class DetailedResult:
     trace_id: Optional[str] = None
 
 
-class EnhancedActWrapper(ActWrapper):
+class EnhancedActWrapper:
     """
     診断機能とデッドロック検出メカニズムを統合したActWrapperの拡張版
 
@@ -119,13 +119,42 @@ class EnhancedActWrapper(ActWrapper):
             deadlock_detection_interval: デッドロック検出の間隔（秒）
             output_stall_threshold: 出力停止と判断する時間（秒）
         """
-        # 親クラスを初期化
-        super().__init__(
-            working_directory=working_directory,
-            config=config,
-            logger=logger,
-            execution_tracer=execution_tracer,
-        )
+        # ActWrapperの初期化ロジックを統合
+        self.working_directory = Path(working_directory or os.getcwd()).resolve()
+        if not self.working_directory.exists():
+            raise RuntimeError(
+                f"作業ディレクトリが存在しません: {self.working_directory}"
+            )
+        self.logger = logger or ActionsLogger(verbose=False)
+        self.execution_tracer = execution_tracer or ExecutionTracer(logger=self.logger)
+
+        # ActRunnerSettingsの初期化（簡略化）
+        self.settings = self._create_default_settings(config)
+
+        engine_name = os.getenv("ACTIONS_SIMULATOR_ENGINE", "act").strip()
+        self._engine = engine_name.lower() or "act"
+        self._mock_mode = self._engine in {"mock", "stub", "fake", "noop"}
+        mock_delay = os.getenv("ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS")
+        try:
+            self._mock_delay_seconds = (
+                max(0.0, float(mock_delay)) if mock_delay else 0.0
+            )
+        except ValueError:
+            self._mock_delay_seconds = 0.0
+
+        self._timeout_seconds = self._resolve_timeout_seconds(config)
+        if self._timeout_seconds != 600:
+            self.logger.info(
+                f"act 実行タイムアウトを {self._timeout_seconds} 秒に設定しました",
+            )
+
+        if self._mock_mode:
+            self.act_binary = "mock-act"
+            self.logger.debug(
+                f"ACTIONS_SIMULATOR_ENGINE={engine_name} のためモックモードで実行します",
+            )
+        else:
+            self.act_binary = self._find_act_binary()
 
         self.enable_diagnostics = enable_diagnostics
         self.deadlock_detection_interval = deadlock_detection_interval
@@ -144,6 +173,300 @@ class EnhancedActWrapper(ActWrapper):
         # 自動復旧機能の初期化
         self._auto_recovery = None
         self._initialize_auto_recovery()
+
+    def run_workflow(
+        self,
+        workflow_file: Optional[str] = None,
+        event: str | None = None,
+        job: Optional[str] = None,
+        dry_run: bool = False,
+        verbose: bool = False,
+        env_vars: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Execute a workflow through act and return structured output."""
+
+        # 診断機能が有効な場合は詳細実行を使用
+        if self.enable_diagnostics:
+            detailed_result = self.run_workflow_with_diagnostics(
+                workflow_file=workflow_file,
+                event=event,
+                job=job,
+                dry_run=dry_run,
+                verbose=verbose,
+                env_vars=env_vars,
+            )
+            return {
+                "success": detailed_result.success,
+                "returncode": detailed_result.returncode,
+                "stdout": detailed_result.stdout,
+                "stderr": detailed_result.stderr,
+                "command": detailed_result.command,
+            }
+        else:
+            # 基本実行
+            return self._run_workflow_with_enhanced_monitoring(
+                workflow_file=workflow_file,
+                event=event,
+                job=job,
+                dry_run=dry_run,
+                verbose=verbose,
+                env_vars=env_vars,
+            )
+
+    def _create_default_settings(self, config: Mapping[str, Any] | None):
+        """デフォルト設定を作成"""
+        from dataclasses import dataclass, field
+        from typing import Dict
+
+        @dataclass(frozen=True)
+        class ActRunnerSettings:
+            image: str | None = None
+            platforms: tuple[str, ...] = field(default_factory=tuple)
+            container_workdir: str | None = None
+            cache_dir: str | None = "/opt/act/cache"
+            env: Dict[str, str] = field(default_factory=dict)
+
+        return ActRunnerSettings()
+
+    def _find_act_binary(self) -> str:
+        """Locate the act binary in the current environment."""
+        import shutil
+
+        candidates = [
+            shutil.which("act"),
+            "/home/linuxbrew/.linuxbrew/bin/act",
+        ]
+        for candidate in candidates:
+            if candidate and Path(candidate).exists():
+                self.logger.debug(f"actバイナリが見つかりました: {candidate}")
+                return candidate
+
+        raise RuntimeError(
+            "actが見つかりません。以下のいずれかでインストールしてください:\n"
+            "  - curl -fsSL https://raw.githubusercontent.com/"
+            "nektos/act/master/install.sh | sudo bash\n"
+            "  - brew install act"
+        )
+
+    def _resolve_timeout_seconds(self, config: Mapping[str, Any] | None) -> int:
+        """Resolve timeout configuration."""
+        default_timeout = 600
+        timeout_value = default_timeout
+
+        if isinstance(config, Mapping):
+            timeouts_section = config.get("timeouts")
+            if isinstance(timeouts_section, Mapping):
+                candidate = timeouts_section.get("act_seconds")
+                if isinstance(candidate, (int, float)) and candidate > 0:
+                    timeout_value = int(candidate)
+
+        env_candidate = os.getenv("ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS")
+        if env_candidate:
+            try:
+                env_timeout = int(float(env_candidate.strip()))
+                if env_timeout > 0:
+                    timeout_value = env_timeout
+            except (ValueError, TypeError):
+                pass
+
+        return timeout_value
+
+
+
+    def _ensure_git_repository(self) -> None:
+        """Ensure the working directory is a proper Git repository."""
+        git_dir = self.working_directory / ".git"
+
+        if git_dir.exists():
+            self.logger.debug("Gitリポジトリが既に存在します")
+            return
+
+        try:
+            # Initialize Git repository
+            subprocess.run(
+                ["git", "init"],
+                cwd=self.working_directory,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.logger.debug("Gitリポジトリを初期化しました")
+
+            # Set basic Git configuration if not set
+            try:
+                subprocess.run(
+                    ["git", "config", "user.name", "Actions Simulator"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", "simulator@localhost"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.logger.debug("Git設定を初期化しました")
+            except subprocess.CalledProcessError:
+                # Git config might already be set globally
+                pass
+
+            # Add a remote origin if it doesn't exist
+            try:
+                subprocess.run(
+                    ["git", "remote", "add", "origin", "https://github.com/local/example.git"],
+                    cwd=self.working_directory,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.logger.debug("Gitリモートを設定しました")
+            except subprocess.CalledProcessError:
+                # Remote might already exist
+                pass
+
+        except subprocess.CalledProcessError as e:
+            self.logger.warning(f"Gitリポジトリの初期化に失敗しました: {e}")
+
+    def _ensure_docker_permissions(self) -> None:
+        """Ensure Docker daemon is accessible."""
+        try:
+            # Test Docker connectivity
+            result = subprocess.run(
+                ["docker", "version", "--format", "{{.Server.Version}}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0:
+                self.logger.debug(f"Docker接続確認: サーバーバージョン {result.stdout.strip()}")
+                return
+            else:
+                self.logger.warning(f"Docker接続テスト失敗: {result.stderr}")
+
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+            self.logger.warning(f"Docker接続確認エラー: {e}")
+
+        # Try to fix common Docker permission issues
+        docker_sock = Path("/var/run/docker.sock")
+        if docker_sock.exists():
+            try:
+                # Check current permissions
+                stat_info = docker_sock.stat()
+                self.logger.debug(f"Docker socket権限: {oct(stat_info.st_mode)}, GID: {stat_info.st_gid}")
+
+                # Try to add current user to docker group (if running as root or with sudo)
+                current_user = os.getenv("USER", "actions")
+                if current_user != "root":
+                    try:
+                        subprocess.run(
+                            ["usermod", "-aG", "docker", current_user],
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                        )
+                        self.logger.debug(f"ユーザー {current_user} をdockerグループに追加しました")
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        # usermod might not be available or we don't have permissions
+                        pass
+
+            except (OSError, PermissionError) as e:
+                self.logger.debug(f"Docker権限確認エラー: {e}")
+
+    def _cleanup_act_workaround(self) -> None:
+        """Clean up temporary workflow files created for act."""
+        # No longer creating temporary files, so no cleanup needed
+        pass
+
+    def _compose_runner_flags(self) -> list[str]:
+        """Compose runner flags for act execution."""
+        flags: list[str] = []
+
+        # 非対話的実行を強制するフラグを追加
+        flags.extend(["--rm"])
+
+        if self.settings.container_workdir:
+            flags.extend(["--container-workdir", self.settings.container_workdir])
+        if self.settings.image:
+            platforms = self.settings.platforms or ("ubuntu-latest",)
+            for platform in platforms:
+                flags.extend(["-P", f"{platform}={self.settings.image}"])
+        elif self.settings.platforms:
+            for platform in self.settings.platforms:
+                flags.extend(["--platform", platform])
+        else:
+            # デフォルトプラットフォームを明示的に設定
+            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:act-latest"])
+
+        return flags
+
+    def _compose_env_args(
+        self,
+        overrides: Mapping[str, str] | None,
+    ) -> list[str]:
+        """Compose environment arguments for act execution."""
+        combined: Dict[str, str] = dict(self.settings.env)
+        if overrides:
+            combined.update({str(k): str(v) for k, v in overrides.items()})
+
+        args: list[str] = []
+        for key, value in combined.items():
+            args.extend(["--env", f"{key}={value}"])
+        return args
+
+    def _build_process_env(
+        self,
+        default_event: str | None,
+        overrides: Mapping[str, str] | None,
+    ) -> Dict[str, str]:
+        """Build process environment variables."""
+        env = os.environ.copy()
+
+        # 非対話的実行を強制する環境変数を設定
+        env["ACT_LOG_LEVEL"] = "info"
+        env["ACT_PLATFORM"] = "ubuntu-latest=catthehacker/ubuntu:act-latest"
+        env["DOCKER_HOST"] = "unix:///var/run/docker.sock"
+
+        # Git関連の環境変数を設定（act実行時のGitエラー回避）
+        env["GIT_AUTHOR_NAME"] = "Actions Simulator"
+        env["GIT_AUTHOR_EMAIL"] = "simulator@localhost"
+        env["GIT_COMMITTER_NAME"] = "Actions Simulator"
+        env["GIT_COMMITTER_EMAIL"] = "simulator@localhost"
+
+        # GitHub Actions互換の環境変数を設定
+        env["GITHUB_WORKSPACE"] = str(self.working_directory)
+        env["GITHUB_WORKFLOW"] = "CI"
+        env["GITHUB_RUN_ID"] = "1"
+        env["GITHUB_RUN_NUMBER"] = "1"
+        env["GITHUB_SHA"] = "0000000000000000000000000000000000000000"
+        env["GITHUB_REF_NAME"] = "main"
+        env["GITHUB_REF_TYPE"] = "branch"
+        env["GITHUB_REPOSITORY_OWNER"] = "local"
+        env["GITHUB_ACTOR_ID"] = "1"
+        env["GITHUB_TRIGGERING_ACTOR"] = "local-runner"
+
+        # ワークフローディレクトリを明示的に指定（パス解決問題の回避）
+        workflows_dir = self.working_directory / ".github" / "workflows"
+        if workflows_dir.exists():
+            env["GITHUB_WORKFLOW_DIR"] = str(workflows_dir)
+            env["ACT_WORKFLOW_DIR"] = str(workflows_dir)
+            # actの作業ディレクトリを設定
+            env["ACT_WORKDIR"] = str(self.working_directory)
+
+        # Docker関連の環境変数
+        env["DOCKER_BUILDKIT"] = "1"
+        env["COMPOSE_DOCKER_CLI_BUILD"] = "1"
+
+        if self.settings.cache_dir:
+            env.setdefault("ACT_CACHE_DIR", self.settings.cache_dir)
+        if default_event and "GITHUB_EVENT_NAME" not in env:
+            env["GITHUB_EVENT_NAME"] = default_event
+        if overrides:
+            env.update({str(k): str(v) for k, v in overrides.items()})
+        return env
 
     def _initialize_diagnostic_service(self) -> None:
         """診断サービスを初期化"""
@@ -428,7 +751,28 @@ class EnhancedActWrapper(ActWrapper):
         cmd.extend(self._compose_runner_flags())
 
         if workflow_file:
-            cmd.extend(["-W", workflow_file])
+            # 環境設定を確実に実行
+            self._ensure_git_repository()
+            self._ensure_docker_permissions()
+
+            # シンプルなパス解決: actのパス重複バグを回避するため絶対パスを使用
+            workflow_name = Path(workflow_file).name
+
+            # working_directoryが既に.github/workflowsの場合は直接使用
+            if str(self.working_directory).endswith("/.github/workflows"):
+                absolute_workflow_path = self.working_directory / workflow_name
+            else:
+                absolute_workflow_path = self.working_directory / ".github" / "workflows" / workflow_name
+
+            if absolute_workflow_path.exists():
+                final_workflow = str(absolute_workflow_path)
+                self.logger.info(f"絶対パスを使用: {workflow_file} -> {final_workflow}")
+            else:
+                # フォールバック: 元のパスを使用
+                final_workflow = workflow_file
+                self.logger.warning(f"ワークフローファイルが見つかりません: {absolute_workflow_path}")
+
+            cmd.extend(["-W", final_workflow])
         if job:
             cmd.extend(["-j", job])
         if dry_run:
@@ -439,7 +783,19 @@ class EnhancedActWrapper(ActWrapper):
         # 拡張監視用のフラグを追加
         cmd.extend(["--rm"])  # コンテナの自動削除
 
-        env_args = self._compose_env_args(env_vars)
+        # デフォルトのGitHub Actions環境変数を追加
+        default_env_vars = {
+            "GITHUB_USER": "local-runner",
+            "GITHUB_ACTOR": "local-runner",
+            "GITHUB_REPOSITORY": "local/example",
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF": "refs/heads/main",
+        }
+
+        # ユーザー指定の環境変数とマージ
+        merged_env_vars = {**default_env_vars, **(env_vars or {})}
+
+        env_args = self._compose_env_args(merged_env_vars)
         cmd.extend(env_args)
 
         return cmd

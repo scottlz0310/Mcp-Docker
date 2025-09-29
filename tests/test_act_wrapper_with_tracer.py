@@ -9,7 +9,7 @@ import yaml
 from pathlib import Path
 
 
-from services.actions.act_wrapper import ActWrapper
+from services.actions.enhanced_act_wrapper import EnhancedActWrapper as ActWrapper
 from services.actions.execution_tracer import ExecutionTracer
 from services.actions.logger import ActionsLogger
 
