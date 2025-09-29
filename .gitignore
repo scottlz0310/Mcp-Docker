@@ -180,3 +180,26 @@ vendor/
 venv.bak/
 venv/
 docs/_build/
+
+# Auto-generated entries from templates
+*.tsbuildinfo
+.cache/
+.eslintcache
+.grunt
+.lock-wscript
+.out
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.storybook-out
+bower_components
+build/Release
+dist
+jspm_packages/
+lerna-debug.log*
+npm-debug.log*
+public
+tmp/
+yarn-debug.log*
+yarn-error.log*
