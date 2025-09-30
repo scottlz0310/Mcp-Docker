@@ -203,3 +203,12 @@ public
 tmp/
 yarn-debug.log*
 yarn-error.log*
+
+# Auto-generated entries from templates
+*.vsix
+.history/
+.vscode/*.code-snippets
+.vscode/extensions.json
+.vscode/launch.json
+.vscode/settings.json
+.vscode/tasks.json
