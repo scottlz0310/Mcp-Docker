@@ -118,7 +118,7 @@ jobs:
           cache: 'pip'
 
       - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
           enable-cache: true
@@ -184,7 +184,7 @@ jobs:
           cache: 'pip'
 
       - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
           enable-cache: true
@@ -261,7 +261,7 @@ jobs:
           cache: 'pip'
 
       - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
           enable-cache: true
@@ -366,7 +366,7 @@ jobs:
           cache: 'pip'
 
       - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
           enable-cache: true
