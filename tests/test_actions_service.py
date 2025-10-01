@@ -73,12 +73,7 @@ class TestWorkflowParser:
 
     def test_parse_missing_required_fields(self) -> None:
         incomplete_content = (
-            "name: Incomplete\n"
-            "jobs:\n"
-            "  test:\n"
-            "    runs-on: ubuntu-latest\n"
-            "    steps:\n"
-            '      - run: echo "test"\n'
+            'name: Incomplete\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "test"\n'
         )
 
         with tempfile.NamedTemporaryFile(

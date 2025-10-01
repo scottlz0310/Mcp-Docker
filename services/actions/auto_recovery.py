@@ -47,9 +47,7 @@ class RecoveryAttempt:
 
     recovery_type: RecoveryType
     status: RecoveryStatus
-    start_time: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     message: str = ""
@@ -64,9 +62,7 @@ class RecoverySession:
     """復旧セッション情報"""
 
     session_id: str
-    start_time: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     end_time: Optional[str] = None
     total_duration_ms: Optional[float] = None
     attempts: List[RecoveryAttempt] = field(default_factory=list)
@@ -118,9 +114,7 @@ class AutoRecovery:
             enable_fallback_mode: フォールバックモードを有効にするかどうか
         """
         self.logger = logger or ActionsLogger(verbose=True)
-        self.docker_checker = docker_checker or DockerIntegrationChecker(
-            logger=self.logger
-        )
+        self.docker_checker = docker_checker or DockerIntegrationChecker(logger=self.logger)
         self.max_recovery_attempts = max_recovery_attempts
         self.recovery_timeout = recovery_timeout
         self.docker_reconnect_timeout = docker_reconnect_timeout
@@ -159,9 +153,7 @@ class AutoRecovery:
         try:
             # ステップ1: 現在のDocker接続状態を確認
             self.logger.debug("ステップ1: Docker接続状態確認")
-            connection_result = (
-                self.docker_checker.test_docker_daemon_connection_with_retry()
-            )
+            connection_result = self.docker_checker.test_docker_daemon_connection_with_retry()
 
             if connection_result.status == DockerConnectionStatus.CONNECTED:
                 attempt.status = RecoveryStatus.SUCCESS
@@ -181,9 +173,7 @@ class AutoRecovery:
                 self.logger.debug("ステップ3: 再接続確認")
                 time.sleep(5)  # Docker daemonの起動を待機
 
-                reconnect_result = (
-                    self.docker_checker.test_docker_daemon_connection_with_retry()
-                )
+                reconnect_result = self.docker_checker.test_docker_daemon_connection_with_retry()
                 if reconnect_result.status == DockerConnectionStatus.CONNECTED:
                     attempt.status = RecoveryStatus.SUCCESS
                     attempt.message = "Docker再接続成功"
@@ -201,15 +191,11 @@ class AutoRecovery:
                 attempt.success_indicators.append("Docker socket権限修正")
 
                 # 最終確認
-                final_result = (
-                    self.docker_checker.test_docker_daemon_connection_with_retry()
-                )
+                final_result = self.docker_checker.test_docker_daemon_connection_with_retry()
                 if final_result.status == DockerConnectionStatus.CONNECTED:
                     attempt.status = RecoveryStatus.SUCCESS
                     attempt.message = "Docker socket権限修正により再接続成功"
-                    self.logger.success(
-                        "Docker socket権限修正により再接続が成功しました"
-                    )
+                    self.logger.success("Docker socket権限修正により再接続が成功しました")
                     return True
 
             # 全ての試行が失敗
@@ -263,12 +249,8 @@ class AutoRecovery:
 
             if return_code is not None:
                 attempt.status = RecoveryStatus.SKIPPED
-                attempt.message = (
-                    f"プロセスは既に終了しています: 終了コード {return_code}"
-                )
-                self.logger.info(
-                    f"プロセスは既に終了しています: 終了コード {return_code}"
-                )
+                attempt.message = f"プロセスは既に終了しています: 終了コード {return_code}"
+                self.logger.info(f"プロセスは既に終了しています: 終了コード {return_code}")
                 return True
 
             # ステップ2: 穏やかな終了を試行 (SIGTERM)
@@ -329,9 +311,7 @@ class AutoRecovery:
                         attempt.status = RecoveryStatus.FAILED
                         attempt.message = "プロセスの強制終了に失敗しました"
                         attempt.failure_reasons.append("SIGKILL後もプロセスが残存")
-                        self.logger.error(
-                            "プロセスの強制終了に失敗しました - ゾンビプロセスの可能性"
-                        )
+                        self.logger.error("プロセスの強制終了に失敗しました - ゾンビプロセスの可能性")
                         return False
 
                 except ProcessLookupError:
@@ -416,9 +396,7 @@ class AutoRecovery:
                                     pass  # 削除できないファイルはスキップ
 
                 except Exception as e:
-                    self.logger.debug(
-                        f"一時ディレクトリ {temp_dir} のクリーンアップ中にエラー: {str(e)}"
-                    )
+                    self.logger.debug(f"一時ディレクトリ {temp_dir} のクリーンアップ中にエラー: {str(e)}")
 
             if cleaned_files > 0:
                 attempt.success_indicators.append(f"一時ファイル {cleaned_files}個削除")
@@ -429,9 +407,7 @@ class AutoRecovery:
                 import gc
 
                 collected = gc.collect()
-                attempt.success_indicators.append(
-                    f"ガベージコレクション: {collected}オブジェクト回収"
-                )
+                attempt.success_indicators.append(f"ガベージコレクション: {collected}オブジェクト回収")
             except Exception as e:
                 attempt.failure_reasons.append(f"ガベージコレクション失敗: {str(e)}")
 
@@ -439,9 +415,7 @@ class AutoRecovery:
             if len(attempt.success_indicators) > 0:
                 attempt.status = RecoveryStatus.SUCCESS
                 attempt.message = f"出力バッファクリア完了: {len(attempt.success_indicators)}個の操作成功"
-                self.logger.info(
-                    f"出力バッファクリアが完了しました: {len(attempt.success_indicators)}個の操作成功"
-                )
+                self.logger.info(f"出力バッファクリアが完了しました: {len(attempt.success_indicators)}個の操作成功")
             else:
                 attempt.status = RecoveryStatus.FAILED
                 attempt.message = "出力バッファクリアの全ての操作が失敗しました"
@@ -480,33 +454,25 @@ class AutoRecovery:
             self.logger.debug("ステップ1: actコンテナの特定・停止")
             stopped_containers = self._stop_act_containers()
             if stopped_containers > 0:
-                attempt.success_indicators.append(
-                    f"actコンテナ {stopped_containers}個停止"
-                )
+                attempt.success_indicators.append(f"actコンテナ {stopped_containers}個停止")
 
             # ステップ2: 孤立したコンテナの削除
             self.logger.debug("ステップ2: 孤立コンテナの削除")
             removed_containers = self._remove_orphaned_containers()
             if removed_containers > 0:
-                attempt.success_indicators.append(
-                    f"孤立コンテナ {removed_containers}個削除"
-                )
+                attempt.success_indicators.append(f"孤立コンテナ {removed_containers}個削除")
 
             # ステップ3: 未使用ネットワークの削除
             self.logger.debug("ステップ3: 未使用ネットワークの削除")
             removed_networks = self._cleanup_unused_networks()
             if removed_networks > 0:
-                attempt.success_indicators.append(
-                    f"未使用ネットワーク {removed_networks}個削除"
-                )
+                attempt.success_indicators.append(f"未使用ネットワーク {removed_networks}個削除")
 
             # ステップ4: 未使用ボリュームの削除
             self.logger.debug("ステップ4: 未使用ボリュームの削除")
             removed_volumes = self._cleanup_unused_volumes()
             if removed_volumes > 0:
-                attempt.success_indicators.append(
-                    f"未使用ボリューム {removed_volumes}個削除"
-                )
+                attempt.success_indicators.append(f"未使用ボリューム {removed_volumes}個削除")
 
             # ステップ5: Docker system prune
             self.logger.debug("ステップ5: Docker system prune実行")
@@ -540,9 +506,7 @@ class AutoRecovery:
             attempt.duration_ms = (time.time() - start_time) * 1000
             self._record_recovery_attempt(attempt)
 
-    def execute_fallback_mode(
-        self, workflow_file: Path, original_command: List[str]
-    ) -> FallbackExecutionResult:
+    def execute_fallback_mode(self, workflow_file: Path, original_command: List[str]) -> FallbackExecutionResult:
         """
         プライマリ実行パスが失敗した場合のフォールバック実行モード
 
@@ -597,9 +561,7 @@ class AutoRecovery:
                         attempt.status = RecoveryStatus.SUCCESS
                         attempt.message = f"フォールバック実行成功: {method}"
                         attempt.success_indicators.append(f"成功方法: {method}")
-                        self.logger.success(
-                            f"フォールバック実行が成功しました: {method}"
-                        )
+                        self.logger.success(f"フォールバック実行が成功しました: {method}")
                         return result
 
                 except Exception as e:
@@ -666,9 +628,7 @@ class AutoRecovery:
             session = RecoverySession(
                 session_id=session_id,
                 recovery_context={
-                    "failed_process_pid": failed_process.pid
-                    if failed_process
-                    else None,
+                    "failed_process_pid": failed_process.pid if failed_process else None,
                     "workflow_file": str(workflow_file) if workflow_file else None,
                     "original_command": original_command,
                 },
@@ -685,9 +645,7 @@ class AutoRecovery:
             # ステップ2: ハングしたプロセスの再起動
             if failed_process:
                 self.logger.info("復旧ステップ2: ハングプロセス再起動")
-                subprocess_restart_success = self.restart_hung_subprocess(
-                    failed_process
-                )
+                subprocess_restart_success = self.restart_hung_subprocess(failed_process)
                 if subprocess_restart_success:
                     session.recovery_context["subprocess_restart"] = "success"
                 else:
@@ -720,9 +678,7 @@ class AutoRecovery:
 
                 if not primary_recovery_success:
                     self.logger.info("復旧ステップ5: フォールバック実行")
-                    fallback_result = self.execute_fallback_mode(
-                        workflow_file, original_command
-                    )
+                    fallback_result = self.execute_fallback_mode(workflow_file, original_command)
                     session.fallback_mode_activated = True
                     session.recovery_context["fallback_execution"] = {
                         "success": fallback_result.success,
@@ -730,15 +686,9 @@ class AutoRecovery:
                     }
 
             # 全体的な成功判定
-            successful_attempts = [
-                attempt
-                for attempt in session.attempts
-                if attempt.status == RecoveryStatus.SUCCESS
-            ]
+            successful_attempts = [attempt for attempt in session.attempts if attempt.status == RecoveryStatus.SUCCESS]
 
-            session.overall_success = (
-                len(successful_attempts) >= len(session.attempts) * 0.6
-            )  # 60%以上成功
+            session.overall_success = len(successful_attempts) >= len(session.attempts) * 0.6  # 60%以上成功
 
             if session.overall_success:
                 self.logger.success(
@@ -773,9 +723,7 @@ class AutoRecovery:
         """
         with self._recovery_lock:
             total_sessions = len(self._recovery_history)
-            successful_sessions = sum(
-                1 for session in self._recovery_history if session.overall_success
-            )
+            successful_sessions = sum(1 for session in self._recovery_history if session.overall_success)
 
             recovery_type_stats = {}
             for session in self._recovery_history:
@@ -791,14 +739,10 @@ class AutoRecovery:
             return {
                 "total_sessions": total_sessions,
                 "successful_sessions": successful_sessions,
-                "success_rate": successful_sessions / total_sessions
-                if total_sessions > 0
-                else 0.0,
+                "success_rate": successful_sessions / total_sessions if total_sessions > 0 else 0.0,
                 "recovery_type_statistics": recovery_type_stats,
                 "current_session_active": self._current_session is not None,
-                "last_session_time": self._recovery_history[-1].start_time
-                if self._recovery_history
-                else None,
+                "last_session_time": self._recovery_history[-1].start_time if self._recovery_history else None,
             }
 
     # プライベートメソッド
@@ -917,9 +861,7 @@ class AutoRecovery:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             return False
 
-    def _fallback_direct_docker_run(
-        self, workflow_file: Path
-    ) -> FallbackExecutionResult:
+    def _fallback_direct_docker_run(self, workflow_file: Path) -> FallbackExecutionResult:
         """直接Dockerコンテナでワークフローを実行するフォールバック"""
         start_time = time.time()
 
@@ -972,9 +914,7 @@ class AutoRecovery:
                 limitations=[f"実行エラー: {str(e)}"],
             )
 
-    def _fallback_simplified_act_execution(
-        self, workflow_file: Path
-    ) -> FallbackExecutionResult:
+    def _fallback_simplified_act_execution(self, workflow_file: Path) -> FallbackExecutionResult:
         """簡略化されたact実行フォールバック"""
         start_time = time.time()
 

@@ -22,12 +22,10 @@ class WorkflowSimulator:  # pragma: no cover - legacy shim
         **kwargs: object,
     ) -> None:  # pragma: no cover - legacy shim
         raise RuntimeError(
-            "組み込みのワークフロー シミュレーターは削除されました。"
-            "代わりに act エンジンを使用してください。"
+            "組み込みのワークフロー シミュレーターは削除されました。代わりに act エンジンを使用してください。"
         )
 
     def __getattr__(self, _name: str) -> None:
         raise RuntimeError(
-            "組み込みのワークフロー シミュレーターは削除されました。"
-            "代わりに act エンジンを使用してください。"
+            "組み込みのワークフロー シミュレーターは削除されました。代わりに act エンジンを使用してください。"
         )

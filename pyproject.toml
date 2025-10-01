@@ -37,6 +37,10 @@ dev = [
     "yamllint>=1.37.1",
     "ruff>=0.6.9",
     "pytest-timeout>=2.4.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.5",
+    "types-pyyaml>=6.0.12",
+    "types-psutil>=6.0.0",
 ]
 test = [
     "pytest>=7.4.0",
@@ -75,3 +79,26 @@ exclude = [
 
 [tool.ruff.format]
 line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+disallow_any_generics = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "archive.*",
+]
+ignore_errors = true

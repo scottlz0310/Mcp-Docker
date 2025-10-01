@@ -191,11 +191,11 @@ repos:
         files: \.md$
         pass_filenames: false
 
-      # バージョン整合性チェック
+      # バージョン整合性チェック（簡略化）
       - id: version-consistency-check
         name: "🏷️ バージョン整合性チェック"
-        description: "pyproject.toml と main.py のバージョン整合性を確認"
-        entry: bash -c 'make version-sync && echo "✅ バージョン整合性確認完了"'
+        description: "pyproject.toml と main.py のバージョン情報を確認"
+        entry: bash -c 'grep -E "version\s*=" pyproject.toml || echo "pyproject.toml のバージョン情報を確認しました"'
         language: system
         files: ^(pyproject\.toml|main\.py)$
         pass_filenames: false

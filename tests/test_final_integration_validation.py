@@ -938,16 +938,16 @@ class FinalIntegrationValidator:
         summary_content = f"""# GitHub Actions Simulator Phase C - 最終統合検証レポート
 
 ## 検証実行日時
-{self.test_results['timestamp']}
+{self.test_results["timestamp"]}
 
 ## 全体評価
 - **ステータス**: {overall_status}
-- **全体スコア**: {scores.get('overall', 0):.2f}
+- **全体スコア**: {scores.get("overall", 0):.2f}
 
 ## カテゴリ別スコア
-- **コンポーネント統合テスト**: {scores.get('component_tests', 0):.2f}
-- **新規ユーザー体験**: {scores.get('new_user_experience', 0):.2f}
-- **配布パッケージ準備**: {scores.get('distribution_readiness', 0):.2f}
+- **コンポーネント統合テスト**: {scores.get("component_tests", 0):.2f}
+- **新規ユーザー体験**: {scores.get("new_user_experience", 0):.2f}
+- **配布パッケージ準備**: {scores.get("distribution_readiness", 0):.2f}
 
 ## 検証結果サマリー
 
@@ -1001,7 +1001,7 @@ class FinalIntegrationValidator:
 
 ## 結論
 GitHub Actions Simulator Phase C の最終統合検証が完了しました。
-全体スコア {scores.get('overall', 0):.2f} で、ステータスは「{overall_status}」です。
+全体スコア {scores.get("overall", 0):.2f} で、ステータスは「{overall_status}」です。
 
 配布パッケージとしての基本的な要件は満たしており、
 新規ユーザーが使い始めることができる状態に達しています。

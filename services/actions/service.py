@@ -11,6 +11,7 @@ import time
 import sys
 
 from .enhanced_act_wrapper import EnhancedActWrapper
+
 # 基本のActWrapperは EnhancedActWrapper の親クラスとして利用
 from .logger import ActionsLogger
 
@@ -81,9 +82,7 @@ class SimulationService:
         pre_execution_diagnostics: bool = True,
         detailed_result_reporting: bool = True,
     ) -> None:
-        self._logger_factory: Callable[[bool], ActionsLogger] = (
-            logger_factory or self._default_logger_factory
-        )
+        self._logger_factory: Callable[[bool], ActionsLogger] = logger_factory or self._default_logger_factory
         self._config: dict[str, Any] = dict(config) if config else {}
         self._execution_tracer = execution_tracer
         self._use_enhanced_wrapper = use_enhanced_wrapper
@@ -152,21 +151,13 @@ class SimulationService:
             runner_logger.info("実行前診断チェックを開始します...")
             try:
                 pre_check = self._run_pre_execution_diagnostics(runner_logger)
-                pre_execution_results.append({
-                    "phase": "pre_execution",
-                    "timestamp": time.time(),
-                    "results": pre_check
-                })
+                pre_execution_results.append({"phase": "pre_execution", "timestamp": time.time(), "results": pre_check})
 
                 # 重大な問題がある場合は実行を中止
                 if pre_check.get("overall_status") == "ERROR":
                     error_msg = f"実行前診断で重大な問題が検出されました: {pre_check.get('summary', '不明なエラー')}"
                     runner_logger.error(error_msg)
-                    return self._create_failed_result(
-                        error_msg,
-                        start_time,
-                        diagnostic_results=pre_execution_results
-                    )
+                    return self._create_failed_result(error_msg, start_time, diagnostic_results=pre_execution_results)
             except Exception as e:
                 runner_logger.warning(f"実行前診断チェックでエラーが発生しました: {e}")
 
@@ -209,21 +200,16 @@ class SimulationService:
             if self._enable_diagnostics and self._diagnostic_service:
                 try:
                     post_check = self._run_post_execution_diagnostics(runner_logger, result)
-                    post_execution_results.append({
-                        "phase": "post_execution",
-                        "timestamp": time.time(),
-                        "results": post_check
-                    })
+                    post_execution_results.append(
+                        {"phase": "post_execution", "timestamp": time.time(), "results": post_check}
+                    )
                 except Exception as e:
                     runner_logger.warning(f"実行後診断チェックでエラーが発生しました: {e}")
 
             # 詳細結果レポートの生成
             if self._detailed_result_reporting:
                 result = self._enhance_result_with_detailed_reporting(
-                    result,
-                    start_time,
-                    pre_execution_results + post_execution_results,
-                    runner_logger
+                    result, start_time, pre_execution_results + post_execution_results, runner_logger
                 )
 
             return result
@@ -245,9 +231,7 @@ class SimulationService:
         workflow_path = params.workflow_file
 
         if not workflow_path.exists():
-            raise SimulationServiceError(
-                f"ワークフローファイルが見つかりません: {workflow_path}"
-            )
+            raise SimulationServiceError(f"ワークフローファイルが見つかりません: {workflow_path}")
 
         env_vars: dict[str, str] | None = None
         if params.env_file:
@@ -272,10 +256,7 @@ class SimulationService:
                 working_directory = parent
                 break
 
-        if (
-            working_directory.name == "workflows"
-            and working_directory.parent.name == ".github"
-        ):
+        if working_directory.name == "workflows" and working_directory.parent.name == ".github":
             working_directory = working_directory.parent.parent
         elif working_directory.name == ".github":
             working_directory = working_directory.parent
@@ -310,7 +291,9 @@ class SimulationService:
             raise SimulationServiceError(str(exc)) from exc
 
         # 診断機能が有効な場合は診断機能付きメソッドを使用
-        if (self._enable_diagnostics or self._use_enhanced_wrapper) and hasattr(wrapper, "run_workflow_with_diagnostics"):
+        if (self._enable_diagnostics or self._use_enhanced_wrapper) and hasattr(
+            wrapper, "run_workflow_with_diagnostics"
+        ):
             detailed_result = wrapper.run_workflow_with_diagnostics(
                 workflow_file=workflow_path.name,
                 job=params.job,
@@ -414,42 +397,48 @@ class SimulationService:
 
             # Docker接続性チェック
             docker_check = {}
-            if hasattr(self._diagnostic_service, 'check_docker_connectivity'):
+            if hasattr(self._diagnostic_service, "check_docker_connectivity"):
                 docker_result = self._diagnostic_service.check_docker_connectivity()
                 # DiagnosticResultオブジェクトの場合は辞書に変換
-                if hasattr(docker_result, 'status'):
+                if hasattr(docker_result, "status"):
                     docker_check = {
-                        "status": docker_result.status.value if hasattr(docker_result.status, 'value') else str(docker_result.status),
+                        "status": docker_result.status.value
+                        if hasattr(docker_result.status, "value")
+                        else str(docker_result.status),
                         "message": docker_result.message,
-                        "details": docker_result.details
+                        "details": docker_result.details,
                     }
                 else:
                     docker_check = docker_result
 
             # act バイナリチェック
             act_check = {}
-            if hasattr(self._diagnostic_service, 'check_act_binary'):
+            if hasattr(self._diagnostic_service, "check_act_binary"):
                 act_result = self._diagnostic_service.check_act_binary()
                 # DiagnosticResultオブジェクトの場合は辞書に変換
-                if hasattr(act_result, 'status'):
+                if hasattr(act_result, "status"):
                     act_check = {
-                        "status": act_result.status.value if hasattr(act_result.status, 'value') else str(act_result.status),
+                        "status": act_result.status.value
+                        if hasattr(act_result.status, "value")
+                        else str(act_result.status),
                         "message": act_result.message,
-                        "details": act_result.details
+                        "details": act_result.details,
                     }
                 else:
                     act_check = act_result
 
             # 権限チェック
             permission_check = {}
-            if hasattr(self._diagnostic_service, 'check_container_permissions'):
+            if hasattr(self._diagnostic_service, "check_container_permissions"):
                 permission_result = self._diagnostic_service.check_container_permissions()
                 # DiagnosticResultオブジェクトの場合は辞書に変換
-                if hasattr(permission_result, 'status'):
+                if hasattr(permission_result, "status"):
                     permission_check = {
-                        "status": permission_result.status.value if hasattr(permission_result.status, 'value') else str(permission_result.status),
+                        "status": permission_result.status.value
+                        if hasattr(permission_result.status, "value")
+                        else str(permission_result.status),
                         "message": permission_result.message,
-                        "details": permission_result.details
+                        "details": permission_result.details,
                     }
                 else:
                     permission_check = permission_result
@@ -482,7 +471,7 @@ class SimulationService:
                 "docker_check": docker_check,
                 "act_check": act_check,
                 "permission_check": permission_check,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         except Exception as e:
@@ -491,7 +480,7 @@ class SimulationService:
                 "overall_status": "ERROR",
                 "summary": f"診断チェック実行エラー: {str(e)}",
                 "error": str(e),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     def _run_post_execution_diagnostics(self, logger: ActionsLogger, result: SimulationResult) -> dict[str, Any]:
@@ -505,7 +494,7 @@ class SimulationService:
 
             # ハングアップ条件の検出
             hangup_check = {}
-            if hasattr(self._diagnostic_service, 'detect_hangup_conditions'):
+            if hasattr(self._diagnostic_service, "detect_hangup_conditions"):
                 hangup_check = self._diagnostic_service.detect_hangup_conditions()
 
             # 実行結果の分析
@@ -513,7 +502,7 @@ class SimulationService:
                 "success": result.success,
                 "return_code": result.return_code,
                 "has_output": bool(result.stdout or result.stderr),
-                "enhanced_wrapper_used": result.metadata.get("enhanced_wrapper", False)
+                "enhanced_wrapper_used": result.metadata.get("enhanced_wrapper", False),
             }
 
             return {
@@ -522,7 +511,7 @@ class SimulationService:
                 "health_check": health_check,
                 "hangup_check": hangup_check,
                 "execution_analysis": execution_analysis,
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
         except Exception as e:
@@ -531,7 +520,7 @@ class SimulationService:
                 "overall_status": "ERROR",
                 "summary": f"診断チェック実行エラー: {str(e)}",
                 "error": str(e),
-                "timestamp": time.time()
+                "timestamp": time.time(),
             }
 
     def _enhance_result_with_detailed_reporting(
@@ -539,7 +528,7 @@ class SimulationService:
         result: SimulationResult,
         start_time: float,
         diagnostic_results: list[dict[str, Any]],
-        logger: ActionsLogger
+        logger: ActionsLogger,
     ) -> SimulationResult:
         """詳細結果レポートで結果を拡張"""
         try:
@@ -566,18 +555,19 @@ class SimulationService:
             optimization_opportunities = []
             if self._enable_performance_monitoring and self._performance_monitor:
                 try:
-                    if hasattr(self._performance_monitor, 'analyze_bottlenecks'):
+                    if hasattr(self._performance_monitor, "analyze_bottlenecks"):
                         bottlenecks = self._performance_monitor.analyze_bottlenecks()
                         bottlenecks_detected = [
                             {
                                 "type": b.bottleneck_type,
                                 "severity": b.severity,
                                 "description": b.description,
-                                "recommendations": b.recommendations
-                            } for b in bottlenecks
+                                "recommendations": b.recommendations,
+                            }
+                            for b in bottlenecks
                         ]
 
-                    if hasattr(self._performance_monitor, 'identify_optimization_opportunities'):
+                    if hasattr(self._performance_monitor, "identify_optimization_opportunities"):
                         opportunities = self._performance_monitor.identify_optimization_opportunities()
                         optimization_opportunities = [
                             {
@@ -585,16 +575,17 @@ class SimulationService:
                                 "priority": o.priority,
                                 "title": o.title,
                                 "description": o.description,
-                                "recommendations": o.recommendations
-                            } for o in opportunities
+                                "recommendations": o.recommendations,
+                            }
+                            for o in opportunities
                         ]
                 except Exception as e:
                     logger.warning(f"ボトルネック分析に失敗しました: {e}")
 
             # ハングアップ分析（失敗時のみ）
             hang_analysis = {}
-            if not result.success and hasattr(result, 'metadata') and result.metadata:
-                hang_analysis = result.metadata.get('hang_analysis', {})
+            if not result.success and hasattr(result, "metadata") and result.metadata:
+                hang_analysis = result.metadata.get("hang_analysis", {})
 
             # 拡張結果を作成
             result.execution_time_ms = execution_time_ms
@@ -606,15 +597,17 @@ class SimulationService:
             result.hang_analysis = hang_analysis
 
             # メタデータに詳細情報を追加
-            result.metadata.update({
-                "detailed_reporting_enabled": True,
-                "diagnostics_enabled": self._enable_diagnostics,
-                "performance_monitoring_enabled": self._enable_performance_monitoring,
-                "execution_time_ms": execution_time_ms,
-                "diagnostic_checks_count": len(diagnostic_results),
-                "bottlenecks_count": len(bottlenecks_detected),
-                "optimization_opportunities_count": len(optimization_opportunities)
-            })
+            result.metadata.update(
+                {
+                    "detailed_reporting_enabled": True,
+                    "diagnostics_enabled": self._enable_diagnostics,
+                    "performance_monitoring_enabled": self._enable_performance_monitoring,
+                    "execution_time_ms": execution_time_ms,
+                    "diagnostic_checks_count": len(diagnostic_results),
+                    "bottlenecks_count": len(bottlenecks_detected),
+                    "optimization_opportunities_count": len(optimization_opportunities),
+                }
+            )
 
             logger.info(f"詳細結果レポートを生成しました (実行時間: {execution_time_ms:.1f}ms)")
 
@@ -624,10 +617,7 @@ class SimulationService:
         return result
 
     def _create_failed_result(
-        self,
-        error_message: str,
-        start_time: float,
-        diagnostic_results: list[dict[str, Any]] = None
+        self, error_message: str, start_time: float, diagnostic_results: list[dict[str, Any]] = None
     ) -> SimulationResult:
         """失敗結果を作成"""
         execution_time_ms = (time.time() - start_time) * 1000
@@ -641,7 +631,7 @@ class SimulationService:
             metadata={
                 "enhanced_wrapper": self._use_enhanced_wrapper,
                 "diagnostics_enabled": self._enable_diagnostics,
-                "failure_reason": "pre_execution_diagnostics_failed"
+                "failure_reason": "pre_execution_diagnostics_failed",
             },
             execution_time_ms=execution_time_ms,
             diagnostic_results=diagnostic_results or [],
@@ -649,9 +639,8 @@ class SimulationService:
             execution_trace={},
             bottlenecks_detected=[],
             optimization_opportunities=[],
-            hang_analysis={"failure_type": "pre_execution_check", "error": error_message}
+            hang_analysis={"failure_type": "pre_execution_check", "error": error_message},
         )
-
 
     def get_simulation_status(self) -> dict[str, Any]:
         """シミュレーションサービスの現在の状態を取得"""
@@ -668,7 +657,7 @@ class SimulationService:
                 "execution_tracer": self._execution_tracer is not None,
             },
             "config_keys": list(self._config.keys()) if self._config else [],
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         # 診断サービスの状態
@@ -682,9 +671,7 @@ class SimulationService:
         # パフォーマンス監視の状態
         if self._performance_monitor:
             try:
-                status["performance_monitor_active"] = getattr(
-                    self._performance_monitor, 'monitoring_active', False
-                )
+                status["performance_monitor_active"] = getattr(self._performance_monitor, "monitoring_active", False)
             except Exception as e:
                 status["performance_monitor_error"] = str(e)
 
@@ -694,7 +681,7 @@ class SimulationService:
         self,
         enable_diagnostics: bool = True,
         enable_performance_monitoring: bool = True,
-        enable_detailed_reporting: bool = True
+        enable_detailed_reporting: bool = True,
     ) -> None:
         """拡張機能を有効化"""
         self._use_enhanced_wrapper = True
@@ -719,9 +706,7 @@ def _load_env_file_as_dict(
                 if not line or line.startswith("#"):
                     continue
                 if "=" not in line:
-                    logger.warning(
-                        f"環境変数ファイルの形式が無効です (無視します): {line}"
-                    )
+                    logger.warning(f"環境変数ファイルの形式が無効です (無視します): {line}")
                     continue
                 key, value = line.split("=", 1)
                 env_vars[key] = value

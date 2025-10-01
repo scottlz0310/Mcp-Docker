@@ -20,6 +20,7 @@ try:
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import JSONResponse, HTMLResponse
     import uvicorn
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -116,17 +117,13 @@ class CLIContext:
                 self.service = None
         except FileNotFoundError:
             if not self._config_warning_emitted:
-                self.console.print(
-                    f"[yellow]設定ファイルが見つかりません: {self.config_path}[/yellow]"
-                )
+                self.console.print(f"[yellow]設定ファイルが見つかりません: {self.config_path}[/yellow]")
                 self._config_warning_emitted = True
             self.config_data = {}
             self.service = None
         except tomllib.TOMLDecodeError as exc:
             if not self._config_warning_emitted:
-                self.console.print(
-                    f"[red]設定ファイルの読み込みに失敗しました: {exc}[/red]"
-                )
+                self.console.print(f"[red]設定ファイルの読み込みに失敗しました: {exc}[/red]")
                 self._config_warning_emitted = True
             self.config_data = {}
             self.service = None
@@ -220,27 +217,18 @@ def run_simulate(
             detailed_result = result.detailed_result
 
             # 診断結果の表示
-            if (
-                hasattr(detailed_result, "diagnostic_results")
-                and detailed_result.diagnostic_results
-            ):
+            if hasattr(detailed_result, "diagnostic_results") and detailed_result.diagnostic_results:
                 console.print("\n[cyan]📋 診断結果:[/cyan]")
                 for diag_result in detailed_result.diagnostic_results:
                     status_icon = {"OK": "✅", "WARNING": "⚠️", "ERROR": "❌"}.get(
-                        diag_result.status.value
-                        if hasattr(diag_result.status, "value")
-                        else str(diag_result.status),
+                        diag_result.status.value if hasattr(diag_result.status, "value") else str(diag_result.status),
                         "❓",
                     )
 
-                    console.print(
-                        f"  {status_icon} {diag_result.component}: {diag_result.message}"
-                    )
+                    console.print(f"  {status_icon} {diag_result.component}: {diag_result.message}")
 
                     if diag_result.recommendations:
-                        for rec in diag_result.recommendations[
-                            :2
-                        ]:  # 最初の2つの推奨事項のみ表示
+                        for rec in diag_result.recommendations[:2]:  # 最初の2つの推奨事項のみ表示
                             console.print(f"    💡 {rec}")
 
             # パフォーマンスメトリクスの表示
@@ -255,32 +243,20 @@ def run_simulate(
                 if hasattr(metrics, "execution_time_ms"):
                     console.print(f"  ⏱️  実行時間: {metrics.execution_time_ms:.2f}ms")
                 if hasattr(metrics, "peak_memory_mb"):
-                    console.print(
-                        f"  🧠 ピークメモリ使用量: {metrics.peak_memory_mb:.2f}MB"
-                    )
+                    console.print(f"  🧠 ピークメモリ使用量: {metrics.peak_memory_mb:.2f}MB")
                 if hasattr(metrics, "cpu_usage_percent"):
                     console.print(f"  ⚡ CPU使用率: {metrics.cpu_usage_percent:.1f}%")
                 if hasattr(metrics, "docker_operations_count"):
-                    console.print(
-                        f"  🐳 Docker操作数: {metrics.docker_operations_count}"
-                    )
+                    console.print(f"  🐳 Docker操作数: {metrics.docker_operations_count}")
 
             # 実行トレースの表示
-            if (
-                show_execution_trace
-                and hasattr(detailed_result, "execution_trace")
-                and detailed_result.execution_trace
-            ):
+            if show_execution_trace and hasattr(detailed_result, "execution_trace") and detailed_result.execution_trace:
                 console.print("\n[cyan]🔍 実行トレース:[/cyan]")
                 trace = detailed_result.execution_trace
 
                 if hasattr(trace, "stages") and trace.stages:
                     for stage in trace.stages[-5:]:  # 最後の5段階のみ表示
-                        stage_name = (
-                            stage.stage.value
-                            if hasattr(stage.stage, "value")
-                            else str(stage.stage)
-                        )
+                        stage_name = stage.stage.value if hasattr(stage.stage, "value") else str(stage.stage)
                         duration = (
                             f" ({stage.duration_ms:.2f}ms)"
                             if hasattr(stage, "duration_ms") and stage.duration_ms
@@ -290,12 +266,9 @@ def run_simulate(
 
             # ハングアップ検出とエラーレポート表示の処理
             if detailed_result.hang_analysis or (
-                hasattr(detailed_result, "error_report")
-                and detailed_result.error_report
+                hasattr(detailed_result, "error_report") and detailed_result.error_report
             ):
-                console.print(
-                    "[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]"
-                )
+                console.print("[yellow]⚠️  ハングアップまたは実行問題が検出されました[/yellow]")
 
                 # 詳細なハングアップ分析の表示
                 if detailed_result.hang_analysis:
@@ -305,28 +278,33 @@ def run_simulate(
                     if analysis.primary_cause:
                         console.print(f"[red]🚨 主要な問題: {analysis.primary_cause.title}[/red]")
                         console.print(f"[red]   説明: {analysis.primary_cause.description}[/red]")
-                        console.print(f"[red]   重要度: {analysis.primary_cause.severity.value if hasattr(analysis.primary_cause.severity, 'value') else analysis.primary_cause.severity}[/red]")
+                        console.print(
+                            f"[red]   重要度: {analysis.primary_cause.severity.value if hasattr(analysis.primary_cause.severity, 'value') else analysis.primary_cause.severity}[/red]"
+                        )
 
                         # 推奨事項の表示
-                        if hasattr(analysis.primary_cause, 'recommendations') and analysis.primary_cause.recommendations:
+                        if (
+                            hasattr(analysis.primary_cause, "recommendations")
+                            and analysis.primary_cause.recommendations
+                        ):
                             console.print("[cyan]💡 推奨される対処法:[/cyan]")
                             for i, rec in enumerate(analysis.primary_cause.recommendations[:3], 1):
                                 console.print(f"   {i}. {rec}")
 
                         # 修正コマンドの表示
-                        if hasattr(analysis.primary_cause, 'fix_commands') and analysis.primary_cause.fix_commands:
+                        if hasattr(analysis.primary_cause, "fix_commands") and analysis.primary_cause.fix_commands:
                             console.print("[green]🔧 修正コマンド:[/green]")
                             for cmd in analysis.primary_cause.fix_commands[:2]:
                                 console.print(f"   $ {cmd}")
 
                     # 復旧提案の表示
-                    if hasattr(analysis, 'recovery_suggestions') and analysis.recovery_suggestions:
+                    if hasattr(analysis, "recovery_suggestions") and analysis.recovery_suggestions:
                         console.print("[blue]🔄 復旧提案:[/blue]")
                         for i, suggestion in enumerate(analysis.recovery_suggestions[:3], 1):
                             console.print(f"   {i}. {suggestion}")
 
                     # 予防策の表示
-                    if hasattr(analysis, 'prevention_measures') and analysis.prevention_measures:
+                    if hasattr(analysis, "prevention_measures") and analysis.prevention_measures:
                         console.print("[magenta]🛡️  予防策:[/magenta]")
                         for i, measure in enumerate(analysis.prevention_measures[:2], 1):
                             console.print(f"   {i}. {measure}")
@@ -337,61 +315,49 @@ def run_simulate(
                     console.print(f"[dim]📄 エラーレポートID: {error_report.report_id}[/dim]")
 
                     # トラブルシューティングガイドの表示
-                    if hasattr(error_report, 'troubleshooting_guide') and error_report.troubleshooting_guide:
+                    if hasattr(error_report, "troubleshooting_guide") and error_report.troubleshooting_guide:
                         console.print("[cyan]📖 トラブルシューティングガイド:[/cyan]")
                         for i, step in enumerate(error_report.troubleshooting_guide[:3], 1):
                             console.print(f"   {i}. {step}")
 
                     # 次のステップの表示
-                    if hasattr(error_report, 'next_steps') and error_report.next_steps:
+                    if hasattr(error_report, "next_steps") and error_report.next_steps:
                         console.print("[yellow]➡️  次のステップ:[/yellow]")
                         for i, step in enumerate(error_report.next_steps[:3], 1):
                             console.print(f"   {i}. {step}")
 
                 # デバッグバンドルの自動作成
-                if (
-                    create_debug_bundle
-                    and hasattr(detailed_result, "error_report")
-                    and detailed_result.error_report
-                ):
+                if create_debug_bundle and hasattr(detailed_result, "error_report") and detailed_result.error_report:
                     try:
                         from .enhanced_act_wrapper import EnhancedActWrapper
 
-                        if hasattr(service, "act_wrapper") and isinstance(
-                            service.act_wrapper, EnhancedActWrapper
-                        ):
+                        if hasattr(service, "act_wrapper") and isinstance(service.act_wrapper, EnhancedActWrapper):
                             console.print("[blue]🔧 デバッグバンドルを作成中...[/blue]")
 
-                            debug_bundle = (
-                                service.act_wrapper.create_debug_bundle_for_hangup(
-                                    error_report=detailed_result.error_report,
-                                    output_directory=debug_bundle_dir,
-                                )
+                            debug_bundle = service.act_wrapper.create_debug_bundle_for_hangup(
+                                error_report=detailed_result.error_report,
+                                output_directory=debug_bundle_dir,
                             )
 
-                            if debug_bundle and hasattr(debug_bundle, 'bundle_path') and debug_bundle.bundle_path:
+                            if debug_bundle and hasattr(debug_bundle, "bundle_path") and debug_bundle.bundle_path:
                                 console.print(
                                     f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]"
                                 )
-                                if hasattr(debug_bundle, 'total_size_bytes'):
-                                    console.print(
-                                        f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]"
-                                    )
-                                if hasattr(debug_bundle, 'included_files'):
+                                if hasattr(debug_bundle, "total_size_bytes"):
+                                    console.print(f"[green]   サイズ: {debug_bundle.total_size_bytes} bytes[/green]")
+                                if hasattr(debug_bundle, "included_files"):
                                     console.print(
                                         f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]"
                                     )
 
                                 # デバッグバンドルの使用方法を案内
-                                console.print("[dim]💡 このデバッグバンドルを技術サポートに送信して詳細な分析を依頼できます[/dim]")
-                            else:
                                 console.print(
-                                    "[red]❌ デバッグバンドルの作成に失敗しました[/red]"
+                                    "[dim]💡 このデバッグバンドルを技術サポートに送信して詳細な分析を依頼できます[/dim]"
                                 )
+                            else:
+                                console.print("[red]❌ デバッグバンドルの作成に失敗しました[/red]")
                     except Exception as e:
-                        logger.error(
-                            f"デバッグバンドル作成中にエラーが発生しました: {e}"
-                        )
+                        logger.error(f"デバッグバンドル作成中にエラーが発生しました: {e}")
                         console.print(f"[red]❌ デバッグバンドル作成エラー: {e}[/red]")
 
     except SimulationServiceError as exc:
@@ -423,9 +389,7 @@ def run_validate(
 
     targets: List[Path]
     if workflow_file.is_dir():
-        yaml_files = set(workflow_file.rglob("*.yml")) | set(
-            workflow_file.rglob("*.yaml")
-        )
+        yaml_files = set(workflow_file.rglob("*.yml")) | set(workflow_file.rglob("*.yaml"))
         targets = sorted(yaml_files)
         if not targets:
             logger.warning(f"検証対象のワークフローが見つかりません: {workflow_file}")
@@ -534,13 +498,9 @@ def run_diagnose(
                 "cpu_count": psutil.cpu_count(),
                 "cpu_percent": psutil.cpu_percent(interval=1),
                 "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-                "memory_available_gb": round(
-                    psutil.virtual_memory().available / (1024**3), 2
-                ),
+                "memory_available_gb": round(psutil.virtual_memory().available / (1024**3), 2),
                 "disk_usage_percent": psutil.disk_usage("/").percent,
-                "load_average": psutil.getloadavg()
-                if hasattr(psutil, "getloadavg")
-                else None,
+                "load_average": psutil.getloadavg() if hasattr(psutil, "getloadavg") else None,
             }
         except Exception as e:
             logger.warning(f"パフォーマンス分析中にエラーが発生しました: {e}")
@@ -560,10 +520,7 @@ def run_diagnose(
                 trace_analysis = {
                     "recent_log_files": len(log_files),
                     "latest_logs": [
-                        str(f)
-                        for f in sorted(
-                            log_files, key=lambda x: x.stat().st_mtime, reverse=True
-                        )[:5]
+                        str(f) for f in sorted(log_files, key=lambda x: x.stat().st_mtime, reverse=True)[:5]
                     ],
                 }
             else:
@@ -603,9 +560,7 @@ def run_diagnose(
             json_data["trace_analysis"] = trace_analysis
 
         if output_file:
-            output_file.write_text(
-                json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            output_file.write_text(json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"診断結果を {output_file} に保存しました")
 
         console.print_json(data=json_data)
@@ -620,9 +575,7 @@ def run_diagnose(
             DiagnosticStatus.ERROR: "❌",
         }.get(health_report.overall_status, "❓")
 
-        console.print(
-            f"{status_icon} 全体的なステータス: {health_report.overall_status.value}"
-        )
+        console.print(f"{status_icon} 全体的なステータス: {health_report.overall_status.value}")
         console.print(f"📋 {health_report.summary}")
         console.print()
 
@@ -640,9 +593,7 @@ def run_diagnose(
                 DiagnosticStatus.ERROR: "red",
             }.get(result.status, "white")
 
-            recommendations_text = (
-                "\n".join(result.recommendations) if result.recommendations else "-"
-            )
+            recommendations_text = "\n".join(result.recommendations) if result.recommendations else "-"
 
             table.add_row(
                 result.component,
@@ -711,22 +662,16 @@ def run_diagnose(
             console.print(
                 f"🧠 メモリ: {performance_analysis.get('memory_available_gb', 'N/A')}GB利用可能 / {performance_analysis.get('memory_total_gb', 'N/A')}GB総容量"
             )
-            console.print(
-                f"💾 ディスク使用率: {performance_analysis.get('disk_usage_percent', 'N/A')}%"
-            )
+            console.print(f"💾 ディスク使用率: {performance_analysis.get('disk_usage_percent', 'N/A')}%")
             if performance_analysis.get("load_average"):
                 load_avg = performance_analysis["load_average"]
-                console.print(
-                    f"⚡ システム負荷: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}"
-                )
+                console.print(f"⚡ システム負荷: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}")
 
         # トレース分析の表示
         if trace_analysis and "error" not in trace_analysis:
             console.print()
             console.print(Rule("実行トレース分析"))
-            console.print(
-                f"📁 最近のログファイル数: {trace_analysis.get('recent_log_files', 0)}"
-            )
+            console.print(f"📁 最近のログファイル数: {trace_analysis.get('recent_log_files', 0)}")
             if trace_analysis.get("latest_logs"):
                 console.print("📋 最新のログファイル:")
                 for log_file in trace_analysis["latest_logs"][:3]:
@@ -758,9 +703,7 @@ def run_diagnose(
             if trace_analysis:
                 json_data["trace_analysis"] = trace_analysis
 
-            output_file.write_text(
-                json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            output_file.write_text(json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8")
             logger.info(f"診断結果を {output_file} に保存しました")
 
     # 終了コードの決定
@@ -961,9 +904,7 @@ def simulate(
 
     workflow_paths = list(workflow_files)
     if not workflow_paths:
-        console.print(
-            "[red]ワークフローファイルを少なくとも1つ指定してください。[/red]"
-        )
+        console.print("[red]ワークフローファイルを少なくとも1つ指定してください。[/red]")
         raise SystemExit(1)
 
     env_overrides: Dict[str, str] = {}
@@ -1008,9 +949,7 @@ def simulate(
 
     # 診断機能を有効にする場合の事前チェック
     if diagnose:
-        console.print(
-            "[cyan]🔍 ワークフロー実行前にシステム診断を実行しています...[/cyan]"
-        )
+        console.print("[cyan]🔍 ワークフロー実行前にシステム診断を実行しています...[/cyan]")
 
         diagnostic_service = DiagnosticService(logger=logger)
         health_report = diagnostic_service.run_comprehensive_health_check()
@@ -1022,15 +961,11 @@ def simulate(
             DiagnosticStatus.ERROR: "❌",
         }.get(health_report.overall_status, "❓")
 
-        console.print(
-            f"{status_icon} システム診断結果: {health_report.overall_status.value}"
-        )
+        console.print(f"{status_icon} システム診断結果: {health_report.overall_status.value}")
 
         # エラーがある場合は詳細を表示
         if health_report.overall_status == DiagnosticStatus.ERROR:
-            console.print(
-                "[red]重大な問題が検出されました。以下の問題を修正してから再実行してください:[/red]"
-            )
+            console.print("[red]重大な問題が検出されました。以下の問題を修正してから再実行してください:[/red]")
             for result in health_report.results:
                 if result.status == DiagnosticStatus.ERROR:
                     console.print(f"  ❌ {result.component}: {result.message}")
@@ -1118,9 +1053,7 @@ def simulate(
             }
         )
 
-    successful = all(
-        row["status"] == "success" for row in summary_rows if row["status"] != "skipped"
-    )
+    successful = all(row["status"] == "success" for row in summary_rows if row["status"] != "skipped")
 
     summary_payload: Dict[str, Any] = {
         "run_id": run_id,
@@ -1165,9 +1098,7 @@ def simulate(
                 logs = row.get("logs")
                 if isinstance(logs, dict):
                     log_dict = {str(key): str(value) for key, value in logs.items()}
-                    log_links = ", ".join(
-                        f"{key}:{value}" for key, value in log_dict.items()
-                    )
+                    log_links = ", ".join(f"{key}:{value}" for key, value in log_dict.items())
                 table.add_row(
                     str(row["workflow"]),
                     str(row.get("engine", "")),
@@ -1178,8 +1109,9 @@ def simulate(
             console.print(table)
             if skipped:
                 console.print(
-                    "[yellow]fail-fast により {count} 件のワークフローがスキップ"
-                    "されました。[/yellow]".format(count=len(skipped))
+                    "[yellow]fail-fast により {count} 件のワークフローがスキップされました。[/yellow]".format(
+                        count=len(skipped)
+                    )
                 )
             if summary_reference:
                 console.print(
@@ -1262,9 +1194,7 @@ def show_summary(
             logs_obj = entry.get("logs")
             log_pairs = ""
             if isinstance(logs_obj, dict):
-                log_pairs = ", ".join(
-                    f"{str(key)}:{str(value)}" for key, value in logs_obj.items()
-                )
+                log_pairs = ", ".join(f"{str(key)}:{str(value)}" for key, value in logs_obj.items())
             table.add_row(
                 str(entry.get("workflow", "")),
                 str(entry.get("engine", "")),
@@ -1414,9 +1344,7 @@ def trace_test(
     console = context.console
 
     if not workflow_file.exists():
-        console.print(
-            f"[red]ワークフローファイルが見つかりません: {workflow_file}[/red]"
-        )
+        console.print(f"[red]ワークフローファイルが見つかりません: {workflow_file}[/red]")
         raise SystemExit(1)
 
     # ExecutionTracerを作成
@@ -1445,9 +1373,7 @@ def trace_test(
         if result.success:
             console.print("[green]✓ ワークフロー実行が成功しました[/green]")
         else:
-            console.print(
-                f"[red]✗ ワークフロー実行が失敗しました (終了コード: {result.return_code})[/red]"
-            )
+            console.print(f"[red]✗ ワークフロー実行が失敗しました (終了コード: {result.return_code})[/red]")
 
         if result.stdout:
             console.print("\n[bold]標準出力:[/bold]")
@@ -1460,9 +1386,7 @@ def trace_test(
         # トレース情報をエクスポート
         if output_file:
             # 最後のトレースを取得（実際の実装では適切にトレースを管理する必要があります）
-            console.print(
-                f"\n[cyan]トレース情報を {output_file} に保存しています...[/cyan]"
-            )
+            console.print(f"\n[cyan]トレース情報を {output_file} に保存しています...[/cyan]")
             console.print("[green]✓ トレース情報の保存が完了しました[/green]")
 
     except Exception as e:
@@ -1530,7 +1454,7 @@ def create_debug_bundle(
                 "include_logs": include_logs,
                 "include_config": include_config,
                 "include_system_info": include_system_info,
-            }
+            },
         )
 
         debug_bundle = detector.create_debug_bundle(
@@ -1541,21 +1465,21 @@ def create_debug_bundle(
             include_system_info=include_system_info,
         )
 
-        if debug_bundle and hasattr(debug_bundle, 'bundle_path') and debug_bundle.bundle_path:
+        if debug_bundle and hasattr(debug_bundle, "bundle_path") and debug_bundle.bundle_path:
             console.print(f"[green]✅ デバッグバンドルが作成されました: {debug_bundle.bundle_path}[/green]")
 
-            if hasattr(debug_bundle, 'total_size_bytes'):
+            if hasattr(debug_bundle, "total_size_bytes"):
                 size_mb = debug_bundle.total_size_bytes / (1024 * 1024)
                 console.print(f"[green]   サイズ: {size_mb:.2f} MB[/green]")
 
-            if hasattr(debug_bundle, 'included_files'):
+            if hasattr(debug_bundle, "included_files"):
                 console.print(f"[green]   含まれるファイル: {len(debug_bundle.included_files)}個[/green]")
 
                 # 含まれるファイルの一部を表示
                 if debug_bundle.included_files:
                     console.print("[dim]   主要なファイル:[/dim]")
                     for file_info in debug_bundle.included_files[:5]:
-                        if isinstance(file_info, dict) and 'path' in file_info:
+                        if isinstance(file_info, dict) and "path" in file_info:
                             console.print(f"[dim]     • {file_info['path']}[/dim]")
                         else:
                             console.print(f"[dim]     • {file_info}[/dim]")
@@ -1680,7 +1604,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
                 "workflows": "/workflows",
                 "simulate": "/simulate",
                 "diagnose": "/diagnose",
-            }
+            },
         }
 
     @app.get("/health")
@@ -1688,9 +1612,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
         """ヘルスチェックエンドポイント"""
         try:
             # 基本的なシステムチェック
-            diagnostic_service = DiagnosticService(
-                logger=ActionsLogger(verbose=cli_ctx.verbose)
-            )
+            diagnostic_service = DiagnosticService(logger=ActionsLogger(verbose=cli_ctx.verbose))
             docker_result = diagnostic_service.check_docker_connectivity()
             act_result = diagnostic_service.check_act_binary()
 
@@ -1706,7 +1628,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
                         "status": act_result.status.value,
                         "message": act_result.message,
                     },
-                }
+                },
             }
         except Exception as e:
             return JSONResponse(
@@ -1715,7 +1637,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
                     "status": "unhealthy",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "error": str(e),
-                }
+                },
             )
 
     @app.get("/workflows")
@@ -1731,17 +1653,21 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
                 try:
                     parser = WorkflowParser()
                     workflow_data = parser.parse_file(workflow_file)
-                    workflows.append({
-                        "file": str(workflow_file),
-                        "name": workflow_data.get("name", workflow_file.stem),
-                        "jobs": list(workflow_data.get("jobs", {}).keys()),
-                    })
+                    workflows.append(
+                        {
+                            "file": str(workflow_file),
+                            "name": workflow_data.get("name", workflow_file.stem),
+                            "jobs": list(workflow_data.get("jobs", {}).keys()),
+                        }
+                    )
                 except Exception as e:
-                    workflows.append({
-                        "file": str(workflow_file),
-                        "name": workflow_file.stem,
-                        "error": str(e),
-                    })
+                    workflows.append(
+                        {
+                            "file": str(workflow_file),
+                            "name": workflow_file.stem,
+                            "error": str(e),
+                        }
+                    )
 
             return {
                 "workflows": workflows,
@@ -1881,7 +1807,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
     async def delete_workflow(filename: str):
         """ワークフローファイルを削除"""
         try:
-            if not filename.endswith(('.yml', '.yaml')):
+            if not filename.endswith((".yml", ".yaml")):
                 raise HTTPException(status_code=400, detail="YAMLファイル名を指定してください")
 
             file_path = Path(".github/workflows") / filename
@@ -1889,11 +1815,7 @@ def create_fastapi_app(cli_ctx: CLIContext) -> FastAPI:
                 raise HTTPException(status_code=404, detail=f"ファイル '{filename}' が見つかりません")
 
             file_path.unlink()
-            return {
-                "success": True,
-                "filename": filename,
-                "message": f"ファイル '{filename}' を削除しました"
-            }
+            return {"success": True, "filename": filename, "message": f"ファイル '{filename}' を削除しました"}
 
         except HTTPException:
             raise
@@ -2188,9 +2110,7 @@ ${JSON.stringify(result.metadata, null, 2)}
     return app
 
 
-def _generate_recovery_suggestions_from_causes(
-    hangup_causes: List[str], health_report: Any
-) -> List[str]:
+def _generate_recovery_suggestions_from_causes(hangup_causes: List[str], health_report: Any) -> List[str]:
     """ハングアップ原因から復旧提案を生成"""
     suggestions = []
 
@@ -2198,29 +2118,37 @@ def _generate_recovery_suggestions_from_causes(
         cause_lower = cause.lower()
 
         if "docker" in cause_lower and "socket" in cause_lower:
-            suggestions.extend([
-                "Docker Desktopを再起動してください",
-                "ユーザーをdockerグループに追加: sudo usermod -aG docker $USER",
-                "Docker daemonの状態を確認: sudo systemctl status docker"
-            ])
+            suggestions.extend(
+                [
+                    "Docker Desktopを再起動してください",
+                    "ユーザーをdockerグループに追加: sudo usermod -aG docker $USER",
+                    "Docker daemonの状態を確認: sudo systemctl status docker",
+                ]
+            )
         elif "permission" in cause_lower:
-            suggestions.extend([
-                "ファイル権限を確認してください: ls -la /var/run/docker.sock",
-                "現在のユーザーのグループを確認: groups",
-                "必要に応じてsudoでコマンドを実行してください"
-            ])
+            suggestions.extend(
+                [
+                    "ファイル権限を確認してください: ls -la /var/run/docker.sock",
+                    "現在のユーザーのグループを確認: groups",
+                    "必要に応じてsudoでコマンドを実行してください",
+                ]
+            )
         elif "timeout" in cause_lower:
-            suggestions.extend([
-                "タイムアウト値を増加させてください",
-                "システムリソースを確認してください",
-                "不要なプロセスを終了してください"
-            ])
+            suggestions.extend(
+                [
+                    "タイムアウト値を増加させてください",
+                    "システムリソースを確認してください",
+                    "不要なプロセスを終了してください",
+                ]
+            )
         elif "memory" in cause_lower or "resource" in cause_lower:
-            suggestions.extend([
-                "メモリ使用量を確認: free -h",
-                "不要なDockerコンテナを停止: docker container prune",
-                "システムの負荷を確認: top または htop"
-            ])
+            suggestions.extend(
+                [
+                    "メモリ使用量を確認: free -h",
+                    "不要なDockerコンテナを停止: docker container prune",
+                    "システムの負荷を確認: top または htop",
+                ]
+            )
 
     # 重複を除去
     return list(dict.fromkeys(suggestions))
@@ -2232,8 +2160,14 @@ def _extract_important_details(details: Dict[str, Any]) -> Dict[str, str]:
 
     # 重要なキーのリスト
     important_keys = [
-        "version", "path", "error", "stderr", "docker_socket_exists",
-        "docker_socket_accessible", "in_docker_group", "is_root"
+        "version",
+        "path",
+        "error",
+        "stderr",
+        "docker_socket_exists",
+        "docker_socket_accessible",
+        "in_docker_group",
+        "is_root",
     ]
 
     for key in important_keys:
@@ -2252,12 +2186,12 @@ def _generate_next_steps(health_report: Any, hangup_causes: List[str]) -> List[s
     steps = []
 
     # エラーがある場合
-    if hasattr(health_report, 'has_errors') and health_report.has_errors:
+    if hasattr(health_report, "has_errors") and health_report.has_errors:
         steps.append("まず、エラー状態のコンポーネントを修正してください")
         steps.append("修正後、再度診断を実行してください: actions diagnose")
 
     # 警告がある場合
-    elif hasattr(health_report, 'has_warnings') and health_report.has_warnings:
+    elif hasattr(health_report, "has_warnings") and health_report.has_warnings:
         steps.append("警告項目を確認し、可能であれば修正してください")
         steps.append("ワークフローの実行を試してみてください")
 

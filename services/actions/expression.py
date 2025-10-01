@@ -54,17 +54,13 @@ class ExpressionEvaluator:
                 return all(values)
             if isinstance(node.op, ast.Or):
                 return any(values)
-            raise ExpressionEvaluationError(
-                f"unsupported boolean operator: {ast.dump(node)}"
-            )
+            raise ExpressionEvaluationError(f"unsupported boolean operator: {ast.dump(node)}")
 
         if isinstance(node, ast.UnaryOp):
             operand = self._evaluate_node(node.operand, context)
             if isinstance(node.op, ast.Not):
                 return not operand
-            raise ExpressionEvaluationError(
-                f"unsupported unary operator: {ast.dump(node)}"
-            )
+            raise ExpressionEvaluationError(f"unsupported unary operator: {ast.dump(node)}")
 
         if isinstance(node, ast.Compare):
             left_value = self._evaluate_node(node.left, context)
@@ -78,9 +74,7 @@ class ExpressionEvaluator:
         if isinstance(node, ast.Call):
             func = self._evaluate_node(node.func, context)
             if not callable(func):
-                raise ExpressionEvaluationError(
-                    "attempted to call a non-callable object"
-                )
+                raise ExpressionEvaluationError("attempted to call a non-callable object")
             if node.keywords:
                 raise ExpressionEvaluationError("keyword arguments are not supported")
             args = [self._evaluate_node(arg, context) for arg in node.args]
@@ -107,9 +101,7 @@ class ExpressionEvaluator:
             if isinstance(base_value, Mapping):
                 base_map = cast(Mapping[Any, Any], base_value)
                 return cast(Any, base_map.get(key_value))
-            if isinstance(base_value, Sequence) and not isinstance(
-                base_value, (str, bytes, bytearray)
-            ):
+            if isinstance(base_value, Sequence) and not isinstance(base_value, (str, bytes, bytearray)):
                 try:
                     return cast(Any, base_value[key_value])
                 except (IndexError, TypeError) as exc:
@@ -138,9 +130,7 @@ class ExpressionEvaluator:
             for key_node, value_node in zip(node.keys, node.values):
                 if key_node is None:
                     raise ExpressionEvaluationError("dict unpacking is not supported")
-                result[self._evaluate_node(key_node, context)] = self._evaluate_node(
-                    value_node, context
-                )
+                result[self._evaluate_node(key_node, context)] = self._evaluate_node(value_node, context)
             return result
 
         raise ExpressionEvaluationError(f"unsupported expression: {ast.dump(node)}")
