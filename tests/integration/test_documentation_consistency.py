@@ -34,7 +34,8 @@ class TestDocumentationConsistency:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent
+        # tests/integration/test_documentation_consistency.py から2階層上がプロジェクトルート
+        return Path(__file__).parent.parent.parent
 
     @pytest.fixture
     def documentation_files(self, project_root):
@@ -325,9 +326,10 @@ class TestDocumentationConsistency:
             ".env.example",
             "docker-compose.override.yml.sample",
             ".pre-commit-config.yaml.sample",
-            ".github/workflows/local-ci.yml.sample",
-            ".github/workflows/basic-test.yml.sample",
-            ".github/workflows/security-scan.yml.sample",
+            # ワークフローサンプルはdocs/examples/workflows/に移動済み
+            "docs/examples/workflows/local-development-ci.yml",
+            "docs/examples/workflows/basic-ci-example.yml",
+            "docs/examples/workflows/security-scanning.yml",
         ]
 
         missing_templates = []
@@ -439,7 +441,7 @@ class TestTemplateValidationIntegration:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent
+        return Path(__file__).parent.parent.parent
 
     def test_template_validation_script_execution(self, project_root):
         """テンプレート検証スクリプトの実行テスト"""
@@ -496,7 +498,7 @@ class TestDocumentationAccessibility:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent
+        return Path(__file__).parent.parent.parent
 
     def test_readme_accessibility(self, project_root):
         """README.mdのアクセシビリティ確認"""
