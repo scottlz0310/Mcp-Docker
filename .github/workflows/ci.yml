@@ -445,9 +445,12 @@ jobs:
           if command -v bats >/dev/null 2>&1; then
             echo "🧪 Running integration bats tests..."
             # tests/integration/配下の.batsファイルを実行
-            find tests/integration -name "*.bats" -type f | while read -r test_file; do
-              echo "Running: $test_file"
-              bats "$test_file" || echo "⚠️ $test_file failed"
+            set -e  # エラーで即座に終了
+            for test_file in tests/integration/*.bats; do
+              if [ -f "$test_file" ]; then
+                echo "Running: $test_file"
+                bats "$test_file"
+              fi
             done
           else
             echo "❌ Bats not available - tests cannot run"

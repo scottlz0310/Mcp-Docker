@@ -2,7 +2,7 @@
 # 検証対象: Docker Build
 # 目的: Dockerイメージのビルド成功とベストプラクティス準拠確認
 
-load test_helper
+load ../helpers/test_helper
 
 @test "Docker build succeeds" {
     run docker build -t mcp-docker-test .

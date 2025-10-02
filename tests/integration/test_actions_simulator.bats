@@ -11,7 +11,7 @@
 #   - シミュレーション実行機能の確認
 #   - Docker統合の動作検証
 
-load 'test_helper'
+load '../helpers/test_helper'
 
 # セットアップ: 各テストの前に実行
 setup() {

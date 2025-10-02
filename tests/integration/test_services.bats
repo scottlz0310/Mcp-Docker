@@ -2,7 +2,7 @@
 # 検証対象: MCP Services
 # 目的: 各サービスの起動確認とヘルスチェック
 
-load test_helper
+load ../helpers/test_helper
 
 setup() {
     setup_test_workspace
