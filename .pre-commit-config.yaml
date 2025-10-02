@@ -112,11 +112,11 @@ repos:
         name: "🐍 Python コード品質チェック（Ruff）"
         description: "Python コードの品質とスタイルを高速チェック"
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(src/|tests/|examples/|scripts/.*\.py$)
+        files: ^(src/|tests/|examples/|scripts/|services/|main\.py).*\.py$
       - id: ruff-format
         name: "🎨 Python コードフォーマット（Ruff）"
         description: "Python コードを自動フォーマット"
-        files: ^(src/|tests/|examples/|scripts/.*\.py$)
+        files: ^(src/|tests/|examples/|scripts/|services/|main\.py).*\.py$
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
