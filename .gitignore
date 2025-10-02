@@ -213,9 +213,5 @@ yarn-error.log*
 .vscode/settings.json
 .vscode/tasks.json
 
-# Test result files
-complete_distribution_validation_results.json
-final_distribution_validation_report.json
-final_distribution_validation_report.md
-output/comprehensive_integration_report.json
-archive/reports/comprehensive_integration_report.json
+# Test result files (all test outputs go to output/ directory)
+output/*

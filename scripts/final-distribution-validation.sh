@@ -400,8 +400,11 @@ run_integration_tests() {
 generate_final_report() {
     log_info "=== 最終レポート生成開始 ==="
 
-    local report_file="$PROJECT_ROOT/final_distribution_validation_report.md"
-    local json_report="$PROJECT_ROOT/final_distribution_validation_report.json"
+    # Ensure output directory exists
+    mkdir -p "$PROJECT_ROOT/output"
+
+    local report_file="$PROJECT_ROOT/output/final_distribution_validation_report.md"
+    local json_report="$PROJECT_ROOT/output/final_distribution_validation_report.json"
 
     # 成功率計算
     local success_rate=0

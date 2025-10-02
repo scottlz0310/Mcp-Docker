@@ -672,7 +672,8 @@ def main():
                 print(f"  {metric}: {value}")
 
     # レポートファイルを保存
-    report_file = Path("comprehensive_integration_report.json")
+    report_file = Path("output") / "comprehensive_integration_report.json"
+    report_file.parent.mkdir(parents=True, exist_ok=True)
     report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n詳細レポートが保存されました: {report_file}")
 

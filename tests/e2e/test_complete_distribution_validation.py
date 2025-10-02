@@ -498,7 +498,8 @@ class CompleteDistributionValidationTest(unittest.TestCase):
     def tearDownClass(cls):
         """テストクラス終了処理"""
         # テスト結果の保存
-        results_file = cls.project_root / "complete_distribution_validation_results.json"
+        results_file = cls.project_root / "output" / "complete_distribution_validation_results.json"
+        results_file.parent.mkdir(parents=True, exist_ok=True)
 
         cls.test_results["completion_timestamp"] = datetime.utcnow().isoformat()
 
