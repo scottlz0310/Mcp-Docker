@@ -918,13 +918,17 @@ class FinalIntegrationValidator:
         """最終レポートを生成"""
         logger.info("最終レポートを生成中...")
 
+        # Ensure output directory exists
+        output_dir = self.project_root / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         # レポートファイルに保存
-        report_path = self.project_root / "final_integration_validation_report.json"
+        report_path = output_dir / "final_integration_validation_report.json"
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(self.test_results, f, ensure_ascii=False, indent=2)
 
         # サマリーレポート生成
-        summary_path = self.project_root / "FINAL_VALIDATION_SUMMARY.md"
+        summary_path = output_dir / "FINAL_VALIDATION_SUMMARY.md"
         self._generate_summary_report(summary_path)
 
         logger.info(f"最終レポートを生成: {report_path}")
