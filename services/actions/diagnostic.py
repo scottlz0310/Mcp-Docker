@@ -70,8 +70,8 @@ class DiagnosticService:
             logger: ログ出力用のロガー
         """
         self.logger = logger or ActionsLogger(verbose=True)
-        self._docker_client_available = None
-        self._act_binary_path = None
+        self._docker_client_available: bool | None = None
+        self._act_binary_path: str | None = None
         self._docker_integration_checker = DockerIntegrationChecker(logger=logger)
 
     def run_comprehensive_health_check(self) -> SystemHealthReport:
@@ -301,7 +301,7 @@ class DiagnosticService:
             user_id = os.getuid() if hasattr(os, "getuid") else None
             group_id = os.getgid() if hasattr(os, "getgid") else None
 
-            details = {
+            details: dict[str, Any] = {
                 "user_id": user_id,
                 "group_id": group_id,
                 "is_root": user_id == 0 if user_id is not None else False,
@@ -596,9 +596,9 @@ class DiagnosticService:
                 "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS",
             ]
 
-            env_status = {}
-            issues = []
-            recommendations = []
+            env_status: dict[str, Any] = {}
+            issues: list[str] = []
+            recommendations: list[str] = []
 
             for var in important_vars:
                 value = os.environ.get(var)
@@ -680,9 +680,9 @@ class DiagnosticService:
         self.logger.debug("システムリソース使用量をチェック中...")
 
         try:
-            details = {}
-            issues = []
-            recommendations = []
+            details: dict[str, Any] = {}
+            issues: list[str] = []
+            recommendations: list[str] = []
 
             # ディスク使用量の確認
             try:

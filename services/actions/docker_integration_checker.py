@@ -384,30 +384,34 @@ class DockerIntegrationChecker:
         """
         self.logger.info("包括的なDocker統合チェックを開始します...")
 
-        results = {}
+        results: dict[str, Any] = {}
 
         # 1. ソケットアクセス検証
         self.logger.debug("1. Dockerソケットアクセス検証")
-        results["socket_access"] = self.verify_socket_access()
+        socket_access = self.verify_socket_access()
+        results["socket_access"] = socket_access
 
         # 2. コンテナ通信テスト
         self.logger.debug("2. コンテナ通信テスト")
-        results["container_communication"] = self.test_container_communication()
+        container_comm = self.test_container_communication()
+        results["container_communication"] = container_comm
 
         # 3. act-Docker互換性チェック
         self.logger.debug("3. act-Docker互換性チェック")
-        results["act_compatibility"] = self.check_act_docker_compatibility()
+        act_compat = self.check_act_docker_compatibility()
+        results["act_compatibility"] = act_compat
 
         # 4. Docker daemon接続テスト（リトライ付き）
         self.logger.debug("4. Docker daemon接続テスト")
-        results["daemon_connection"] = self.test_docker_daemon_connection_with_retry()
+        daemon_conn = self.test_docker_daemon_connection_with_retry()
+        results["daemon_connection"] = daemon_conn
 
         # 5. 全体的な評価
         overall_success = (
-            results["socket_access"]
-            and results["container_communication"].success
-            and results["act_compatibility"].compatible
-            and results["daemon_connection"].status == DockerConnectionStatus.CONNECTED
+            socket_access
+            and container_comm.success
+            and act_compat.compatible
+            and daemon_conn.status == DockerConnectionStatus.CONNECTED
         )
 
         results["overall_success"] = overall_success
@@ -419,13 +423,13 @@ class DockerIntegrationChecker:
             self.logger.success("Docker統合チェック完了: 全て正常 ✓")
         else:
             failed_checks = []
-            if not results["socket_access"]:
+            if not socket_access:
                 failed_checks.append("ソケットアクセス")
-            if not results["container_communication"].success:
+            if not container_comm.success:
                 failed_checks.append("コンテナ通信")
-            if not results["act_compatibility"].compatible:
+            if not act_compat.compatible:
                 failed_checks.append("act互換性")
-            if results["daemon_connection"].status != DockerConnectionStatus.CONNECTED:
+            if daemon_conn.status != DockerConnectionStatus.CONNECTED:
                 failed_checks.append("daemon接続")
 
             results["summary"] = f"Docker統合に問題があります: {', '.join(failed_checks)}"

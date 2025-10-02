@@ -112,11 +112,11 @@ repos:
         name: "🐍 Python コード品質チェック（Ruff）"
         description: "Python コードの品質とスタイルを高速チェック"
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(src/|tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
       - id: ruff-format
         name: "🎨 Python コードフォーマット（Ruff）"
         description: "Python コードを自動フォーマット"
-        files: ^(src/|tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
         args: ["--config=pyproject.toml"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -125,7 +125,7 @@ repos:
       - id: mypy
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
-        files: ^src/
+        files: ^(services/|main\.py)
         args:
           [
             --ignore-missing-imports,
@@ -143,13 +143,13 @@ repos:
         description: "GitHub Actions Simulator の核心機能をテスト"
         entry: >
           uv run pytest
-          tests/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
-          tests/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
-          tests/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
+          tests/unit/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
+          tests/unit/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
+          tests/unit/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
           -x --tb=short --disable-warnings --timeout=30
         language: system
         pass_filenames: false
-        files: ^(src/|tests/test_hangup_unit\.py)
+        files: ^(services/|tests/unit/test_hangup_unit\.py)
 
       # ワークフロー構文検証
       - id: actions-workflow-validation

@@ -175,7 +175,7 @@ class EnhancedActWrapper:
         self._stop_monitoring = threading.Event()
 
         # 自動復旧機能の初期化
-        self._auto_recovery = None
+        self._auto_recovery: Any = None  # AutoRecovery型（遅延インポートのため）
         self._initialize_auto_recovery()
 
     def run_workflow(
@@ -862,8 +862,23 @@ class EnhancedActWrapper:
         start_time = time.time()
         trace_id = f"enhanced_act_{int(start_time * 1000)}"
 
+        # ワークフローファイルの存在確認（診断より先に）
+        if workflow_file:
+            workflow_path = Path(self.working_directory) / workflow_file
+            if not workflow_path.exists():
+                return DetailedResult(
+                    success=False,
+                    returncode=1,
+                    stdout="",
+                    stderr=f"ワークフローファイルが見つかりません: {workflow_file}",
+                    command=f"act {workflow_file}",
+                    execution_time_ms=(time.time() - start_time) * 1000,
+                    diagnostic_results=[],
+                    trace_id=trace_id,
+                )
+
         # 実行前診断チェック
-        diagnostic_results = []
+        diagnostic_results: list[dict[str, Any]] = []
         if self.enable_diagnostics and self._diagnostic_service:
             self.logger.info("実行前診断チェックを開始します...")
             pre_check = self._diagnostic_service.run_comprehensive_health_check()
@@ -971,16 +986,29 @@ class EnhancedActWrapper:
         Returns:
             Dict[str, Any]: 実行結果
         """
-        # モックモードの場合は親クラスの実装を使用
+        # モックモードの場合はシンプルなモック結果を返す
         if self._mock_mode:
-            return super().run_workflow(
-                workflow_file=workflow_file,
-                event=event,
-                job=job,
-                dry_run=dry_run,
-                verbose=verbose,
-                env_vars=env_vars,
-            )
+            return {
+                "success": True,
+                "returncode": 0,
+                "stdout": f"Mock execution of workflow: {workflow_file}",
+                "stderr": "",
+                "command": f"act {workflow_file or ''}",
+                "execution_time_ms": 100.0,
+            }
+
+        # ワークフローファイルの存在確認
+        if workflow_file:
+            workflow_path = Path(self.working_directory) / workflow_file
+            if not workflow_path.exists():
+                return {
+                    "success": False,
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": f"ワークフローファイルが見つかりません: {workflow_file}",
+                    "command": f"act {workflow_file}",
+                    "execution_time_ms": 0.0,
+                }
 
         # 実行トレースを開始
         if trace_id and self.execution_tracer:
@@ -1559,10 +1587,13 @@ class EnhancedActWrapper:
         Returns:
             Dict[str, Any]: 失敗分析結果
         """
-        analysis = {
+        probable_causes: list[str] = []
+        recommendations: list[str] = []
+
+        analysis: dict[str, Any] = {
             "failure_type": "unknown",
-            "probable_causes": [],
-            "recommendations": [],
+            "probable_causes": probable_causes,
+            "recommendations": recommendations,
             "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -1573,8 +1604,8 @@ class EnhancedActWrapper:
         # 終了コードによる分析
         if returncode == -1:
             analysis["failure_type"] = "timeout"
-            analysis["probable_causes"].append("実行タイムアウト")
-            analysis["recommendations"].extend(
+            probable_causes.append("実行タイムアウト")
+            recommendations.extend(
                 [
                     "タイムアウト時間を延長してください",
                     "ワークフローの複雑さを確認してください",
@@ -1583,13 +1614,13 @@ class EnhancedActWrapper:
             )
         elif returncode != 0:
             analysis["failure_type"] = "execution_error"
-            analysis["probable_causes"].append(f"act実行エラー (終了コード: {returncode})")
+            probable_causes.append(f"act実行エラー (終了コード: {returncode})")
 
         # デッドロック分析
         if stream_result and stream_result.deadlock_detected:
             analysis["failure_type"] = "deadlock"
-            analysis["probable_causes"].append("デッドロック検出")
-            analysis["recommendations"].extend(
+            probable_causes.append("デッドロック検出")
+            recommendations.extend(
                 [
                     "出力ストリーミングの問題を確認してください",
                     "プロセス間通信の問題を調査してください",
@@ -1598,8 +1629,8 @@ class EnhancedActWrapper:
 
         # エラーメッセージ分析
         if "docker" in stderr.lower():
-            analysis["probable_causes"].append("Docker関連の問題")
-            analysis["recommendations"].extend(
+            probable_causes.append("Docker関連の問題")
+            recommendations.extend(
                 [
                     "Docker daemonが実行されているか確認してください",
                     "Docker権限を確認してください",
@@ -1607,8 +1638,8 @@ class EnhancedActWrapper:
             )
 
         if "permission" in stderr.lower():
-            analysis["probable_causes"].append("権限の問題")
-            analysis["recommendations"].append("ファイル・ディレクトリの権限を確認してください")
+            probable_causes.append("権限の問題")
+            recommendations.append("ファイル・ディレクトリの権限を確認してください")
 
         return analysis
 

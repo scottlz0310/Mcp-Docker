@@ -471,7 +471,7 @@ class HangupDetector:
         if self.logger:
             self.logger.debug("サブプロセスデッドロック問題を検出中...")
 
-        issues = []
+        issues: list[HangupIssue] = []
 
         if execution_trace is None:
             return issues

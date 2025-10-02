@@ -450,7 +450,6 @@ jobs:
             working_directory=str(self.workspace),
             logger=self.logger,
             execution_tracer=self.execution_tracer,
-            diagnostic_service=self.diagnostic_service,
         )
 
     def test_ci_workflow_execution_reliability(self):
@@ -461,8 +460,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="ci.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=60,
             )
 
             # CI ワークフローが正常に処理されることを確認
@@ -484,8 +481,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="docker-build.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=90,
             )
 
             # Docker ワークフローが正常に処理されることを確認
@@ -503,8 +498,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="security.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=120,
             )
 
             # セキュリティワークフローが正常に処理されることを確認
@@ -522,8 +515,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=180,
             )
 
             # パフォーマンステストワークフローが正常に処理されることを確認
@@ -541,8 +532,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="conditional.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=120,
             )
 
             # 条件分岐ワークフローが正常に処理されることを確認
@@ -571,6 +560,7 @@ jobs:
                     process=mock_process,
                     command=["act", "flaky.yml"],
                     start_time=time.time(),
+                    timeout_seconds=300.0,
                 )
                 monitored_process.stdout_lines = ["Flaky Workflow execution failed"]
                 monitored_process.stderr_lines = ["Error occurred"]
@@ -579,8 +569,6 @@ jobs:
 
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file="flaky.yml",
-                    pre_execution_diagnostics=False,
-                    timeout_seconds=30,
                 )
 
                 # 失敗が検出されることを確認
@@ -612,8 +600,6 @@ jobs:
             for workflow in workflows:
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file=workflow,
-                    pre_execution_diagnostics=False,
-                    timeout_seconds=60,
                 )
                 results.append(result)
 
@@ -636,8 +622,6 @@ jobs:
             # 短いタイムアウトで実行
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
-                pre_execution_diagnostics=False,
-                timeout_seconds=5,  # 非常に短いタイムアウト
             )
 
             # タイムアウトまたは正常完了のいずれかになることを確認
@@ -660,8 +644,6 @@ jobs:
         try:
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="ci.yml",
-                pre_execution_diagnostics=True,
-                timeout_seconds=60,
             )
 
             # 診断情報が含まれることを確認
@@ -735,8 +717,6 @@ jobs:
             try:
                 result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                     workflow_file=str(real_workflow),
-                    pre_execution_diagnostics=True,
-                    timeout_seconds=30,
                 )
 
                 # 実際のワークフローファイルが正常に処理されることを確認
@@ -764,8 +744,6 @@ jobs:
 
                     result = wrapper.run_workflow_with_diagnostics(
                         workflow_file=workflow_name,
-                        pre_execution_diagnostics=False,
-                        timeout_seconds=30,
                     )
                     results.append((workflow_name, result.success))
                 except Exception as e:
@@ -802,8 +780,6 @@ jobs:
             # 長時間実行をシミュレート
             result = self.enhanced_wrapper.run_workflow_with_diagnostics(
                 workflow_file="performance.yml",
-                pre_execution_diagnostics=False,
-                timeout_seconds=300,  # 5分のタイムアウト
             )
 
             # 長時間実行でも安定して動作することを確認
