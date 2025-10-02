@@ -23,7 +23,8 @@ exclude: |
     logs/.*|
     \.env.*|
     sbom-.*\.json|
-    .*\.log
+    .*\.log|
+    test_error_detection\.py
   )$
 
 repos:
