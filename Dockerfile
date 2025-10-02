@@ -50,7 +50,7 @@ WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 COPY pyproject.toml uv.lock ./
 RUN uv python install 3.13 && \
-    uv sync --locked --no-install-project && \
+    uv sync --no-install-project && \
     uv cache prune --ci
 
 # Production stage
