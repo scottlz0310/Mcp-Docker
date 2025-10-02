@@ -307,14 +307,8 @@ jobs:
         run: |
           echo "🔍 ドキュメント整合性チェック中..."
 
-          # 新しいテスト構造: tests/unit/配下のドキュメント整合性テストを実行
-          if [ -f "tests/unit/test_documentation_consistency.py" ]; then
-            uv run pytest tests/unit/test_documentation_consistency.py -v --tb=short
-          elif [ -f "scripts/check-docs-consistency.py" ]; then
-            uv run python scripts/check-docs-consistency.py
-          else
-            echo "⚠️ ドキュメント整合性テストが見つかりません（スキップ）"
-          fi
+          # 新しいテスト構造: tests/integration/配下のドキュメント整合性テストを実行
+          uv run pytest tests/integration/test_documentation_consistency.py -v --tb=short
 
           echo "✅ ドキュメント整合性チェック完了"
 
