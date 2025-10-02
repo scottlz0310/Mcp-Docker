@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-10-01T06:38:11Z",
+  "timestamp": "2025-10-02T07:32:39Z",
   "overall_status": "EXCELLENT",
-  "success_rate": 93,
+  "success_rate": 87,
   "total_checks": 16,
-  "passed_checks": 15,
-  "failed_checks": 1,
+  "passed_checks": 14,
+  "failed_checks": 2,
   "validation_results": [
     {
       "check_name": "README可読性",
@@ -54,7 +54,7 @@
     {
       "check_name": "CI/CD設定",
       "status": "PASS",
-      "details": "8 個のワークフローが設定済み"
+      "details": "7 個のワークフローが設定済み"
     },
     {
       "check_name": "セキュリティ設定",
@@ -68,8 +68,8 @@
     },
     {
       "check_name": "Python統合テスト",
-      "status": "PASS",
-      "details": "Python テストスイートが正常に実行"
+      "status": "FAIL",
+      "details": "テストファイルが存在しない"
     },
     {
       "check_name": "スクリプト構文",

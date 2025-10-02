@@ -14,7 +14,7 @@ import sys
 import json
 
 # パフォーマンス監視モジュールをインポート
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
 from performance_monitor import (
     PerformanceMonitor,
     PerformanceMetrics,

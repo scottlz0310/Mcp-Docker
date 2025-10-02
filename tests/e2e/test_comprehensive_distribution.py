@@ -32,7 +32,7 @@ class TestDistributionScript:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent / "scripts" / "run-actions.sh"
+        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
 
     @pytest.fixture
     def temp_project_dir(self):
@@ -335,11 +335,11 @@ class TestDistributionScriptIntegration:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent / "scripts" / "run-actions.sh"
+        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
 
     def test_real_project_dependency_check(self, script_path):
         """実際のプロジェクトでの依存関係チェック"""
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
@@ -416,7 +416,7 @@ class TestDistributionScriptErrorScenarios:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent / "scripts" / "run-actions.sh"
+        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
 
     def test_permission_denied_scenario(self, script_path):
         """権限拒否シナリオのテスト"""

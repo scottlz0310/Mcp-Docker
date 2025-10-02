@@ -16,8 +16,8 @@ from unittest.mock import Mock, patch
 # テスト対象のインポート
 import sys
 
-sys.path.append(str(Path(__file__).parent.parent / "services"))
-sys.path.append(str(Path(__file__).parent.parent / "services" / "actions"))
+sys.path.append(str(Path(__file__).parent.parent.parent / "services"))
+sys.path.append(str(Path(__file__).parent.parent.parent / "services" / "actions"))
 
 # モジュールを直接インポート
 from services.actions.enhanced_act_wrapper import (
