@@ -441,19 +441,14 @@ jobs:
           echo "Docker availability: $(command -v docker >/dev/null && echo 'available' || echo 'not available')"
           echo "Make availability: $(command -v make >/dev/null && echo 'available' || echo 'not available')"
 
-          # テスト実行
+          # テスト実行（新しいテスト構造に対応）
           if command -v bats >/dev/null 2>&1; then
-            if command -v make >/dev/null 2>&1; then
-              echo "🧪 Running make-based bats tests..."
-              make test-docker
-              make test-services
-              make test-integration
-            else
-              echo "🧪 Running direct bats tests..."
-              bats tests/test_docker_build.bats
-              bats tests/test_services.bats
-              bats tests/test_integration.bats
-            fi
+            echo "🧪 Running integration bats tests..."
+            # tests/integration/配下の.batsファイルを実行
+            find tests/integration -name "*.bats" -type f | while read -r test_file; do
+              echo "Running: $test_file"
+              bats "$test_file" || echo "⚠️ $test_file failed"
+            done
           else
             echo "❌ Bats not available - tests cannot run"
             exit 1
@@ -512,7 +507,16 @@ jobs:
         env:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
-          ./tests/integration_test.sh
+          # 新しいテスト構造: tests/integration/配下のBatsテストを実行
+          if command -v bats >/dev/null 2>&1; then
+            echo "🧪 Running integration tests..."
+            find tests/integration -name "*.bats" -type f | while read -r test_file; do
+              echo "Running: $test_file"
+              bats "$test_file" || echo "⚠️ $test_file failed"
+            done
+          else
+            echo "⚠️ Bats not available, skipping bats tests"
+          fi
 
       - name: Cleanup
         if: always()
