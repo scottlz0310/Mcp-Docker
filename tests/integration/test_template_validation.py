@@ -32,7 +32,7 @@ import importlib.util
 
 spec = importlib.util.spec_from_file_location(
     "validate_templates",
-    Path(__file__).parent.parent / "scripts" / "validate-templates.py",
+    Path(__file__).parent.parent.parent / "scripts" / "validate-templates.py",
 )
 validate_templates = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validate_templates)

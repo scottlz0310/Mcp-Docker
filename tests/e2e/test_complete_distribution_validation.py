@@ -30,7 +30,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """テストクラス初期化"""
-        cls.project_root = Path(__file__).parent.parent
+        cls.project_root = Path(__file__).parent.parent.parent
         cls.test_results = {
             "timestamp": datetime.utcnow().isoformat(),
             "test_summary": {},
@@ -143,7 +143,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
         required_docs = [
             "docs/TROUBLESHOOTING.md",
             "docs/actions/README.md",
-            "docs/SUPPORT.md",
+            "docs/COMMUNITY_SUPPORT_GUIDE.md",
         ]
 
         existing_docs = []
@@ -266,9 +266,10 @@ class CompleteDistributionValidationTest(unittest.TestCase):
 
                     # 基本的なワークフロー構造の確認
                     if isinstance(workflow_data, dict):
-                        self.assertIn(
-                            "on",
-                            workflow_data,
+                        # YAMLは'on'をTrueとして解釈する可能性があるため、両方をチェック
+                        has_trigger = "on" in workflow_data or True in workflow_data
+                        self.assertTrue(
+                            has_trigger,
                             f"{workflow_file.name} にトリガーが定義されていない",
                         )
 
