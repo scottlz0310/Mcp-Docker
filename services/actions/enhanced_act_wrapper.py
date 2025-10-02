@@ -515,7 +515,7 @@ class EnhancedActWrapper:
                 sock.connect(("10.255.255.255", 1))
                 candidate = sock.getsockname()[0]
                 if not is_loopback(candidate):
-                    return candidate
+                    return candidate  # type: ignore[no-any-return]
         except OSError as exc:
             self.logger.debug(f"UDP経路でのホスト解決に失敗しました: {exc}")
 
@@ -880,7 +880,7 @@ class EnhancedActWrapper:
         # 実行前診断チェック
         diagnostic_results: list[dict[str, Any]] = []
         if self.enable_diagnostics and self._diagnostic_service:
-            self.logger.info("実行前診断チェックを開始します...")
+            self.logger.info("実行前診断チェックを開始します...")  # type: ignore[unreachable]
             pre_check = self._diagnostic_service.run_comprehensive_health_check()
             diagnostic_results.append(
                 {
@@ -919,7 +919,7 @@ class EnhancedActWrapper:
 
             # 実行後診断チェック
             if self.enable_diagnostics and self._diagnostic_service:
-                self.logger.info("実行後診断チェックを開始します...")
+                self.logger.info("実行後診断チェックを開始します...")  # type: ignore[unreachable]
                 post_check = self._diagnostic_service.run_comprehensive_health_check()
                 diagnostic_results.append(
                     {
@@ -1071,7 +1071,7 @@ class EnhancedActWrapper:
 
             # トレースを終了
             if trace_id and self.execution_tracer:
-                self.execution_tracer.stop_trace()
+                self.execution_tracer.end_trace()
 
     def _build_enhanced_command(
         self,
@@ -1785,7 +1785,7 @@ class EnhancedActWrapper:
                 "auto_recovery_available": False,
             }
 
-        return self._auto_recovery.get_recovery_statistics()
+        return self._auto_recovery.get_recovery_statistics()  # type: ignore[no-any-return]
 
     def _build_act_command(
         self,

@@ -772,12 +772,12 @@ class HangupDetector:
 
     def _collect_detailed_system_info(self) -> Dict[str, Any]:
         """詳細なシステム情報を収集"""
-        system_info = {}
+        system_info: dict[str, Any] = {}
 
         try:
             # OS情報
             system_info["os"] = os.name
-            system_info["platform"] = os.uname() if hasattr(os, "uname") else "unknown"
+            system_info["platform"] = str(os.uname()) if hasattr(os, "uname") else "unknown"
 
             # 環境変数
             relevant_vars = [
@@ -797,7 +797,7 @@ class HangupDetector:
 
     def _collect_docker_status(self) -> Dict[str, Any]:
         """Docker状態情報を収集"""
-        docker_status = {}
+        docker_status: dict[str, Any] = {}
 
         try:
             # Docker version

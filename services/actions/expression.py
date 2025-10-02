@@ -99,8 +99,7 @@ class ExpressionEvaluator:
                 raise ExpressionEvaluationError("slice notation is not supported")
             key_value = self._evaluate_node(index_node, context)
             if isinstance(base_value, Mapping):
-                base_map = cast(Mapping[Any, Any], base_value)
-                return cast(Any, base_map.get(key_value))
+                return cast(Any, base_value.get(key_value))
             if isinstance(base_value, Sequence) and not isinstance(base_value, (str, bytes, bytearray)):
                 try:
                     return cast(Any, base_value[key_value])
@@ -151,21 +150,21 @@ class ExpressionEvaluator:
     @staticmethod
     def _evaluate_compare(left: Any, right: Any, operator: ast.cmpop) -> bool:
         if isinstance(operator, ast.Eq):
-            return left == right
+            return left == right  # type: ignore[no-any-return]
         if isinstance(operator, ast.NotEq):
-            return left != right
+            return left != right  # type: ignore[no-any-return]
         if isinstance(operator, ast.In):
             return left in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.NotIn):
             return left not in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.Gt):
-            return left > right
+            return left > right  # type: ignore[no-any-return]
         if isinstance(operator, ast.GtE):
-            return left >= right
+            return left >= right  # type: ignore[no-any-return]
         if isinstance(operator, ast.Lt):
-            return left < right
+            return left < right  # type: ignore[no-any-return]
         if isinstance(operator, ast.LtE):
-            return left <= right
+            return left <= right  # type: ignore[no-any-return]
         raise ExpressionEvaluationError(f"unsupported comparison operator: {operator}")
 
     @staticmethod

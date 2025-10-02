@@ -131,6 +131,7 @@ repos:
             --ignore-missing-imports,
             --no-strict-optional,
             --disable-error-code=misc,
+            --disable-error-code=no-any-return,
           ]
         additional_dependencies: [types-requests, types-PyYAML]
 

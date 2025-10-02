@@ -368,9 +368,12 @@ class SimulationService:
             metadata = {"command": result.get("command"), "enhanced_wrapper": False}
 
         success = bool(result.get("success"))
-        return_code = int(result.get("returncode", 1))
-        stdout = result.get("stdout", "")
-        stderr = result.get("stderr", "")
+        return_code_val = result.get("returncode", 1)
+        return_code = int(return_code_val) if return_code_val is not None else 1  # type: ignore[call-overload]
+        stdout_val = result.get("stdout", "")
+        stdout = str(stdout_val) if stdout_val is not None else ""
+        stderr_val = result.get("stderr", "")
+        stderr = str(stderr_val) if stderr_val is not None else ""
 
         if success:
             logger.success("act でのワークフロー実行が完了しました ✓")

@@ -702,9 +702,9 @@ class ExecutionTracer:
     def _trace_to_dict(self, trace: ExecutionTrace) -> Dict[str, Any]:
         """ExecutionTraceを辞書に変換"""
 
-        def convert_dataclass(obj):
+        def convert_dataclass(obj: Any) -> Any:
             if hasattr(obj, "__dataclass_fields__"):
-                result = {}
+                result: dict[str, Any] = {}
                 for field_name, field_value in obj.__dict__.items():
                     if isinstance(field_value, list):
                         result[field_name] = [convert_dataclass(item) for item in field_value]
@@ -720,4 +720,4 @@ class ExecutionTracer:
             else:
                 return obj
 
-        return convert_dataclass(trace)
+        return convert_dataclass(trace)  # type: ignore[no-any-return]

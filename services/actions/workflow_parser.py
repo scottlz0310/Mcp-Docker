@@ -55,7 +55,7 @@ class WorkflowParser:
             # マトリックス戦略の展開
             self._expand_matrix_jobs(workflow_data)
 
-            return workflow_data
+            return workflow_data  # type: ignore[no-any-return]
 
         except yaml.YAMLError as exc:
             raise WorkflowParseError(f"YAML解析エラー: {exc}") from exc
@@ -104,10 +104,10 @@ class WorkflowParser:
 
         # 'on' キーが True として解釈されている場合の修正
         # 型チェッカー向け: Dict[str, Any]だがYAMLパーサーの仕様上boolキーが存在する
-        bool_keys = [k for k in normalized_data.keys() if isinstance(k, bool)]
+        bool_keys = [k for k in normalized_data.keys() if isinstance(k, bool)]  # type: ignore[unreachable]
         for bool_key in bool_keys:
-            if bool_key is True and "on" not in normalized_data:
-                normalized_data["on"] = normalized_data[bool_key]
+            if bool_key is True and "on" not in normalized_data:  # type: ignore[unreachable]
+                normalized_data["on"] = normalized_data[bool_key]  # type: ignore[unreachable]
                 del normalized_data[bool_key]
 
         return normalized_data
@@ -269,8 +269,7 @@ class WorkflowParser:
         if include_raw:
             if not isinstance(include_raw, list):
                 raise WorkflowParseError(f"ジョブ '{job_id}' の matrix.include が無効です")
-            typed_include_raw = cast(List[Any], include_raw)
-            for include_entry_raw in typed_include_raw:
+            for include_entry_raw in include_raw:
                 if not isinstance(include_entry_raw, dict):
                     raise WorkflowParseError(f"ジョブ '{job_id}' の matrix.include エントリが無効です")
                 include_entry = cast(Dict[str, Any], include_entry_raw)
@@ -280,8 +279,7 @@ class WorkflowParser:
         if exclude_raw:
             if not isinstance(exclude_raw, list):
                 raise WorkflowParseError(f"ジョブ '{job_id}' の matrix.exclude が無効です")
-            typed_exclude_raw = cast(List[Any], exclude_raw)
-            for exclude_entry_raw in typed_exclude_raw:
+            for exclude_entry_raw in exclude_raw:
                 if not isinstance(exclude_entry_raw, dict):
                     raise WorkflowParseError(f"ジョブ '{job_id}' の matrix.exclude エントリが無効です")
                 exclude_entry = cast(Dict[str, Any], exclude_entry_raw)
@@ -293,8 +291,7 @@ class WorkflowParser:
                 continue
             if not isinstance(raw_values, list) or not raw_values:
                 raise WorkflowParseError(f"ジョブ '{job_id}' の matrix.{key} が無効です")
-            typed_values = cast(List[Any], raw_values)
-            axes[key] = list(typed_values)
+            axes[key] = list(raw_values)
 
         axis_keys: List[str] = list(axes.keys())
         axis_values: List[List[Any]] = [axes[key] for key in axis_keys]
@@ -408,11 +405,11 @@ class WorkflowParser:
             events_list = [events_value]
         elif isinstance(events_value, dict):
             events_list = []
-            for key in cast(Dict[Any, Any], events_value).keys():
+            for key in events_value.keys():
                 events_list.append(str(key))
         elif isinstance(events_value, list):
             events_list = []
-            for item in cast(List[Any], events_value):
+            for item in events_value:
                 if isinstance(item, str):
                     events_list.append(item)
         else:

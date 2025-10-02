@@ -121,7 +121,7 @@ class DateTimeValidatorHandler(FileSystemEventHandler):
         if event.is_directory:
             return
 
-        file_path = Path(event.src_path)
+        file_path = Path(str(event.src_path))
 
         # 特定のディレクトリのみ監視
         if any(part in file_path.parts for part in [".git", "__pycache__", ".venv", "node_modules"]):
