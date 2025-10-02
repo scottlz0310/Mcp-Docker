@@ -274,9 +274,9 @@ jobs:
             "トラブルシューティング",
         ]
 
-        assert any(
-            indicator in output for indicator in helpful_indicators
-        ), f"有用なエラーメッセージが提供されませんでした: {output}"
+        assert any(indicator in output for indicator in helpful_indicators), (
+            f"有用なエラーメッセージが提供されませんでした: {output}"
+        )
 
         # Step 2: 無効なオプションのテスト
         invalid_option_result = subprocess.run(
@@ -314,9 +314,9 @@ jobs:
                 if section in content:
                     found_sections.append(section)
 
-            assert (
-                len(found_sections) >= 3
-            ), f"トラブルシューティングドキュメントに十分な情報がありません。見つかったセクション: {found_sections}"
+            assert len(found_sections) >= 3, (
+                f"トラブルシューティングドキュメントに十分な情報がありません。見つかったセクション: {found_sections}"
+            )
 
         # Step 2: actionsディレクトリのドキュメント確認
         actions_readme = project_dir / "docs" / "actions" / "README.md"
@@ -326,9 +326,9 @@ jobs:
             # 使用方法の説明が含まれていることを確認
             usage_indicators = ["使用方法", "実行", "例", "コマンド"]
 
-            assert any(
-                indicator in content for indicator in usage_indicators
-            ), "actionsドキュメントに使用方法が含まれていません"
+            assert any(indicator in content for indicator in usage_indicators), (
+                "actionsドキュメントに使用方法が含まれていません"
+            )
 
         # Step 3: プラットフォームサポートドキュメントの確認
         platform_doc = project_dir / "docs" / "PLATFORM_SUPPORT.md"
@@ -343,9 +343,9 @@ jobs:
                 if platform in content:
                     found_platforms.append(platform)
 
-            assert (
-                len(found_platforms) >= 3
-            ), f"プラットフォームサポートドキュメントに十分な情報がありません。見つかったプラットフォーム: {found_platforms}"
+            assert len(found_platforms) >= 3, (
+                f"プラットフォームサポートドキュメントに十分な情報がありません。見つかったプラットフォーム: {found_platforms}"
+            )
 
     def test_makefile_integration_for_users(self, clean_project_environment):
         """ユーザー向けMakefile統合のテスト"""
@@ -428,9 +428,9 @@ class TestUserExperienceEdgeCases:
                 ".github/workflows",
             ]
 
-            assert any(
-                indicator in output for indicator in guidance_indicators
-            ), f"空のプロジェクトに対する適切なガイダンスが提供されませんでした: {output}"
+            assert any(indicator in output for indicator in guidance_indicators), (
+                f"空のプロジェクトに対する適切なガイダンスが提供されませんでした: {output}"
+            )
 
     def test_permission_issues_handling(self, project_root):
         """権限問題の処理テスト"""

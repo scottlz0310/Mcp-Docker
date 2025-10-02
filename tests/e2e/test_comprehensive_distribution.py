@@ -263,9 +263,9 @@ jobs:
             "darwin",
             "プラットフォーム",
         ]
-        assert any(
-            indicator in output for indicator in platform_indicators
-        ), f"プラットフォーム情報が検出されませんでした: {output}"
+        assert any(indicator in output for indicator in platform_indicators), (
+            f"プラットフォーム情報が検出されませんでした: {output}"
+        )
 
     def test_docker_availability_check(self, script_path, temp_project_dir):
         """Docker可用性チェックのテスト"""
@@ -285,9 +285,9 @@ jobs:
 
         # Docker関連のチェック結果が出力されることを確認
         docker_indicators = ["Docker", "docker", "コンテナ", "イメージ"]
-        assert any(
-            indicator in output for indicator in docker_indicators
-        ), f"Docker関連の情報が見つかりませんでした: {output}"
+        assert any(indicator in output for indicator in docker_indicators), (
+            f"Docker関連の情報が見つかりませんでした: {output}"
+        )
 
     def test_script_with_specific_workflow(self, script_path, temp_project_dir):
         """特定のワークフローファイルを指定した実行のテスト"""
