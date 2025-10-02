@@ -6,7 +6,7 @@ GitHub Actions Simulator - Output テスト
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -41,8 +41,13 @@ class TestOutputModule:
     def test_get_output_root_with_tilde_expansion(self):
         """チルダ展開テスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # ホームディレクトリをモック
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            # ホームディレクトリをモック（expanduserが使用するos.path.expanduserをモック）
+            def mock_expanduser(path):
+                if path.startswith("~"):
+                    return str(Path(temp_dir) / path[2:])
+                return path
+
+            with patch("os.path.expanduser", side_effect=mock_expanduser):
                 test_path = "~/test_output"
 
                 with patch.dict(os.environ, {"MCP_ACTIONS_OUTPUT_DIR": test_path}):
@@ -55,15 +60,25 @@ class TestOutputModule:
     def test_get_output_root_permission_fallback(self):
         """権限エラー時のフォールバック動作テスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # 権限エラーをシミュレート
-            with patch("pathlib.Path.mkdir", side_effect=PermissionError("Permission denied")):
+            fallback_path = Path(temp_dir) / ".cache" / "mcp-docker" / "actions"
+
+            # MagicMockを使って、最初の呼び出しでPermissionError、2回目は実際にディレクトリ作成
+            mock_obj = MagicMock()
+            mock_obj.side_effect = [
+                PermissionError("Permission denied"),  # 最初の呼び出し
+                None,  # 2回目の呼び出し（fallback.mkdir）は成功
+            ]
+
+            with patch.object(Path, "mkdir", mock_obj):
                 with patch("pathlib.Path.home", return_value=Path(temp_dir)):
                     root = get_output_root()
 
                     # フォールバックパスが使用される
-                    expected_fallback = Path(temp_dir) / ".cache" / "mcp-docker" / "actions"
-                    assert root == expected_fallback
-                    assert root.exists()
+                    assert root == fallback_path
+
+            # モックを解除してディレクトリを実際に作成し、存在確認
+            fallback_path.mkdir(parents=True, exist_ok=True)
+            assert fallback_path.exists()
 
     def test_ensure_subdir_single_segment(self):
         """単一セグメントサブディレクトリ作成テスト"""

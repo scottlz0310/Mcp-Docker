@@ -60,6 +60,10 @@ class ExpressionEvaluator:
             operand = self._evaluate_node(node.operand, context)
             if isinstance(node.op, ast.Not):
                 return not operand
+            if isinstance(node.op, ast.USub):
+                return -operand
+            if isinstance(node.op, ast.UAdd):
+                return +operand
             raise ExpressionEvaluationError(f"unsupported unary operator: {ast.dump(node)}")
 
         if isinstance(node, ast.Compare):
@@ -89,8 +93,13 @@ class ExpressionEvaluator:
             value = self._evaluate_node(node.value, context)
             if isinstance(value, Mapping):
                 value_map = cast(Mapping[str, Any], value)
-                return cast(Any, value_map.get(node.attr))
-            return getattr(value, node.attr, None)
+                if node.attr not in value_map:
+                    raise ExpressionEvaluationError(f"attribute '{node.attr}' not found in mapping")
+                return cast(Any, value_map[node.attr])
+            try:
+                return getattr(value, node.attr)
+            except AttributeError as exc:
+                raise ExpressionEvaluationError(f"attribute '{node.attr}' not found") from exc
 
         if isinstance(node, ast.Subscript):
             base_value = self._evaluate_node(node.value, context)
