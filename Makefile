@@ -68,8 +68,34 @@ build: ## Docker イメージをビルド
 	docker compose build
 
 .PHONY: test
-test: ## テスト実行
+test: ## すべてのテスト実行
 	uv run pytest
+
+.PHONY: test-unit
+test-unit: ## ユニットテストのみ実行
+	uv run pytest tests/unit/ -v
+
+.PHONY: test-integration
+test-integration: ## 統合テストのみ実行
+	uv run pytest tests/integration/ -v
+	@if command -v bats >/dev/null 2>&1; then \
+		bats tests/integration/*.bats; \
+	else \
+		echo "⚠️  bats がインストールされていません。batsテストをスキップします。"; \
+	fi
+
+.PHONY: test-e2e
+test-e2e: ## E2Eテストのみ実行（タイムアウト5分）
+	uv run pytest tests/e2e/ -v --timeout=300
+	@if command -v bats >/dev/null 2>&1; then \
+		bats tests/e2e/*.bats; \
+	else \
+		echo "⚠️  bats がインストールされていません。batsテストをスキップします。"; \
+	fi
+
+.PHONY: test-quick
+test-quick: ## 高速テスト（ユニット+統合のみ）
+	uv run pytest tests/unit/ tests/integration/ -v
 
 .PHONY: lint
 lint: ## Lint実行

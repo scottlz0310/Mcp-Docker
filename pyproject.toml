@@ -102,3 +102,21 @@ module = [
     "archive.*",
 ]
 ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "unit: ユニットテスト（外部依存なし）",
+    "integration: 統合テスト（Docker等の外部依存あり）",
+    "e2e: エンドツーエンドテスト（完全なシナリオ）",
+    "slow: 実行時間が長いテスト（5分以上）",
+]
+timeout = 300  # デフォルトタイムアウト5分
