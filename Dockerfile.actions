@@ -39,7 +39,7 @@ COPY tests ./tests
 COPY main.py ./
 
 RUN uv python install "${PYTHON_VERSION}" \
-    && uv sync --locked \
+    && uv sync \
     && uv cache prune --ci
 
 # --- Runtime stage -------------------------------------------------------

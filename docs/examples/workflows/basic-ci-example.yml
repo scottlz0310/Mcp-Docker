@@ -63,7 +63,7 @@ jobs:
       - name: 📦 依存関係インストール
         run: |
           if [ -f "pyproject.toml" ]; then
-            uv sync --locked
+            uv sync
           else
             echo "ℹ️ pyproject.toml が見つかりません"
           fi

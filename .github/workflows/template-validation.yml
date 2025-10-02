@@ -33,7 +33,7 @@ on:
       - '.github/workflows/*.yaml.sample'
       - 'scripts/validate-templates.py'
       - 'scripts/ci-validate-templates.sh'
-      - 'tests/test_template_validation.py'
+      - 'tests/integration/test_template_validation.py'
 
   # メインブランチへのプッシュ時
   push:
@@ -378,7 +378,7 @@ jobs:
       - name: 🧪 検証システム単体テスト実行
         run: |
           echo "🧪 テンプレート検証システムの単体テストを実行中..."
-          uv run pytest tests/test_template_validation.py -v --tb=short
+          uv run pytest tests/integration/test_template_validation.py -v --tb=short
 
       - name: 🔍 検証スクリプト動作確認
         run: |

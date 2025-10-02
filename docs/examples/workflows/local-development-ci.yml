@@ -180,7 +180,7 @@ jobs:
           fi
 
           # uvを使用して依存関係をインストール
-          timeout 300 uv sync --locked || {
+          timeout 300 uv sync || {
             echo "⚠️ uv sync に失敗しました。pipでフォールバック..."
             timeout 300 pip install -e . || {
               echo "❌ 依存関係のインストールに失敗しました"
