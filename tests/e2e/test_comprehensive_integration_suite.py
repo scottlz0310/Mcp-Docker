@@ -34,7 +34,7 @@ class TestComprehensiveIntegration:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent
+        return Path(__file__).parent.parent.parent
 
     @pytest.fixture
     def test_environment(self, project_root):
@@ -575,7 +575,7 @@ class TestSystemStabilityAndReliability:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent
+        return Path(__file__).parent.parent.parent
 
     def test_repeated_execution_stability(self, project_root):
         """繰り返し実行安定性テスト"""
