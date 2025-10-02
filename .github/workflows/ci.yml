@@ -50,7 +50,7 @@ jobs:
           if [ -f "pyproject.toml" ]; then
             echo "📦 Installing dependencies with uv..."
             if command -v uv >/dev/null 2>&1; then
-              timeout 180 uv sync || echo "⚠️ uv sync failed or timed out"
+              timeout 180 uv sync --group dev --group test || echo "⚠️ uv sync failed or timed out"
             else
               echo "⚠️ uv not available, using pip fallback"
               timeout 180 python3 -m pip install -e . || echo "⚠️ pip install failed"

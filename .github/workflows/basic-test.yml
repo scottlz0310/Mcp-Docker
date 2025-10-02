@@ -63,7 +63,7 @@ jobs:
       - name: 📦 依存関係インストール
         run: |
           if [ -f "pyproject.toml" ]; then
-            uv sync
+            uv sync --group dev --group test
           else
             echo "ℹ️ pyproject.toml が見つかりません"
           fi
@@ -80,9 +80,12 @@ jobs:
 
       - name: 🧪 単体テスト実行
         run: |
-          if [ -d "tests" ] || find . -name "test_*.py" | head -1 | grep -q .; then
+          if [ -d "tests/unit" ]; then
             echo "🧪 pytestによる単体テスト..."
-            uv run pytest --tb=short --maxfail=5
+            uv run pytest tests/unit/ --tb=short --maxfail=5
+          elif [ -d "tests" ]; then
+            echo "🧪 pytestによるテスト実行..."
+            uv run pytest tests/ --tb=short --maxfail=5
           else
             echo "ℹ️ テストファイルが見つかりません"
           fi
