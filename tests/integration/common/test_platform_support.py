@@ -171,7 +171,7 @@ class PlatformSupportTest(unittest.TestCase):
             "# プラットフォームサポート",
             "## Linux",
             "## macOS",
-            "## Windows (WSL2)",
+            "### Windows",
             "## 共通の最適化設定",
             "## トラブルシューティング",
         ]
