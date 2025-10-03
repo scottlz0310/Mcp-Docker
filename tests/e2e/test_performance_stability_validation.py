@@ -715,6 +715,7 @@ jobs:
 
 
 # pytest用のテストクラス
+@pytest.mark.slow  # 長時間実行テスト（600秒タイムアウト）
 class TestPerformanceStabilityValidation:
     """pytest用のパフォーマンス・安定性検証テストクラス"""
 

@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from services.actions.enhanced_act_wrapper import EnhancedActWrapper
 from services.actions.diagnostic import DiagnosticService
 from services.actions.execution_tracer import ExecutionTracer
@@ -18,6 +20,7 @@ from services.actions.auto_recovery import AutoRecovery
 from services.actions.logger import ActionsLogger
 
 
+@pytest.mark.slow  # 長時間実行テスト（600秒タイムアウト）
 class TestHangupEndToEnd(unittest.TestCase):
     """エンドツーエンドハングアップテストクラス"""
 

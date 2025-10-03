@@ -13,7 +13,8 @@ import unittest
 from pathlib import Path
 
 # プロジェクトルートを取得
-PROJECT_ROOT = Path(__file__).parent.parent
+# tests/integration/test_support_integration.py から 2つ上が tests/、さらに1つ上がプロジェクトルート
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 

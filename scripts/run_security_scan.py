@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, cast
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SECURITY_ROOT = PROJECT_ROOT / "output" / "security"
 TRIVY_DIR = SECURITY_ROOT / "trivy"
 REPORTS_DIR = TRIVY_DIR / "reports"

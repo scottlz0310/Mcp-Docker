@@ -71,3 +71,28 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.timeout(300))
         elif "slow" in item.keywords:
             item.add_marker(pytest.mark.timeout(600))
+
+
+def pytest_configure(config: Any) -> None:
+    """
+    pytest設定時に実行される
+
+    e2eテストではxdistを無効化または制限する
+    """
+    # config.argsまたはinvocation_dirからe2eディレクトリを検出
+    is_e2e = False
+
+    # コマンドライン引数をチェック
+    if config.args:
+        is_e2e = any("/e2e/" in str(arg) or "e2e" in str(arg) for arg in config.args)
+
+    # カレントディレクトリがe2eの場合
+    if not is_e2e and hasattr(config, "invocation_params"):
+        invocation_dir = str(config.invocation_params.dir)
+        is_e2e = "/e2e" in invocation_dir or invocation_dir.endswith("/e2e")
+
+    if is_e2e:
+        # xdistを無効化
+        if hasattr(config.option, "numprocesses"):
+            config.option.numprocesses = 0  # 0で無効化
+            config.option.dist = "no"

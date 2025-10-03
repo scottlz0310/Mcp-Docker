@@ -11,9 +11,10 @@ import time
 import sys
 
 from .enhanced_act_wrapper import EnhancedActWrapper
-
-# 基本のActWrapperは EnhancedActWrapper の親クラスとして利用
 from .logger import ActionsLogger
+
+# 後方互換性のためのエイリアス
+ActWrapper = EnhancedActWrapper
 
 # 遅延インポートでサイクル依存を回避
 try:

@@ -26,6 +26,14 @@ from services.actions.execution_tracer import (
 )
 from services.actions.logger import ActionsLogger
 
+# 遅延インポートを避けるため、モジュールレベルでインポート
+try:
+    from services.actions.docker_integration_checker import (
+        DockerIntegrationChecker,
+    )
+except ImportError:
+    DockerIntegrationChecker = None  # type: ignore
+
 
 @dataclass
 class DeadlockIndicator:
@@ -792,9 +800,9 @@ class EnhancedActWrapper:
         """自動復旧機能を初期化"""
         try:
             from services.actions.auto_recovery import AutoRecovery
-            from services.actions.docker_integration_checker import (
-                DockerIntegrationChecker,
-            )
+
+            if DockerIntegrationChecker is None:
+                raise ImportError("DockerIntegrationChecker is not available")
 
             docker_checker = DockerIntegrationChecker(logger=self.logger)
             self._auto_recovery = AutoRecovery(

@@ -18,7 +18,7 @@ from services.actions.output import (
     write_log,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_PATTERN = "tests/test_*.bats"
 
 

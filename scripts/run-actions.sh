@@ -1098,10 +1098,12 @@ normalize_workflow_path() {
 
 discover_workflows() {
   WORKFLOW_CHOICES=()
-  while IFS= read -r wf; do
-    wf="${wf#./}"
-    WORKFLOW_CHOICES+=("$wf")
-  done < <(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort)
+  if [[ -d ".github/workflows" ]]; then
+    while IFS= read -r wf; do
+      wf="${wf#./}"
+      WORKFLOW_CHOICES+=("$wf")
+    done < <(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print 2>/dev/null | sort)
+  fi
 }
 
 workflow_exists() {
@@ -1505,12 +1507,7 @@ if [[ "$check_deps_only" == "true" ]]; then
   exit 0
 fi
 
-# 通常実行時の依存関係チェック
-check_dependencies
-
-# Docker イメージの準備
-prepare_docker_image
-
+# ワークフローファイルの早期検証（依存関係チェック前）
 if [[ -n "$ACT_TIMEOUT" ]]; then
   if ! [[ "$ACT_TIMEOUT" =~ ^[0-9]+$ ]] || (( ACT_TIMEOUT <= 0 )); then
     error "タイムアウト値は正の整数（秒）で指定してください: $ACT_TIMEOUT"
@@ -1536,9 +1533,24 @@ if [[ -n "$WORKFLOW" ]]; then
     workflow_from_argument="true"
   else
     error "指定されたワークフローが見つかりません: $WORKFLOW"
+    echo
+    echo "🔍 利用可能なワークフローを確認してください:"
+    if [[ -d ".github/workflows" ]]; then
+      find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | head -5 || echo "  ワークフローファイルが見つかりません"
+    else
+      echo "  .github/workflows ディレクトリが存在しません"
+    fi
+    echo
+    echo "ヘルプを表示するには: $0 --help"
     exit 1
   fi
 fi
+
+# 通常実行時の依存関係チェック
+check_dependencies
+
+# Docker イメージの準備
+prepare_docker_image
 
 if [[ -z "$WORKFLOW" ]]; then
   should_prompt="true"

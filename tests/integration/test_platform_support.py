@@ -21,7 +21,8 @@ class PlatformSupportTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """テストクラスの初期化"""
-        cls.project_root = Path(__file__).parent.parent
+        # tests/integration から 2つ上がプロジェクトルート
+        cls.project_root = Path(__file__).parent.parent.parent
         cls.scripts_dir = cls.project_root / "scripts"
         cls.platform_info = cls._get_platform_info()
 
@@ -323,7 +324,7 @@ class PlatformSpecificTest(unittest.TestCase):
     def setUp(self):
         """各テストの初期化"""
         self.system = platform.system().lower()
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
 
     @unittest.skipUnless(platform.system().lower() == "linux", "Linux でのみ実行")
     def test_linux_specific_features(self):

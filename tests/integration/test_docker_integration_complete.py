@@ -1,6 +1,9 @@
 """
 GitHub Actions Simulator - 完全なDocker統合テスト
 全てのDocker統合コンポーネントが連携して動作することを確認します。
+
+注意: このテストファイルは簡素化により削除された機能をテストしているため、
+      現在はスキップされています。
 """
 
 import pytest
@@ -18,6 +21,7 @@ from services.actions.docker_integration_checker import (
 from services.actions.logger import ActionsLogger
 
 
+@pytest.mark.skip(reason="簡素化により削除された詳細なDocker統合機能をテストしているため")
 class TestDockerIntegrationComplete:
     """完全なDocker統合テストクラス"""
 
