@@ -1,98 +1,47 @@
-"""
-pytest設定とフィクスチャ
+"""pytest共通設定 - プロジェクトルート取得を一元化"""
 
-このファイルはpytestの設定とテスト全体で共有されるフィクスチャを定義します。
-"""
-
-import os
-from typing import Any
-
-import pytest
+import sys
+from pathlib import Path
 
 
-def pytest_xdist_auto_num_workers(config: Any) -> int | None:  # noqa: ARG001
-    """
-    pytest-xdistの自動ワーカー数を物理コア数に設定
+def find_project_root(start_path: Path | None = None) -> Path:
+    """プロジェクトルートを検出
 
-    デフォルトではautoは論理コア数を使用しますが、
-    この関数で物理コア数に変更できます。
+    pyproject.toml, .git, setup.pyのいずれかが存在するディレクトリを
+    プロジェクトルートとして返す。
 
     Args:
-        config: pytest設定オブジェクト（未使用）
+        start_path: 検索開始パス（デフォルト: このファイルの場所）
 
     Returns:
-        ワーカー数（Noneの場合はデフォルト動作）
+        プロジェクトルートのPath
+
+    Raises:
+        RuntimeError: プロジェクトルートが見つからない場合
     """
-    # 環境変数で明示的に指定されている場合はそちらを優先
-    if "PYTEST_XDIST_WORKER_COUNT" in os.environ:
-        try:
-            return int(os.environ["PYTEST_XDIST_WORKER_COUNT"])
-        except ValueError:
-            pass
+    if start_path is None:
+        start_path = Path(__file__).resolve().parent
 
-    # デフォルト: 論理コア数を使用（最高のパフォーマンス）
-    return None  # Noneを返すとpytest-xdistのデフォルト動作
+    current = start_path
+    for _ in range(10):  # 最大10階層まで遡る
+        markers = [
+            current / "pyproject.toml",
+            current / ".git",
+            current / "setup.py",
+        ]
+        if any(marker.exists() for marker in markers):
+            return current
 
+        if current.parent == current:  # ルートディレクトリに到達
+            break
+        current = current.parent
 
-def pytest_collection_modifyitems(
-    config: Any,
-    items: list[pytest.Item],  # noqa: ARG001
-) -> None:
-    """
-    テスト収集後にマーカーに基づいてタイムアウトを設定
-
-    ディレクトリ構造に基づいて自動的にマーカーを付与：
-    - tests/unit/: unit マーカー（30秒タイムアウト）
-    - tests/integration/: integration マーカー（60秒タイムアウト）
-    - tests/e2e/: e2e マーカー（300秒タイムアウト）
-    - slow マーカーが明示的に付与されている: 600秒タイムアウト
-
-    Args:
-        config: pytest設定オブジェクト
-        items: 収集されたテストアイテムのリスト
-    """
-    for item in items:
-        # ファイルパスに基づいて自動的にマーカーを付与
-        test_path = str(item.fspath)
-
-        if "/tests/unit/" in test_path and "unit" not in item.keywords:
-            item.add_marker(pytest.mark.unit)
-        elif "/tests/integration/" in test_path and "integration" not in item.keywords:
-            item.add_marker(pytest.mark.integration)
-        elif "/tests/e2e/" in test_path and "e2e" not in item.keywords:
-            item.add_marker(pytest.mark.e2e)
-
-        # マーカーに基づいてタイムアウトを設定
-        if "unit" in item.keywords:
-            item.add_marker(pytest.mark.timeout(30))
-        elif "integration" in item.keywords:
-            item.add_marker(pytest.mark.timeout(60))
-        elif "e2e" in item.keywords:
-            item.add_marker(pytest.mark.timeout(300))
-        elif "slow" in item.keywords:
-            item.add_marker(pytest.mark.timeout(600))
+    raise RuntimeError(f"プロジェクトルートが見つかりません（開始: {start_path}）")
 
 
-def pytest_configure(config: Any) -> None:
-    """
-    pytest設定時に実行される
+# グローバル変数として公開
+PROJECT_ROOT = find_project_root()
 
-    e2eテストではxdistを無効化または制限する
-    """
-    # config.argsまたはinvocation_dirからe2eディレクトリを検出
-    is_e2e = False
-
-    # コマンドライン引数をチェック
-    if config.args:
-        is_e2e = any("/e2e/" in str(arg) or "e2e" in str(arg) for arg in config.args)
-
-    # カレントディレクトリがe2eの場合
-    if not is_e2e and hasattr(config, "invocation_params"):
-        invocation_dir = str(config.invocation_params.dir)
-        is_e2e = "/e2e" in invocation_dir or invocation_dir.endswith("/e2e")
-
-    if is_e2e:
-        # xdistを無効化
-        if hasattr(config.option, "numprocesses"):
-            config.option.numprocesses = 0  # 0で無効化
-            config.option.dist = "no"
+# Pythonパスに追加（絶対インポートを可能にする）
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
