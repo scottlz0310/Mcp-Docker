@@ -211,30 +211,30 @@ CMD ["uv", "run", "python", "main.py", "actions", "--help"]
 ## 移行チェックリスト
 
 ### 事前準備
-- [ ] 現在のDockerfile、Dockerfile.actionsをバックアップ
-- [ ] 統合Dockerfileを作成
-- [ ] ローカルでビルドテスト成功
+- [x] 現在のDockerfile、Dockerfile.actionsをバックアップ
+- [x] 統合Dockerfileを作成
+- [x] ローカルでビルドテスト成功
 
 ### テスト
-- [ ] github-mcpサービスが起動する
-- [ ] datetime-validatorサービスが起動する
-- [ ] actions-simulatorサービスが起動する
-- [ ] actions-serverサービスが起動する
-- [ ] actions-shellサービスが起動する
-- [ ] `make actions-run INDEX=1` が成功する
+- [x] github-mcpサービスが起動する
+- [x] datetime-validatorサービスが起動する
+- [x] actions-simulatorサービスが起動する
+- [x] actions-serverサービスが起動する
+- [x] actions-shellサービスが起動する
+- [x] `make actions-run INDEX=1` が成功する
 
 ### CI/CD
-- [ ] ci.ymlのビルドが成功する
-- [ ] quality-gates.ymlのビルドが成功する
-- [ ] security.ymlのセキュリティスキャンが成功する
-- [ ] キャッシュが正常に機能する
+- [x] ci.ymlのビルドが成功する（キャッシュキー確認済み）
+- [x] quality-gates.ymlのビルドが成功する
+- [x] security.ymlのセキュリティスキャンが成功する
+- [x] キャッシュが正常に機能する
 
 ### 本番適用
-- [ ] docker-compose.ymlを更新
-- [ ] Makefileの動作確認（必要なら更新）
-- [ ] READMEのビルド手順を更新
-- [ ] 古いDockerfileを削除
-- [ ] コミット & プッシュ
+- [x] docker-compose.ymlを更新
+- [x] Makefileの動作確認（必要なら更新）
+- [x] READMEのビルド手順を更新
+- [x] 古いDockerfileを削除
+- [x] コミット & プッシュ
 
 ## リスクと軽減策
 
@@ -271,3 +271,51 @@ CMD ["uv", "run", "python", "main.py", "actions", "--help"]
 
 4. **将来の拡張性**
    - 新しいサービス追加時も統一されたパターンで対応可能
+
+---
+
+## 📋 実施結果（2025-10-03完了）
+
+### 成果サマリー
+
+✅ **完了日**: 2025年10月3日
+✅ **コミット**: 661531f "refactor: Dockerfileを統合してマルチステージビルドに移行"
+✅ **変更**: 13 files changed, 674 insertions(+), 212 deletions(-)
+
+### 実装内容
+
+#### 統合Dockerfile（236行）
+- **base**: Python 3.13 + 基本ツール
+- **base-with-node**: Node.js 20を追加
+- **builder**: Python依存関係ビルド
+- **act-installer**: act CLIインストール
+- **mcp-server**: GitHub MCPサーバー（Node.js 20 + Python）
+- **datetime-validator**: DateTime検証サービス
+- **actions-simulator**: GitHub Actions Simulator
+
+#### 主な改善
+1. Node.js 20使用（catthehacker/ubuntu:runner-latest）
+2. setup-uv@v6の互換性問題を解決
+3. --pull=falseでネットワークタイムアウト回避
+4. .cacheディレクトリを除外してRuffチェックを最適化
+5. hadolint警告を修正（SHELL pipefail設定）
+
+### 検証結果
+
+✅ すべてのサービスがビルド成功
+✅ `make actions-run INDEX=1` で Job succeeded
+✅ 全pre-commitフックが通過
+✅ ビルドキャッシュが効率的に動作
+
+### 削除されたファイル
+- `Dockerfile.actions` - 統合Dockerfileに置き換え
+
+### 追加されたファイル
+- `.clinerules/dockerfile-consolidation-plan.md` - この統合計画ドキュメント
+- `services/actions/path_utils.py` - パス解決ロジック
+
+### 期待通りの効果を確認
+- ✅ 保守性向上: 依存関係の更新が1箇所で完結
+- ✅ ビルド効率化: 共通レイヤーのキャッシュで高速ビルド
+- ✅ 一貫性: すべてのサービスが同じベースを使用
+- ✅ 最新化: Node.js 20、最新の依存関係
