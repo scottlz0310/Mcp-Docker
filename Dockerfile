@@ -15,7 +15,7 @@
 
 ARG PYTHON_VERSION=3.13
 ARG NODE_VERSION=20
-ARG ACT_VERSION=v0.2.69
+ARG ACT_VERSION=v0.2.82
 
 # =============================================================================
 # Base Stage: Python + Essential Tools
