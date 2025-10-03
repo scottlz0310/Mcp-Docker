@@ -579,8 +579,9 @@ class TestEnhancedActWrapperWithAutoRecovery(unittest.TestCase):
             enable_diagnostics=False,
         )
 
-        # プロパティの存在確認
-        self.assertIsNotNone(wrapper.diagnostic_service)  # Noneでも属性は存在
+        # プロパティの存在確認（enable_diagnostics=Falseの場合はNoneになる）
+        # diagnostic_serviceはenable_diagnostics=Falseの場合None
+        self.assertIsNone(wrapper.diagnostic_service)
         self.assertIsNotNone(wrapper.process_monitor)
         # auto_recoveryとdocker_integration_checkerは依存関係により None の可能性あり
 
@@ -602,7 +603,16 @@ class TestEnhancedActWrapperWithAutoRecovery(unittest.TestCase):
         self.assertIn("total_sessions", stats)
         self.assertIn("successful_sessions", stats)
         self.assertIn("success_rate", stats)
-        self.assertIn("auto_recovery_available", stats)
+        # 実装側では_auto_recoveryが初期化されるため、
+        # get_recovery_statistics()が呼ばれ、auto_recovery_availableは含まれない
+        # 代わりにrecovery_type_statistics, current_session_active, last_session_timeが含まれる
+        self.assertIn("recovery_type_statistics", stats)
+        self.assertIn("current_session_active", stats)
+        # 復旧履歴がない場合、全ての統計は0/False/None
+        self.assertEqual(stats["total_sessions"], 0)
+        self.assertEqual(stats["successful_sessions"], 0)
+        self.assertEqual(stats["success_rate"], 0.0)
+        self.assertFalse(stats["current_session_active"])
 
     def test_build_act_command(self):
         """actコマンド構築テスト"""
