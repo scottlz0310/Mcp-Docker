@@ -7,16 +7,13 @@ PreCommitフックで実行され、開発速度を向上させます。
 """
 
 import os
-import sys
 from conftest import PROJECT_ROOT
 from unittest.mock import Mock, patch
 
 import pytest
 
-# プロジェクトルートをパスに追加
+# sys.path設定はconftest.pyで自動実行
 project_root = PROJECT_ROOT
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 # ruff: noqa: E402
 from src.diagnostic_service import DiagnosticService

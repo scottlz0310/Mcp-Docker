@@ -16,7 +16,7 @@ from conftest import PROJECT_ROOT
 # プロジェクトルートを取得
 # tests/integration/test_support_integration.py から 2つ上が tests/、さらに1つ上がプロジェクトルート
 PROJECT_ROOT = PROJECT_ROOT
-sys.path.insert(0, str(PROJECT_ROOT))
+# sys.path設定はconftest.pyで自動実行
 
 
 class SupportIntegrationTest(unittest.TestCase):

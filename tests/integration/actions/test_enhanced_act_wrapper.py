@@ -11,14 +11,12 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from conftest import PROJECT_ROOT
 from unittest.mock import Mock, patch
 
 # テスト対象のインポート
-import sys
 
-sys.path.append(str(PROJECT_ROOT / "services"))
-sys.path.append(str(PROJECT_ROOT / "services" / "actions"))
+# sys.path設定はconftest.pyで自動実行 #  / "services"))
+# sys.path設定はconftest.pyで自動実行 #  / "services" / "actions"))
 
 # モジュールを直接インポート
 from services.actions.enhanced_act_wrapper import (

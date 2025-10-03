@@ -23,10 +23,9 @@ import pytest
 from pathlib import Path
 from conftest import PROJECT_ROOT
 from unittest.mock import patch, MagicMock
-import sys
 
 # テスト対象のモジュールをインポート
-sys.path.insert(0, str(PROJECT_ROOT))
+# sys.path設定はconftest.pyで自動実行
 
 # Import the module with the correct name
 import importlib.util

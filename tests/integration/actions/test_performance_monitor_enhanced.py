@@ -8,13 +8,11 @@
 import pytest
 import time
 import threading
-from conftest import PROJECT_ROOT
 from unittest.mock import patch
-import sys
 import json
 
 # パフォーマンス監視モジュールをインポート
-sys.path.append(str(PROJECT_ROOT / "src"))
+# sys.path設定はconftest.pyで自動実行 #  / "src"))
 from performance_monitor import (
     PerformanceMonitor,
     PerformanceMetrics,
