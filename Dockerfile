@@ -214,3 +214,8 @@ USER actions
 
 ENTRYPOINT ["tini", "--"]
 CMD ["uv", "run", "python", "main.py", "actions", "--help"]
+
+# =============================================================================
+# Default Target: MCP Server (for backward compatibility)
+# =============================================================================
+FROM mcp-server AS default

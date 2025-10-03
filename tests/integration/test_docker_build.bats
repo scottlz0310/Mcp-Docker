@@ -20,6 +20,7 @@ load ../helpers/test_helper
     docker build -t mcp-docker-test . >/dev/null 2>&1
     run docker inspect mcp-docker-test --format='{{.Config.User}}'
     [ "$status" -eq 0 ]
+    # デフォルトターゲット（mcp-server）はmcpユーザーを使用
     [[ "$output" =~ "mcp" ]]
 }
 
