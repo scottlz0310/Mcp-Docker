@@ -288,7 +288,6 @@ jobs:
             echo "No Python test files found in tests/integration/actions/, skipping..."
             exit 0
           fi
-        continue-on-error: true
 
       - name: Run pytest (integration tests - services)
         id: integration-services
@@ -301,7 +300,6 @@ jobs:
             echo "No Python test files found in tests/integration/services/, skipping..."
             exit 0
           fi
-        continue-on-error: true
 
       - name: Run pytest (integration tests - common)
         id: integration-common
@@ -313,15 +311,13 @@ jobs:
             echo "No Python test files found in tests/integration/common/, skipping..."
             exit 0
           fi
-        continue-on-error: true
 
       - name: Run pytest (e2e tests - selected)
         id: e2e-tests
         run: |
           uv run pytest tests/e2e/test_comprehensive_integration.py -v --tb=short
-        continue-on-error: true
 
-      - name: Check test results
+      - name: Summary test results
         if: always()
         run: |
           echo "## テスト結果サマリ" >> $GITHUB_STEP_SUMMARY
@@ -331,14 +327,6 @@ jobs:
           echo "- Integration (Services): ${{ steps.integration-services.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "- Integration (Common): ${{ steps.integration-common.outcome }}" >> $GITHUB_STEP_SUMMARY
           echo "- E2E Tests: ${{ steps.e2e-tests.outcome }}" >> $GITHUB_STEP_SUMMARY
-
-          # 統合テストが失敗した場合はジョブを失敗させる
-          if [[ "${{ steps.integration-actions.outcome }}" == "failure" ]] || \
-             [[ "${{ steps.integration-services.outcome }}" == "failure" ]] || \
-             [[ "${{ steps.integration-common.outcome }}" == "failure" ]]; then
-            echo "❌ 統合テストが失敗しました"
-            exit 1
-          fi
 
   bats-test:
     name: 🧪 Bats Test (shell scripts)
@@ -602,16 +590,13 @@ jobs:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           echo "🧪 Running Docker service integration tests..."
-          uv run pytest tests/integration/services/ -v --tb=short
-        continue-on-error: true
-
-      - name: Check test results
-        if: always()
-        run: |
-          if [[ "${{ steps.service-tests.outcome }}" == "failure" ]]; then
-            echo "❌ Dockerサービス統合テストが失敗しました"
-            echo "ログを確認して問題を修正してください"
-            exit 1
+          # tests/integration/services/ には Python テストがない場合があるため、
+          # 存在する場合のみ実行
+          if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/services/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/services/, skipping..."
+            exit 0
           fi
 
       - name: Cleanup
