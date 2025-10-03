@@ -1,0 +1,6 @@
+# shellcheck configuration
+# https://github.com/koalaman/shellcheck/wiki/Directive
+
+# SC2129: Consider using { cmd1; cmd2; } >> file instead of individual redirects
+# 理由: 個別のリダイレクトの方が可読性が高い場合がある
+disable=SC2129
