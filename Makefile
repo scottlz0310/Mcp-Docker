@@ -130,104 +130,23 @@ venv: ## 仮想環境作成
 	uv venv
 
 # ----------------------------------------
+	@echo "すべてのキャッシュをクリーンアップ完了"
+
 # クリーンアップ
-# ----------------------------------------
+.PHONY: clean clean-docker clean-all
 
-.PHONY: clean
 clean: ## 一時ファイル削除
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@echo "キャッシュをクリーンアップ中..."
+	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage test-results
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+	@echo "キャッシュクリーンアップ完了"
 
-.PHONY: clean-docker
 clean-docker: ## Docker リソースクリーンアップ
+	@echo "Dockerリソースをクリーンアップ中..."
 	docker compose down -v
 	docker system prune -f
+	@echo "Dockerクリーンアップ完了"
 
-.PHONY: clean-all
 clean-all: clean clean-docker ## 全てクリーンアップ
-
-# ----------------------------------------
-# examples/ のテスト
-# ----------------------------------------
-
-.PHONY: test-examples
-test-examples: ## examples/ の動作確認
-	@echo "🧪 GitHub MCP の動作確認..."
-	cd examples/github-mcp && cp .env.example .env && docker compose config && rm .env
-	@echo "🧪 Actions Simulator の動作確認..."
-	cd examples/actions-simulator && cp .env.example .env && docker compose config && rm .env
-	@echo "🧪 DateTime Validator の動作確認..."
-	cd examples/datetime-validator && cp .env.example .env && docker compose config && rm .env
-	@echo "✅ 全ての examples が正常です"
-
-# ----------------------------------------
-# ドキュメント
-# ----------------------------------------
-
-.PHONY: docs
-docs: ## ドキュメント生成（将来の拡張用）
-	@echo "📚 ドキュメントは examples/ と docs/ を参照してください"
-
-.PHONY: validate-docs
-validate-docs: ## ドキュメント検証
-	@echo "📋 README リンクチェック..."
-	@find . -name "README.md" -exec echo "Checking: {}" \;
-
-# ----------------------------------------
-# CI/CD サポート
-# ----------------------------------------
-
-.PHONY: ci-test
-ci-test: install lint test security-check ## CI用テストスイート
-	@echo "✅ 全てのCI/CDテストが完了しました"
-
-.PHONY: pre-commit
-pre-commit: lint format type-check test ## コミット前チェック
-	@echo "✅ コミット準備完了"
-
-# ----------------------------------------
-# ヘルプ
-# ----------------------------------------
-
-.PHONY: help
-help: ## このヘルプを表示
-	@echo "Mcp-Docker - Docker サーバー管理"
-	@echo ""
-	@echo "利用可能なコマンド:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
-	@echo ""
-	@echo "使用例:"
-	@echo "  make start           # 全サービス起動"
-	@echo "  make github-mcp      # GitHub MCPサーバーのみ起動"
-	@echo "  make test-examples   # examples/ の動作確認"
-	@echo "  make clean-all       # 全てクリーンアップ"
-
-# カバレッジ測定
-.PHONY: coverage coverage-unit coverage-html coverage-report
-
-coverage: coverage-unit
-
-coverage-unit:
-	@echo "ユニットテストのカバレッジを測定中..."
-	uv run pytest tests/unit/ \
-		--cov=src \
-		--cov=scripts \
-		--cov=services \
-		--cov-report=term-missing \
-		--cov-report=html
-
-coverage-html:
-	@echo "カバレッジHTMLレポートを生成中..."
-	uv run pytest tests/unit/ \
-		--cov=src \
-		--cov=scripts \
-		--cov=services \
-		--cov-report=html
-	@echo "レポート: htmlcov/index.html"
-
-coverage-report:
-	@echo "カバレッジレポートを表示中..."
-	uv run coverage report -m
+	@echo "すべてのクリーンアップ完了"
