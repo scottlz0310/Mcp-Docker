@@ -363,17 +363,14 @@ jobs:
           echo "✅ リンク有効性チェック完了"
 
   # ---------------------------------------------------------------------------
-  # テンプレート検証
+  # テンプレート検証（簡素化計画により無効化）
   # ---------------------------------------------------------------------------
   template-validation:
     name: 📋 テンプレート検証
     runs-on: ubuntu-latest
     needs: quality-gate-setup
     timeout-minutes: 20
-    if: >
-      ${{ contains(needs.quality-gate-setup.outputs.changed-files, '.sample') ||
-      contains(needs.quality-gate-setup.outputs.changed-files, '.example') ||
-      needs.quality-gate-setup.outputs.needs-full-validation == 'true' }}
+    if: false  # 簡素化計画でテンプレートファイルを削除したため無効化
 
     steps:
       - name: 📥 ソースコード取得
