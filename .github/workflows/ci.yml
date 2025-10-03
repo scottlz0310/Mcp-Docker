@@ -538,14 +538,24 @@ jobs:
         if: always()
         run: docker compose down -v || true
 
-  integration:
+  docker-services-integration:
+    name: 🐳 Docker Services Integration
     runs-on: ubuntu-latest
-    needs: fast-lint # buildジョブに依存せず、fast-lintのみに依存
+    needs: fast-lint
     steps:
       - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync --group test
 
       - name: Build and start services
         env:
@@ -554,30 +564,33 @@ jobs:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose build
-          # CI環境ではGitHub MCPサービスをスキップ
-          docker compose up -d datetime-validator
+          docker compose up -d github-mcp datetime-validator actions-simulator
           sleep 30
 
       - name: Check service health
         env:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
+          echo "🔍 Service Health Check"
           docker compose ps
-          docker compose logs datetime-validator
+          echo ""
+          echo "📜 Service Logs"
+          docker compose logs --tail=50
 
-      - name: Run integration tests
-        id: integration-tests
+      - name: Run service integration tests
+        id: service-tests
         env:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
-          uv run pytest tests/integration/ -v --tb=short
+          echo "🧪 Running Docker service integration tests..."
+          uv run pytest tests/integration/services/ -v --tb=short
         continue-on-error: true
 
-      - name: Check integration test results
+      - name: Check test results
         if: always()
         run: |
-          if [[ "${{ steps.integration-tests.outcome }}" == "failure" ]]; then
-            echo "❌ 統合テストが失敗しました"
+          if [[ "${{ steps.service-tests.outcome }}" == "failure" ]]; then
+            echo "❌ Dockerサービス統合テストが失敗しました"
             echo "ログを確認して問題を修正してください"
             exit 1
           fi
