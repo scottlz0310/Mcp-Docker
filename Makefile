@@ -204,3 +204,30 @@ help: ## このヘルプを表示
 	@echo "  make github-mcp      # GitHub MCPサーバーのみ起動"
 	@echo "  make test-examples   # examples/ の動作確認"
 	@echo "  make clean-all       # 全てクリーンアップ"
+
+# カバレッジ測定
+.PHONY: coverage coverage-unit coverage-html coverage-report
+
+coverage: coverage-unit
+
+coverage-unit:
+	@echo "ユニットテストのカバレッジを測定中..."
+	uv run pytest tests/unit/ \
+		--cov=src \
+		--cov=scripts \
+		--cov=services \
+		--cov-report=term-missing \
+		--cov-report=html
+
+coverage-html:
+	@echo "カバレッジHTMLレポートを生成中..."
+	uv run pytest tests/unit/ \
+		--cov=src \
+		--cov=scripts \
+		--cov=services \
+		--cov-report=html
+	@echo "レポート: htmlcov/index.html"
+
+coverage-report:
+	@echo "カバレッジレポートを表示中..."
+	uv run coverage report -m
