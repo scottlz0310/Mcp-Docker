@@ -579,7 +579,7 @@ jobs:
         with:
           pattern: "*-quality-report*"
           merge-multiple: true
-        continue-on-error: true
+        continue-on-error: false
 
       - name: 📊 統合品質レポート生成
         run: |

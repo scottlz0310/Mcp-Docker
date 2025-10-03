@@ -125,7 +125,7 @@ tests/
 #### 2.1 `pytest` ジョブの修正
 
 **現状の問題**:
-- `continue-on-error: true` で失敗しても成功扱いになる
+- `continue-on-error: false` で失敗しても成功扱いになる
 
 **修正案**:
 ```yaml
@@ -139,22 +139,22 @@ pytest:
     - name: Run pytest (integration tests - actions)
       id: integration-actions
       run: uv run pytest tests/integration/actions/ -v --tb=short
-      continue-on-error: true
+      continue-on-error: false
 
     - name: Run pytest (integration tests - services)
       id: integration-services
       run: uv run pytest tests/integration/services/ -v --tb=short
-      continue-on-error: true
+      continue-on-error: false
 
     - name: Run pytest (integration tests - common)
       id: integration-common
       run: uv run pytest tests/integration/common/ -v --tb=short
-      continue-on-error: true
+      continue-on-error: false
 
     - name: Run pytest (e2e tests - selected)
       id: e2e-tests
       run: uv run pytest tests/e2e/test_comprehensive_integration.py -v --tb=short
-      continue-on-error: true
+      continue-on-error: false
 
     - name: Check test results
       if: always()
@@ -210,7 +210,7 @@ integration:
       id: integration-tests
       run: |
         uv run pytest tests/integration/ -v --tb=short
-      continue-on-error: true
+      continue-on-error: false
 
     - name: Check integration test results
       if: always()
