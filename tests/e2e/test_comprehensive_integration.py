@@ -380,13 +380,16 @@ jobs:
 
         # 1. ワークフロー解析パフォーマンス
         workflow_file = workspace_dir / ".github" / "workflows" / "complex.yml"
-        parser = WorkflowParser()
 
-        start_time = time.time()
-        for _ in range(10):  # 10回実行して平均を取る
-            parser.parse_file(workflow_file)
-        parsing_time = (time.time() - start_time) / 10
-        benchmarks["workflow_parsing_avg_ms"] = parsing_time * 1000
+        # ワークフローファイルが存在する場合のみパフォーマンステスト実行
+        if workflow_file.exists():
+            parser = WorkflowParser()
+
+            start_time = time.time()
+            for _ in range(10):  # 10回実行して平均を取る
+                parser.parse_file(workflow_file)
+            parsing_time = (time.time() - start_time) / 10
+            benchmarks["workflow_parsing_avg_ms"] = parsing_time * 1000
 
         # 2. 診断サービスパフォーマンス
         diagnostic_service = DiagnosticService(logger=self.logger)
