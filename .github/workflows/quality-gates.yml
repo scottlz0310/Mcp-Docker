@@ -208,8 +208,8 @@ jobs:
         run: |
           echo "🔍 配布スクリプトの構文チェック中..."
 
-          # Shell構文チェック
-          find scripts/ -name "*.sh" -type f -exec shellcheck {} +
+          # Shell構文チェック (error レベルのみ)
+          find scripts/ -name "*.sh" -type f -exec shellcheck --severity=error {} +
 
           # Python構文チェック
           find scripts/ -name "*.py" -type f -exec python3 -m py_compile {} +

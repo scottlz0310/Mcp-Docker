@@ -281,19 +281,38 @@ jobs:
       - name: Run pytest (integration tests - actions)
         id: integration-actions
         run: |
-          uv run pytest tests/integration/actions/ -v --tb=short
+          # テストファイルが存在する場合のみ実行
+          if find tests/integration/actions/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/actions/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/actions/, skipping..."
+            exit 0
+          fi
         continue-on-error: true
 
       - name: Run pytest (integration tests - services)
         id: integration-services
         run: |
-          uv run pytest tests/integration/services/ -v --tb=short
+          # tests/integration/services/ には Python テストがない場合があるため、
+          # 存在する場合のみ実行
+          if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/services/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/services/, skipping..."
+            exit 0
+          fi
         continue-on-error: true
 
       - name: Run pytest (integration tests - common)
         id: integration-common
         run: |
-          uv run pytest tests/integration/common/ -v --tb=short
+          # テストファイルが存在する場合のみ実行
+          if find tests/integration/common/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/common/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/common/, skipping..."
+            exit 0
+          fi
         continue-on-error: true
 
       - name: Run pytest (e2e tests - selected)
