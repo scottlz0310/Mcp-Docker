@@ -1,15 +1,12 @@
 ---
 services:
   github-mcp:
-    image: ghcr.io/scottlz0310/mcp-docker:latest
+    image: ghcr.io/github/github-mcp-server:latest
     container_name: mcp-github
     env_file: .env
     stdin_open: true
     tty: true
     restart: unless-stopped
-    command:
-      - "node"
-      - "/usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js"
     networks:
       - mcp-network
 

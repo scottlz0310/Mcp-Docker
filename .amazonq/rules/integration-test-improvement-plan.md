@@ -125,7 +125,7 @@ tests/
 #### 2.1 `pytest` ジョブの修正
 
 **現状の問題**:
-- `continue-on-error: false` で失敗しても成功扱いになる
+- `continue-on-error: true` で失敗しても成功扱いになる
 
 **修正案**:
 ```yaml
