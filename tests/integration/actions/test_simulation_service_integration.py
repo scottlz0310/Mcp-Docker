@@ -302,39 +302,23 @@ jobs:
 
     def test_simulation_service_backward_compatibility(self):
         """既存機能との後方互換性テスト"""
-        # 拡張機能を無効にした通常のSimulationService
         service = SimulationService(
             use_enhanced_wrapper=False,
             enable_diagnostics=False,
             enable_performance_monitoring=False,
         )
 
-        with patch("services.actions.service.ActWrapper") as mock_wrapper:
-            mock_wrapper_instance = Mock()
-            mock_wrapper_instance.run_workflow.return_value = {
-                "success": True,
-                "returncode": 0,
-                "stdout": "Basic output",
-                "stderr": "",
-                "command": "act test.yml",
-            }
-            mock_wrapper.return_value = mock_wrapper_instance
+        params = SimulationParameters(workflow_file=self.workflow_file, verbose=False)
+        result = service.run_simulation(params)
 
-            params = SimulationParameters(workflow_file=self.workflow_file, verbose=False)
-
-            result = service.run_simulation(params)
-
-            # 基本機能の動作確認
-            assert result.success is True
-            assert result.return_code == 0
-            assert result.stdout == "Basic output"
-            assert result.metadata["enhanced_wrapper"] is False
-
-            # 拡張機能が無効でも基本的な詳細レポートは生成される
-            assert result.execution_time_ms > 0.0  # 実行時間は常に測定される
-            assert len(result.diagnostic_results) == 0  # 診断は無効
-            assert result.performance_metrics == {}  # パフォーマンス監視は無効
-            assert result.execution_trace == {}  # 実行トレースは無効
+        assert result.success is True
+        assert result.return_code == 0
+        assert "Job succeeded" in result.stdout
+        assert result.metadata["enhanced_wrapper"] is False
+        assert result.execution_time_ms > 0.0
+        assert len(result.diagnostic_results) == 0
+        assert result.performance_metrics == {}
+        assert result.execution_trace == {}
 
     def teardown_method(self):
         """テストクリーンアップ"""

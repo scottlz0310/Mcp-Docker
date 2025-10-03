@@ -2,7 +2,7 @@
 # 検証対象: Security
 # 目的: セキュリティ設定とベストプラクティスの確認
 
-load ../helpers/test_helper
+load ../../helpers/test_helper
 
 setup() {
     setup_test_workspace

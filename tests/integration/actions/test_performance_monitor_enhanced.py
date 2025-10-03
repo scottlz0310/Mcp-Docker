@@ -13,7 +13,7 @@ import json
 
 # パフォーマンス監視モジュールをインポート
 # sys.path設定はconftest.pyで自動実行 #  / "src"))
-from performance_monitor import (
+from src.performance_monitor import (
     PerformanceMonitor,
     PerformanceMetrics,
     ExecutionStage,

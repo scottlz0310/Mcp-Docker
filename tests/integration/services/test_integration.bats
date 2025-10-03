@@ -2,7 +2,7 @@
 # 検証対象: Integration
 # 目的: サービス間連携とE2Eテスト
 
-load ../helpers/test_helper
+load ../../helpers/test_helper
 
 setup() {
     setup_test_workspace
