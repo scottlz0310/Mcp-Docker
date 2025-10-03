@@ -45,16 +45,12 @@ class ActRunnerSettings:
         runner_cfg_raw = config.get("runner", {})
         if not isinstance(runner_cfg_raw, Mapping):
             runner_cfg_raw = {}
-        runner_cfg: Dict[str, Any] = {
-            str(key): value for key, value in runner_cfg_raw.items()
-        }
+        runner_cfg: Dict[str, Any] = {str(key): value for key, value in runner_cfg_raw.items()}
 
         env_cfg_raw = config.get("environment", {})
         if not isinstance(env_cfg_raw, Mapping):
             env_cfg_raw = {}
-        env_cfg: Dict[str, Any] = {
-            str(key): value for key, value in env_cfg_raw.items()
-        }
+        env_cfg: Dict[str, Any] = {str(key): value for key, value in env_cfg_raw.items()}
 
         image = runner_cfg.get("image")
         platforms_value = runner_cfg.get("platforms", ())
@@ -75,12 +71,8 @@ class ActRunnerSettings:
         return cls(
             image=str(image) if isinstance(image, str) else None,
             platforms=platforms,
-            container_workdir=(
-                str(container_workdir) if isinstance(container_workdir, str) else None
-            ),
-            cache_dir=(
-                str(cache_dir) if isinstance(cache_dir, str) else "/opt/act/cache"
-            ),
+            container_workdir=(str(container_workdir) if isinstance(container_workdir, str) else None),
+            cache_dir=(str(cache_dir) if isinstance(cache_dir, str) else "/opt/act/cache"),
             env=resolved_env,
         )
 
@@ -98,9 +90,7 @@ class ActWrapper:
     ) -> None:
         self.working_directory = Path(working_directory or os.getcwd()).resolve()
         if not self.working_directory.exists():
-            raise RuntimeError(
-                f"作業ディレクトリが存在しません: {self.working_directory}"
-            )
+            raise RuntimeError(f"作業ディレクトリが存在しません: {self.working_directory}")
         self.logger = logger or ActionsLogger(verbose=False)
         self.execution_tracer = execution_tracer or ExecutionTracer(logger=self.logger)
         self.settings = ActRunnerSettings.from_mapping(config)
@@ -109,9 +99,7 @@ class ActWrapper:
         self._mock_mode = self._engine in {"mock", "stub", "fake", "noop"}
         mock_delay = os.getenv("ACTIONS_SIMULATOR_MOCK_DELAY_SECONDS")
         try:
-            self._mock_delay_seconds = (
-                max(0.0, float(mock_delay)) if mock_delay else 0.0
-            )
+            self._mock_delay_seconds = max(0.0, float(mock_delay)) if mock_delay else 0.0
         except ValueError:
             self._mock_delay_seconds = 0.0
 
@@ -166,9 +154,7 @@ class ActWrapper:
         if str(workflow_path).startswith(".github/workflows/"):
             # Already properly formatted
             return str(workflow_path)
-        elif workflow_path.name.endswith(".yml") or workflow_path.name.endswith(
-            ".yaml"
-        ):
+        elif workflow_path.name.endswith(".yml") or workflow_path.name.endswith(".yaml"):
             # Just a filename, assume it's in .github/workflows/
             return f".github/workflows/{workflow_path.name}"
         else:
@@ -193,14 +179,10 @@ class ActWrapper:
         self._ensure_docker_permissions()
 
         workflows_dir = self.working_directory / ".github" / "workflows"
-        self.logger.debug(
-            f"ワークフローディレクトリ: {workflows_dir}, 存在: {workflows_dir.exists()}"
-        )
+        self.logger.debug(f"ワークフローディレクトリ: {workflows_dir}, 存在: {workflows_dir.exists()}")
 
         if not workflows_dir.exists():
-            self.logger.debug(
-                "ワークフローディレクトリが存在しないため、元のパスを使用"
-            )
+            self.logger.debug("ワークフローディレクトリが存在しないため、元のパスを使用")
             return workflow_file
 
         # Normalize the workflow file path
@@ -520,9 +502,7 @@ class ActWrapper:
             if temp_workflow_file != workflow_file:
                 workflow_file = temp_workflow_file
                 working_dir = self.working_directory / ".act-temp"
-                self.logger.debug(
-                    f"一時ワークフローファイルを使用: {workflow_file}, 作業ディレクトリ: {working_dir}"
-                )
+                self.logger.debug(f"一時ワークフローファイルを使用: {workflow_file}, 作業ディレクトリ: {working_dir}")
 
             # 初期化段階
             self.execution_tracer.set_stage(
@@ -579,9 +559,7 @@ class ActWrapper:
             self.logger.info(f"actコマンド実行: {' '.join(cmd)}")
 
             # Docker通信監視を開始
-            docker_op = self.execution_tracer.monitor_docker_communication(
-                operation_type="act_execution", command=cmd
-            )
+            docker_op = self.execution_tracer.monitor_docker_communication(operation_type="act_execution", command=cmd)
 
             stdout_lines: list[str] = []
             stderr_lines: list[str] = []
@@ -593,9 +571,7 @@ class ActWrapper:
                 thread_trace,
             ) -> None:
                 try:
-                    self.execution_tracer.update_thread_state(
-                        thread_trace, ThreadState.RUNNING
-                    )
+                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.RUNNING)
                     if pipe is None:
                         return
                     with pipe:
@@ -608,13 +584,9 @@ class ActWrapper:
                             print(f"[{label}] {line}")
                             if self.logger.verbose:
                                 self.logger.debug(f"[{label}] {line}")
-                    self.execution_tracer.update_thread_state(
-                        thread_trace, ThreadState.TERMINATED
-                    )
+                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.TERMINATED)
                 except Exception as e:
-                    self.execution_tracer.update_thread_state(
-                        thread_trace, ThreadState.ERROR, str(e)
-                    )
+                    self.execution_tracer.update_thread_state(thread_trace, ThreadState.ERROR, str(e))
 
             # サブプロセス作成段階
             self.execution_tracer.set_stage(ExecutionStage.SUBPROCESS_CREATION)
@@ -631,9 +603,7 @@ class ActWrapper:
                 self.logger.info(f"actプロセス開始: PID={process.pid}")
             except (OSError, subprocess.SubprocessError) as exc:
                 self.logger.error(f"act実行エラー: {exc}")
-                self.execution_tracer.update_docker_operation(
-                    docker_op, success=False, error_message=str(exc)
-                )
+                self.execution_tracer.update_docker_operation(docker_op, success=False, error_message=str(exc))
                 self.execution_tracer.set_stage(ExecutionStage.FAILED)
                 return {
                     "success": False,
@@ -644,9 +614,7 @@ class ActWrapper:
                 }
 
             # プロセストレースを開始
-            process_trace = self.execution_tracer.trace_subprocess_execution(
-                cmd, process, str(self.working_directory)
-            )
+            process_trace = self.execution_tracer.trace_subprocess_execution(cmd, process, str(self.working_directory))
 
             # 出力ストリーミング段階
             self.execution_tracer.set_stage(ExecutionStage.OUTPUT_STREAMING)
@@ -661,9 +629,7 @@ class ActWrapper:
                     daemon=True,
                     name="ActWrapper-StdoutStream",
                 )
-                thread_trace_out = self.execution_tracer.track_thread_lifecycle(
-                    t_out, "_stream_output"
-                )
+                thread_trace_out = self.execution_tracer.track_thread_lifecycle(t_out, "_stream_output")
                 # スレッド関数の引数を更新
                 t_out = threading.Thread(
                     target=_stream_output,
@@ -682,9 +648,7 @@ class ActWrapper:
                     daemon=True,
                     name="ActWrapper-StderrStream",
                 )
-                thread_trace_err = self.execution_tracer.track_thread_lifecycle(
-                    t_err, "_stream_output"
-                )
+                thread_trace_err = self.execution_tracer.track_thread_lifecycle(t_err, "_stream_output")
                 # スレッド関数の引数を更新
                 t_err = threading.Thread(
                     target=_stream_output,
@@ -702,9 +666,7 @@ class ActWrapper:
             start_time = time.time()
             heartbeat_interval = 30
             next_heartbeat = start_time + heartbeat_interval
-            deadline = (
-                start_time + self._timeout_seconds if self._timeout_seconds else None
-            )
+            deadline = start_time + self._timeout_seconds if self._timeout_seconds else None
             timed_out = False
 
             while True:
@@ -718,9 +680,7 @@ class ActWrapper:
                     self.logger.error("actの実行がタイムアウトしました")
 
                     # ハングアップ検出
-                    hang_info = self.execution_tracer.detect_hang_condition(
-                        self._timeout_seconds
-                    )
+                    hang_info = self.execution_tracer.detect_hang_condition(self._timeout_seconds)
                     if hang_info:
                         self.logger.error(f"ハングアップを検出: {hang_info}")
 
@@ -869,8 +829,7 @@ class ActWrapper:
                 if isinstance(job_value, Mapping):
                     job_details_map = cast(Mapping[Any, Any], job_value)
                     jobs_data[job_id_str] = {
-                        str(step_key): step_value
-                        for step_key, step_value in job_details_map.items()
+                        str(step_key): step_value for step_key, step_value in job_details_map.items()
                     }
                 else:
                     jobs_data[job_id_str] = {}
@@ -896,11 +855,7 @@ class ActWrapper:
             time.sleep(self._mock_delay_seconds)
 
         workflow_name_raw = workflow_data.get("name")
-        workflow_display = (
-            str(workflow_name_raw)
-            if isinstance(workflow_name_raw, str)
-            else workflow_name
-        )
+        workflow_display = str(workflow_name_raw) if isinstance(workflow_name_raw, str) else workflow_name
         lines: list[str] = []
         if dry_run:
             lines.append(f"ドライラン実行: {workflow_display}")
@@ -910,9 +865,7 @@ class ActWrapper:
         if selected_jobs:
             for job_id, job_def in selected_jobs:
                 job_title_raw = job_def.get("name")
-                display_name = (
-                    str(job_title_raw) if isinstance(job_title_raw, str) else job_id
-                )
+                display_name = str(job_title_raw) if isinstance(job_title_raw, str) else job_id
                 lines.append(f"ジョブ: {display_name}")
                 if verbose:
                     lines.append(f"  - job_id={job_id}")
