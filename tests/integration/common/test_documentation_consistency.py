@@ -25,6 +25,7 @@ import tempfile
 import pytest
 import yaml
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from typing import List, Optional
 
 
@@ -35,7 +36,7 @@ class TestDocumentationConsistency:
     def project_root(self):
         """プロジェクトルートディレクトリ"""
         # tests/integration/test_documentation_consistency.py から2階層上がプロジェクトルート
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     @pytest.fixture
     def documentation_files(self, project_root):
@@ -441,7 +442,7 @@ class TestTemplateValidationIntegration:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     def test_template_validation_script_execution(self, project_root):
         """テンプレート検証スクリプトの実行テスト"""
@@ -498,7 +499,7 @@ class TestDocumentationAccessibility:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     def test_readme_accessibility(self, project_root):
         """README.mdのアクセシビリティ確認"""

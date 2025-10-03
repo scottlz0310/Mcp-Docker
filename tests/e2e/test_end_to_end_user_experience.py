@@ -24,6 +24,7 @@ import tempfile
 import time
 import pytest
 from pathlib import Path
+from conftest import PROJECT_ROOT
 
 
 class TestNewUserExperience:
@@ -36,7 +37,7 @@ class TestNewUserExperience:
             project_dir = Path(temp_dir) / "github-actions-simulator"
 
             # 実際のプロジェクトをコピー
-            source_dir = Path(__file__).parent.parent.parent
+            source_dir = PROJECT_ROOT
             shutil.copytree(
                 source_dir,
                 project_dir,
@@ -395,7 +396,7 @@ class TestUserExperienceEdgeCases:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     def test_empty_project_handling(self, project_root):
         """空のプロジェクトでの処理テスト"""
@@ -559,7 +560,7 @@ class TestUserExperienceAccessibility:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     def test_colorblind_friendly_output(self, project_root):
         """色覚障害者に配慮した出力のテスト"""

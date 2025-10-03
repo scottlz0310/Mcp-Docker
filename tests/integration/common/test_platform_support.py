@@ -12,6 +12,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from typing import Dict, List, Optional, Tuple
 
 
@@ -22,7 +23,7 @@ class PlatformSupportTest(unittest.TestCase):
     def setUpClass(cls):
         """テストクラスの初期化"""
         # tests/integration から 2つ上がプロジェクトルート
-        cls.project_root = Path(__file__).parent.parent.parent
+        cls.project_root = PROJECT_ROOT
         cls.scripts_dir = cls.project_root / "scripts"
         cls.platform_info = cls._get_platform_info()
 
@@ -324,7 +325,7 @@ class PlatformSpecificTest(unittest.TestCase):
     def setUp(self):
         """各テストの初期化"""
         self.system = platform.system().lower()
-        self.project_root = Path(__file__).parent.parent.parent
+        self.project_root = PROJECT_ROOT
 
     @unittest.skipUnless(platform.system().lower() == "linux", "Linux でのみ実行")
     def test_linux_specific_features(self):

@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 import pytest
 from pathlib import Path
+from conftest import PROJECT_ROOT
 import time
 
 
@@ -31,7 +32,7 @@ class TestDistributionScript:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
+        return PROJECT_ROOT / "scripts" / "run-actions.sh"
 
     @pytest.fixture
     def temp_project_dir(self):
@@ -218,7 +219,7 @@ jobs:
     def test_log_directory_creation(self, script_path):
         """ログディレクトリの作成テスト"""
         # 実際のプロジェクトルートでテスト
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
         log_dir = project_root / "logs"
 
         # ログディレクトリが存在することを確認（既に存在するはず）
@@ -335,11 +336,11 @@ class TestDistributionScriptIntegration:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
+        return PROJECT_ROOT / "scripts" / "run-actions.sh"
 
     def test_real_project_dependency_check(self, script_path):
         """実際のプロジェクトでの依存関係チェック"""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
@@ -359,7 +360,7 @@ class TestDistributionScriptIntegration:
 
     def test_real_project_workflow_discovery(self, script_path):
         """実際のプロジェクトでのワークフロー発見"""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
         workflows_dir = project_root / ".github" / "workflows"
 
         if workflows_dir.exists():
@@ -383,7 +384,7 @@ class TestDistributionScriptIntegration:
 
     def test_script_performance(self, script_path):
         """スクリプトのパフォーマンステスト"""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
@@ -416,7 +417,7 @@ class TestDistributionScriptErrorScenarios:
     @pytest.fixture
     def script_path(self):
         """配布スクリプトのパス"""
-        return Path(__file__).parent.parent.parent / "scripts" / "run-actions.sh"
+        return PROJECT_ROOT / "scripts" / "run-actions.sh"
 
     def test_permission_denied_scenario(self, script_path):
         """権限拒否シナリオのテスト"""
@@ -453,7 +454,7 @@ class TestDistributionScriptErrorScenarios:
 
     def test_disk_space_check(self, script_path):
         """ディスク容量チェックのテスト"""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"
@@ -478,7 +479,7 @@ class TestDistributionScriptErrorScenarios:
 
     def test_network_connectivity_check(self, script_path):
         """ネットワーク接続チェックのテスト"""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = PROJECT_ROOT
 
         env = os.environ.copy()
         env["NON_INTERACTIVE"] = "1"

@@ -23,6 +23,7 @@ import time
 import pytest
 import yaml
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from typing import Dict
 import concurrent.futures
 import threading
@@ -34,7 +35,7 @@ class TestComprehensiveIntegration:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     @pytest.fixture
     def test_environment(self, project_root):
@@ -575,7 +576,7 @@ class TestSystemStabilityAndReliability:
     @pytest.fixture
     def project_root(self):
         """プロジェクトルートディレクトリ"""
-        return Path(__file__).parent.parent.parent
+        return PROJECT_ROOT
 
     def test_repeated_execution_stability(self, project_root):
         """繰り返し実行安定性テスト"""

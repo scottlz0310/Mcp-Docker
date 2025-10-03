@@ -21,18 +21,19 @@ import json
 import tempfile
 import pytest
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from unittest.mock import patch, MagicMock
 import sys
 
 # テスト対象のモジュールをインポート
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import the module with the correct name
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
     "validate_templates",
-    Path(__file__).parent.parent.parent / "scripts" / "validate-templates.py",
+    PROJECT_ROOT / "scripts" / "validate-templates.py",
 )
 validate_templates = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validate_templates)

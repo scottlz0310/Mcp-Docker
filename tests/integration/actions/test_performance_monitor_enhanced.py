@@ -8,13 +8,13 @@
 import pytest
 import time
 import threading
-from pathlib import Path
+from conftest import PROJECT_ROOT
 from unittest.mock import patch
 import sys
 import json
 
 # パフォーマンス監視モジュールをインポート
-sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
+sys.path.append(str(PROJECT_ROOT / "src"))
 from performance_monitor import (
     PerformanceMonitor,
     PerformanceMetrics,

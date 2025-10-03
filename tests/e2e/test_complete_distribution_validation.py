@@ -16,6 +16,7 @@ import tempfile
 import shutil
 import unittest
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from datetime import datetime
 import logging
 
@@ -30,7 +31,7 @@ class CompleteDistributionValidationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """テストクラス初期化"""
-        cls.project_root = Path(__file__).parent.parent.parent
+        cls.project_root = PROJECT_ROOT
         cls.test_results = {
             "timestamp": datetime.utcnow().isoformat(),
             "test_summary": {},

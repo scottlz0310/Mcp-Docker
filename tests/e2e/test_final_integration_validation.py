@@ -14,6 +14,7 @@ import sys
 import json
 import subprocess
 from pathlib import Path
+from conftest import PROJECT_ROOT
 from typing import Dict, Any
 from datetime import datetime
 import logging
@@ -34,7 +35,7 @@ class FinalIntegrationValidator:
     """最終統合テストと配布準備の検証クラス"""
 
     def __init__(self):
-        self.project_root = Path(__file__).parent.parent.parent
+        self.project_root = PROJECT_ROOT
         self.test_results = {
             "timestamp": datetime.utcnow().isoformat(),
             "component_tests": {},
