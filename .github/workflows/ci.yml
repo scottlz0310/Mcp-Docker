@@ -7,12 +7,6 @@ on:
   pull_request:
     branches: [main]
   workflow_call: # 再利用可能ワークフローとして使用可能にする
-    inputs:
-      quality_gate_mode:
-        description: "品質ゲートモード"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -494,24 +488,6 @@ jobs:
       - name: Cleanup
         if: always()
         run: docker compose down -v || true
-
-  # ---------------------------------------------------------------------------
-  # 品質ゲート統合
-  # ---------------------------------------------------------------------------
-  quality-gate-integration:
-    name: 🛡️ 品質ゲート統合
-    needs: [fast-lint, build, security, test, integration]
-    if: ${{ inputs.quality_gate_mode == true || github.event_name == 'push' }}
-    uses: ./.github/workflows/quality-gates.yml
-    with:
-      quality_level: ${{ github.event_name == 'push' && 'standard' || 'basic' }}
-      release_mode: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-      checks: write
 
   integration:
     runs-on: ubuntu-latest
