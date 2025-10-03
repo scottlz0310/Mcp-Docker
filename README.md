@@ -71,7 +71,7 @@ github-actions-simulator/
 │   ├── execution_tracer.py      # 実行トレース機能
 │   └── performance_monitor.py   # パフォーマンス監視
 ├── main.py               # CLI エントリーポイント
-├── Dockerfile            # 軽量actベースイメージ
+├── Dockerfile            # 統合マルチステージビルド（MCP、Validator、Actions）
 ├── docker-compose.yml    # シンプルなサービス定義
 ├── Makefile             # 開発者向けコマンド
 └── .env.template        # 設定テンプレート

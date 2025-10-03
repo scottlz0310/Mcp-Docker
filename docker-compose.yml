@@ -1,7 +1,10 @@
 ---
 services:
   github-mcp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mcp-server
     container_name: mcp-github
     stdin_open: true
     tty: true
@@ -18,7 +21,10 @@ services:
       - mcp-network
 
   datetime-validator:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: datetime-validator
     container_name: mcp-datetime
     # セキュリティ: 動的UID/GID設定（書き込み権限確保 + Root昇格防止）
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
@@ -49,7 +55,8 @@ services:
   actions-simulator:
     build:
       context: .
-      dockerfile: Dockerfile.actions
+      dockerfile: Dockerfile
+      target: actions-simulator
       args:
         USER_ID: "${USER_ID:-1000}"
         GROUP_ID: "${GROUP_ID:-1000}"
@@ -97,7 +104,8 @@ services:
   actions-server:
     build:
       context: .
-      dockerfile: Dockerfile.actions
+      dockerfile: Dockerfile
+      target: actions-simulator
       args:
         USER_ID: "${USER_ID:-1000}"
         GROUP_ID: "${GROUP_ID:-1000}"
@@ -149,7 +157,8 @@ services:
   actions-shell:
     build:
       context: .
-      dockerfile: Dockerfile.actions
+      dockerfile: Dockerfile
+      target: actions-simulator
       args:
         USER_ID: "${USER_ID:-1000}"
         GROUP_ID: "${GROUP_ID:-1000}"

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 # ActWrapperの機能は直接統合されました
+from services.actions import PROJECT_ROOT
 from services.actions.execution_tracer import (
     ExecutionTracer,
     ExecutionStage,
@@ -407,6 +408,9 @@ class EnhancedActWrapper:
         # 非対話的実行を強制するフラグを追加
         flags.extend(["--rm"])
 
+        # ローカルキャッシュイメージを使用（ネットワークタイムアウト回避）
+        flags.extend(["--pull=false"])
+
         if self.settings.container_workdir:
             flags.extend(["--container-workdir", self.settings.container_workdir])
         if self.settings.image:
@@ -417,8 +421,8 @@ class EnhancedActWrapper:
             for platform in self.settings.platforms:
                 flags.extend(["--platform", platform])
         else:
-            # デフォルトプラットフォームを明示的に設定
-            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:act-latest"])
+            # デフォルトプラットフォームを明示的に設定（Node.js 20+を含むfull版を使用）
+            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:runner-latest"])
 
         return flags
 
@@ -786,7 +790,9 @@ class EnhancedActWrapper:
             # 遅延インポートでサイクル依存を回避
             import sys
 
-            sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
+            src_path = (PROJECT_ROOT / "src").resolve()
+            if src_path.exists() and str(src_path) not in sys.path:
+                sys.path.append(str(src_path))
             from diagnostic_service import DiagnosticService
 
             self._diagnostic_service = DiagnosticService(logger=self.logger)

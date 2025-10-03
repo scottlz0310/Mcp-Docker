@@ -1,4 +1,4 @@
--P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-latest=catthehacker/ubuntu:runner-latest
 --container-daemon-socket /var/run/docker.sock
 --bind
 --rm

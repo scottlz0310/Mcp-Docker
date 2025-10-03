@@ -53,11 +53,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "latest"
-          enable-cache: true
+      - name: ⚡ uv バージョン確認
+        run: |
+          if ! command -v uv &> /dev/null; then
+            echo "uvがインストールされていないため、インストールします..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          uv --version
 
       - name: 📦 依存関係インストール
         run: |
@@ -71,8 +74,8 @@ jobs:
         run: |
           if [ -f "pyproject.toml" ] && find . -name "*.py" -type f | head -1 | grep -q .; then
             echo "🔍 Ruffによるコード品質チェック..."
-            uv run ruff check . --output-format=github
-            uv run ruff format --check .
+            uv run ruff check . --output-format=github --exclude .cache
+            uv run ruff format --check . --exclude .cache
           else
             echo "ℹ️ Pythonファイルが見つかりません"
           fi

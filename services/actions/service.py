@@ -10,15 +10,19 @@ from typing import Any, Callable, Mapping, Optional
 import time
 import sys
 
+from . import PROJECT_ROOT
 from .enhanced_act_wrapper import EnhancedActWrapper
 from .logger import ActionsLogger
+from .path_utils import WorkflowResolution, resolve_workflow_reference
 
 # 後方互換性のためのエイリアス
 ActWrapper = EnhancedActWrapper
 
 # 遅延インポートでサイクル依存を回避
 try:
-    sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
+    src_path = (PROJECT_ROOT / "src").resolve()
+    if src_path.exists() and str(src_path) not in sys.path:
+        sys.path.append(str(src_path))
     from diagnostic_service import DiagnosticService, DiagnosticResult, DiagnosticStatus
     from execution_tracer import ExecutionTracer
     from performance_monitor import PerformanceMonitor
@@ -229,10 +233,14 @@ class SimulationService:
         params: SimulationParameters,
         logger: ActionsLogger,
     ) -> SimulationResult:
-        workflow_path = params.workflow_file
+        try:
+            workflow_resolution: WorkflowResolution = resolve_workflow_reference(params.workflow_file)
+        except FileNotFoundError as exc:
+            raise SimulationServiceError(f"ワークフローファイルが見つかりません: {params.workflow_file}") from exc
 
-        if not workflow_path.exists():
-            raise SimulationServiceError(f"ワークフローファイルが見つかりません: {workflow_path}")
+        resolved_workflow = workflow_resolution.absolute_path
+        working_directory = workflow_resolution.project_root
+        workflow_argument = workflow_resolution.act_argument
 
         env_vars: dict[str, str] | None = None
         if params.env_file:
@@ -249,18 +257,7 @@ class SimulationService:
 
         # EnhancedActWrapperを統一使用（診断機能の有効/無効で制御）
         # ワークフローの親ディレクトリからリポジトリルートを推定
-        resolved_workflow = workflow_path.resolve()
-        working_directory = resolved_workflow.parent
-
-        for parent in resolved_workflow.parents:
-            if (parent / ".git").exists() or (parent / "pyproject.toml").exists() or (parent / "uv.lock").exists():
-                working_directory = parent
-                break
-
-        if working_directory.name == "workflows" and working_directory.parent.name == ".github":
-            working_directory = working_directory.parent.parent
-        elif working_directory.name == ".github":
-            working_directory = working_directory.parent
+        workflow_parent = resolved_workflow.parent
 
         wrapper_factory = EnhancedActWrapper
         wrapper_kwargs = {
@@ -275,7 +272,7 @@ class SimulationService:
             wrapper = wrapper_factory(**wrapper_kwargs)
         except TypeError:
             try:
-                wrapper = wrapper_factory(str(workflow_path.parent))
+                wrapper = wrapper_factory(str(workflow_parent))
             except Exception as exc:  # pragma: no cover - defensive
                 raise SimulationServiceError(str(exc)) from exc
             if hasattr(wrapper, "config"):
@@ -296,7 +293,7 @@ class SimulationService:
             wrapper, "run_workflow_with_diagnostics"
         ):
             detailed_result = wrapper.run_workflow_with_diagnostics(
-                workflow_file=workflow_path.name,
+                workflow_file=workflow_argument,
                 job=params.job,
                 dry_run=params.dry_run,
                 verbose=params.verbose,
@@ -360,7 +357,7 @@ class SimulationService:
         else:
             # 基本機能のみ使用（診断機能無効）
             result = wrapper.run_workflow(
-                workflow_file=workflow_path.name,
+                workflow_file=workflow_argument,
                 job=params.job,
                 dry_run=params.dry_run,
                 verbose=params.verbose,
