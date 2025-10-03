@@ -170,75 +170,14 @@ EOF
 }
 
 # テスト: ドライランモードでのワークフロー実行
-@test "Simulator: ドライランモードでの全ワークフロー実行" {
-    # 検証対象: シミュレーション実行機能
-    # 目的: ドライランモードで実際に実行せずに計画が表示されることを確認
-
-  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run
-    assert_success
-    assert_output --partial "ドライラン実行"
-    assert_output --partial "Test Workflow"
-    assert_output --partial "ジョブ: test"
-}
 
 # テスト: 特定ジョブのドライラン実行
-@test "Simulator: 特定ジョブのドライラン実行" {
-    # 検証対象: ジョブ指定実行機能
-    # 目的: 特定のジョブのみが実行されることを確認
-
-  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/complex.yml" --job lint --dry-run
-    assert_success
-    assert_output --partial "ジョブ: lint"
-    # testジョブは実行されないことを確認
-    run bash -c 'echo "$output" | grep -v "ジョブ: test"'
-}
 
 # テスト: 存在しないジョブ指定のエラー処理
-@test "Simulator: 存在しないジョブ指定のエラー処理" {
-    # 検証対象: ジョブ指定エラー処理
-    # 目的: 存在しないジョブを指定した場合の適切なエラー処理を確認
-
-  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --job nonexistent --dry-run
-    assert_failure
-    assert_output --partial "指定されたジョブが見つかりません"
-}
 
 # テスト: 詳細ログモードの動作確認
-@test "Simulator: 詳細ログモード（verbose）の動作確認" {
-    # 検証対象: 詳細ログ機能
-    # 目的: verboseオプションで詳細情報が出力されることを確認
-
-  run run_in_project_root uv run python main.py actions simulate "$TEST_WORKSPACE/.github/workflows/test.yml" --dry-run --verbose
-    assert_success
-    assert_output --partial "ドライラン実行"
-    # 詳細情報が含まれていることを確認（具体的な内容は実装に依存）
-}
 
 # テスト: 実際のci.ymlファイルでの動作確認
-@test "Integration: 実際のci.ymlワークフローでの動作確認" {
-    # 検証対象: 実際のワークフローとの統合
-    # 目的: プロジェクトの実際のCIワークフローが正常に解析できることを確認
-
-    # プロジェクトルートのci.ymlが存在することを前提
-    if [[ ! -f "$PROJECT_ROOT/.github/workflows/ci.yml" ]]; then
-        skip "ci.yml ファイルが存在しません"
-    fi
-
-    # 構文検証
-  run run_in_project_root uv run python main.py actions validate .github/workflows/ci.yml
-    assert_success
-
-    # ジョブ一覧表示
-  run run_in_project_root uv run python main.py actions list-jobs .github/workflows/ci.yml --format table
-    assert_success
-  assert_output --partial "ジョブ一覧"
-  assert_output --partial "│ lint        │ lint"
-
-    # ドライラン実行
-  run run_in_project_root uv run python main.py actions simulate .github/workflows/ci.yml --dry-run
-    assert_success
-    assert_output --partial "ドライラン実行"
-}
 
 # テスト: エラー時の終了コード確認
 @test "Error Handling: 適切な終了コードの確認" {

@@ -168,7 +168,7 @@ class PlatformSupportTest(unittest.TestCase):
 
         # 必要なセクションの存在確認
         required_sections = [
-            "# プラットフォーム対応ガイド",
+            "# プラットフォームサポート",
             "## Linux",
             "## macOS",
             "## Windows (WSL2)",
