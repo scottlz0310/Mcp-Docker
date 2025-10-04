@@ -1,7 +1,10 @@
 """pytest共通設定 - プロジェクトルート取得を一元化"""
 
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 
 def find_project_root(start_path: Path | None = None) -> Path:
@@ -45,3 +48,15 @@ PROJECT_ROOT = find_project_root()
 # Pythonパスに追加（絶対インポートを可能にする）
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+
+@pytest.fixture(scope="session")
+def worker_id(request):
+    """pytest-xdistのworker IDを取得
+
+    並列実行時はgw0, gw1, ...などのIDを返す
+    非並列実行時は"master"を返す
+    """
+    if hasattr(request.config, "workerinput"):
+        return request.config.workerinput["workerid"]
+    return os.environ.get("PYTEST_XDIST_WORKER", "master")

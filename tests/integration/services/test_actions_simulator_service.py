@@ -9,51 +9,79 @@ from conftest import PROJECT_ROOT
 
 
 @pytest.fixture(scope="module")
-def actions_simulator_service():
-    """Actions Simulatorサービスを起動"""
-    # 既存コンテナをクリーンアップ
-    subprocess.run(
-        ["docker", "compose", "down", "actions-simulator"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-    )
+def actions_simulator_service(worker_id):
+    """Actions Simulatorサービスを起動
 
-    # イメージをビルド
-    build_result = subprocess.run(
-        ["docker", "compose", "build", "actions-simulator"],
-        cwd=PROJECT_ROOT,
+    worker_idごとにユニークなコンテナ名を使用して並列実行時の競合を回避
+    """
+    container_name = f"mcp-actions-simulator-{worker_id}"
+
+    # コンテナが既に存在するかチェック
+    check_result = subprocess.run(
+        ["docker", "ps", "-a", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
         capture_output=True,
         text=True,
     )
-    if build_result.returncode != 0:
-        pytest.fail(f"Actions Simulatorイメージのビルドに失敗:\n{build_result.stderr}")
 
-    # サービスを起動（プロファイル指定）
-    up_result = subprocess.run(
-        ["docker", "compose", "--profile", "tools", "up", "-d", "actions-simulator"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if up_result.returncode != 0:
-        pytest.fail(f"Actions Simulatorサービスの起動に失敗:\n{up_result.stderr}")
+    container_exists = container_name in check_result.stdout
 
-    # コンテナが起動するまで待機（プロファイル指定のため起動しない場合あり）
-    for _ in range(30):
-        check = subprocess.run(
-            ["docker", "ps", "-a", "--filter", "name=mcp-actions-simulator", "--format", "{{.Names}}"],
+    if not container_exists:
+        # 既存コンテナをクリーンアップ（念のため）
+        subprocess.run(
+            ["docker", "rm", "-f", container_name],
+            capture_output=True,
+        )
+
+        # イメージをビルド（キャッシュ有効）
+        build_result = subprocess.run(
+            ["docker", "compose", "build", "actions-simulator"],
+            cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
         )
-        if "mcp-actions-simulator" in check.stdout:
-            break
-        time.sleep(1)
+        if build_result.returncode != 0:
+            pytest.fail(f"Actions Simulatorイメージのビルドに失敗:\n{build_result.stderr}")
 
-    time.sleep(5)  # 追加の安定化待機
-    yield
+        # サービスを起動（コマンドをオーバーライドしてコンテナを常駐させる）
+        up_result = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--profile",
+                "tools",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "actions-simulator",
+                "sleep",
+                "infinity",
+            ],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if up_result.returncode != 0:
+            pytest.fail(f"Actions Simulatorサービスの起動に失敗:\n{up_result.stderr}")
+
+        # コンテナが起動するまで待機
+        for _ in range(30):
+            check = subprocess.run(
+                ["docker", "ps", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+            )
+            if container_name in check.stdout:
+                break
+            time.sleep(1)
+
+        time.sleep(5)  # 追加の安定化待機
+
+    yield container_name
+
+    # 最後のテストが終わったらクリーンアップ
     subprocess.run(
-        ["docker", "compose", "down", "actions-simulator"],
-        cwd=PROJECT_ROOT,
+        ["docker", "rm", "-f", container_name],
         check=False,
         capture_output=True,
     )
@@ -61,13 +89,14 @@ def actions_simulator_service():
 
 def test_actions_simulator_container_exists(actions_simulator_service):
     """Actions Simulatorコンテナが存在することを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
-        ["docker", "ps", "-a", "--filter", "name=mcp-actions-simulator", "--format", "{{.Names}}"],
+        ["docker", "ps", "-a", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
         capture_output=True,
         text=True,
         check=True,
     )
-    assert "mcp-actions-simulator" in result.stdout, "Actions Simulatorコンテナが存在しません"
+    assert container_name in result.stdout, "Actions Simulatorコンテナが存在しません"
 
 
 def test_actions_simulator_image_built():
@@ -83,11 +112,12 @@ def test_actions_simulator_image_built():
 
 def test_actions_simulator_volumes_configured(actions_simulator_service):
     """Actions Simulatorコンテナのボリュームが設定されていることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
         [
             "docker",
             "inspect",
-            "mcp-actions-simulator",
+            container_name,
             "--format",
             "{{range .Mounts}}{{.Destination}} {{end}}",
         ],
@@ -103,11 +133,12 @@ def test_actions_simulator_volumes_configured(actions_simulator_service):
 
 def test_actions_simulator_docker_socket_access(actions_simulator_service):
     """Actions SimulatorコンテナがDockerソケットにアクセスできることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
         [
             "docker",
             "exec",
-            "mcp-actions-simulator",
+            container_name,
             "test",
             "-S",
             "/var/run/docker.sock",
@@ -120,8 +151,9 @@ def test_actions_simulator_docker_socket_access(actions_simulator_service):
 
 def test_actions_simulator_act_installed(actions_simulator_service):
     """Actions Simulatorコンテナにactがインストールされていることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
-        ["docker", "exec", "mcp-actions-simulator", "which", "act"],
+        ["docker", "exec", container_name, "which", "act"],
         capture_output=True,
         text=True,
         check=False,
@@ -132,8 +164,9 @@ def test_actions_simulator_act_installed(actions_simulator_service):
 
 def test_actions_simulator_python_available(actions_simulator_service):
     """Actions SimulatorコンテナでPythonが利用可能であることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
-        ["docker", "exec", "mcp-actions-simulator", "python", "--version"],
+        ["docker", "exec", container_name, "python", "--version"],
         capture_output=True,
         text=True,
         check=True,
@@ -143,8 +176,9 @@ def test_actions_simulator_python_available(actions_simulator_service):
 
 def test_actions_simulator_main_py_exists(actions_simulator_service):
     """Actions Simulatorコンテナにmain.pyが存在することを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
-        ["docker", "exec", "mcp-actions-simulator", "test", "-f", "/app/main.py"],
+        ["docker", "exec", container_name, "test", "-f", "/app/main.py"],
         capture_output=True,
         check=False,
     )
@@ -153,11 +187,12 @@ def test_actions_simulator_main_py_exists(actions_simulator_service):
 
 def test_actions_simulator_environment_variables(actions_simulator_service):
     """Actions Simulatorコンテナの環境変数が設定されていることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
         [
             "docker",
             "inspect",
-            "mcp-actions-simulator",
+            container_name,
             "--format",
             "{{range .Config.Env}}{{println .}}{{end}}",
         ],
@@ -177,11 +212,12 @@ def test_actions_simulator_environment_variables(actions_simulator_service):
 
 def test_actions_simulator_network_connection(actions_simulator_service):
     """Actions Simulatorコンテナがmcp-networkに接続されていることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
         [
             "docker",
             "inspect",
-            "mcp-actions-simulator",
+            container_name,
             "--format",
             "{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}",
         ],
@@ -194,8 +230,9 @@ def test_actions_simulator_network_connection(actions_simulator_service):
 
 def test_actions_simulator_logs_accessible(actions_simulator_service):
     """Actions Simulatorコンテナのログが取得できることを確認"""
+    container_name = actions_simulator_service
     result = subprocess.run(
-        ["docker", "logs", "mcp-actions-simulator", "--tail", "10"],
+        ["docker", "logs", container_name, "--tail", "10"],
         capture_output=True,
         text=True,
         check=True,
