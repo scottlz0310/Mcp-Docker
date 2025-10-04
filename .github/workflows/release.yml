@@ -403,8 +403,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "docs: sync CHANGELOG with release page content" \
-                       " for v${{ needs.version-check.outputs.version }}"
+            git commit -m "docs: sync CHANGELOG with release page content for v${{ needs.version-check.outputs.version }}"
             git push
           fi
 
