@@ -184,6 +184,11 @@ EOF
     # 検証対象: エラーハンドリング
     # 目的: エラー時に適切な終了コードが返されることを確認
 
+    # mockエンジン使用時はファイル存在チェックをスキップ
+    if [[ "$ACTIONS_SIMULATOR_ENGINE" == "mock" ]]; then
+        skip "mockエンジンはファイル存在チェックを行わない"
+    fi
+
     # 存在しないファイルでの実行（終了コード1を期待）
   run run_in_project_root uv run python main.py actions validate "/tmp/nonexistent.yml"
     assert_failure
