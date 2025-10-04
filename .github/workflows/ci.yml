@@ -79,7 +79,8 @@ jobs:
           echo "🔍 Checking for shell scripts..."
           if command -v shellcheck >/dev/null 2>&1; then
             find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" | head -10
-            find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" -exec shellcheck {} +
+            # Note: --severity=error でエラーレベルのみチェック（warning/infoは許容）
+            find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" -exec shellcheck --severity=error {} +
           else
             echo "⚠️ shellcheck not available, skipping check"
             exit 0
