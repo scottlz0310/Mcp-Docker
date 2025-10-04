@@ -23,4 +23,5 @@ get_project_root() {
 }
 
 # グローバル変数として公開
-export PROJECT_ROOT="$(get_project_root)"
+PROJECT_ROOT="$(get_project_root)"
+export PROJECT_ROOT
