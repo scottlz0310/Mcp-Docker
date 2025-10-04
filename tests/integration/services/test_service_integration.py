@@ -28,15 +28,25 @@ def all_services():
     if build_result.returncode != 0:
         pytest.fail(f"イメージのビルドに失敗:\n{build_result.stderr}")
 
-    # サービスを起動
+    # サービスを起動（プロファイル指定が必要なサービスは別途起動）
     up_result = subprocess.run(
-        ["docker", "compose", "up", "-d", "github-mcp", "datetime-validator", "actions-simulator"],
+        ["docker", "compose", "up", "-d", "github-mcp", "datetime-validator"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )
     if up_result.returncode != 0:
         pytest.fail(f"サービスの起動に失敗:\n{up_result.stderr}")
+
+    # actions-simulatorはプロファイル指定で起動
+    profile_result = subprocess.run(
+        ["docker", "compose", "--profile", "tools", "up", "-d", "actions-simulator"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if profile_result.returncode != 0:
+        pytest.fail(f"Actions Simulatorの起動に失敗:\n{profile_result.stderr}")
     time.sleep(20)  # 全サービス起動待機
     yield
     subprocess.run(

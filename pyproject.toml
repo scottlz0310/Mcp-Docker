@@ -123,3 +123,4 @@ markers = [
     "e2e: エンドツーエンドテスト（完全なシナリオ）",
     "slow: 実行時間が長いテスト（5分以上）",
 ]
+timeout_func_only = true

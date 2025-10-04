@@ -225,7 +225,7 @@ jobs:
         id: integration-services
         run: |
           if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-            uv run pytest tests/integration/services/ -v --tb=short
+            uv run pytest tests/integration/services/ -v --tb=short --timeout=120
           else
             echo "❌ CRITICAL: No test files in tests/integration/services/"
             echo "テストが実装されていません。品質ゲートを通過できません。"
@@ -558,7 +558,8 @@ jobs:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose build
-          docker compose up -d github-mcp datetime-validator actions-simulator
+          docker compose up -d github-mcp datetime-validator
+          docker compose --profile tools up -d actions-simulator
           sleep 30
 
       - name: Check service health
@@ -578,7 +579,7 @@ jobs:
         run: |
           echo "🧪 Running Docker service integration tests..."
           if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-            uv run pytest tests/integration/services/ -v --tb=short
+            uv run pytest tests/integration/services/ -v --tb=short --timeout=120
           else
             echo "❌ CRITICAL: No test files in tests/integration/services/"
             echo "テストが実装されていません。品質ゲートを通過できません。"

@@ -28,9 +28,9 @@ def actions_simulator_service():
     if build_result.returncode != 0:
         pytest.fail(f"Actions Simulatorイメージのビルドに失敗:\n{build_result.stderr}")
 
-    # サービスを起動
+    # サービスを起動（プロファイル指定）
     up_result = subprocess.run(
-        ["docker", "compose", "up", "-d", "actions-simulator"],
+        ["docker", "compose", "--profile", "tools", "up", "-d", "actions-simulator"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
