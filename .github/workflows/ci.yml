@@ -21,81 +21,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Python and tools
-        run: |
-          python3 --version
-          # uvのインストール（タイムアウト付き）
-          timeout 60 curl -LsSf https://astral.sh/uv/install.sh | sh || {
-            echo "⚠️ uv installation timed out, using pip fallback"
-            python3 -m pip install --user ruff
-          }
-          export PATH="$HOME/.local/bin:$PATH"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
 
-      - name: Install system tools
+      - name: Install linting tools
         run: |
-          # システムツールのインストール
-          # Note: タイムアウトはCI環境のネットワーク問題対策（120秒で十分）
-          timeout 120 sudo apt-get update
-          timeout 60 sudo apt-get install -y shellcheck yamllint
+          # shellcheckは既にプリインストールされている
+          # yamllint, ruffのみインストール
+          pip install yamllint ruff
 
-      - name: Install Python dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if [ -f "pyproject.toml" ]; then
-            echo "📦 Installing dependencies with uv..."
-            if command -v uv >/dev/null 2>&1; then
-              # Note: タイムアウトは依存関係ダウンロードの問題対策
-              timeout 180 uv sync --group dev --group test
-            else
-              echo "⚠️ uv not available, using pip fallback"
-              timeout 180 python3 -m pip install -e .
-            fi
-          else
-            echo "⚠️ No pyproject.toml found, skipping dependency installation"
-            exit 0
-          fi
+      # fast-lintでは依存関係のインストールは不要（ruffのみで十分）
 
       - name: Run ruff (Python)
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if [ -f "pyproject.toml" ]; then
-            echo "🔍 Running ruff check..."
-            if command -v uv >/dev/null 2>&1; then
-              uv run ruff check .
-            elif command -v ruff >/dev/null 2>&1; then
-              ruff check .
-            else
-              echo "⚠️ ruff not available, skipping check"
-              exit 0
-            fi
-          else
-            echo "⚠️ No Python project found, skipping ruff"
-            exit 0
-          fi
+        run: ruff check .
 
       - name: Run shellcheck (Shell)
         run: |
-          echo "🔍 Checking for shell scripts..."
-          if command -v shellcheck >/dev/null 2>&1; then
-            find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" | head -10
-            # Note: --severity=error でエラーレベルのみチェック（warning/infoは許容）
-            find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" -exec shellcheck --severity=error {} +
-          else
-            echo "⚠️ shellcheck not available, skipping check"
-            exit 0
-          fi
+          # Note: --severity=error でエラーレベルのみチェック（warning/infoは許容）
+          find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" -exec shellcheck --severity=error {} +
 
       - name: Run yamllint (YAML)
-        run: |
-          echo "🔍 Checking for YAML files..."
-          if command -v yamllint >/dev/null 2>&1; then
-            find . -name "*.yml" -o -name "*.yaml" | head -10
-            yamllint .
-          else
-            echo "⚠️ yamllint not available, skipping check"
-            exit 0
-          fi
+        run: yamllint .
 
   lint:
     runs-on: ubuntu-latest
@@ -265,10 +214,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install act
         run: |
@@ -276,8 +230,7 @@ jobs:
           act --version
 
       - name: Install dependencies
-        run: |
-          uv sync --group test
+        run: uv sync --group test
 
       - name: Run pytest (unit tests)
         id: unit-tests
