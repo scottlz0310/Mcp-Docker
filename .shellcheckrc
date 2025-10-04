@@ -4,3 +4,15 @@
 # SC2129: Consider using { cmd1; cmd2; } >> file instead of individual redirects
 # 理由: 個別のリダイレクトの方が可読性が高い場合がある
 disable=SC2129
+
+# SC2317: Command appears to be unreachable
+# 理由: 関数定義内のコードは間接的に呼び出されるため、誤検知が多い
+disable=SC2317
+
+# SC2155: Declare and assign separately to avoid masking return values
+# 理由: 簡潔性を優先し、エラーハンドリングは別途実施
+disable=SC2155
+
+# SC2034: Variable appears unused
+# 理由: 設定ファイルや外部スクリプトで使用される変数を含む
+disable=SC2034
