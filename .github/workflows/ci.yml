@@ -49,47 +49,20 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (local)
-        run: |
-          echo "📁 Current directory: $(pwd)"
-          echo "📋 Available files:"
-          ls -la | head -20
+      - uses: actions/checkout@v5
 
-      - name: Get changed files (local)
-        id: changed-files
+      - name: Run MegaLinter
         run: |
-          echo "🔍 Detecting changed files..."
-          # 簡易的な変更検出（全ファイルをチェック対象とする）
-          echo "python_any_changed=true" >> $GITHUB_OUTPUT
-          echo "docker_any_changed=true" >> $GITHUB_OUTPUT
-          echo "yaml_any_changed=true" >> $GITHUB_OUTPUT
-          echo "shell_any_changed=true" >> $GITHUB_OUTPUT
-          echo "all_changed_files=$(find . -type f \( -name '*.py' -o -name 'Dockerfile*' \
-            -o -name '*.yml' -o -name '*.yaml' -o -name '*.sh' \) | head -20 | tr '\n' ' ')" >> $GITHUB_OUTPUT
-
-      - name: Run MegaLinter (Local Docker)
-        if: >
-          steps.changed-files.outputs.python_any_changed == 'true' ||
-          steps.changed-files.outputs.docker_any_changed == 'true' ||
-          steps.changed-files.outputs.yaml_any_changed == 'true' ||
-          steps.changed-files.outputs.shell_any_changed == 'true'
-        run: |
-          echo "🔍 Running MegaLinter locally..."
+          # Note: 常に全ファイルをチェック（VALIDATE_ALL_CODEBASE=true）
+          # 変更ファイルのみチェックする場合は、VALIDATE_ALL_CODEBASE=falseにして
+          # GitHub Actionsの環境変数を活用する必要がある
           docker run --rm \
             -v $(pwd):/tmp/lint \
             -e APPLY_FIXES=none \
             -e DEFAULT_WORKSPACE=/tmp/lint \
             -e MEGALINTER_CONFIG=.mega-linter.yml \
-            oxsecurity/megalinter:v7 || \
-              echo "⚠️ MegaLinter completed with warnings"
-
-      - name: Skip MegaLinter (No relevant changes)
-        if: >
-          steps.changed-files.outputs.python_any_changed != 'true' &&
-          steps.changed-files.outputs.docker_any_changed != 'true' &&
-          steps.changed-files.outputs.yaml_any_changed != 'true' &&
-          steps.changed-files.outputs.shell_any_changed != 'true'
-        run: echo "✅ No lintable files changed, skipping MegaLinter"
+            -e VALIDATE_ALL_CODEBASE=true \
+            oxsecurity/megalinter:v7
 
       - name: Upload MegaLinter reports
         if: always()
