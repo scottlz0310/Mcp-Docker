@@ -32,3 +32,15 @@ disable=SC2206
 # SC2086: Double quote to prevent globbing
 # 理由: return文での変数展開は問題ない
 disable=SC2086
+
+# SC2012: Use find instead of ls
+# 理由: lsの方が簡潔で、ファイル名に特殊文字を含まない前提
+disable=SC2012
+
+# SC2231: Quote expansions in for loop glob
+# 理由: グロブパターンの展開は意図的
+disable=SC2231
+
+# SC2094: Make sure not to read and write the same file
+# 理由: パイプラインの順序を理解した上での使用
+disable=SC2094
