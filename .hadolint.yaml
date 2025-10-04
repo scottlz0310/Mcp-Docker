@@ -1,0 +1,9 @@
+---
+# Hadolint configuration
+# https://github.com/hadolint/hadolint
+
+ignored:
+  # DL3008: Pin versions in apt get install
+  # 理由: 基本パッケージ(bash, ca-certificates, curl, git等)はOSのデフォルトバージョンを使用
+  # セキュリティアップデートを自動的に取得するため、バージョン固定しない
+  - DL3008
