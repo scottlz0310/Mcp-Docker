@@ -490,7 +490,7 @@ def print_report(
         if report.version_issues:
             print("  # バージョン情報の一括更新")
             print(
-                f"  find . -name '*.md' -exec sed -i 's/version: [0-9]\\+\\.[0-9]\\+\\.[0-9]\\+/version: {report.version_issues[0].expected_version if report.version_issues else '1.1.0'}/g' {{}} \\;"
+                f"  find . -name '*.md' -exec sed -i 's/version: [0-9]\\+\\.[0-9]\\+\\.[0-9]\\+/version: {report.version_issues[0].expected_version if report.version_issues else '1.2.0'}/g' {{}} \\;"
             )
 
     if report.total_issues == 0:

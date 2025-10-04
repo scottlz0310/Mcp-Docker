@@ -456,7 +456,7 @@ services:
 # latestではなく特定のバージョンを使用
 services:
   github-mcp:
-    image: ghcr.io/your-username/mcp-docker-github:v1.1.0
+    image: ghcr.io/your-username/mcp-docker-github:v1.2.0
     # 理由: 予期しない変更を防ぐ
 ```
 

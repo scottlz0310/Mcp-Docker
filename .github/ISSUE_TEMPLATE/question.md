@@ -21,7 +21,7 @@ assignees: ''
 **現在の設定や環境**
 - OS: [例: Ubuntu 22.04]
 - Docker: [例: 24.0.7]
-- GitHub Actions Simulator: [例: v1.1.0]
+- GitHub Actions Simulator: [例: v1.2.0]
 
 **現在試していること**
 ```bash

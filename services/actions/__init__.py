@@ -23,7 +23,7 @@ from pathlib import Path
 
 from .path_utils import find_project_root
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 __author__ = "MCP Docker Team"
 
 PACKAGE_ROOT = Path(__file__).resolve().parent

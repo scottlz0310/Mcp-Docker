@@ -33,7 +33,7 @@ assignees: ''
 - Python: [例: 3.13.7]
 - uv: [例: 0.4.18]
 - Git: [例: 2.34.1]
-- GitHub Actions Simulator: [例: v1.1.0]
+- GitHub Actions Simulator: [例: v1.2.0]
 
 ## 🔄 再現手順
 

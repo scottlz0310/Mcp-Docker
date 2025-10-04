@@ -462,7 +462,7 @@ python -m services.actions.main server --host 0.0.0.0 --port 8000
 ```json
 {
   "status": "ok",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "timestamp": "2024-01-01T00:00:00Z"
 }
 ```
