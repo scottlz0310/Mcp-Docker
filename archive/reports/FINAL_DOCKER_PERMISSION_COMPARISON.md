@@ -13,7 +13,7 @@
 #### 修正前
 ```bash
 Error: permission denied while trying to connect to the Docker daemon socket
-[sudo] hiro のパスワード:  # 手動入力が必要
+[sudo] パスワード:  # 手動入力が必要
 ```
 
 #### 修正後

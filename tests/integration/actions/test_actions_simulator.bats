@@ -15,9 +15,9 @@ load '../../helpers/test_helper'
 
 # セットアップ: 各テストの前に実行
 setup() {
-    # プロジェクトルートの設定
-    export PROJECT_ROOT="/home/hiro/workspace/Mcp-Docker"
-  export ACTIONS_SIMULATOR_ENGINE="mock"
+    # プロジェクトルートの設定（動的に検出）
+    export PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+    export ACTIONS_SIMULATOR_ENGINE="mock"
 
     # テスト用の一時ワークスペース作成
     export TEST_WORKSPACE="/tmp/mcp_actions_test_$$"
