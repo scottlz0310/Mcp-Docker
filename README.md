@@ -71,7 +71,7 @@ github-actions-simulator/
 │   ├── execution_tracer.py      # 実行トレース機能
 │   └── performance_monitor.py   # パフォーマンス監視
 ├── main.py               # CLI エントリーポイント
-├── Dockerfile            # 軽量actベースイメージ
+├── Dockerfile            # 統合マルチステージビルド（MCP、Validator、Actions）
 ├── docker-compose.yml    # シンプルなサービス定義
 ├── Makefile             # 開発者向けコマンド
 └── .env.template        # 設定テンプレート
@@ -480,20 +480,41 @@ make sbom        # SBOM（Software Bill of Materials）生成
 
 ## 🧪 テスト
 
-### 軽量テストスイート
+### テストスイート構成
+
+テストは以下の3層に分類されています：
 
 ```bash
-make test             # 基本統合テスト
-make test-all         # 全テストスイート実行
-make security         # セキュリティテスト
+# すべてのテスト実行
+make test
+
+# ユニットテストのみ（外部依存なし、高速）
+make test-unit
+
+# 統合テスト（Docker操作含む）
+make test-integration
+
+# E2Eテスト（完全なシナリオ、時間がかかる）
+make test-e2e
+
+# 高速テスト（ユニット+統合のみ）
+make test-quick
 ```
 
 ### テスト範囲
 
-- **統合テスト**: Docker環境での動作確認
-- **セキュリティテスト**: 脆弱性スキャン
-- **パフォーマンステスト**: リソース使用量監視
-- **エンドツーエンドテスト**: 実際のワークフロー実行
+- **ユニットテスト** (`tests/unit/`): ロジック単体の検証（外部依存なし）
+- **統合テスト** (`tests/integration/`): Docker環境での動作確認、サービス連携
+- **E2Eテスト** (`tests/e2e/`): 実際のワークフロー実行、パフォーマンス検証
+
+### その他の品質チェック
+
+```bash
+make lint             # コード品質チェック
+make format           # コードフォーマット
+make type-check       # 型チェック
+make security-check   # セキュリティスキャン
+```
 
 ## 🤝 開発・貢献
 

@@ -52,18 +52,20 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
-      - name: ⚡ uv インストール
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "latest"
-          enable-cache: true
+      - name: ⚡ uv バージョン確認
+        run: |
+          if ! command -v uv &> /dev/null; then
+            echo "uvがインストールされていないため、インストールします..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          uv --version
 
       - name: 📦 依存関係インストール
         run: |
           if [ -f "pyproject.toml" ]; then
-            uv sync --locked
+            uv sync --group dev --group test
           else
             echo "ℹ️ pyproject.toml が見つかりません"
           fi
@@ -72,17 +74,20 @@ jobs:
         run: |
           if [ -f "pyproject.toml" ] && find . -name "*.py" -type f | head -1 | grep -q .; then
             echo "🔍 Ruffによるコード品質チェック..."
-            uv run ruff check . --output-format=github
-            uv run ruff format --check .
+            uv run ruff check . --output-format=github --exclude .cache
+            uv run ruff format --check . --exclude .cache
           else
             echo "ℹ️ Pythonファイルが見つかりません"
           fi
 
       - name: 🧪 単体テスト実行
         run: |
-          if [ -d "tests" ] || find . -name "test_*.py" | head -1 | grep -q .; then
+          if [ -d "tests/unit" ]; then
             echo "🧪 pytestによる単体テスト..."
-            uv run pytest --tb=short --maxfail=5
+            uv run pytest tests/unit/ --tb=short --maxfail=5
+          elif [ -d "tests" ]; then
+            echo "🧪 pytestによるテスト実行..."
+            uv run pytest tests/ --tb=short --maxfail=5
           else
             echo "ℹ️ テストファイルが見つかりません"
           fi

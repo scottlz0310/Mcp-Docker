@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, cast
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SECURITY_ROOT = PROJECT_ROOT / "output" / "security"
 TRIVY_DIR = SECURITY_ROOT / "trivy"
 REPORTS_DIR = TRIVY_DIR / "reports"
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.fail_on and return_code != 0:
         print(
-            "❗ Fail-on severity threshold reached. " "Review the report before proceeding.",
+            "❗ Fail-on severity threshold reached. Review the report before proceeding.",
             file=sys.stderr,
         )
 

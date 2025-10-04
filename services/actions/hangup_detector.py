@@ -44,9 +44,7 @@ class HangupIssue:
     severity: HangupSeverity
     title: str
     description: str
-    detected_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    detected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     evidence: Dict[str, Any] = field(default_factory=dict)
     root_cause: Optional[str] = None
     impact_assessment: str = ""
@@ -60,9 +58,7 @@ class HangupAnalysis:
     """ハングアップ分析結果"""
 
     analysis_id: str
-    start_time: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     end_time: Optional[str] = None
     duration_ms: Optional[float] = None
     issues: List[HangupIssue] = field(default_factory=list)
@@ -79,9 +75,7 @@ class ErrorReport:
     """詳細エラーレポート"""
 
     report_id: str
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     hangup_analysis: Optional[HangupAnalysis] = None
     diagnostic_results: List[Any] = field(default_factory=list)
     execution_trace: Optional[Any] = None
@@ -97,9 +91,7 @@ class DebugBundle:
     """デバッグバンドル情報"""
 
     bundle_id: str
-    created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     bundle_path: Optional[Path] = None
     included_files: List[str] = field(default_factory=list)
     file_sizes: Dict[str, int] = field(default_factory=dict)
@@ -176,9 +168,7 @@ class HangupDetector:
             # Docker daemon基本接続テスト
             try:
                 # 最初にDocker daemonの基本的な応答をテスト
-                result = subprocess.run(
-                    ["docker", "info"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=5)
 
                 # 次にバージョン情報を取得
                 result = subprocess.run(
@@ -235,15 +225,11 @@ class HangupDetector:
 
         except Exception as e:
             if self.logger:
-                self.logger.error(
-                    f"Dockerソケット問題検出中にエラーが発生しました: {e}"
-                )
+                self.logger.error(f"Dockerソケット問題検出中にエラーが発生しました: {e}")
 
         return issues
 
-    def analyze_hangup_conditions(
-        self, execution_trace=None, diagnostic_results=None
-    ) -> HangupAnalysis:
+    def analyze_hangup_conditions(self, execution_trace=None, diagnostic_results=None) -> HangupAnalysis:
         """
         包括的なハングアップ条件分析を実行
 
@@ -272,11 +258,7 @@ class HangupDetector:
             all_issues = docker_issues + subprocess_issues + timeout_issues + permission_issues
 
             # 信頼度でフィルタリング
-            filtered_issues = [
-                issue
-                for issue in all_issues
-                if issue.confidence_score >= self.confidence_threshold
-            ]
+            filtered_issues = [issue for issue in all_issues if issue.confidence_score >= self.confidence_threshold]
 
             analysis.issues = filtered_issues
 
@@ -316,9 +298,7 @@ class HangupDetector:
             analysis.duration_ms = (time.time() - start_time) * 1000
 
             if self.logger:
-                self.logger.info(
-                    f"ハングアップ分析完了: {len(filtered_issues)}個の問題を検出"
-                )
+                self.logger.info(f"ハングアップ分析完了: {len(filtered_issues)}個の問題を検出")
 
         except Exception as e:
             if self.logger:
@@ -362,9 +342,7 @@ class HangupDetector:
 
             # 環境変数の収集
             relevant_vars = ["DOCKER_HOST", "PATH", "HOME", "USER", "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS"]
-            report.environment_variables = {
-                var: os.environ.get(var, "") for var in relevant_vars
-            }
+            report.environment_variables = {var: os.environ.get(var, "") for var in relevant_vars}
 
             # Docker状態の収集
             report.docker_status = self._collect_docker_status()
@@ -493,7 +471,7 @@ class HangupDetector:
         if self.logger:
             self.logger.debug("サブプロセスデッドロック問題を検出中...")
 
-        issues = []
+        issues: list[HangupIssue] = []
 
         if execution_trace is None:
             return issues
@@ -507,9 +485,7 @@ class HangupDetector:
 
                         # start_timeが文字列の場合はdatetimeに変換
                         if isinstance(process_trace.start_time, str):
-                            start_time = datetime.fromisoformat(
-                                process_trace.start_time.replace("Z", "+00:00")
-                            )
+                            start_time = datetime.fromisoformat(process_trace.start_time.replace("Z", "+00:00"))
                         else:
                             start_time = process_trace.start_time
 
@@ -541,9 +517,7 @@ class HangupDetector:
 
         except Exception as e:
             if self.logger:
-                self.logger.error(
-                    f"サブプロセスデッドロック検出中にエラーが発生しました: {e}"
-                )
+                self.logger.error(f"サブプロセスデッドロック検出中にエラーが発生しました: {e}")
 
         return issues
 
@@ -598,9 +572,7 @@ class HangupDetector:
                                 evidence={"timeout_value": timeout_value},
                                 root_cause="タイムアウト値が短すぎてワークフローが完了できません",
                                 impact_assessment="正常なワークフローも途中で終了する可能性があります",
-                                recommendations=[
-                                    "タイムアウト値を300秒以上に設定することを推奨します"
-                                ],
+                                recommendations=["タイムアウト値を300秒以上に設定することを推奨します"],
                                 confidence_score=0.7,
                             )
                         )
@@ -615,19 +587,13 @@ class HangupDetector:
                             evidence={"env_var": timeout_env},
                             root_cause="環境変数の値が数値として解析できません",
                             impact_assessment="タイムアウト処理が正常に動作しません",
-                            recommendations=[
-                                "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS環境変数を数値に設定してください"
-                            ],
+                            recommendations=["ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS環境変数を数値に設定してください"],
                             confidence_score=0.95,
                         )
                     )
 
             # 実行トレースからハングポイントを検出
-            if (
-                execution_trace
-                and hasattr(execution_trace, "hang_point")
-                and execution_trace.hang_point
-            ):
+            if execution_trace and hasattr(execution_trace, "hang_point") and execution_trace.hang_point:
                 issues.append(
                     HangupIssue(
                         issue_type=HangupType.TIMEOUT_PROBLEM,
@@ -666,9 +632,7 @@ class HangupDetector:
         try:
             # Dockerグループの確認
             try:
-                result = subprocess.run(
-                    ["groups"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["groups"], capture_output=True, text=True, timeout=5)
 
                 if result.returncode == 0:
                     groups = result.stdout.strip().split()
@@ -808,12 +772,12 @@ class HangupDetector:
 
     def _collect_detailed_system_info(self) -> Dict[str, Any]:
         """詳細なシステム情報を収集"""
-        system_info = {}
+        system_info: dict[str, Any] = {}
 
         try:
             # OS情報
             system_info["os"] = os.name
-            system_info["platform"] = os.uname() if hasattr(os, "uname") else "unknown"
+            system_info["platform"] = str(os.uname()) if hasattr(os, "uname") else "unknown"
 
             # 環境変数
             relevant_vars = [
@@ -823,9 +787,7 @@ class HangupDetector:
                 "USER",
                 "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS",
             ]
-            system_info["environment"] = {
-                var: os.environ.get(var, "") for var in relevant_vars
-            }
+            system_info["environment"] = {var: os.environ.get(var, "") for var in relevant_vars}
 
         except Exception as e:
             if self.logger:
@@ -835,13 +797,11 @@ class HangupDetector:
 
     def _collect_docker_status(self) -> Dict[str, Any]:
         """Docker状態情報を収集"""
-        docker_status = {}
+        docker_status: dict[str, Any] = {}
 
         try:
             # Docker version
-            result = subprocess.run(
-                ["docker", "--version"], capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 docker_status["version"] = result.stdout.strip()
 

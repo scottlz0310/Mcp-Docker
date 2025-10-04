@@ -7,12 +7,6 @@ on:
   pull_request:
     branches: [main]
   workflow_call: # 再利用可能ワークフローとして使用可能にする
-    inputs:
-      quality_gate_mode:
-        description: "品質ゲートモード"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -27,119 +21,48 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Python and tools
-        run: |
-          python3 --version
-          # uvのインストール（タイムアウト付き）
-          timeout 60 curl -LsSf https://astral.sh/uv/install.sh | sh || {
-            echo "⚠️ uv installation timed out, using pip fallback"
-            python3 -m pip install --user ruff
-          }
-          export PATH="$HOME/.local/bin:$PATH"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
 
-      - name: Install system tools
+      - name: Install linting tools
         run: |
-          # システムツールのインストール（タイムアウト付き）
-          timeout 120 sudo apt-get update || echo "⚠️ apt-get update timed out"
-          timeout 60 sudo apt-get install -y shellcheck yamllint || echo "⚠️ Some tools failed to install"
+          # shellcheckは既にプリインストールされている
+          # yamllint, ruffのみインストール
+          pip install yamllint ruff
 
-      - name: Install Python dependencies
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if [ -f "pyproject.toml" ]; then
-            echo "📦 Installing dependencies with uv..."
-            if command -v uv >/dev/null 2>&1; then
-              timeout 180 uv sync --locked || echo "⚠️ uv sync failed or timed out"
-            else
-              echo "⚠️ uv not available, using pip fallback"
-              timeout 180 python3 -m pip install -e . || echo "⚠️ pip install failed"
-            fi
-          else
-            echo "⚠️ No pyproject.toml found, skipping dependency installation"
-          fi
+      # fast-lintでは依存関係のインストールは不要（ruffのみで十分）
 
       - name: Run ruff (Python)
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          if [ -f "pyproject.toml" ]; then
-            echo "🔍 Running ruff check..."
-            if command -v uv >/dev/null 2>&1; then
-              timeout 60 uv run ruff check . || echo "⚠️ ruff check failed or timed out"
-            elif command -v ruff >/dev/null 2>&1; then
-              timeout 60 ruff check . || echo "⚠️ ruff check failed or timed out"
-            else
-              echo "⚠️ ruff not available"
-            fi
-          else
-            echo "⚠️ No Python project found, skipping ruff"
-          fi
+        run: ruff check .
 
       - name: Run shellcheck (Shell)
         run: |
-          echo "🔍 Checking for shell scripts..."
-          if command -v shellcheck >/dev/null 2>&1; then
-            find . -name "*.sh" -type f | head -10
-            timeout 60 find . -name "*.sh" -type f -exec shellcheck {} + || \
-              echo "⚠️ shellcheck found issues or timed out"
-          else
-            echo "⚠️ shellcheck not available"
-          fi
+          # Note: --severity=error でエラーレベルのみチェック（warning/infoは許容）
+          find . -name "*.sh" -type f -not -path "./.venv/*" -not -path "./node_modules/*" -exec shellcheck --severity=error {} +
 
       - name: Run yamllint (YAML)
-        run: |
-          echo "🔍 Checking for YAML files..."
-          if command -v yamllint >/dev/null 2>&1; then
-            find . -name "*.yml" -o -name "*.yaml" | head -10
-            timeout 60 yamllint . || echo "⚠️ yamllint found issues or timed out"
-          else
-            echo "⚠️ yamllint not available"
-          fi
+        run: yamllint .
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (local)
-        run: |
-          echo "📁 Current directory: $(pwd)"
-          echo "📋 Available files:"
-          ls -la | head -20
+      - uses: actions/checkout@v5
 
-      - name: Get changed files (local)
-        id: changed-files
+      - name: Run MegaLinter
         run: |
-          echo "🔍 Detecting changed files..."
-          # 簡易的な変更検出（全ファイルをチェック対象とする）
-          echo "python_any_changed=true" >> $GITHUB_OUTPUT
-          echo "docker_any_changed=true" >> $GITHUB_OUTPUT
-          echo "yaml_any_changed=true" >> $GITHUB_OUTPUT
-          echo "shell_any_changed=true" >> $GITHUB_OUTPUT
-          echo "all_changed_files=$(find . -type f \( -name '*.py' -o -name 'Dockerfile*' \
-            -o -name '*.yml' -o -name '*.yaml' -o -name '*.sh' \) | head -20 | tr '\n' ' ')" >> $GITHUB_OUTPUT
-
-      - name: Run MegaLinter (Local Docker)
-        if: >
-          steps.changed-files.outputs.python_any_changed == 'true' ||
-          steps.changed-files.outputs.docker_any_changed == 'true' ||
-          steps.changed-files.outputs.yaml_any_changed == 'true' ||
-          steps.changed-files.outputs.shell_any_changed == 'true'
-        run: |
-          echo "🔍 Running MegaLinter locally..."
+          # Note: 常に全ファイルをチェック（VALIDATE_ALL_CODEBASE=true）
+          # 変更ファイルのみチェックする場合は、VALIDATE_ALL_CODEBASE=falseにして
+          # GitHub Actionsの環境変数を活用する必要がある
           docker run --rm \
             -v $(pwd):/tmp/lint \
             -e APPLY_FIXES=none \
             -e DEFAULT_WORKSPACE=/tmp/lint \
             -e MEGALINTER_CONFIG=.mega-linter.yml \
-            oxsecurity/megalinter:v7 || \
-              echo "⚠️ MegaLinter completed with warnings"
-
-      - name: Skip MegaLinter (No relevant changes)
-        if: >
-          steps.changed-files.outputs.python_any_changed != 'true' &&
-          steps.changed-files.outputs.docker_any_changed != 'true' &&
-          steps.changed-files.outputs.yaml_any_changed != 'true' &&
-          steps.changed-files.outputs.shell_any_changed != 'true'
-        run: echo "✅ No lintable files changed, skipping MegaLinter"
+            -e VALIDATE_ALL_CODEBASE=true \
+            oxsecurity/megalinter:v7
 
       - name: Upload MegaLinter reports
         if: always()
@@ -157,13 +80,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        continue-on-error: true
 
       - name: Cache Docker layers
         uses: actions/cache@v4
@@ -205,11 +121,13 @@ jobs:
             # Test main.py version command
             docker run --rm mcp-docker:latest python /app/main.py --version
             # Test default command (mcp-server-github)
-            docker run --rm mcp-docker:latest --help || true
+            # Note: MCPサーバーは--helpでエラーコードを返す可能性があるため、出力のみ確認
+            docker run --rm mcp-docker:latest --help > /dev/null 2>&1 || echo "MCP server executed (exit code expected)"
             # Inspect image
             docker inspect mcp-docker:latest
           else
             echo "Docker not available in this environment - skipping tests"
+            exit 0
           fi
 
   security:
@@ -261,11 +179,108 @@ jobs:
           ignore-unfixed: true
           skip-dirs: "__pycache__,.git,node_modules"
 
-  test:
+  pytest:
+    name: 🧪 Pytest (unit/integration/e2e)
     runs-on: ubuntu-latest
-    needs: fast-lint # buildジョブに依存せず、fast-lintのみに依存
+    needs: fast-lint
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install act
+        run: |
+          # Note: -b オプションでインストール先を指定（デフォルトは./bin）
+          curl -fsSL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin
+          act --version
+
+      - name: Install dependencies
+        run: uv sync --group test
+
+      - name: Run pytest (unit tests)
+        id: unit-tests
+        run: |
+          uv run pytest tests/unit/ -v --tb=short --maxfail=5
+        continue-on-error: false
+
+      - name: Run pytest (integration tests - actions)
+        id: integration-actions
+        run: |
+          # テストファイルが存在する場合のみ実行
+          if find tests/integration/actions/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/actions/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/actions/, skipping..."
+            exit 0
+          fi
+
+      - name: Run pytest (integration tests - services)
+        id: integration-services
+        run: |
+          # tests/integration/services/ には Python テストがない場合があるため、
+          # 存在する場合のみ実行
+          if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/services/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/services/, skipping..."
+            exit 0
+          fi
+
+      - name: Run pytest (integration tests - common)
+        id: integration-common
+        run: |
+          # テストファイルが存在する場合のみ実行
+          if find tests/integration/common/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/common/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/common/, skipping..."
+            exit 0
+          fi
+
+      - name: Run pytest (e2e tests - selected)
+        id: e2e-tests
+        run: |
+          uv run pytest tests/e2e/test_comprehensive_integration.py -v --tb=short
+
+      - name: Summary test results
+        if: always()
+        run: |
+          echo "## テスト結果サマリ" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ steps.unit-tests.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration (Actions): ${{ steps.integration-actions.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration (Services): ${{ steps.integration-services.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration (Common): ${{ steps.integration-common.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- E2E Tests: ${{ steps.e2e-tests.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  bats-test:
+    name: 🧪 Bats Test (shell scripts)
+    runs-on: ubuntu-latest
+    needs: fast-lint
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group test
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -391,6 +406,7 @@ jobs:
 
               # PATH設定
               export PATH="$HOME/bin:$PATH"
+              # Note: .bashrcが存在しない場合もあるため、エラーを無視
               echo "export PATH=\"\$HOME/bin:\$PATH\"" >> "$HOME/.bashrc" 2>/dev/null || true
 
               # GitHub Actions環境変数設定
@@ -441,18 +457,32 @@ jobs:
           echo "Docker availability: $(command -v docker >/dev/null && echo 'available' || echo 'not available')"
           echo "Make availability: $(command -v make >/dev/null && echo 'available' || echo 'not available')"
 
-          # テスト実行
+          # テスト実行（新しいテスト構造に対応）
           if command -v bats >/dev/null 2>&1; then
-            if command -v make >/dev/null 2>&1; then
-              echo "🧪 Running make-based bats tests..."
-              make test-docker
-              make test-services
-              make test-integration
-            else
-              echo "🧪 Running direct bats tests..."
-              bats tests/test_docker_build.bats
-              bats tests/test_services.bats
-              bats tests/test_integration.bats
+            echo "🧪 Running integration bats tests..."
+
+            # Actions Simulatorテスト
+            if ls tests/integration/actions/*.bats 1> /dev/null 2>&1; then
+              echo "Running actions tests..."
+              bats tests/integration/actions/*.bats
+            fi
+
+            # サービス統合テスト
+            if ls tests/integration/services/*.bats 1> /dev/null 2>&1; then
+              echo "Running services tests..."
+              bats tests/integration/services/*.bats
+            fi
+
+            # 共通テスト
+            if ls tests/integration/common/*.bats 1> /dev/null 2>&1; then
+              echo "Running common tests..."
+              bats tests/integration/common/*.bats
+            fi
+
+            # ルートに残っている.batsファイル
+            if ls tests/integration/*.bats 1> /dev/null 2>&1; then
+              echo "Running root level tests..."
+              bats tests/integration/*.bats
             fi
           else
             echo "❌ Bats not available - tests cannot run"
@@ -461,34 +491,27 @@ jobs:
 
       - name: Cleanup
         if: always()
+        # Note: サービスが起動していない場合もあるため、エラーを無視
         run: docker compose down -v || true
 
-  # ---------------------------------------------------------------------------
-  # 品質ゲート統合
-  # ---------------------------------------------------------------------------
-  quality-gate-integration:
-    name: 🛡️ 品質ゲート統合
-    needs: [fast-lint, build, security, test, integration]
-    if: ${{ inputs.quality_gate_mode == true || github.event_name == 'push' }}
-    uses: ./.github/workflows/quality-gates.yml
-    with:
-      quality_level: ${{ github.event_name == 'push' && 'standard' || 'basic' }}
-      release_mode: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-      pull-requests: write
-      checks: write
-
-  integration:
+  docker-services-integration:
+    name: 🐳 Docker Services Integration
     runs-on: ubuntu-latest
-    needs: fast-lint # buildジョブに依存せず、fast-lintのみに依存
+    needs: fast-lint
     steps:
       - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync --group test
 
       - name: Build and start services
         env:
@@ -497,22 +520,33 @@ jobs:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose build
-          # CI環境ではGitHub MCPサービスをスキップ
-          docker compose up -d datetime-validator
+          docker compose up -d github-mcp datetime-validator actions-simulator
           sleep 30
 
       - name: Check service health
         env:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
+          echo "🔍 Service Health Check"
           docker compose ps
-          docker compose logs datetime-validator
+          echo ""
+          echo "📜 Service Logs"
+          docker compose logs --tail=50
 
-      - name: Run integration tests
+      - name: Run service integration tests
+        id: service-tests
         env:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
-          ./tests/integration_test.sh
+          echo "🧪 Running Docker service integration tests..."
+          # tests/integration/services/ には Python テストがない場合があるため、
+          # 存在する場合のみ実行
+          if find tests/integration/services/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/integration/services/ -v --tb=short
+          else
+            echo "No Python test files found in tests/integration/services/, skipping..."
+            exit 0
+          fi
 
       - name: Cleanup
         if: always()

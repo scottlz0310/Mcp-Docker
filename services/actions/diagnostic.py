@@ -36,9 +36,7 @@ class DiagnosticResult:
     message: str
     details: Dict[str, Any] = field(default_factory=dict)
     recommendations: List[str] = field(default_factory=list)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
@@ -48,9 +46,7 @@ class SystemHealthReport:
     overall_status: DiagnosticStatus
     results: List[DiagnosticResult]
     summary: str
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     @property
     def has_errors(self) -> bool:
@@ -74,8 +70,8 @@ class DiagnosticService:
             logger: ログ出力用のロガー
         """
         self.logger = logger or ActionsLogger(verbose=True)
-        self._docker_client_available = None
-        self._act_binary_path = None
+        self._docker_client_available: bool | None = None
+        self._act_binary_path: str | None = None
         self._docker_integration_checker = DockerIntegrationChecker(logger=logger)
 
     def run_comprehensive_health_check(self) -> SystemHealthReport:
@@ -116,9 +112,7 @@ class DiagnosticService:
         # サマリーを生成
         summary = self._generate_summary(results, overall_status)
 
-        report = SystemHealthReport(
-            overall_status=overall_status, results=results, summary=summary
-        )
+        report = SystemHealthReport(overall_status=overall_status, results=results, summary=summary)
 
         self.logger.info(f"システムヘルスチェック完了: {overall_status.value}")
         return report
@@ -147,9 +141,7 @@ class DiagnosticService:
                 )
 
             # Dockerバージョン確認
-            version_result = subprocess.run(
-                ["docker", "--version"], capture_output=True, text=True, timeout=10
-            )
+            version_result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=10)
 
             if version_result.returncode != 0:
                 return DiagnosticResult(
@@ -164,9 +156,7 @@ class DiagnosticService:
                 )
 
             # Docker daemon接続確認
-            info_result = subprocess.run(
-                ["docker", "info"], capture_output=True, text=True, timeout=15
-            )
+            info_result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=15)
 
             if info_result.returncode != 0:
                 return DiagnosticResult(
@@ -246,9 +236,7 @@ class DiagnosticService:
                 )
 
             # actバージョン確認
-            version_result = subprocess.run(
-                [act_path, "--version"], capture_output=True, text=True, timeout=10
-            )
+            version_result = subprocess.run([act_path, "--version"], capture_output=True, text=True, timeout=10)
 
             if version_result.returncode != 0:
                 return DiagnosticResult(
@@ -263,9 +251,7 @@ class DiagnosticService:
                 )
 
             # actの基本機能テスト（--helpコマンド）
-            help_result = subprocess.run(
-                [act_path, "--help"], capture_output=True, text=True, timeout=10
-            )
+            help_result = subprocess.run([act_path, "--help"], capture_output=True, text=True, timeout=10)
 
             if help_result.returncode != 0:
                 return DiagnosticResult(
@@ -315,7 +301,7 @@ class DiagnosticService:
             user_id = os.getuid() if hasattr(os, "getuid") else None
             group_id = os.getgid() if hasattr(os, "getgid") else None
 
-            details = {
+            details: dict[str, Any] = {
                 "user_id": user_id,
                 "group_id": group_id,
                 "is_root": user_id == 0 if user_id is not None else False,
@@ -323,9 +309,7 @@ class DiagnosticService:
 
             # Dockerグループの確認
             try:
-                groups_result = subprocess.run(
-                    ["groups"], capture_output=True, text=True, timeout=5
-                )
+                groups_result = subprocess.run(["groups"], capture_output=True, text=True, timeout=5)
                 if groups_result.returncode == 0:
                     groups = groups_result.stdout.strip().split()
                     details["groups"] = groups
@@ -366,15 +350,11 @@ class DiagnosticService:
 
             if not details.get("docker_socket_exists", False):
                 issues.append("Docker socketが見つかりません")
-                recommendations.append(
-                    "Docker daemonが実行されているか確認してください"
-                )
+                recommendations.append("Docker daemonが実行されているか確認してください")
 
             if not details.get("docker_socket_accessible", False):
                 issues.append("Docker socketにアクセスできません")
-                if not details.get("in_docker_group", False) and not details.get(
-                    "is_root", False
-                ):
+                if not details.get("in_docker_group", False) and not details.get("is_root", False):
                     recommendations.extend(
                         [
                             "ユーザーをdockerグループに追加してください: sudo usermod -aG docker $USER",
@@ -466,11 +446,7 @@ class DiagnosticService:
 
             if network_result.returncode == 0:
                 try:
-                    networks = [
-                        json.loads(line)
-                        for line in network_result.stdout.strip().split("\n")
-                        if line
-                    ]
+                    networks = [json.loads(line) for line in network_result.stdout.strip().split("\n") if line]
                     details["mcp_network_exists"] = len(networks) > 0
                     if networks:
                         details["mcp_network_info"] = networks[0]
@@ -579,9 +555,7 @@ class DiagnosticService:
                 status=status,
                 message=message,
                 details=details,
-                recommendations=recommendations
-                if status == DiagnosticStatus.WARNING
-                else [],
+                recommendations=recommendations if status == DiagnosticStatus.WARNING else [],
             )
 
         except subprocess.TimeoutExpired:
@@ -622,9 +596,9 @@ class DiagnosticService:
                 "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS",
             ]
 
-            env_status = {}
-            issues = []
-            recommendations = []
+            env_status: dict[str, Any] = {}
+            issues: list[str] = []
+            recommendations: list[str] = []
 
             for var in important_vars:
                 value = os.environ.get(var)
@@ -634,9 +608,7 @@ class DiagnosticService:
                 if var == "DOCKER_HOST" and value:
                     if not value.startswith(("unix://", "tcp://", "ssh://")):
                         issues.append(f"DOCKER_HOSTの形式が不正です: {value}")
-                        recommendations.append(
-                            "DOCKER_HOSTは unix:// または tcp:// で始まる必要があります"
-                        )
+                        recommendations.append("DOCKER_HOSTは unix:// または tcp:// で始まる必要があります")
 
                 elif var == "ACT_CACHE_DIR" and value:
                     cache_path = Path(value)
@@ -646,25 +618,17 @@ class DiagnosticService:
                             env_status[f"{var}_created"] = True
                         except Exception as e:
                             issues.append(f"ACT_CACHE_DIRの作成に失敗しました: {e}")
-                            recommendations.append(
-                                "ACT_CACHE_DIRのパスと権限を確認してください"
-                            )
+                            recommendations.append("ACT_CACHE_DIRのパスと権限を確認してください")
 
                 elif var == "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS" and value:
                     try:
                         timeout_val = int(value)
                         if timeout_val <= 0:
-                            issues.append(
-                                "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDSは正の整数である必要があります"
-                            )
-                            recommendations.append(
-                                "タイムアウト値を正の整数に設定してください"
-                            )
+                            issues.append("ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDSは正の整数である必要があります")
+                            recommendations.append("タイムアウト値を正の整数に設定してください")
                         env_status[f"{var}_parsed"] = timeout_val
                     except ValueError:
-                        issues.append(
-                            "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDSが数値ではありません"
-                        )
+                        issues.append("ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDSが数値ではありません")
                         recommendations.append("タイムアウト値を数値で設定してください")
 
             # PATH環境変数の確認
@@ -676,9 +640,7 @@ class DiagnosticService:
 
             if not docker_in_path:
                 issues.append("PATHにdockerコマンドが見つかりません")
-                recommendations.append(
-                    "DockerのインストールパスをPATHに追加してください"
-                )
+                recommendations.append("DockerのインストールパスをPATHに追加してください")
 
             if not act_in_path:
                 issues.append("PATHにactコマンドが見つかりません")
@@ -686,11 +648,7 @@ class DiagnosticService:
 
             # 結果の判定
             if issues:
-                status = (
-                    DiagnosticStatus.WARNING
-                    if docker_in_path
-                    else DiagnosticStatus.ERROR
-                )
+                status = DiagnosticStatus.WARNING if docker_in_path else DiagnosticStatus.ERROR
                 message = f"{len(issues)}個の環境変数の問題が見つかりました"
             else:
                 status = DiagnosticStatus.OK
@@ -722,15 +680,13 @@ class DiagnosticService:
         self.logger.debug("システムリソース使用量をチェック中...")
 
         try:
-            details = {}
-            issues = []
-            recommendations = []
+            details: dict[str, Any] = {}
+            issues: list[str] = []
+            recommendations: list[str] = []
 
             # ディスク使用量の確認
             try:
-                df_result = subprocess.run(
-                    ["df", "-h", "/"], capture_output=True, text=True, timeout=10
-                )
+                df_result = subprocess.run(["df", "-h", "/"], capture_output=True, text=True, timeout=10)
                 if df_result.returncode == 0:
                     lines = df_result.stdout.strip().split("\n")
                     if len(lines) > 1:
@@ -746,18 +702,14 @@ class DiagnosticService:
                             # 使用率が90%を超えている場合は警告
                             use_percent = int(fields[4].rstrip("%"))
                             if use_percent > 90:
-                                issues.append(
-                                    f"ディスク使用率が高すぎます: {use_percent}%"
-                                )
+                                issues.append(f"ディスク使用率が高すぎます: {use_percent}%")
                                 recommendations.append("ディスク容量を確保してください")
             except Exception:
                 details["disk_usage"] = "取得失敗"
 
             # メモリ使用量の確認
             try:
-                free_result = subprocess.run(
-                    ["free", "-h"], capture_output=True, text=True, timeout=10
-                )
+                free_result = subprocess.run(["free", "-h"], capture_output=True, text=True, timeout=10)
                 if free_result.returncode == 0:
                     lines = free_result.stdout.strip().split("\n")
                     if len(lines) > 1:
@@ -786,9 +738,7 @@ class DiagnosticService:
 
             # Docker統合チェッカーによる追加チェック
             try:
-                docker_check = (
-                    self._docker_integration_checker.run_comprehensive_docker_check()
-                )
+                docker_check = self._docker_integration_checker.run_comprehensive_docker_check()
                 details["docker_integration_status"] = docker_check["overall_success"]
                 details["docker_integration_summary"] = docker_check["summary"]
             except Exception:
@@ -808,9 +758,7 @@ class DiagnosticService:
                     details["running_containers"] = container_count
 
                     if container_count > 10:
-                        issues.append(
-                            f"実行中のコンテナが多すぎます: {container_count}個"
-                        )
+                        issues.append(f"実行中のコンテナが多すぎます: {container_count}個")
                         recommendations.append("不要なコンテナを停止してください")
             except Exception:
                 details["running_containers"] = "取得失敗"
@@ -839,9 +787,7 @@ class DiagnosticService:
                 recommendations=["システム管理者に連絡してください"],
             )
 
-    def _determine_overall_status(
-        self, results: List[DiagnosticResult]
-    ) -> DiagnosticStatus:
+    def _determine_overall_status(self, results: List[DiagnosticResult]) -> DiagnosticStatus:
         """
         個別の診断結果から全体的なステータスを決定
 
@@ -858,9 +804,7 @@ class DiagnosticService:
         else:
             return DiagnosticStatus.OK
 
-    def _generate_summary(
-        self, results: List[DiagnosticResult], overall_status: DiagnosticStatus
-    ) -> str:
+    def _generate_summary(self, results: List[DiagnosticResult], overall_status: DiagnosticStatus) -> str:
         """
         診断結果のサマリーを生成
 
@@ -892,9 +836,7 @@ class DiagnosticService:
 
         return " ".join(summary_parts)
 
-    def identify_hangup_causes(
-        self, execution_trace: Optional[Dict[str, Any]] = None
-    ) -> List[str]:
+    def identify_hangup_causes(self, execution_trace: Optional[Dict[str, Any]] = None) -> List[str]:
         """
         ハングアップの潜在的原因を特定
 
@@ -920,28 +862,20 @@ class DiagnosticService:
                 elif result.component == "コンテナ権限":
                     causes.append("コンテナ実行権限が不足している可能性があります")
                 elif result.component == "Dockerソケットアクセス":
-                    causes.append(
-                        "Dockerソケットへのアクセスが制限されている可能性があります"
-                    )
+                    causes.append("Dockerソケットへのアクセスが制限されている可能性があります")
                 elif result.component == "コンテナ通信":
                     causes.append("コンテナ間の通信に問題がある可能性があります")
 
         # 実行トレースがある場合の追加分析
         if execution_trace:
             if execution_trace.get("timeout_occurred"):
-                causes.append(
-                    "プロセスがタイムアウトしてハングアップした可能性があります"
-                )
+                causes.append("プロセスがタイムアウトしてハングアップした可能性があります")
 
             if execution_trace.get("subprocess_stuck"):
-                causes.append(
-                    "サブプロセスの実行でデッドロックが発生した可能性があります"
-                )
+                causes.append("サブプロセスの実行でデッドロックが発生した可能性があります")
 
             if execution_trace.get("output_buffer_full"):
-                causes.append(
-                    "出力バッファが満杯になってハングアップした可能性があります"
-                )
+                causes.append("出力バッファが満杯になってハングアップした可能性があります")
 
         # 一般的なハングアップ原因も追加
         causes.extend(

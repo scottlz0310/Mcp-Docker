@@ -3,6 +3,9 @@
 .env.*
 !.env.template
 
+# MCP Configuration (contains environment variable references)
+.mcp.json
+
 # Logs
 *.log
 logs/
@@ -212,3 +215,6 @@ yarn-error.log*
 .vscode/launch.json
 .vscode/settings.json
 .vscode/tasks.json
+
+# Test result files (all test outputs go to output/ directory)
+output/*

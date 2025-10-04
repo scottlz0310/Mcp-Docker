@@ -75,9 +75,7 @@ class DateTimeValidator:
                 file_path.write_text(corrected_content, encoding="utf-8")
                 self.corrections_made += 1
 
-                logger.info(
-                    f"📅 日付修正完了: {file_path} ({', '.join(issues_found)} → {self.current_date})"
-                )
+                logger.info(f"📅 日付修正完了: {file_path} ({', '.join(issues_found)} → {self.current_date})")
 
                 return {
                     "status": "corrected",
@@ -101,9 +99,7 @@ class DateTimeValidator:
         corrected = content
 
         # 実行日時の修正
-        corrected = re.sub(
-            r"(実行日時\s*\n\s*)2025-01-\d{2}", r"\g<1>" + self.current_date, corrected
-        )
+        corrected = re.sub(r"(実行日時\s*\n\s*)2025-01-\d{2}", r"\g<1>" + self.current_date, corrected)
 
         # 一般的な疑わしい日付の修正
         corrected = re.sub(r"2025-01-\d{2}", self.current_date, corrected)
@@ -125,13 +121,10 @@ class DateTimeValidatorHandler(FileSystemEventHandler):
         if event.is_directory:
             return
 
-        file_path = Path(event.src_path)
+        file_path = Path(str(event.src_path))
 
         # 特定のディレクトリのみ監視
-        if any(
-            part in file_path.parts
-            for part in [".git", "__pycache__", ".venv", "node_modules"]
-        ):
+        if any(part in file_path.parts for part in [".git", "__pycache__", ".venv", "node_modules"]):
             return
 
         # バックアップファイルは無視
@@ -150,12 +143,8 @@ class DateTimeValidatorHandler(FileSystemEventHandler):
 def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(description="DateTime Validator MCP Server")
-    parser.add_argument(
-        "--directory", "-d", default="/workspace", help="監視ディレクトリ"
-    )
-    parser.add_argument(
-        "--validate-only", "-v", action="store_true", help="一括検証のみ実行"
-    )
+    parser.add_argument("--directory", "-d", default="/workspace", help="監視ディレクトリ")
+    parser.add_argument("--validate-only", "-v", action="store_true", help="一括検証のみ実行")
 
     args = parser.parse_args()
 
@@ -178,18 +167,14 @@ def main():
                     if result["status"] == "corrected":
                         corrections_made += 1
 
-        logger.info(
-            f"検証完了: {total_files}ファイル, {issues_found}問題, {corrections_made}修正"
-        )
+        logger.info(f"検証完了: {total_files}ファイル, {issues_found}問題, {corrections_made}修正")
     else:
         handler = DateTimeValidatorHandler(validator)
         observer = Observer()
         observer.schedule(handler, str(watch_directory), recursive=True)
         observer.start()
 
-        logger.info(
-            f"🔍 DateTime Validator Server 開始: {watch_directory} (Markdownファイルのみ)"
-        )
+        logger.info(f"🔍 DateTime Validator Server 開始: {watch_directory} (Markdownファイルのみ)")
         logger.info(f"📅 現在日時: {validator.current_date}")
 
         try:
@@ -197,9 +182,7 @@ def main():
                 time.sleep(1)
         except KeyboardInterrupt:
             observer.stop()
-            logger.info(
-                f"📅 DateTime Validator Server 停止 (修正回数: {validator.corrections_made})"
-            )
+            logger.info(f"📅 DateTime Validator Server 停止 (修正回数: {validator.corrections_made})")
 
         observer.join()
 

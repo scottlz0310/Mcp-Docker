@@ -19,12 +19,21 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 # ActWrapperの機能は直接統合されました
+from services.actions import PROJECT_ROOT
 from services.actions.execution_tracer import (
     ExecutionTracer,
     ExecutionStage,
     ThreadState,
 )
 from services.actions.logger import ActionsLogger
+
+# 遅延インポートを避けるため、モジュールレベルでインポート
+try:
+    from services.actions.docker_integration_checker import (
+        DockerIntegrationChecker,
+    )
+except ImportError:
+    DockerIntegrationChecker = None  # type: ignore
 
 
 @dataclass
@@ -175,7 +184,7 @@ class EnhancedActWrapper:
         self._stop_monitoring = threading.Event()
 
         # 自動復旧機能の初期化
-        self._auto_recovery = None
+        self._auto_recovery: Any = None  # AutoRecovery型（遅延インポートのため）
         self._initialize_auto_recovery()
 
     def run_workflow(
@@ -399,6 +408,9 @@ class EnhancedActWrapper:
         # 非対話的実行を強制するフラグを追加
         flags.extend(["--rm"])
 
+        # ローカルキャッシュイメージを使用（ネットワークタイムアウト回避）
+        flags.extend(["--pull=false"])
+
         if self.settings.container_workdir:
             flags.extend(["--container-workdir", self.settings.container_workdir])
         if self.settings.image:
@@ -409,8 +421,8 @@ class EnhancedActWrapper:
             for platform in self.settings.platforms:
                 flags.extend(["--platform", platform])
         else:
-            # デフォルトプラットフォームを明示的に設定
-            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:act-latest"])
+            # デフォルトプラットフォームを明示的に設定（Node.js 20+を含むfull版を使用）
+            flags.extend(["-P", "ubuntu-latest=catthehacker/ubuntu:runner-latest"])
 
         return flags
 
@@ -515,7 +527,7 @@ class EnhancedActWrapper:
                 sock.connect(("10.255.255.255", 1))
                 candidate = sock.getsockname()[0]
                 if not is_loopback(candidate):
-                    return candidate
+                    return candidate  # type: ignore[no-any-return]
         except OSError as exc:
             self.logger.debug(f"UDP経路でのホスト解決に失敗しました: {exc}")
 
@@ -778,7 +790,9 @@ class EnhancedActWrapper:
             # 遅延インポートでサイクル依存を回避
             import sys
 
-            sys.path.append(str(Path(__file__).parent.parent.parent / "src"))
+            src_path = (PROJECT_ROOT / "src").resolve()
+            if src_path.exists() and str(src_path) not in sys.path:
+                sys.path.append(str(src_path))
             from diagnostic_service import DiagnosticService
 
             self._diagnostic_service = DiagnosticService(logger=self.logger)
@@ -792,9 +806,9 @@ class EnhancedActWrapper:
         """自動復旧機能を初期化"""
         try:
             from services.actions.auto_recovery import AutoRecovery
-            from services.actions.docker_integration_checker import (
-                DockerIntegrationChecker,
-            )
+
+            if DockerIntegrationChecker is None:
+                raise ImportError("DockerIntegrationChecker is not available")
 
             docker_checker = DockerIntegrationChecker(logger=self.logger)
             self._auto_recovery = AutoRecovery(
@@ -862,10 +876,25 @@ class EnhancedActWrapper:
         start_time = time.time()
         trace_id = f"enhanced_act_{int(start_time * 1000)}"
 
+        # ワークフローファイルの存在確認（診断より先に）
+        if workflow_file:
+            workflow_path = Path(self.working_directory) / workflow_file
+            if not workflow_path.exists():
+                return DetailedResult(
+                    success=False,
+                    returncode=1,
+                    stdout="",
+                    stderr=f"ワークフローファイルが見つかりません: {workflow_file}",
+                    command=f"act {workflow_file}",
+                    execution_time_ms=(time.time() - start_time) * 1000,
+                    diagnostic_results=[],
+                    trace_id=trace_id,
+                )
+
         # 実行前診断チェック
-        diagnostic_results = []
+        diagnostic_results: list[dict[str, Any]] = []
         if self.enable_diagnostics and self._diagnostic_service:
-            self.logger.info("実行前診断チェックを開始します...")
+            self.logger.info("実行前診断チェックを開始します...")  # type: ignore[unreachable]
             pre_check = self._diagnostic_service.run_comprehensive_health_check()
             diagnostic_results.append(
                 {
@@ -904,7 +933,7 @@ class EnhancedActWrapper:
 
             # 実行後診断チェック
             if self.enable_diagnostics and self._diagnostic_service:
-                self.logger.info("実行後診断チェックを開始します...")
+                self.logger.info("実行後診断チェックを開始します...")  # type: ignore[unreachable]
                 post_check = self._diagnostic_service.run_comprehensive_health_check()
                 diagnostic_results.append(
                     {
@@ -971,16 +1000,29 @@ class EnhancedActWrapper:
         Returns:
             Dict[str, Any]: 実行結果
         """
-        # モックモードの場合は親クラスの実装を使用
+        # モックモードの場合はシンプルなモック結果を返す
         if self._mock_mode:
-            return super().run_workflow(
-                workflow_file=workflow_file,
-                event=event,
-                job=job,
-                dry_run=dry_run,
-                verbose=verbose,
-                env_vars=env_vars,
-            )
+            return {
+                "success": True,
+                "returncode": 0,
+                "stdout": f"Mock execution of workflow: {workflow_file}",
+                "stderr": "",
+                "command": f"act {workflow_file or ''}",
+                "execution_time_ms": 100.0,
+            }
+
+        # ワークフローファイルの存在確認
+        if workflow_file:
+            workflow_path = Path(self.working_directory) / workflow_file
+            if not workflow_path.exists():
+                return {
+                    "success": False,
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": f"ワークフローファイルが見つかりません: {workflow_file}",
+                    "command": f"act {workflow_file}",
+                    "execution_time_ms": 0.0,
+                }
 
         # 実行トレースを開始
         if trace_id and self.execution_tracer:
@@ -1043,7 +1085,7 @@ class EnhancedActWrapper:
 
             # トレースを終了
             if trace_id and self.execution_tracer:
-                self.execution_tracer.stop_trace()
+                self.execution_tracer.end_trace()
 
     def _build_enhanced_command(
         self,
@@ -1559,10 +1601,13 @@ class EnhancedActWrapper:
         Returns:
             Dict[str, Any]: 失敗分析結果
         """
-        analysis = {
+        probable_causes: list[str] = []
+        recommendations: list[str] = []
+
+        analysis: dict[str, Any] = {
             "failure_type": "unknown",
-            "probable_causes": [],
-            "recommendations": [],
+            "probable_causes": probable_causes,
+            "recommendations": recommendations,
             "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -1573,8 +1618,8 @@ class EnhancedActWrapper:
         # 終了コードによる分析
         if returncode == -1:
             analysis["failure_type"] = "timeout"
-            analysis["probable_causes"].append("実行タイムアウト")
-            analysis["recommendations"].extend(
+            probable_causes.append("実行タイムアウト")
+            recommendations.extend(
                 [
                     "タイムアウト時間を延長してください",
                     "ワークフローの複雑さを確認してください",
@@ -1583,13 +1628,13 @@ class EnhancedActWrapper:
             )
         elif returncode != 0:
             analysis["failure_type"] = "execution_error"
-            analysis["probable_causes"].append(f"act実行エラー (終了コード: {returncode})")
+            probable_causes.append(f"act実行エラー (終了コード: {returncode})")
 
         # デッドロック分析
         if stream_result and stream_result.deadlock_detected:
             analysis["failure_type"] = "deadlock"
-            analysis["probable_causes"].append("デッドロック検出")
-            analysis["recommendations"].extend(
+            probable_causes.append("デッドロック検出")
+            recommendations.extend(
                 [
                     "出力ストリーミングの問題を確認してください",
                     "プロセス間通信の問題を調査してください",
@@ -1598,8 +1643,8 @@ class EnhancedActWrapper:
 
         # エラーメッセージ分析
         if "docker" in stderr.lower():
-            analysis["probable_causes"].append("Docker関連の問題")
-            analysis["recommendations"].extend(
+            probable_causes.append("Docker関連の問題")
+            recommendations.extend(
                 [
                     "Docker daemonが実行されているか確認してください",
                     "Docker権限を確認してください",
@@ -1607,8 +1652,8 @@ class EnhancedActWrapper:
             )
 
         if "permission" in stderr.lower():
-            analysis["probable_causes"].append("権限の問題")
-            analysis["recommendations"].append("ファイル・ディレクトリの権限を確認してください")
+            probable_causes.append("権限の問題")
+            recommendations.append("ファイル・ディレクトリの権限を確認してください")
 
         return analysis
 
@@ -1754,7 +1799,7 @@ class EnhancedActWrapper:
                 "auto_recovery_available": False,
             }
 
-        return self._auto_recovery.get_recovery_statistics()
+        return self._auto_recovery.get_recovery_statistics()  # type: ignore[no-any-return]
 
     def _build_act_command(
         self,

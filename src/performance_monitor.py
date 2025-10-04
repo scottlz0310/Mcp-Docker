@@ -184,9 +184,7 @@ class PerformanceMonitor:
                 self.current_stage.peak_cpu = max(m.cpu_percent for m in stage_metrics)
                 self.current_stage.peak_memory_mb = max(m.memory_rss_mb for m in stage_metrics)
 
-            self.logger.debug(
-                f"実行段階終了: {self.current_stage.stage_name} " f"({self.current_stage.duration_ms:.2f}ms)"
-            )
+            self.logger.debug(f"実行段階終了: {self.current_stage.stage_name} ({self.current_stage.duration_ms:.2f}ms)")
 
     def record_docker_operation(self, operation_type: str, container_id: Optional[str] = None):
         """Docker操作を記録"""
@@ -442,7 +440,7 @@ class PerformanceMonitor:
                     BottleneckAnalysis(
                         bottleneck_type="HIGH_NETWORK_USAGE",
                         severity="MEDIUM",
-                        description=f"ネットワーク使用量が高い状態です ({network_sent_rate / (1024*1024):.1f}MB/分)",
+                        description=f"ネットワーク使用量が高い状態です ({network_sent_rate / (1024 * 1024):.1f}MB/分)",
                         affected_stage="全体",
                         impact_score=min(network_sent_rate / (200 * 1024 * 1024), 1.0),
                         recommendations=[
@@ -533,7 +531,7 @@ class PerformanceMonitor:
                     opportunity_type="EXECUTION_TIME_OPTIMIZATION",
                     priority="HIGH",
                     title="実行時間の最適化",
-                    description=f"長時間実行される段階が複数あります ({len(long_stages)}個, 合計{total_long_stage_time/1000:.1f}秒)",
+                    description=f"長時間実行される段階が複数あります ({len(long_stages)}個, 合計{total_long_stage_time / 1000:.1f}秒)",
                     estimated_improvement="全体実行時間 15-40% 短縮",
                     implementation_effort="中程度",
                     recommendations=[
@@ -634,7 +632,7 @@ class PerformanceMonitor:
                         opportunity_type="WORKFLOW_EXECUTION_OPTIMIZATION",
                         priority="HIGH",
                         title="ワークフロー実行の最適化",
-                        description=f"ワークフロー実行時間が長い状態です ({workflow_total_time/1000:.1f}秒)",
+                        description=f"ワークフロー実行時間が長い状態です ({workflow_total_time / 1000:.1f}秒)",
                         estimated_improvement="ワークフロー実行時間 25-50% 短縮",
                         implementation_effort="高",
                         recommendations=[
@@ -1117,7 +1115,7 @@ class PerformanceMonitor:
 
         # 重み付き平均
         overall_score = cpu_score * 0.4 + memory_score * 0.4 + docker_score * 0.2
-        return round(max(0, min(100, overall_score)), 2)
+        return float(round(max(0, min(100, overall_score)), 2))
 
     def _generate_overall_recommendations(self, cpu_stats: Dict, memory_stats: Dict, docker_stats: Dict) -> List[str]:
         """全体的な推奨事項を生成"""

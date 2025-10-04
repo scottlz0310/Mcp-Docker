@@ -24,3 +24,10 @@ CVE-2025-22869
 # Go stdlib vulnerabilities in CodeQL CLI
 CVE-2025-47906
 CVE-2025-47907
+
+# act CLI vulnerabilities - GitHub Actions simulator tool
+# CVE-2025-22874: Go stdlib crypto/x509 ExtKeyUsageAny policy validation
+# Status: Unfixed in act v0.2.82 (latest release)
+# Mitigation: Monitor nektos/act releases for updates
+# Review date: 2025-01-24
+CVE-2025-22874

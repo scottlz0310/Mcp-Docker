@@ -1,0 +1,15 @@
+---
+services:
+  github-mcp:
+    image: ghcr.io/github/github-mcp-server:latest
+    container_name: mcp-github
+    env_file: .env
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge

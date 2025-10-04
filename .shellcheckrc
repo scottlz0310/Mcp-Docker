@@ -1,0 +1,46 @@
+# shellcheck configuration
+# https://github.com/koalaman/shellcheck/wiki/Directive
+
+# SC2129: Consider using { cmd1; cmd2; } >> file instead of individual redirects
+# 理由: 個別のリダイレクトの方が可読性が高い場合がある
+disable=SC2129
+
+# SC2317: Command appears to be unreachable
+# 理由: 関数定義内のコードは間接的に呼び出されるため、誤検知が多い
+disable=SC2317
+
+# SC2155: Declare and assign separately to avoid masking return values
+# 理由: 簡潔性を優先し、エラーハンドリングは別途実施
+disable=SC2155
+
+# SC2034: Variable appears unused
+# 理由: 設定ファイルや外部スクリプトで使用される変数を含む
+disable=SC2034
+
+# SC2064: Use single quotes in trap
+# 理由: 変数展開のタイミングを意図的に制御している
+disable=SC2064
+
+# SC2009: Consider using pgrep
+# 理由: 互換性とポータビリティを優先
+disable=SC2009
+
+# SC2206: Quote to prevent word splitting
+# 理由: 配列の初期化で意図的に分割している
+disable=SC2206
+
+# SC2086: Double quote to prevent globbing
+# 理由: return文での変数展開は問題ない
+disable=SC2086
+
+# SC2012: Use find instead of ls
+# 理由: lsの方が簡潔で、ファイル名に特殊文字を含まない前提
+disable=SC2012
+
+# SC2231: Quote expansions in for loop glob
+# 理由: グロブパターンの展開は意図的
+disable=SC2231
+
+# SC2094: Make sure not to read and write the same file
+# 理由: パイプラインの順序を理解した上での使用
+disable=SC2094

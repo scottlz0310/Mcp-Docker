@@ -271,7 +271,7 @@ collect_log_info() {
     )
 
     for pattern in "${log_files[@]}"; do
-        if ls $pattern &> /dev/null; then
+        if ls "$pattern" &> /dev/null; then
             for file in $pattern; do
                 if [[ -f "$file" ]]; then
                     safe_exec "tail -20 '$file'" "ログファイル: $file (最新20行)"

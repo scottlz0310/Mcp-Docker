@@ -54,17 +54,17 @@ class ExpressionEvaluator:
                 return all(values)
             if isinstance(node.op, ast.Or):
                 return any(values)
-            raise ExpressionEvaluationError(
-                f"unsupported boolean operator: {ast.dump(node)}"
-            )
+            raise ExpressionEvaluationError(f"unsupported boolean operator: {ast.dump(node)}")
 
         if isinstance(node, ast.UnaryOp):
             operand = self._evaluate_node(node.operand, context)
             if isinstance(node.op, ast.Not):
                 return not operand
-            raise ExpressionEvaluationError(
-                f"unsupported unary operator: {ast.dump(node)}"
-            )
+            if isinstance(node.op, ast.USub):
+                return -operand
+            if isinstance(node.op, ast.UAdd):
+                return +operand
+            raise ExpressionEvaluationError(f"unsupported unary operator: {ast.dump(node)}")
 
         if isinstance(node, ast.Compare):
             left_value = self._evaluate_node(node.left, context)
@@ -78,9 +78,7 @@ class ExpressionEvaluator:
         if isinstance(node, ast.Call):
             func = self._evaluate_node(node.func, context)
             if not callable(func):
-                raise ExpressionEvaluationError(
-                    "attempted to call a non-callable object"
-                )
+                raise ExpressionEvaluationError("attempted to call a non-callable object")
             if node.keywords:
                 raise ExpressionEvaluationError("keyword arguments are not supported")
             args = [self._evaluate_node(arg, context) for arg in node.args]
@@ -95,8 +93,13 @@ class ExpressionEvaluator:
             value = self._evaluate_node(node.value, context)
             if isinstance(value, Mapping):
                 value_map = cast(Mapping[str, Any], value)
-                return cast(Any, value_map.get(node.attr))
-            return getattr(value, node.attr, None)
+                if node.attr not in value_map:
+                    raise ExpressionEvaluationError(f"attribute '{node.attr}' not found in mapping")
+                return cast(Any, value_map[node.attr])
+            try:
+                return getattr(value, node.attr)
+            except AttributeError as exc:
+                raise ExpressionEvaluationError(f"attribute '{node.attr}' not found") from exc
 
         if isinstance(node, ast.Subscript):
             base_value = self._evaluate_node(node.value, context)
@@ -105,11 +108,8 @@ class ExpressionEvaluator:
                 raise ExpressionEvaluationError("slice notation is not supported")
             key_value = self._evaluate_node(index_node, context)
             if isinstance(base_value, Mapping):
-                base_map = cast(Mapping[Any, Any], base_value)
-                return cast(Any, base_map.get(key_value))
-            if isinstance(base_value, Sequence) and not isinstance(
-                base_value, (str, bytes, bytearray)
-            ):
+                return cast(Any, base_value.get(key_value))
+            if isinstance(base_value, Sequence) and not isinstance(base_value, (str, bytes, bytearray)):
                 try:
                     return cast(Any, base_value[key_value])
                 except (IndexError, TypeError) as exc:
@@ -138,9 +138,7 @@ class ExpressionEvaluator:
             for key_node, value_node in zip(node.keys, node.values):
                 if key_node is None:
                     raise ExpressionEvaluationError("dict unpacking is not supported")
-                result[self._evaluate_node(key_node, context)] = self._evaluate_node(
-                    value_node, context
-                )
+                result[self._evaluate_node(key_node, context)] = self._evaluate_node(value_node, context)
             return result
 
         raise ExpressionEvaluationError(f"unsupported expression: {ast.dump(node)}")
@@ -161,21 +159,21 @@ class ExpressionEvaluator:
     @staticmethod
     def _evaluate_compare(left: Any, right: Any, operator: ast.cmpop) -> bool:
         if isinstance(operator, ast.Eq):
-            return left == right
+            return left == right  # type: ignore[no-any-return]
         if isinstance(operator, ast.NotEq):
-            return left != right
+            return left != right  # type: ignore[no-any-return]
         if isinstance(operator, ast.In):
             return left in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.NotIn):
             return left not in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.Gt):
-            return left > right
+            return left > right  # type: ignore[no-any-return]
         if isinstance(operator, ast.GtE):
-            return left >= right
+            return left >= right  # type: ignore[no-any-return]
         if isinstance(operator, ast.Lt):
-            return left < right
+            return left < right  # type: ignore[no-any-return]
         if isinstance(operator, ast.LtE):
-            return left <= right
+            return left <= right  # type: ignore[no-any-return]
         raise ExpressionEvaluationError(f"unsupported comparison operator: {operator}")
 
     @staticmethod

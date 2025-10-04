@@ -119,9 +119,7 @@ def list_json_files(*segments: str) -> list[Path]:
     directory = get_output_root().joinpath(*segments)
     if not directory.exists():
         return []
-    return sorted(
-        path for path in directory.glob("*.json") if path.name != "latest.json"
-    )
+    return sorted(path for path in directory.glob("*.json") if path.name != "latest.json")
 
 
 def latest_json_path(*segments: str) -> Path | None:

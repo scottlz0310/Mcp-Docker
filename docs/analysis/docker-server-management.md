@@ -29,15 +29,12 @@
 #### GitHub MCP サーバー
 **問題:**
 - 設定方法が不明確
-- どのファイルをコピーすればいいか分からない
-- 起動方法が複雑
+- 様々なIDEや拡張機能それぞれで設定方法が違う
 
 **あるべき姿:**
-```bash
-# 他リポジトリで
-cp /path/to/Mcp-Docker/examples/github-mcp/* .
-docker compose up github-mcp
-```
+- 使用が想定されるIDEやCLIツールでのconfigファイルの場所や、設定値をガイダンスするドキュメントを整備
+- 設定をサポートするスクリプトを整備[optional]
+- DockerServer起動は一括で行うため各リポジトリでの作業は不要(make start)
 
 #### Actions Simulator
 **問題:**

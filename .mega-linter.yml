@@ -20,4 +20,7 @@ ENABLE_LINTERS:
   - YAML_YAMLLINT
   - PYTHON_RUFF
 
+DISABLE_LINTERS:
+  - REPOSITORY_GIT_DIFF  # Dockerコンテナ内ではgitリポジトリが利用できないため無効化
+
 # Linter-specific configuration overrides can be added here as needed

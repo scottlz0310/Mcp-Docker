@@ -47,15 +47,13 @@ class ExecutionTracer:
             self.events.clear()
             self.event_counters.clear()
             self.performance_metrics.clear()
-            # trace_idは互換性のために受け取るが、この実装では使用しない
-            return self
-
-            self.record_event(
-                "trace_started",
-                {"start_time": self.start_time, "thread_id": threading.get_ident()},
-            )
-
-            self.logger.info("実行トレース開始")
+        # trace_idは互換性のために受け取るが、この実装では使用しない
+        self.record_event(
+            "trace_started",
+            {"start_time": self.start_time, "thread_id": threading.get_ident()},
+        )
+        self.logger.info("実行トレース開始")
+        return self
 
     def stop_trace(self):
         """トレースを停止"""
@@ -262,7 +260,7 @@ class ExecutionTracer:
             return
 
         # スレッド別統計
-        thread_stats = defaultdict(int)
+        thread_stats: defaultdict[int, int] = defaultdict(int)
         for event in self.events:
             thread_stats[event.thread_id] += 1
 

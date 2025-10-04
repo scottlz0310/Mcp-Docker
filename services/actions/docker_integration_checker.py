@@ -34,9 +34,7 @@ class DockerConnectionResult:
     message: str
     details: Dict[str, Any] = field(default_factory=dict)
     response_time_ms: Optional[float] = None
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
@@ -48,9 +46,7 @@ class ContainerCommunicationResult:
     container_id: Optional[str] = None
     execution_time_ms: Optional[float] = None
     details: Dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 @dataclass
@@ -63,9 +59,7 @@ class CompatibilityResult:
     docker_version: Optional[str] = None
     issues: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class DockerIntegrationChecker:
@@ -96,9 +90,7 @@ class DockerIntegrationChecker:
             # ソケットファイルの存在確認
             socket_path = Path(self._docker_socket_path)
             if not socket_path.exists():
-                self.logger.error(
-                    f"Dockerソケットが見つかりません: {self._docker_socket_path}"
-                )
+                self.logger.error(f"Dockerソケットが見つかりません: {self._docker_socket_path}")
                 return False
 
             # ソケットファイルの権限確認
@@ -151,9 +143,7 @@ class DockerIntegrationChecker:
                 "Docker integration test successful",
             ]
 
-            result = subprocess.run(
-                test_command, capture_output=True, text=True, timeout=30
-            )
+            result = subprocess.run(test_command, capture_output=True, text=True, timeout=30)
 
             execution_time_ms = (time.time() - start_time) * 1000
 
@@ -212,23 +202,17 @@ class DockerIntegrationChecker:
 
         try:
             # actバージョンを取得
-            act_result = subprocess.run(
-                ["act", "--version"], capture_output=True, text=True, timeout=10
-            )
+            act_result = subprocess.run(["act", "--version"], capture_output=True, text=True, timeout=10)
 
             if act_result.returncode == 0:
                 act_version = act_result.stdout.strip()
                 self.logger.debug(f"act バージョン: {act_version}")
             else:
                 issues.append("actバイナリが見つからないか、実行できません")
-                recommendations.append(
-                    "actをインストールしてください: brew install act"
-                )
+                recommendations.append("actをインストールしてください: brew install act")
 
             # Dockerバージョンを取得
-            docker_result = subprocess.run(
-                ["docker", "--version"], capture_output=True, text=True, timeout=10
-            )
+            docker_result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=10)
 
             if docker_result.returncode == 0:
                 docker_version = docker_result.stdout.strip()
@@ -251,9 +235,7 @@ class DockerIntegrationChecker:
                     # .github/workflowsがない場合のエラーは正常
                     if "no workflows found" not in act_list_result.stderr.lower():
                         issues.append("actがDockerと正常に通信できません")
-                        recommendations.append(
-                            "Docker daemonが実行されているか確認してください"
-                        )
+                        recommendations.append("Docker daemonが実行されているか確認してください")
 
             # Docker socket マウントの確認
             socket_accessible = self.verify_socket_access()
@@ -270,9 +252,7 @@ class DockerIntegrationChecker:
             compatible = len(issues) == 0
 
             message = (
-                "act-Docker互換性に問題はありません"
-                if compatible
-                else f"{len(issues)}個の互換性問題が見つかりました"
+                "act-Docker互換性に問題はありません" if compatible else f"{len(issues)}個の互換性問題が見つかりました"
             )
 
             return CompatibilityResult(
@@ -356,9 +336,7 @@ class DockerIntegrationChecker:
                     )
                 else:
                     last_error = result.stderr
-                    self.logger.warning(
-                        f"Docker接続試行 {attempt} 失敗: {result.stderr}"
-                    )
+                    self.logger.warning(f"Docker接続試行 {attempt} 失敗: {result.stderr}")
 
             except subprocess.TimeoutExpired:
                 response_time_ms = (time.time() - start_time) * 1000
@@ -406,30 +384,34 @@ class DockerIntegrationChecker:
         """
         self.logger.info("包括的なDocker統合チェックを開始します...")
 
-        results = {}
+        results: dict[str, Any] = {}
 
         # 1. ソケットアクセス検証
         self.logger.debug("1. Dockerソケットアクセス検証")
-        results["socket_access"] = self.verify_socket_access()
+        socket_access = self.verify_socket_access()
+        results["socket_access"] = socket_access
 
         # 2. コンテナ通信テスト
         self.logger.debug("2. コンテナ通信テスト")
-        results["container_communication"] = self.test_container_communication()
+        container_comm = self.test_container_communication()
+        results["container_communication"] = container_comm
 
         # 3. act-Docker互換性チェック
         self.logger.debug("3. act-Docker互換性チェック")
-        results["act_compatibility"] = self.check_act_docker_compatibility()
+        act_compat = self.check_act_docker_compatibility()
+        results["act_compatibility"] = act_compat
 
         # 4. Docker daemon接続テスト（リトライ付き）
         self.logger.debug("4. Docker daemon接続テスト")
-        results["daemon_connection"] = self.test_docker_daemon_connection_with_retry()
+        daemon_conn = self.test_docker_daemon_connection_with_retry()
+        results["daemon_connection"] = daemon_conn
 
         # 5. 全体的な評価
         overall_success = (
-            results["socket_access"]
-            and results["container_communication"].success
-            and results["act_compatibility"].compatible
-            and results["daemon_connection"].status == DockerConnectionStatus.CONNECTED
+            socket_access
+            and container_comm.success
+            and act_compat.compatible
+            and daemon_conn.status == DockerConnectionStatus.CONNECTED
         )
 
         results["overall_success"] = overall_success
@@ -441,27 +423,21 @@ class DockerIntegrationChecker:
             self.logger.success("Docker統合チェック完了: 全て正常 ✓")
         else:
             failed_checks = []
-            if not results["socket_access"]:
+            if not socket_access:
                 failed_checks.append("ソケットアクセス")
-            if not results["container_communication"].success:
+            if not container_comm.success:
                 failed_checks.append("コンテナ通信")
-            if not results["act_compatibility"].compatible:
+            if not act_compat.compatible:
                 failed_checks.append("act互換性")
-            if results["daemon_connection"].status != DockerConnectionStatus.CONNECTED:
+            if daemon_conn.status != DockerConnectionStatus.CONNECTED:
                 failed_checks.append("daemon接続")
 
-            results["summary"] = (
-                f"Docker統合に問題があります: {', '.join(failed_checks)}"
-            )
-            self.logger.error(
-                f"Docker統合チェック完了: 問題あり ({', '.join(failed_checks)})"
-            )
+            results["summary"] = f"Docker統合に問題があります: {', '.join(failed_checks)}"
+            self.logger.error(f"Docker統合チェック完了: 問題あり ({', '.join(failed_checks)})")
 
         return results
 
-    def generate_docker_fix_recommendations(
-        self, check_results: Dict[str, Any]
-    ) -> List[str]:
+    def generate_docker_fix_recommendations(self, check_results: Dict[str, Any]) -> List[str]:
         """
         Docker統合の問題に対する修正推奨事項を生成
 
@@ -515,8 +491,6 @@ class DockerIntegrationChecker:
             )
 
         if not recommendations:
-            recommendations.append(
-                "Docker統合は正常に動作しています。追加の修正は不要です。"
-            )
+            recommendations.append("Docker統合は正常に動作しています。追加の修正は不要です。")
 
         return recommendations
