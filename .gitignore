@@ -3,6 +3,9 @@
 .env.*
 !.env.template
 
+# MCP Configuration (contains environment variable references)
+.mcp.json
+
 # Logs
 *.log
 logs/
