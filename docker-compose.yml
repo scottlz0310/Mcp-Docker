@@ -1,22 +1,22 @@
 ---
 services:
+  # ==========================================================================
+  # GitHub MCP Server
+  # ==========================================================================
+  # IMPORTANT: Use official GitHub-maintained image, NOT the deprecated
+  # @modelcontextprotocol/server-github npm package
+  # Official image: ghcr.io/github/github-mcp-server:latest
+  # DO NOT change to build from Dockerfile - always use the official image
+  # ==========================================================================
   github-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: mcp-server
+    image: ghcr.io/github/github-mcp-server:latest
     container_name: mcp-github
     stdin_open: true
     tty: true
     environment:
-      # GPAT: .env -> 環境変数 -> デフォルト値の順でフォールバック
+      # GPAT: .bashrc環境変数 -> .env -> デフォルト値の順でフォールバック
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-your_token_here}}}
     restart: unless-stopped
-    command:
-      [
-        "node",
-        "/usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js",
-      ]
     networks:
       - mcp-network
 
