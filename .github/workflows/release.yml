@@ -128,8 +128,6 @@ jobs:
     with:
       release_mode: true
       quality_level: 'strict'
-      skip_slow_tests: false
-      generate_reports: true
     permissions:
       contents: read
       security-events: write
