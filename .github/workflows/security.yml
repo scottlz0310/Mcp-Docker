@@ -58,7 +58,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-fs-results.sarif'
           trivy-config: .trivyignore
-          version: 'v0.67.0'
+          version: 'latest'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -82,7 +82,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-container-results.sarif'
           trivy-config: .trivyignore
-          version: 'v0.67.0'
+          version: 'latest'
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
