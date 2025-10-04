@@ -41,9 +41,9 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp-network" ]]
 
-    # サービス間通信確認（pingテスト）
-    run docker compose exec -T datetime-validator ping -c 1 datetime-validator
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # pingが失敗してもDNS解決ができればOK
+    # サービス間通信確認（DNS解決テスト）
+    run docker compose exec -T datetime-validator getent hosts datetime-validator
+    [ "$status" -eq 0 ]
 }
 
 @test "Log aggregation works correctly" {
