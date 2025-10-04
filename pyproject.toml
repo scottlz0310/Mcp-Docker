@@ -113,9 +113,9 @@ addopts = [
     "-v",
     "--strict-markers",
     "--tb=short",
-    "-n=logical",  # pytest-xdist: 論理コア数で並列実行（workstealモードで最高速）
-    "--timeout=30",  # デフォルトタイムアウト30秒（遅いテストを炙り出す）
-    "--timeout-method=thread",  # スレッドベースのタイムアウト（xdistと互換性が高い）
+    "-n=logical",
+    "--timeout=30",
+    "--timeout-method=thread",
 ]
 markers = [
     "unit: ユニットテスト（外部依存なし）",

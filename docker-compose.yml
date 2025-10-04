@@ -10,7 +10,7 @@ services:
   # ==========================================================================
   github-mcp:
     image: ghcr.io/github/github-mcp-server:latest
-    container_name: mcp-github
+    container_name: ${GITHUB_MCP_CONTAINER_NAME:-mcp-github}
     stdin_open: true
     tty: true
     environment:
@@ -25,7 +25,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: datetime-validator
-    container_name: mcp-datetime
+    container_name: ${DATETIME_VALIDATOR_CONTAINER_NAME:-mcp-datetime}
     # セキュリティ: 動的UID/GID設定（書き込み権限確保 + Root昇格防止）
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     volumes:
@@ -60,7 +60,7 @@ services:
       args:
         USER_ID: "${USER_ID:-1000}"
         GROUP_ID: "${GROUP_ID:-1000}"
-    container_name: mcp-actions-simulator
+    container_name: ${ACTIONS_SIMULATOR_CONTAINER_NAME:-mcp-actions-simulator}
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     group_add:
       - "${DOCKER_GID:-999}"  # Docker group ID for socket access
