@@ -34,9 +34,10 @@ jobs:
 
       - name: Install system tools
         run: |
-          # システムツールのインストール（タイムアウト付き）
-          timeout 120 sudo apt-get update || echo "⚠️ apt-get update timed out"
-          timeout 60 sudo apt-get install -y shellcheck yamllint || echo "⚠️ Some tools failed to install"
+          # システムツールのインストール
+          # Note: タイムアウトはCI環境のネットワーク問題対策（120秒で十分）
+          timeout 120 sudo apt-get update
+          timeout 60 sudo apt-get install -y shellcheck yamllint
 
       - name: Install Python dependencies
         run: |
@@ -44,13 +45,15 @@ jobs:
           if [ -f "pyproject.toml" ]; then
             echo "📦 Installing dependencies with uv..."
             if command -v uv >/dev/null 2>&1; then
-              timeout 180 uv sync --group dev --group test || echo "⚠️ uv sync failed or timed out"
+              # Note: タイムアウトは依存関係ダウンロードの問題対策
+              timeout 180 uv sync --group dev --group test
             else
               echo "⚠️ uv not available, using pip fallback"
-              timeout 180 python3 -m pip install -e . || echo "⚠️ pip install failed"
+              timeout 180 python3 -m pip install -e .
             fi
           else
             echo "⚠️ No pyproject.toml found, skipping dependency installation"
+            exit 0
           fi
 
       - name: Run ruff (Python)
@@ -59,14 +62,16 @@ jobs:
           if [ -f "pyproject.toml" ]; then
             echo "🔍 Running ruff check..."
             if command -v uv >/dev/null 2>&1; then
-              timeout 60 uv run ruff check . || echo "⚠️ ruff check failed or timed out"
+              uv run ruff check .
             elif command -v ruff >/dev/null 2>&1; then
-              timeout 60 ruff check . || echo "⚠️ ruff check failed or timed out"
+              ruff check .
             else
-              echo "⚠️ ruff not available"
+              echo "⚠️ ruff not available, skipping check"
+              exit 0
             fi
           else
             echo "⚠️ No Python project found, skipping ruff"
+            exit 0
           fi
 
       - name: Run shellcheck (Shell)
@@ -74,10 +79,10 @@ jobs:
           echo "🔍 Checking for shell scripts..."
           if command -v shellcheck >/dev/null 2>&1; then
             find . -name "*.sh" -type f | head -10
-            timeout 60 find . -name "*.sh" -type f -exec shellcheck {} + || \
-              echo "⚠️ shellcheck found issues or timed out"
+            find . -name "*.sh" -type f -exec shellcheck {} +
           else
-            echo "⚠️ shellcheck not available"
+            echo "⚠️ shellcheck not available, skipping check"
+            exit 0
           fi
 
       - name: Run yamllint (YAML)
@@ -85,9 +90,10 @@ jobs:
           echo "🔍 Checking for YAML files..."
           if command -v yamllint >/dev/null 2>&1; then
             find . -name "*.yml" -o -name "*.yaml" | head -10
-            timeout 60 yamllint . || echo "⚠️ yamllint found issues or timed out"
+            yamllint .
           else
-            echo "⚠️ yamllint not available"
+            echo "⚠️ yamllint not available, skipping check"
+            exit 0
           fi
 
   lint:
@@ -192,11 +198,13 @@ jobs:
             # Test main.py version command
             docker run --rm mcp-docker:latest python /app/main.py --version
             # Test default command (mcp-server-github)
-            docker run --rm mcp-docker:latest --help || true
+            # Note: MCPサーバーは--helpでエラーコードを返す可能性があるため、出力のみ確認
+            docker run --rm mcp-docker:latest --help > /dev/null 2>&1 || echo "MCP server executed (exit code expected)"
             # Inspect image
             docker inspect mcp-docker:latest
           else
             echo "Docker not available in this environment - skipping tests"
+            exit 0
           fi
 
   security:
@@ -457,6 +465,7 @@ jobs:
 
               # PATH設定
               export PATH="$HOME/bin:$PATH"
+              # Note: .bashrcが存在しない場合もあるため、エラーを無視
               echo "export PATH=\"\$HOME/bin:\$PATH\"" >> "$HOME/.bashrc" 2>/dev/null || true
 
               # GitHub Actions環境変数設定
@@ -541,6 +550,7 @@ jobs:
 
       - name: Cleanup
         if: always()
+        # Note: サービスが起動していない場合もあるため、エラーを無視
         run: docker compose down -v || true
 
   docker-services-integration:
