@@ -47,7 +47,23 @@ get_utc_timestamp() {
 
 # プロジェクトルートでコマンドを実行
 run_in_project_root() {
-    cd "$PROJECT_ROOT" || return 1
+    # プロジェクトルートを検出（pyproject.tomlの存在で判定）
+    local current_dir="${BATS_TEST_DIRNAME:-$(pwd)}"
+    local project_root="$current_dir"
+
+    # 最大10階層まで遡ってプロジェクトルートを探す
+    for _ in {1..10}; do
+        if [[ -f "$project_root/pyproject.toml" ]]; then
+            break
+        fi
+        project_root="$(dirname "$project_root")"
+        if [[ "$project_root" == "/" ]]; then
+            echo "Error: Project root not found" >&2
+            return 1
+        fi
+    done
+
+    cd "$project_root" || return 1
     "$@"
 }
 
