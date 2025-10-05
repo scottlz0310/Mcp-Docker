@@ -163,3 +163,32 @@ def sample_release():
         "prerelease": False,
         "body": "This is a test release",
     }
+
+
+@pytest.fixture
+def temp_config(tmp_path):
+    """一時的なConfig用のヘルパー関数を返すフィクスチャ
+
+    使用例:
+        config = temp_config({
+            "github": {...},
+            "repositories": [...],
+            "notifications": {...}
+        })
+    """
+
+    from services.github_release_watcher.config import Config
+
+    def _create_config(config_data: dict) -> Config:
+        """一時的な設定ファイルを作成してConfigインスタンスを返す"""
+        config_file = tmp_path / "config.toml"
+
+        # TOML形式で書き込み
+        import toml  # type: ignore[import-untyped]
+
+        with open(config_file, "w") as f:
+            toml.dump(config_data, f)
+
+        return Config(config_file)
+
+    return _create_config
