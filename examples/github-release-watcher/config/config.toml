@@ -149,3 +149,12 @@ output_path = "/app/data/notifications.json"
 format = "json"
 # 追記モード（true）または上書きモード（false）
 append = true
+
+# -----------------------------------------------------------------------------
+# Windows Bridge 通知設定 (WSL→Windows Toast通知)
+# -----------------------------------------------------------------------------
+[notifications.windows_bridge]
+enabled = false
+# Windowsホスト上の通知ディレクトリパス
+# 未指定の場合、WSL環境では自動的に %USERPROFILE%\.github-release-watcher\notifications を使用
+# bridge_path = "/mnt/c/Users/YourUsername/.github-release-watcher/notifications"

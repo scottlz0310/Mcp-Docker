@@ -9,6 +9,7 @@ from .file import FileNotification
 from .native import NativeNotification
 from .slack import SlackNotification
 from .webhook import WebhookNotification
+from .windows_bridge import WindowsBridgeNotification
 
 
 class NotificationManager:
@@ -64,6 +65,11 @@ class NotificationManager:
                     file_config = self.config.get("file", {})
                     file_config["enabled"] = True
                     self.notifiers["file"] = FileNotification(file_config)
+
+                elif channel == "windows_bridge":
+                    bridge_config = self.config.get("windows_bridge", {})
+                    bridge_config["enabled"] = True
+                    self.notifiers["windows_bridge"] = WindowsBridgeNotification(bridge_config)
 
                 else:
                     print(f"Unknown notification channel: {channel}")

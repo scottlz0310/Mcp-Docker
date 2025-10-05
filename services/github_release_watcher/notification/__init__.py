@@ -8,6 +8,7 @@
 - メール (SMTP)
 - Webhook (汎用)
 - ファイル出力 (JSON/Markdown)
+- Windows Bridge (WSL→Windows Toast通知)
 """
 
 from .base import NotificationBase, NotificationMessage
@@ -18,6 +19,7 @@ from .manager import NotificationManager
 from .native import NativeNotification
 from .slack import SlackNotification
 from .webhook import WebhookNotification
+from .windows_bridge import WindowsBridgeNotification
 
 __all__ = [
     "NotificationBase",
@@ -29,4 +31,5 @@ __all__ = [
     "WebhookNotification",
     "EmailNotification",
     "FileNotification",
+    "WindowsBridgeNotification",
 ]
