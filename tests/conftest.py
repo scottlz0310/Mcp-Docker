@@ -60,3 +60,106 @@ def worker_id(request):
     if hasattr(request.config, "workerinput"):
         return request.config.workerinput["workerid"]
     return os.environ.get("PYTEST_XDIST_WORKER", "master")
+
+
+# =============================================================================
+# GitHub Release Watcher - Mock Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def mock_github_api(mocker):
+    """GitHub API のモック"""
+    mock_response = {
+        "tag_name": "v1.2.3",
+        "name": "Release v1.2.3",
+        "html_url": "https://github.com/owner/repo/releases/tag/v1.2.3",
+        "published_at": "2025-01-01T00:00:00Z",
+        "prerelease": False,
+    }
+
+    mock_client = mocker.Mock()
+    mock_client.get_latest_release_async = mocker.AsyncMock(return_value=mock_response)
+    mock_client.get_releases_async = mocker.AsyncMock(return_value=[mock_response])
+    mock_client.check_multiple_repos_async = mocker.AsyncMock(
+        return_value=[({"owner": "owner", "repo": "repo", "url": "https://github.com/owner/repo"}, mock_response)]
+    )
+    mock_client.get_rate_limit_async = mocker.AsyncMock(
+        return_value={"resources": {"core": {"remaining": 5000, "reset": 1234567890}}}
+    )
+
+    return mock_client
+
+
+@pytest.fixture
+def mock_discord_notification(mocker):
+    """Discord 通知のモック"""
+    mock_discord = mocker.Mock()
+    mock_discord.send = mocker.Mock(return_value=True)
+    mock_discord.is_enabled = mocker.Mock(return_value=True)
+    return mock_discord
+
+
+@pytest.fixture
+def mock_slack_notification(mocker):
+    """Slack 通知のモック"""
+    mock_slack = mocker.Mock()
+    mock_slack.send = mocker.Mock(return_value=True)
+    mock_slack.is_enabled = mocker.Mock(return_value=True)
+    return mock_slack
+
+
+@pytest.fixture
+def mock_native_notification(mocker):
+    """Native 通知のモック"""
+    mock_native = mocker.Mock()
+    mock_native.send = mocker.Mock(return_value=True)
+    mock_native.is_enabled = mocker.Mock(return_value=True)
+    return mock_native
+
+
+@pytest.fixture
+def sample_config():
+    """サンプル設定データ"""
+    return {
+        "github": {
+            "token": "test_token",
+            "check_interval": 300,
+        },
+        "repositories": [
+            {
+                "owner": "microsoft",
+                "repo": "WSL",
+                "url": "https://github.com/microsoft/WSL",
+                "filter_mode": "stable",
+            }
+        ],
+        "notifications": {
+            "enabled": True,
+            "channels": ["native", "discord"],
+            "native": {
+                "enabled": True,
+                "duration": 10,
+                "sound": True,
+            },
+            "discord": {
+                "enabled": True,
+                "webhook_url": "https://discord.com/api/webhooks/test",
+                "username": "Test Bot",
+                "color": 0x0366D6,
+            },
+        },
+    }
+
+
+@pytest.fixture
+def sample_release():
+    """サンプルリリースデータ"""
+    return {
+        "tag_name": "v1.2.3",
+        "name": "Release v1.2.3",
+        "html_url": "https://github.com/owner/repo/releases/tag/v1.2.3",
+        "published_at": "2025-01-01T00:00:00Z",
+        "prerelease": False,
+        "body": "This is a test release",
+    }

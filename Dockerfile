@@ -167,6 +167,33 @@ ENTRYPOINT ["tini", "--"]
 CMD ["python", "services/datetime/datetime_validator.py", "--directory", "/workspace"]
 
 # =============================================================================
+# GitHub Release Watcher Target: Monitor GitHub releases
+# =============================================================================
+FROM base AS github-release-watcher
+
+# Copy Python environment from builder
+COPY --from=builder /opt/uv /opt/uv
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
+
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv
+ENV PATH="/app/.venv/bin:/usr/local/bin:${PATH}"
+
+WORKDIR /app
+
+# Create non-root user
+RUN groupadd -g 1000 watcher \
+    && useradd -l -u 1000 -g 1000 --create-home --shell /bin/bash watcher \
+    && mkdir -p /app/data /app/logs \
+    && chown -R watcher:watcher /app /opt/uv
+
+USER watcher
+
+ENTRYPOINT ["tini", "--"]
+CMD ["python", "-m", "services.github_release_watcher", "--config", "/app/data/config.toml", "--state", "/app/data/state.json"]
+
+# =============================================================================
 # Actions Simulator Target: GitHub Actions Simulator
 # =============================================================================
 FROM base AS actions-simulator

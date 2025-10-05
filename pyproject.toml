@@ -18,6 +18,14 @@ dependencies = [
     "psutil>=5.9.0",
     "python-multipart>=0.0.6",
     "pytest>=8.4.2",
+    # GitHub Release Watcher dependencies
+    "aiohttp>=3.9.0",
+    "cachetools>=5.3.0",
+    "packaging>=23.0",
+    "python-dotenv>=1.0.0",
+    "win10toast>=0.9; sys_platform == 'win32'",
+    "pync>=2.0.3; sys_platform == 'darwin'",
+    "plyer>=2.1.0; sys_platform == 'linux'",
 ]
 keywords = ["mcp", "docker", "model-context-protocol", "ai", "llm"]
 classifiers = [
