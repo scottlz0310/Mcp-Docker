@@ -60,6 +60,18 @@ actions: ## Actions Simulator起動
 actions-logs: ## Actions Simulatorのログ表示
 	docker compose logs -f actions-simulator
 
+.PHONY: release-watcher
+release-watcher: ## GitHub Release Watcher起動
+	docker compose up -d github-release-watcher
+
+.PHONY: release-watcher-logs
+release-watcher-logs: ## GitHub Release Watcherのログ表示
+	docker compose logs -f github-release-watcher
+
+.PHONY: release-watcher-stop
+release-watcher-stop: ## GitHub Release Watcher停止
+	docker compose stop github-release-watcher
+
 .PHONY: actions-run
 actions-run: ## Actions Simulatorでワークフローを選択して実行
 	@repo_root="$(ROOT_DIR)"; \
@@ -162,6 +174,10 @@ build-actions: ## GitHub Actions シミュレータのイメージをビルド
 .PHONY: build-actions-server
 build-actions-server: ## GitHub Actions サーバーのイメージをビルド
 	docker compose --profile debug build actions-server
+
+.PHONY: build-release-watcher
+build-release-watcher: ## GitHub Release Watcherのイメージをビルド
+	docker compose build github-release-watcher
 
 .PHONY: test
 test: ## すべてのテスト実行
