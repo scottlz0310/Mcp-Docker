@@ -40,7 +40,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 # GitHub Token の確認
-source .env
+if [ -f .env ]; then
+    # shellcheck source=/dev/null
+    source .env
+fi
 if [ -z "$GITHUB_TOKEN" ]; then
     echo -e "${YELLOW}Warning: GITHUB_TOKEN is not set in .env${NC}"
     echo -e "${YELLOW}The service may not work properly without it${NC}"
