@@ -66,12 +66,20 @@ class ReleaseComparator:
         タグ名からバージョン文字列を抽出
 
         Args:
-            tag_name: GitHubタグ名（例: "v1.2.3", "1.2.3"）
+            tag_name: GitHubタグ名
+                例: "v1.2.3", "1.2.3", "linux-msft-wsl-6.6.87.2"
 
         Returns:
-            バージョン文字列（例: "1.2.3"）
+            バージョン文字列（例: "1.2.3", "6.6.87.2"）
         """
-        # 先頭の "v" を削除
+        # パターン1: linux-msft-wsl-X.X.X.X 形式（WSL2-Linux-Kernel）
+        wsl_match = re.search(r"linux-msft-wsl-([\d.]+)", tag_name)
+        if wsl_match is not None:
+            return wsl_match.group(1)
+
+        # パターン2: 先頭の "v" を削除（一般的なタグ）
         if tag_name.startswith("v"):
             return tag_name[1:]
+
+        # パターン3: そのまま返す
         return tag_name

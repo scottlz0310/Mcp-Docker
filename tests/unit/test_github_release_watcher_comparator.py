@@ -122,3 +122,28 @@ class TestReleaseComparator:
 
         assert comparator.extract_version("1.2.3") == "1.2.3"
         assert comparator.extract_version("2023.01.15") == "2023.01.15"
+
+    def test_extract_version_wsl_kernel_format(self):
+        """WSL2-Linux-Kernel タグ形式からのバージョン抽出"""
+        comparator = ReleaseComparator()
+
+        # linux-msft-wsl-X.X.X.X 形式
+        assert comparator.extract_version("linux-msft-wsl-6.6.87.2") == "6.6.87.2"
+        assert comparator.extract_version("linux-msft-wsl-6.6.87.1") == "6.6.87.1"
+        assert comparator.extract_version("linux-msft-wsl-6.6.84.1") == "6.6.84.1"
+        assert comparator.extract_version("linux-msft-wsl-6.6.75.3") == "6.6.75.3"
+
+    def test_is_newer_with_wsl_kernel_versions(self):
+        """WSL2カーネルバージョンでの比較"""
+        comparator = ReleaseComparator()
+
+        # 4セグメントバージョン番号の比較
+        assert comparator.is_newer("6.6.84.1", "6.6.87.1")
+        assert comparator.is_newer("6.6.87.1", "6.6.87.2")
+        assert comparator.is_newer("6.6.75.3", "6.6.87.2")
+
+        # 同じバージョン
+        assert not comparator.is_newer("6.6.87.2", "6.6.87.2")
+
+        # 古いバージョン
+        assert not comparator.is_newer("6.6.87.2", "6.6.87.1")

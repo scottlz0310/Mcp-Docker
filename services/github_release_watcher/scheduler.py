@@ -3,6 +3,8 @@
 """
 
 import asyncio
+import re
+import subprocess
 from typing import TYPE_CHECKING, Optional
 
 from .comparator import ReleaseComparator
@@ -40,6 +42,26 @@ class ReleaseScheduler:
         self.logger = get_logger()
         self.running = False
 
+    def _get_current_kernel_version(self) -> Optional[str]:
+        """
+        現在のシステムカーネルバージョンを取得 (uname -r)
+
+        Returns:
+            カーネルバージョン（例: "6.6.87.2"）、取得失敗時はNone
+        """
+        try:
+            result = subprocess.run(["uname", "-r"], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                kernel_full = result.stdout.strip()
+                # "6.6.87.2-microsoft-standard-WSL2" から "6.6.87.2" を抽出
+                match = re.match(r"([\d.]+)", kernel_full)
+                if match:
+                    return match.group(1)
+            return None
+        except Exception as e:
+            self.logger.warning(f"Failed to get kernel version: {e}")
+            return None
+
     async def check_repository(self, repo_config: dict) -> None:
         """
         単一リポジトリをチェック
@@ -68,11 +90,23 @@ class ReleaseScheduler:
         # バージョン抽出
         version = self.comparator.extract_version(latest_version)
 
-        # 現在の状態を取得
-        current_version = self.state.get_latest_version(repo_url)
+        # システムバージョンと比較する設定かチェック
+        use_system_version = repo_config.get("use_system_version", False)
+
+        # 比較対象バージョンを取得
+        if use_system_version:
+            # uname -r からシステムカーネルバージョンを取得
+            current_version = self._get_current_kernel_version()
+            if current_version is None:
+                self.logger.warning(f"Could not get system kernel version for {owner}/{repo}")
+                return
+            self.logger.info(f"System kernel version: {current_version}")
+        else:
+            # state.json から前回チェック時のバージョンを取得
+            current_version = self.state.get_latest_version(repo_url)
 
         # 新しいバージョンかチェック
-        if current_version is None:
+        if current_version is None and not use_system_version:
             # 初回チェック
             self.logger.info(f"First check for {owner}/{repo}: version {version}")
             self.state.update_latest_version(
@@ -85,35 +119,46 @@ class ReleaseScheduler:
                     "published_at": release.get("published_at", ""),
                 },
             )
-        elif self.comparator.is_newer(current_version, version):
+        elif current_version is not None and self.comparator.is_newer(current_version, version):
             # 新しいバージョンを発見
             self.logger.info(f"New release for {owner}/{repo}: {current_version} -> {version}")
 
-            # 通知送信（フェーズ2で実装）
+            # 通知送信
             if self.notification_manager and self.config.is_notification_enabled():
                 channels = self.config.get_enabled_channels()
-                success = await self._send_notification(repo_config, release, version, channels)
+                success = await self._send_notification(
+                    repo_config, release, version, channels, current_version, use_system_version
+                )
 
                 # 通知履歴を記録
                 self.state.add_notification_history(repo_url, version, channels, success)
             else:
                 self.logger.info("Notification manager not configured, skipping notification")
 
-            # 状態を更新
-            self.state.update_latest_version(
-                repo_url,
-                version,
-                self.config.get_enabled_channels(),
-                metadata={
-                    "release_name": release.get("name", ""),
-                    "release_url": release.get("html_url", ""),
-                    "published_at": release.get("published_at", ""),
-                },
-            )
+            # 状態を更新（システムバージョン比較の場合は記録しない）
+            if not use_system_version:
+                self.state.update_latest_version(
+                    repo_url,
+                    version,
+                    self.config.get_enabled_channels(),
+                    metadata={
+                        "release_name": release.get("name", ""),
+                        "release_url": release.get("html_url", ""),
+                        "published_at": release.get("published_at", ""),
+                    },
+                )
         else:
             self.logger.debug(f"No new release for {owner}/{repo} (current: {current_version})")
 
-    async def _send_notification(self, repo_config: dict, release: dict, version: str, channels: list[str]) -> bool:
+    async def _send_notification(
+        self,
+        repo_config: dict,
+        release: dict,
+        version: str,
+        channels: list[str],
+        current_version: str,
+        use_system_version: bool,
+    ) -> bool:
         """
         通知を送信
 
@@ -122,6 +167,8 @@ class ReleaseScheduler:
             release: リリース情報
             version: バージョン文字列
             channels: 通知チャネルリスト
+            current_version: 現在のバージョン
+            use_system_version: システムバージョン比較モードか
 
         Returns:
             送信成功フラグ
@@ -133,9 +180,17 @@ class ReleaseScheduler:
         # 通知メッセージを構築
         from .notification import NotificationMessage
 
+        # システムバージョン比較の場合は特別なメッセージ
+        if use_system_version:
+            title = f"WSL2 Kernel Update Available: {version}"
+            body = f"New kernel version {version} is available. Current system version: {current_version}. Please rebuild your WSL2 kernel."
+        else:
+            title = f"New Release: {repo_config['owner']}/{repo_config['repo']} {version}"
+            body = f"A new release {version} is available for {repo_config['owner']}/{repo_config['repo']}"
+
         message = NotificationMessage(
-            title=f"New Release: {repo_config['owner']}/{repo_config['repo']} {version}",
-            body=f"A new release {version} is available for {repo_config['owner']}/{repo_config['repo']}",
+            title=title,
+            body=body,
             url=release.get("html_url"),
             owner=repo_config["owner"],
             repo=repo_config["repo"],

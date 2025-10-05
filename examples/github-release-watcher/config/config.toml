@@ -31,12 +31,15 @@ check_interval = 300
 
 [[repositories]]
 owner = "microsoft"
-repo = "WSL"
-url = "https://github.com/microsoft/WSL"
+repo = "WSL2-Linux-Kernel"
+url = "https://github.com/microsoft/WSL2-Linux-Kernel"
 # フィルタモード: "all" (全リリース), "stable" (安定版のみ), "prerelease" (プレリリースのみ)
 filter_mode = "stable"
 # バージョンパターン（正規表現、オプション）
-# version_pattern = "^v?\\d+\\.\\d+\\.\\d+$"
+# タグ形式: linux-msft-wsl-6.6.87.2 からバージョン番号を抽出
+# version_pattern = "^linux-msft-wsl-[\\d\\.]+$"
+# 特別な動作: uname -r と比較してシステムカーネルより新しければ通知
+use_system_version = true
 
 [[repositories]]
 owner = "docker"
@@ -58,10 +61,10 @@ filter_mode = "all"
 enabled = true
 
 # 有効な通知チャネル
-# 利用可能: "native", "discord", "slack", "webhook", "email", "file"
+# 利用可能: "native", "discord", "slack", "webhook", "email", "file", "windows_bridge"
 # デフォルトはファイル出力のみ（環境変数設定後に他のチャネルを追加）
 # 注意: Dockerコンテナ内からnative通知は動作しません
-channels = ["file"]
+channels = ["file", "windows_bridge"]
 
 # -----------------------------------------------------------------------------
 # ネイティブ通知設定 (Windows Toast/macOS/Linux)
@@ -154,7 +157,7 @@ append = true
 # Windows Bridge 通知設定 (WSL→Windows Toast通知)
 # -----------------------------------------------------------------------------
 [notifications.windows_bridge]
-enabled = false
+enabled = true
 # Windowsホスト上の通知ディレクトリパス
 # 未指定の場合、WSL環境では自動的に %USERPROFILE%\.github-release-watcher\notifications を使用
 # bridge_path = "/mnt/c/Users/YourUsername/.github-release-watcher/notifications"

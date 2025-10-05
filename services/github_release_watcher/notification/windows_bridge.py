@@ -32,11 +32,16 @@ class WindowsBridgeNotification(NotificationBase):
         Returns:
             Bridgeパス、またはNone（非WSL環境の場合）
         """
-        # 設定で明示的に指定されている場合
+        # 1. 環境変数 WINDOWS_BRIDGE_PATH を最優先（Dockerマウント用）
+        env_bridge_path = os.environ.get("WINDOWS_BRIDGE_PATH")
+        if env_bridge_path:
+            return Path(env_bridge_path)
+
+        # 2. 設定で明示的に指定されている場合
         if config_path:
             return Path(config_path)
 
-        # WSL環境の場合、Windowsユーザーディレクトリを使用
+        # 3. WSL環境の場合、Windowsユーザーディレクトリを使用
         if self._is_wsl():
             # USERPROFILE環境変数を取得（WSLからWindows環境変数を参照）
             userprofile = os.environ.get("USERPROFILE")
@@ -49,7 +54,7 @@ class WindowsBridgeNotification(NotificationBase):
             username = os.environ.get("USER", "user")
             return Path(f"/mnt/c/Users/{username}/.github-release-watcher/notifications")
 
-        # 非WSL環境の場合はNone
+        # 4. 非WSL環境の場合はNone
         return None
 
     def _is_wsl(self) -> bool:

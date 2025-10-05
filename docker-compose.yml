@@ -62,6 +62,7 @@ services:
     volumes:
       - ./examples/github-release-watcher/config:/app/data:rw # 設定と状態ファイル
       - ./logs:/app/logs:rw # ログファイル
+      - ${WINDOWS_NOTIFICATION_PATH}:/windows-notifications:rw # Windows Toast通知ブリッジ
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
@@ -69,6 +70,7 @@ services:
       - SMTP_SERVER=${SMTP_SERVER:-}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - WINDOWS_BRIDGE_PATH=/windows-notifications # コンテナ内のマウントパス
     restart: unless-stopped
     networks:
       - mcp-network
