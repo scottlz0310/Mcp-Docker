@@ -218,3 +218,7 @@ yarn-error.log*
 
 # Test result files (all test outputs go to output/ directory)
 output/*
+
+# GitHub Release Watcher runtime files
+examples/github-release-watcher/config/state.json
+examples/github-release-watcher/config/notifications.json
