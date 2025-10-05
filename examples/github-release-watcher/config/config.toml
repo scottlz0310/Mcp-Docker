@@ -59,13 +59,16 @@ enabled = true
 
 # 有効な通知チャネル
 # 利用可能: "native", "discord", "slack", "webhook", "email", "file"
-channels = ["native", "discord"]
+# デフォルトはファイル出力のみ（環境変数設定後に他のチャネルを追加）
+# 注意: Dockerコンテナ内からnative通知は動作しません
+channels = ["file"]
 
 # -----------------------------------------------------------------------------
 # ネイティブ通知設定 (Windows Toast/macOS/Linux)
 # -----------------------------------------------------------------------------
 [notifications.native]
-enabled = true
+# 注意: Dockerコンテナ内からは動作しません。ホスト上で直接実行する場合のみ有効
+enabled = false
 # 通知の表示時間（秒）
 duration = 10
 # サウンド再生
@@ -75,7 +78,7 @@ sound = true
 # Discord Webhook 通知設定
 # -----------------------------------------------------------------------------
 [notifications.discord]
-enabled = true
+enabled = false
 # Discord Webhook URL (.env で DISCORD_WEBHOOK_URL を設定)
 webhook_url = "${DISCORD_WEBHOOK_URL}"
 # 表示名
@@ -139,7 +142,7 @@ use_ssl = false
 # ファイル出力通知設定
 # -----------------------------------------------------------------------------
 [notifications.file]
-enabled = false
+enabled = true
 # 出力ファイルパス
 output_path = "/app/data/notifications.json"
 # 出力フォーマット: "json" または "markdown"
