@@ -598,6 +598,26 @@ pre-commit install                                          # フックをイン
 make build
 ```
 
+### WSL環境での追加セットアップ（オプション）
+
+WSL環境でWindows Toast通知機能を使用する場合は、以下の手順を実行してください：
+
+```bash
+# 1. WSL環境のセットアップ
+make setup-wsl
+
+# 2. .envファイルにWindows通知パスを設定
+echo "WINDOWS_NOTIFICATION_PATH=/mnt/c/path/to/windows-notifications" >> .env
+
+# 3. サービス起動（自動的にoverride.ymlが適用されます）
+make start
+```
+
+**注意**:
+- `make setup-wsl`はWSL環境でのみ実行できます
+- WSL以外の環境では通常の`make start`で問題なく動作します
+- Windows通知機能はGitHub Release Watcherサービスで使用されます
+
 ### 開発ワークフロー
 
 ```bash

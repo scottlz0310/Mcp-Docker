@@ -131,7 +131,7 @@ markers = [
     "unit: ユニットテスト（外部依存なし）",
     "integration: 統合テスト（Docker等の外部依存あり）",
     "e2e: エンドツーエンドテスト（完全なシナリオ）",
-    "slow: 実行時間が長いテスト（5分以上）",
+    "slow: 実行時間が長いテスト（Dockerビルド含む、タイムアウト600s）",
     "asyncio: 非同期テスト",
 ]
 timeout_func_only = true

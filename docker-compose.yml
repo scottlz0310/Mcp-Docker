@@ -62,7 +62,7 @@ services:
     volumes:
       - ./examples/github-release-watcher/config:/app/data:rw # 設定と状態ファイル
       - ./logs:/app/logs:rw # ログファイル
-      - ${WINDOWS_NOTIFICATION_PATH}:/windows-notifications:rw # Windows Toast通知ブリッジ
+      # Windows Toast通知ブリッジ（WSL環境のみ）はdocker-compose.override.ymlで定義
     environment:
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}

@@ -7,6 +7,9 @@ import pytest
 
 from conftest import PROJECT_ROOT
 
+# Dockerビルドが必要なため、全テストにslowマーカーを適用
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(scope="module")
 def actions_simulator_service(worker_id):

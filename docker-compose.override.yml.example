@@ -1,0 +1,19 @@
+# docker-compose.override.yml.example
+#
+# WSL環境でWindows Toast通知機能を使用する場合の設定例
+#
+# 使用方法:
+#   1. このファイルを docker-compose.override.yml にコピー:
+#      cp docker-compose.override.yml.example docker-compose.override.yml
+#
+#   2. .env ファイルに WINDOWS_NOTIFICATION_PATH を設定:
+#      echo "WINDOWS_NOTIFICATION_PATH=/mnt/c/path/to/windows-notifications" >> .env
+#
+#   3. makeコマンドで起動（WSL環境を自動検出してoverride.ymlを適用）:
+#      make up
+
+services:
+  github-release-watcher:
+    volumes:
+      # Windows Toast通知ブリッジ用のボリュームマウント
+      - ${WINDOWS_NOTIFICATION_PATH}:/windows-notifications:rw
