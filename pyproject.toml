@@ -18,6 +18,14 @@ dependencies = [
     "psutil>=5.9.0",
     "python-multipart>=0.0.6",
     "pytest>=8.4.2",
+    # GitHub Release Watcher dependencies
+    "aiohttp>=3.9.0",
+    "cachetools>=5.3.0",
+    "packaging>=23.0",
+    "python-dotenv>=1.0.0",
+    "win10toast>=0.9; sys_platform == 'win32'",
+    "pync>=2.0.3; sys_platform == 'darwin'",
+    "plyer>=2.1.0; sys_platform == 'linux'",
 ]
 keywords = ["mcp", "docker", "model-context-protocol", "ai", "llm"]
 classifiers = [
@@ -41,6 +49,8 @@ dev = [
     "bandit>=1.7.5",
     "types-pyyaml>=6.0.12",
     "types-psutil>=6.0.0",
+    "pytest-asyncio>=1.2.0",
+    "toml>=0.10.2",
 ]
 test = [
     "pytest>=7.4.0",
@@ -121,6 +131,9 @@ markers = [
     "unit: ユニットテスト（外部依存なし）",
     "integration: 統合テスト（Docker等の外部依存あり）",
     "e2e: エンドツーエンドテスト（完全なシナリオ）",
-    "slow: 実行時間が長いテスト（5分以上）",
+    "slow: 実行時間が長いテスト（Dockerビルド含む、タイムアウト600s）",
+    "asyncio: 非同期テスト",
 ]
 timeout_func_only = true
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

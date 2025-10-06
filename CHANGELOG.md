@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- **🔔 GitHub Release Watcher サービス追加**
+  - 任意のGitHubリポジトリの新しいリリースを監視
+  - マルチチャネル通知対応（Native/Discord/Slack/Email/Webhook/File）
+  - 非同期処理による高速な並列リポジトリチェック
+  - セマンティックバージョニング対応のバージョン比較
+  - 安定版/プレリリース/カスタムパターンによる柔軟なフィルタリング
+  - TTLキャッシュによるGitHub APIレート制限対策
+  - スレッドセーフな状態管理とJSON永続化
+  - 環境変数展開対応のTOML設定ファイル
+  - Docker統合とdocker-compose対応
+
+- **📄 README更新**
+  - MCP Dockerを統合管理システムとして再定義
+  - 全サービス（GitHub MCP、DateTime Validator、Actions Simulator、GitHub Release Watcher）の統一的な説明
+  - サービス別の使用方法セクション追加
+
+### 🧪 テスト
+
+- **GitHub Release Watcher ユニットテスト追加**
+  - comparator モジュールテスト（10テスト、全パス）
+  - notification モジュールテスト（5テスト、全パス）
+  - pytest モックフィクスチャ追加（GitHub API、Discord、Slack、Native通知）
+
+### 📚 ドキュメント
+
+- **GitHub Release Watcher ドキュメント追加**
+  - サービス設計ドキュメント（docs/services/github-release-watcher.md）
+  - 実装計画ドキュメント（docs/analysis/github-release-watcher-implementation-plan.md）
+  - 使用ガイド（examples/github-release-watcher/README.md）
+  - サンプル設定ファイル（config.toml）
+  - 起動/停止スクリプト
+
+### 🐳 Docker
+
+- **GitHub Release Watcher Docker統合**
+  - Dockerfile に github-release-watcher ターゲット追加
+  - docker-compose.yml にサービス定義追加
+  - .env.example に環境変数設定追加
+
+### 🔧 改善
+
+- **依存関係追加**
+  - aiohttp >= 3.9.0 (非同期HTTP)
+  - cachetools >= 5.3.0 (TTLキャッシュ)
+  - packaging >= 23.0 (セマンティックバージョニング)
+  - python-dotenv >= 1.0.0 (環境変数管理)
+  - プラットフォーム別通知ライブラリ（win10toast、pync、plyer）
+
+### 🐛 修正
+
+- **モジュール名の修正**
+  - `services/github-release-watcher` → `services/github_release_watcher` (Pythonモジュール規約に準拠)
+
 ## [1.2.0] - 2025-10-05
 
 

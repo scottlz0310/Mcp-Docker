@@ -1,21 +1,48 @@
-# GitHub Actions Simulator
+# MCP Docker - Docker統合管理システム
 
-軽量で使いやすいGitHub Actionsワークフローのローカルシミュレーター
+Model Context Protocol (MCP) サーバーとDevOpsツールのプロダクション対応Docker統合環境
 
 [![CI Status](https://github.com/scottlz0310/mcp-docker/workflows/CI/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 [![Security Scan](https://github.com/scottlz0310/mcp-docker/workflows/Security/badge.svg)](https://github.com/scottlz0310/mcp-docker/actions)
 
 ## 概要
 
-GitHub Actions Simulatorは、軽量で使いやすいGitHub Actionsワークフローのローカルシミュレーターです。Dockerコンテナ内でactを使用した高速シミュレーションにより、複雑な設定不要で即座にワークフローをテストできます。
+MCP Dockerは、複数のMCPサーバーとDevOpsツールを統合管理するDocker環境です。GitHub MCP Server、DateTime Validator、Actions Simulator、GitHub Release Watcherなど、複数のサービスを簡単にデプロイ・管理できます。
+
+## 🎯 提供サービス
+
+### 1. GitHub MCP Server
+GitHub公式のModel Context Protocolサーバー。リポジトリ管理、Issue/PR操作、GitHub Actions連携などを提供。
+
+### 2. DateTime Validator
+ワークスペース内のファイルのタイムスタンプを検証し、一貫性をチェックするサービス。
+
+### 3. GitHub Actions Simulator
+GitHub Actionsワークフローのローカルシミュレーター。Dockerコンテナ内でactを使用した高速シミュレーション。
+
+### 4. GitHub Release Watcher 🆕
+任意のGitHubリポジトリの新しいリリースを監視し、複数の通知チャネル（Native/Discord/Slack/Email）で通知するサービス。
+
+[→ GitHub Release Watcher 詳細ドキュメント](./examples/github-release-watcher/README.md)
 
 ## 主要機能
 
-- 🚀 **ワンショット実行**: 複雑な設定不要、単一コマンドで即座に開始
-- 🐳 **軽量actベース**: Dockerコンテナ内でactを使用した高速シミュレーション
-- 🔧 **自動依存関係管理**: Docker、uv、gitの自動チェックとガイダンス
-- 📊 **包括的診断**: 実行前チェック、エラー検出、自動復旧機能
-- 🎛️ **柔軟な実行方式**: 対話モード、非対話モード、CI/CD統合対応
+### 🚀 統合管理
+- **マルチサービス**: 複数のMCPサーバーとツールを一元管理
+- **Docker Compose**: シンプルな設定で全サービスをデプロイ
+- **環境変数管理**: .envファイルによる統一的な設定管理
+
+### 🔔 GitHub Release Watcher（新機能）
+- **マルチチャネル通知**: Native/Discord/Slack/Email/Webhook/File出力
+- **非同期処理**: 高速な並列リポジトリチェック
+- **バージョン比較**: セマンティックバージョニング対応
+- **フィルタリング**: 安定版/プレリリース/カスタムパターン
+
+### 🎭 Actions Simulator
+- **ワンショット実行**: 複雑な設定不要、単一コマンドで即座に開始
+- **軽量actベース**: Dockerコンテナ内でactを使用した高速シミュレーション
+- **自動依存関係管理**: Docker、uv、gitの自動チェックとガイダンス
+- **包括的診断**: 実行前チェック、エラー検出、自動復旧機能
 
 ## クイックスタート
 
@@ -41,7 +68,35 @@ uv sync
 
 ## 使用方法
 
-### 基本的な使用方法
+### 全サービスの起動
+
+```bash
+# 全サービスを起動
+docker compose up -d
+
+# 特定のサービスのみ起動
+docker compose up -d github-mcp
+docker compose up -d datetime-validator
+docker compose up -d actions-simulator
+docker compose up -d github-release-watcher
+```
+
+### GitHub Release Watcher
+
+```bash
+# サービスを起動
+./examples/github-release-watcher/scripts/start.sh
+
+# ログをフォロー
+./examples/github-release-watcher/scripts/start.sh --follow
+
+# サービスを停止
+./examples/github-release-watcher/scripts/stop.sh
+```
+
+詳細は [GitHub Release Watcher ドキュメント](./examples/github-release-watcher/README.md) を参照。
+
+### Actions Simulator
 
 ```bash
 # ワークフローの実行
@@ -542,6 +597,26 @@ pre-commit install                                          # フックをイン
 # 6. 開発用Docker環境構築
 make build
 ```
+
+### WSL環境での追加セットアップ（オプション）
+
+WSL環境でWindows Toast通知機能を使用する場合は、以下の手順を実行してください：
+
+```bash
+# 1. WSL環境のセットアップ
+make setup-wsl
+
+# 2. .envファイルにWindows通知パスを設定
+echo "WINDOWS_NOTIFICATION_PATH=/mnt/c/path/to/windows-notifications" >> .env
+
+# 3. サービス起動（自動的にoverride.ymlが適用されます）
+make start
+```
+
+**注意**:
+- `make setup-wsl`はWSL環境でのみ実行できます
+- WSL以外の環境では通常の`make start`で問題なく動作します
+- Windows通知機能はGitHub Release Watcherサービスで使用されます
 
 ### 開発ワークフロー
 

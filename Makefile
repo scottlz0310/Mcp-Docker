@@ -14,31 +14,55 @@ help: ## 利用可能なターゲット一覧を表示
 ROOT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 # ----------------------------------------
+# 環境検出とDocker Composeコマンド構築
+# ----------------------------------------
+
+# WSL環境を検出
+IS_WSL := $(shell grep -qi microsoft /proc/version 2>/dev/null && echo "true" || echo "false")
+
+# docker-composeコマンドの構築
+ifeq ($(IS_WSL),true)
+    # WSL環境: override.ymlを使用（存在する場合）
+    ifneq ($(wildcard docker-compose.override.yml),)
+        COMPOSE_CMD := docker compose -f docker-compose.yml -f docker-compose.override.yml
+        COMPOSE_INFO := (WSL mode with override.yml)
+    else
+        COMPOSE_CMD := docker compose
+        COMPOSE_INFO := (WSL mode without override.yml - run 'make setup-wsl' to enable Windows notifications)
+    endif
+else
+    # 通常環境: ベースのみ
+    COMPOSE_CMD := docker compose
+    COMPOSE_INFO := (standard mode)
+endif
+
+# ----------------------------------------
 # サービス管理
 # ----------------------------------------
 
 .PHONY: start
 start: ## 全サービス起動
-	docker compose up -d
+	@echo "Starting services $(COMPOSE_INFO)..."
+	$(COMPOSE_CMD) up -d
 
 .PHONY: stop
 stop: ## 全サービス停止
-	docker compose down
+	$(COMPOSE_CMD) down
 
 .PHONY: restart
 restart: stop start ## 再起動
 
 .PHONY: logs
 logs: ## ログ表示
-	docker compose logs -f
+	$(COMPOSE_CMD) logs -f
 
 .PHONY: status
 status: ## 状態確認
-	docker compose ps
+	$(COMPOSE_CMD) ps
 
 .PHONY: pull
 pull: ## Docker イメージを更新
-	docker compose pull
+	$(COMPOSE_CMD) pull
 
 # ----------------------------------------
 # 個別サービス
@@ -46,19 +70,31 @@ pull: ## Docker イメージを更新
 
 .PHONY: github-mcp
 github-mcp: ## GitHub MCPサーバー起動
-	docker compose up -d github-mcp
+	$(COMPOSE_CMD) up -d github-mcp
 
 .PHONY: github-mcp-logs
 github-mcp-logs: ## GitHub MCPサーバーのログ表示
-	docker compose logs -f github-mcp
+	$(COMPOSE_CMD) logs -f github-mcp
 
 .PHONY: actions
 actions: ## Actions Simulator起動
-	docker compose --profile tools up -d actions-simulator
+	$(COMPOSE_CMD) --profile tools up -d actions-simulator
 
 .PHONY: actions-logs
 actions-logs: ## Actions Simulatorのログ表示
-	docker compose logs -f actions-simulator
+	$(COMPOSE_CMD) logs -f actions-simulator
+
+.PHONY: release-watcher
+release-watcher: ## GitHub Release Watcher起動
+	$(COMPOSE_CMD) up -d github-release-watcher
+
+.PHONY: release-watcher-logs
+release-watcher-logs: ## GitHub Release Watcherのログ表示
+	$(COMPOSE_CMD) logs -f github-release-watcher
+
+.PHONY: release-watcher-stop
+release-watcher-stop: ## GitHub Release Watcher停止
+	$(COMPOSE_CMD) stop github-release-watcher
 
 .PHONY: actions-run
 actions-run: ## Actions Simulatorでワークフローを選択して実行
@@ -126,12 +162,12 @@ actions-run: ## Actions Simulatorでワークフローを選択して実行
 	echo "🔧 Preparing environment..."; \
 	./scripts/fix-permissions.sh >/dev/null 2>&1 || true; \
 	if [ -n "$(JOB)" ]; then \
-		USER_ID=$$(id -u) GROUP_ID=$$(id -g) docker compose --profile tools run --rm \
+		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" --job "$(JOB)" $(if $(VERBOSE),--verbose,); \
 	else \
-		USER_ID=$$(id -u) GROUP_ID=$$(id -g) docker compose --profile tools run --rm \
+		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,); \
@@ -139,11 +175,11 @@ actions-run: ## Actions Simulatorでワークフローを選択して実行
 
 .PHONY: datetime
 datetime: ## DateTime Validator起動
-	docker compose up -d datetime-validator
+	$(COMPOSE_CMD) up -d datetime-validator
 
 .PHONY: datetime-logs
 datetime-logs: ## DateTime Validatorのログ表示
-	docker compose logs -f datetime-validator
+	$(COMPOSE_CMD) logs -f datetime-validator
 
 # ----------------------------------------
 # 開発
@@ -151,17 +187,21 @@ datetime-logs: ## DateTime Validatorのログ表示
 
 .PHONY: build
 build: ## Docker イメージをビルド
-	docker compose build
-	docker compose --profile tools build actions-simulator
-	docker compose --profile debug build actions-server
+	$(COMPOSE_CMD) build
+	$(COMPOSE_CMD) --profile tools build actions-simulator
+	$(COMPOSE_CMD) --profile debug build actions-server
 
 .PHONY: build-actions
 build-actions: ## GitHub Actions シミュレータのイメージをビルド
-	docker compose --profile tools build actions-simulator
+	$(COMPOSE_CMD) --profile tools build actions-simulator
 
 .PHONY: build-actions-server
 build-actions-server: ## GitHub Actions サーバーのイメージをビルド
-	docker compose --profile debug build actions-server
+	$(COMPOSE_CMD) --profile debug build actions-server
+
+.PHONY: build-release-watcher
+build-release-watcher: ## GitHub Release Watcherのイメージをビルド
+	$(COMPOSE_CMD) build github-release-watcher
 
 .PHONY: test
 test: ## すべてのテスト実行
@@ -213,6 +253,26 @@ security-check: ## セキュリティチェック
 # 環境管理
 # ----------------------------------------
 
+.PHONY: setup-wsl
+setup-wsl: ## WSL環境のセットアップ（Windows Toast通知を有効化）
+	@if [ "$(IS_WSL)" != "true" ]; then \
+		echo "❌ このコマンドはWSL環境でのみ使用できます"; \
+		exit 1; \
+	fi; \
+	if [ -f docker-compose.override.yml ]; then \
+		echo "✅ docker-compose.override.yml は既に存在します"; \
+	else \
+		echo "📝 docker-compose.override.yml を作成しています..."; \
+		cp docker-compose.override.yml.example docker-compose.override.yml; \
+		echo "✅ docker-compose.override.yml を作成しました"; \
+	fi; \
+	echo ""; \
+	echo "📋 次のステップ:"; \
+	echo "  1. .env ファイルに WINDOWS_NOTIFICATION_PATH を設定してください:"; \
+	echo "     echo 'WINDOWS_NOTIFICATION_PATH=/mnt/c/path/to/windows-notifications' >> .env"; \
+	echo "  2. make start でサービスを起動してください"; \
+	echo ""
+
 .PHONY: install
 install: ## 依存関係インストール
 	uv sync
@@ -240,7 +300,7 @@ clean: ## 一時ファイル削除
 
 clean-docker: ## Docker リソースクリーンアップ
 	@echo "Dockerリソースをクリーンアップ中..."
-	docker compose down -v
+	$(COMPOSE_CMD) down -v
 	docker system prune -f
 	@echo "Dockerクリーンアップ完了"
 

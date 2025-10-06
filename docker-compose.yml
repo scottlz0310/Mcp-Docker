@@ -52,6 +52,41 @@ services:
     cap_add:
       - NET_BIND_SERVICE # 必要最小限の権限のみ
 
+  github-release-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: github-release-watcher
+    container_name: ${GITHUB_RELEASE_WATCHER_CONTAINER_NAME:-mcp-github-release-watcher}
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      - ./examples/github-release-watcher/config:/app/data:rw # 設定と状態ファイル
+      - ./logs:/app/logs:rw # ログファイル
+      # Windows Toast通知ブリッジ（WSL環境のみ）はdocker-compose.override.ymlで定義
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - WINDOWS_BRIDGE_PATH=/windows-notifications # コンテナ内のマウントパス
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    # セキュリティ: リソース制限
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    # セキュリティ: 特権無効化
+    privileged: false
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
   actions-simulator:
     build:
       context: .
