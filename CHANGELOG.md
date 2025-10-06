@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2025-10-06
+
 ### ✨ 新機能
 
 - **🔔 GitHub Release Watcher サービス追加**
@@ -24,13 +26,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - MCP Dockerを統合管理システムとして再定義
   - 全サービス（GitHub MCP、DateTime Validator、Actions Simulator、GitHub Release Watcher）の統一的な説明
   - サービス別の使用方法セクション追加
+  - WSL環境セットアップ手順を追加
+
+### 🐛 バグ修正
+
+- **🔧 CI環境でのdocker-compose.yml構文エラーを修正**
+  - `WINDOWS_NOTIFICATION_PATH`環境変数未設定時のボリュームマウントエラーを解決
+  - docker-compose.override.ymlパターンで環境依存設定を分離
+  - WSL環境用の`docker-compose.override.yml.example`テンプレートを作成
+  - Makefileに環境自動検出と`make setup-wsl`コマンドを追加
 
 ### 🧪 テスト
 
 - **GitHub Release Watcher ユニットテスト追加**
   - comparator モジュールテスト（10テスト、全パス）
   - notification モジュールテスト（5テスト、全パス）
+  - scheduler モジュールテスト（新規リリース検知、状態管理）
   - pytest モックフィクスチャ追加（GitHub API、Discord、Slack、Native通知）
+
+- **テストタイムアウトの最適化**
+  - conftest.pyでslowマーカー用タイムアウトを600秒に一元管理
+  - Dockerビルドが必要なテストにslowマーカーを付与
 
 ### 📚 ドキュメント
 
@@ -47,6 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dockerfile に github-release-watcher ターゲット追加
   - docker-compose.yml にサービス定義追加
   - .env.example に環境変数設定追加
+
+### 🧹 リファクタリング
+
+- 重複するdocker-compose.override.ymlテンプレートを削除
+  - docker-compose.override.yml.sample (17KB) 削除
+  - docker-compose.override.yml.simple (2.4KB) 削除
+  - WSL環境専用のexampleテンプレートのみ保持
 
 ### 🔧 改善
 
