@@ -403,8 +403,13 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
+            # Ensure we're on the main branch before committing
+            git fetch origin main
+            git checkout main
+            git merge --ff-only origin/main || true
+            git add CHANGELOG.md
             git commit -m "docs: sync CHANGELOG with release page content for v${{ needs.version-check.outputs.version }}"
-            git push
+            git push origin main
           fi
 
   update-docs:
