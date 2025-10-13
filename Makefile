@@ -290,10 +290,69 @@ venv: ## 仮想環境作成
 # ----------------------------------------
 
 .PHONY: actions-ci
-actions-ci: ## CI互換モードでワークフロー実行
-	@workflow="${WORKFLOW:-.github/workflows/ci.yml}"; \
-	echo "🚀 CI互換モードでワークフロー実行: $$workflow"; \
-	act -W "$$workflow"
+actions-ci: ## CI互換モードでワークフロー実行（対話的選択可能）
+	@repo_root="$(ROOT_DIR)"; \
+	cd "$$repo_root"; \
+	workflows=$$(find .github/workflows -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) 2>/dev/null | sort); \
+	if [ -z "$$workflows" ]; then \
+		echo "❌ ワークフローファイルが見つかりません"; \
+		exit 1; \
+	fi; \
+	default_selection=".github/workflows/basic-test.yml"; \
+	if [ ! -f "$$default_selection" ]; then \
+		default_selection=$$(echo "$$workflows" | head -n1); \
+	fi; \
+	selected=""; \
+	if [ -n "$(WORKFLOW)" ]; then \
+		if [ -f "$(WORKFLOW)" ]; then \
+			selected="$(WORKFLOW)"; \
+		else \
+			match=$$(printf "%s\n" "$$workflows" | grep -Fx "$(WORKFLOW)"); \
+			if [ -z "$$match" ]; then \
+				echo "❌ 指定された WORKFLOW が一覧に見つかりません: $(WORKFLOW)"; \
+				exit 1; \
+			fi; \
+			selected="$$match"; \
+		fi; \
+	elif [ -n "$(INDEX)" ]; then \
+		if ! echo "$(INDEX)" | grep -Eq '^[0-9]+$$'; then \
+			echo "❌ INDEX は数値で指定してください"; \
+			exit 1; \
+		fi; \
+		selected=$$(printf "%s\n" "$$workflows" | sed -n "$(INDEX)p"); \
+		if [ -z "$$selected" ]; then \
+			echo "❌ INDEX が範囲外です: $(INDEX)"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "🎭 CI互換モード - ワークフロー実行"; \
+		echo ""; \
+		echo "📋 使用可能なワークフロー:"; \
+		echo "$$workflows" | nl -w2 -s') '; \
+		echo ""; \
+		echo "💡 Enter だけで $$default_selection を実行します"; \
+		printf "🎯 実行するワークフローを選択してください (Enter=1): "; \
+		read choice; \
+		if [ -z "$$choice" ]; then \
+			choice=1; \
+		fi; \
+		if ! echo "$$choice" | grep -Eq '^[0-9]+$$'; then \
+			echo "❌ 無効な選択です"; \
+			exit 1; \
+		fi; \
+		selected=$$(printf "%s\n" "$$workflows" | sed -n "$${choice}p"); \
+		if [ -z "$$selected" ]; then \
+			echo "❌ 無効な番号です"; \
+			exit 1; \
+		fi; \
+	fi; \
+	if [ -z "$$selected" ]; then \
+		selected="$$default_selection"; \
+	fi; \
+	echo ""; \
+	echo "🚀 CI互換モードでワークフロー実行: $$selected"; \
+	echo ""; \
+	act -W "$$selected"
 
 .PHONY: verify-ci
 verify-ci: ## CI互換性検証

@@ -1,12 +1,17 @@
-# CI互換イメージ指定
--P ubuntu-latest=catthehacker/ubuntu:act-latest
--P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+# CI互換イメージ指定（full固定・Ubuntu 24.04）
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:full-24.04
+-P ubuntu-24.04=ghcr.io/catthehacker/ubuntu:full-24.04
+-P ubuntu-22.04=ghcr.io/catthehacker/ubuntu:full-22.04
 
-# リソース制限（ローカルPC最適化）
---container-options "--cpus=4 --memory=8g"
+# リソース制限（必要に応じて調整）
+# --container-options --cpus=20
+# --container-options --memory=16g
 
-# ログ詳細化
--v
+# キャッシュ永続化（CI環境と同様のキャッシュ戦略）
+# --bind
+
+# ログ詳細化（デバッグ時のみ有効化）
+# -v
 
 # 環境変数ファイル
 --env-file .env.ci
