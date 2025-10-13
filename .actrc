@@ -1,6 +1,12 @@
--P ubuntu-latest=catthehacker/ubuntu:runner-latest
---container-daemon-socket /var/run/docker.sock
---bind
---rm
---detect-event
---defaultbranch main
+# CI互換イメージ指定
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+
+# リソース制限（ローカルPC最適化）
+--container-options "--cpus=4 --memory=8g"
+
+# ログ詳細化
+-v
+
+# 環境変数ファイル
+--env-file .env.ci
