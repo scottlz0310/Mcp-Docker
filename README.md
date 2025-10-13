@@ -105,8 +105,8 @@ make actions-run WORKFLOW=.github/workflows/ci.yml
 # 対話モードでの実行
 make actions
 
-# 自動実行
-make actions-auto
+# CI互換モードで実行（推奨）
+make actions-ci WORKFLOW=.github/workflows/ci.yml
 ```
 
 ## 📦 バージョン情報
@@ -372,6 +372,7 @@ make actions WORKFLOW=.github/workflows/ci.yml CLI_ARGS="--job test --enhanced"
 
 ```bash
 make actions          - GitHub Actions Simulator（対話的）
+make actions-ci       - CI互換モードでワークフロー実行
 make build           - Docker イメージのビルド
 make test            - 統合テスト実行
 make clean           - 環境のクリーンアップ
