@@ -545,3 +545,137 @@ update-act-image:
 - 問題報告の追跡
 - CI環境との定期的な互換性検証
 - ドキュメントの継続的な更新
+
+---
+
+## 🚀 今後の予定（Phase 4以降）
+
+### Phase 4: レガシーコンポーネント削除
+
+**目的**: actions-ciの成功を受けて、不要になったコンポーネントを削除しシンプル化
+
+#### 4.1 既存Actions Simulatorの削除
+
+**対象**:
+- `services/actions-simulator/` - Docker Composeベースの旧実装
+- 関連するMakefileターゲット（`actions`, `actions-logs`等）
+- 旧実装のドキュメント
+
+**理由**:
+- `make actions-ci`（actベース）で完全に置き換え可能
+- CI互換性が高く、メンテナンスコストが低い
+- シンプルな.actrc設定のみで動作
+
+**実施タイミング**: Phase 3完了後、1週間以内
+
+#### 4.2 DateTime Validatorサービスの削除
+
+**対象**:
+- `services/datetime-validator/` - 使用されていないサービス
+- 関連するMakefileターゲット（`datetime`, `datetime-logs`等）
+- docker-compose.ymlの該当セクション
+
+**理由**:
+- 実際の使用実績なし
+- メンテナンスコストのみ発生
+- プロジェクトの焦点を明確化
+
+**実施タイミング**: Phase 4.1と同時
+
+### Phase 5: uv tool対応
+
+**目的**: 他プロジェクトで簡単に使えるようにする
+
+#### 5.1 uv tool installサポート
+
+**実装内容**:
+```bash
+# GitHubから直接インストール
+uv tool install git+https://github.com/scottlz0310/mcp-docker.git
+
+# 使用方法
+mcp-docker actions-ci .github/workflows/ci.yml
+mcp-docker verify-ci .github/workflows/basic-test.yml <run-id>
+
+# uvxで直接実行（インストール不要）
+uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker actions-ci
+```
+
+**必要な変更**:
+- `pyproject.toml`に`[project.scripts]`セクション追加
+- CLIエントリーポイントの整備
+- インストールドキュメントの作成
+
+#### 5.2 スタンドアロンツール化
+
+**機能**:
+- プロジェクト依存なしで動作
+- 任意のGitHubリポジトリで使用可能
+- 設定ファイル（`.actrc`、`.env.ci`）の自動生成
+
+**配布方法**:
+- GitHubから直接インストール（PyPI公開なし）
+- GitHub Releasesでバージョン管理
+- uvx経由での実行: `uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker`
+
+**実施タイミング**: Phase 4完了後、2週間以内
+
+### Phase 6: エコシステム統合
+
+**目的**: 他のCI/CDツールとの統合
+
+#### 6.1 pre-commit統合強化
+
+**実装内容**:
+- `.pre-commit-hooks.yaml`の提供
+- ワークフロー検証フックの追加
+- CI互換性チェックの自動化
+
+#### 6.2 VS Code拡張
+
+**機能**:
+- ワークフローファイルの右クリックメニューから実行
+- リアルタイムログ表示
+- CI互換性レポート表示
+
+**実施タイミング**: Phase 5完了後、検討
+
+---
+
+## 📅 実装スケジュール（Phase 4-6）
+
+| フェーズ | 期間 | 主要成果物 | 優先度 |
+|---------|------|-----------|--------|
+| Phase 4 | 1週間 | レガシー削除、シンプル化 | 🔴 高 |
+| Phase 5 | 2週間 | uv tool対応、スタンドアロン化 | 🟡 中 |
+| Phase 6 | 検討中 | エコシステム統合 | 🟢 低 |
+
+---
+
+## 🎯 Phase 4-6 成功基準
+
+### Phase 4: レガシー削除
+- [ ] 旧Actions Simulator完全削除
+- [ ] DateTime Validator完全削除
+- [ ] docker-compose.yml簡素化
+- [ ] ドキュメント更新完了
+- [ ] CI/CDパイプライン正常動作
+
+### Phase 5: uv tool対応
+- [ ] GitHubからの直接インストール対応完了
+- [ ] `uv tool install git+https://github.com/scottlz0310/mcp-docker.git`動作確認
+- [ ] スタンドアロン実行成功
+- [ ] インストールドキュメント完備
+- [ ] 他プロジェクトでの動作確認
+
+### Phase 6: エコシステム統合
+- [ ] pre-commit統合完了
+- [ ] VS Code拡張プロトタイプ
+- [ ] コミュニティフィードバック収集
+
+### 次のアクション
+
+継続的な監視と改善:
+- 問題報告の追跡
+- CI環境との定期的な互換性検証
+- ドキュメントの継続的な更新
