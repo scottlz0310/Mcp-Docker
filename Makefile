@@ -286,9 +286,33 @@ venv: ## 仮想環境作成
 	uv venv
 
 # ----------------------------------------
-	@echo "すべてのキャッシュをクリーンアップ完了"
+# act CI互換性向上
+# ----------------------------------------
 
+.PHONY: actions-ci
+actions-ci: ## CI互換モードでワークフロー実行
+	@workflow="${WORKFLOW:-.github/workflows/ci.yml}"; \
+	echo "🚀 CI互換モードでワークフロー実行: $$workflow"; \
+	act -W "$$workflow"
+
+.PHONY: verify-ci
+verify-ci: ## CI互換性検証
+	@if [ ! -f scripts/verify-ci-compatibility.sh ]; then \
+		echo "❌ scripts/verify-ci-compatibility.sh が見つかりません"; \
+		exit 1; \
+	fi; \
+	./scripts/verify-ci-compatibility.sh
+
+.PHONY: update-act-image
+update-act-image: ## act用CI互換イメージを更新
+	@echo "📦 CI互換イメージを更新中..."; \
+	docker pull catthehacker/ubuntu:act-latest; \
+	docker pull catthehacker/ubuntu:act-22.04; \
+	echo "✅ イメージ更新完了"
+
+# ----------------------------------------
 # クリーンアップ
+# ----------------------------------------
 .PHONY: clean clean-docker clean-all
 
 clean: ## 一時ファイル削除
