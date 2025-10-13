@@ -197,7 +197,7 @@ jobs:
 
       - name: 📦 依存関係インストール
         run: |
-          uv sync --group test --group dev
+          uv sync --all-groups
 
       - name: 🔧 システムツールインストール
         run: |
@@ -293,7 +293,7 @@ jobs:
 
       - name: 📦 依存関係インストール
         run: |
-          uv sync --group test --group dev
+          uv sync --all-groups
 
       - name: 🔧 ドキュメント検証ツールインストール
         run: |
@@ -392,7 +392,7 @@ jobs:
 
       - name: 📦 依存関係インストール
         run: |
-          uv sync --group test --group dev
+          uv sync --all-groups
 
       - name: 🔧 テンプレート検証ツールインストール
         run: |
@@ -456,7 +456,7 @@ jobs:
 
       - name: 📦 依存関係インストール
         run: |
-          uv sync --group test --group dev
+          uv sync --all-groups
 
       - name: 🔄 エンドツーエンドテスト実行
         run: |
@@ -509,7 +509,7 @@ jobs:
 
       - name: 📦 依存関係インストール
         run: |
-          uv sync --group test --group dev
+          uv sync --all-groups
 
       - name: 🧪 包括的テストスイート実行
         run: |

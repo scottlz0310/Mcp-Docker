@@ -204,7 +204,7 @@ jobs:
           act --version
 
       - name: Install dependencies
-        run: uv sync --group test
+        run: uv sync --all-groups
 
       - name: Run pytest (unit tests)
         id: unit-tests
@@ -317,7 +317,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --group test
+        run: uv sync --all-groups
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -549,7 +549,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --group test
+          uv sync --all-groups
 
       - name: Build and start services
         env:
