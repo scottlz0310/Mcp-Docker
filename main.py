@@ -82,7 +82,7 @@ def main():
         # GitHub Actions Simulator
         # 追加の引数をそのまま渡す
         args = sys.argv[2:]
-        cmd = ["python", "-m", "services.actions.main"] + args
+        cmd = [sys.executable, "-m", "services.actions.main"] + args
     else:
         print(f"Unknown service: {service}")
         sys.exit(1)
@@ -95,6 +95,11 @@ def main():
     except FileNotFoundError:
         print(f"Service {service} not found")
         sys.exit(1)
+
+
+def cli():
+    """CLI entry point for uv tool install"""
+    main()
 
 
 if __name__ == "__main__":

@@ -159,21 +159,21 @@ class ExpressionEvaluator:
     @staticmethod
     def _evaluate_compare(left: Any, right: Any, operator: ast.cmpop) -> bool:
         if isinstance(operator, ast.Eq):
-            return left == right  # type: ignore[no-any-return]
+            return bool(left == right)
         if isinstance(operator, ast.NotEq):
-            return left != right  # type: ignore[no-any-return]
+            return bool(left != right)
         if isinstance(operator, ast.In):
             return left in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.NotIn):
             return left not in ExpressionEvaluator._ensure_iterable(right)
         if isinstance(operator, ast.Gt):
-            return left > right  # type: ignore[no-any-return]
+            return bool(left > right)
         if isinstance(operator, ast.GtE):
-            return left >= right  # type: ignore[no-any-return]
+            return bool(left >= right)
         if isinstance(operator, ast.Lt):
-            return left < right  # type: ignore[no-any-return]
+            return bool(left < right)
         if isinstance(operator, ast.LtE):
-            return left <= right  # type: ignore[no-any-return]
+            return bool(left <= right)
         raise ExpressionEvaluationError(f"unsupported comparison operator: {operator}")
 
     @staticmethod

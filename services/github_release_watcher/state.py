@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 
 class StateManager:
@@ -28,7 +28,7 @@ class StateManager:
 
         try:
             with open(self.state_file, encoding="utf-8") as f:
-                return json.load(f)
+                return cast(dict[str, Any], json.load(f))
         except Exception as e:
             print(f"Warning: Failed to load state file: {e}")
             return {"repositories": {}, "last_check": None}
@@ -54,7 +54,7 @@ class StateManager:
         """
         with self.lock:
             repo_state = self.state["repositories"].get(repo_url, {})
-            return repo_state.get("latest_version")
+            return cast(Optional[str], repo_state.get("latest_version"))
 
     def update_latest_version(
         self,
@@ -102,7 +102,7 @@ class StateManager:
         """
         with self.lock:
             repo_state = self.state["repositories"].get(repo_url, {})
-            return repo_state.get("notification_history", [])
+            return cast(list[dict[Any, Any]], repo_state.get("notification_history", []))
 
     def add_notification_history(self, repo_url: str, version: str, channels: list[str], success: bool) -> None:
         """
@@ -145,7 +145,7 @@ class StateManager:
             リポジトリ状態の辞書
         """
         with self.lock:
-            return self.state["repositories"].copy()
+            return cast(dict[str, dict[Any, Any]], self.state["repositories"].copy())
 
     def reset_repository(self, repo_url: str) -> None:
         """

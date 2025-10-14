@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, cast
 
 
 @dataclass
@@ -24,13 +24,13 @@ class NotificationMessage:
 class NotificationBase(ABC):
     """通知基底クラス"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         """
         Args:
             config: 通知チャネル設定
         """
         self.config = config
-        self.enabled = config.get("enabled", True)
+        self.enabled = cast(bool, config.get("enabled", True))
 
     @abstractmethod
     def send(self, message: NotificationMessage) -> bool:

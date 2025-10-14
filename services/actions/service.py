@@ -6,11 +6,9 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 import time
-import sys
 
-from . import PROJECT_ROOT
 from .enhanced_act_wrapper import EnhancedActWrapper
 from .logger import ActionsLogger
 from .path_utils import WorkflowResolution, resolve_workflow_reference
@@ -20,18 +18,17 @@ ActWrapper = EnhancedActWrapper
 
 # 遅延インポートでサイクル依存を回避
 try:
-    src_path = (PROJECT_ROOT / "src").resolve()
-    if src_path.exists() and str(src_path) not in sys.path:
-        sys.path.append(str(src_path))
-    from diagnostic_service import DiagnosticService, DiagnosticResult, DiagnosticStatus
-    from execution_tracer import ExecutionTracer
-    from performance_monitor import PerformanceMonitor
+    from .diagnostic import DiagnosticService, DiagnosticResult, DiagnosticStatus
+    from .execution_tracer import ExecutionTracer
 except ImportError:
-    DiagnosticService = None
-    DiagnosticResult = None
-    DiagnosticStatus = None
-    ExecutionTracer = None
-    PerformanceMonitor = None
+    DiagnosticService = None  # type: ignore[assignment,misc]
+    DiagnosticResult = None  # type: ignore[assignment,misc]
+    DiagnosticStatus = None  # type: ignore[assignment,misc]
+    ExecutionTracer = None  # type: ignore[assignment,misc]
+
+# Type checking imports
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass(slots=True)
@@ -81,9 +78,7 @@ class SimulationService:
         execution_tracer: Optional[ExecutionTracer] = None,
         use_enhanced_wrapper: bool = False,
         enable_diagnostics: bool = False,
-        enable_performance_monitoring: bool = False,
         diagnostic_service: Optional[DiagnosticService] = None,
-        performance_monitor: Optional[PerformanceMonitor] = None,
         pre_execution_diagnostics: bool = True,
         detailed_result_reporting: bool = True,
     ) -> None:
@@ -92,13 +87,11 @@ class SimulationService:
         self._execution_tracer = execution_tracer
         self._use_enhanced_wrapper = use_enhanced_wrapper
         self._enable_diagnostics = enable_diagnostics
-        self._enable_performance_monitoring = enable_performance_monitoring
         self._diagnostic_service = diagnostic_service
-        self._performance_monitor = performance_monitor
         self._pre_execution_diagnostics = pre_execution_diagnostics
         self._detailed_result_reporting = detailed_result_reporting
 
-        # 診断サービスとパフォーマンス監視の初期化
+        # 診断サービスの初期化
         self._initialize_services()
 
     @staticmethod
@@ -106,7 +99,7 @@ class SimulationService:
         return ActionsLogger(verbose=verbose)
 
     def _initialize_services(self) -> None:
-        """診断サービスとパフォーマンス監視を初期化"""
+        """診断サービスを初期化"""
         logger = self._logger_factory(False)
 
         # 診断サービスの初期化
@@ -117,15 +110,6 @@ class SimulationService:
             except Exception as e:
                 logger.warning(f"診断サービスの初期化に失敗しました: {e}")
                 self._enable_diagnostics = False
-
-        # パフォーマンス監視の初期化
-        if self._enable_performance_monitoring and PerformanceMonitor and not self._performance_monitor:
-            try:
-                self._performance_monitor = PerformanceMonitor(logger=logger)
-                logger.debug("パフォーマンス監視を初期化しました")
-            except Exception as e:
-                logger.warning(f"パフォーマンス監視の初期化に失敗しました: {e}")
-                self._enable_performance_monitoring = False
 
         # 実行トレーサーの初期化
         if ExecutionTracer and not self._execution_tracer:
@@ -165,14 +149,6 @@ class SimulationService:
                     return self._create_failed_result(error_msg, start_time, diagnostic_results=pre_execution_results)
             except Exception as e:
                 runner_logger.warning(f"実行前診断チェックでエラーが発生しました: {e}")
-
-        # パフォーマンス監視を開始
-        if self._enable_performance_monitoring and self._performance_monitor:
-            try:
-                self._performance_monitor.start_monitoring("workflow_execution")
-                runner_logger.debug("パフォーマンス監視を開始しました")
-            except Exception as e:
-                runner_logger.warning(f"パフォーマンス監視の開始に失敗しました: {e}")
 
         stdout_io: StringIO | None = None
         stderr_io: StringIO | None = None
@@ -220,13 +196,7 @@ class SimulationService:
             return result
 
         finally:
-            # パフォーマンス監視を停止
-            if self._enable_performance_monitoring and self._performance_monitor:
-                try:
-                    self._performance_monitor.stop_monitoring()
-                    runner_logger.debug("パフォーマンス監視を停止しました")
-                except Exception as e:
-                    runner_logger.warning(f"パフォーマンス監視の停止に失敗しました: {e}")
+            pass  # cleanup if needed
 
     def _run_with_act(
         self,
@@ -535,13 +505,8 @@ class SimulationService:
         try:
             execution_time_ms = (time.time() - start_time) * 1000
 
-            # パフォーマンスメトリクスの収集
+            # パフォーマンスメトリクスの収集（未実装）
             performance_metrics = {}
-            if self._enable_performance_monitoring and self._performance_monitor:
-                try:
-                    performance_metrics = self._performance_monitor.get_summary_metrics()
-                except Exception as e:
-                    logger.warning(f"パフォーマンスメトリクスの取得に失敗しました: {e}")
 
             # 実行トレースの収集
             execution_trace = {}
@@ -551,37 +516,9 @@ class SimulationService:
                 except Exception as e:
                     logger.warning(f"実行トレースの取得に失敗しました: {e}")
 
-            # ボトルネック分析
+            # ボトルネック分析（未実装）
             bottlenecks_detected = []
             optimization_opportunities = []
-            if self._enable_performance_monitoring and self._performance_monitor:
-                try:
-                    if hasattr(self._performance_monitor, "analyze_bottlenecks"):
-                        bottlenecks = self._performance_monitor.analyze_bottlenecks()
-                        bottlenecks_detected = [
-                            {
-                                "type": b.bottleneck_type,
-                                "severity": b.severity,
-                                "description": b.description,
-                                "recommendations": b.recommendations,
-                            }
-                            for b in bottlenecks
-                        ]
-
-                    if hasattr(self._performance_monitor, "identify_optimization_opportunities"):
-                        opportunities = self._performance_monitor.identify_optimization_opportunities()
-                        optimization_opportunities = [
-                            {
-                                "type": o.opportunity_type,
-                                "priority": o.priority,
-                                "title": o.title,
-                                "description": o.description,
-                                "recommendations": o.recommendations,
-                            }
-                            for o in opportunities
-                        ]
-                except Exception as e:
-                    logger.warning(f"ボトルネック分析に失敗しました: {e}")
 
             # ハングアップ分析（失敗時のみ）
             hang_analysis = {}
@@ -602,11 +539,8 @@ class SimulationService:
                 {
                     "detailed_reporting_enabled": True,
                     "diagnostics_enabled": self._enable_diagnostics,
-                    "performance_monitoring_enabled": self._enable_performance_monitoring,
                     "execution_time_ms": execution_time_ms,
                     "diagnostic_checks_count": len(diagnostic_results),
-                    "bottlenecks_count": len(bottlenecks_detected),
-                    "optimization_opportunities_count": len(optimization_opportunities),
                 }
             )
 
@@ -618,7 +552,7 @@ class SimulationService:
         return result
 
     def _create_failed_result(
-        self, error_message: str, start_time: float, diagnostic_results: list[dict[str, Any]] = None
+        self, error_message: str, start_time: float, diagnostic_results: list[dict[str, Any]] | None = None
     ) -> SimulationResult:
         """失敗結果を作成"""
         execution_time_ms = (time.time() - start_time) * 1000
@@ -649,12 +583,10 @@ class SimulationService:
             "service_initialized": True,
             "enhanced_wrapper_enabled": self._use_enhanced_wrapper,
             "diagnostics_enabled": self._enable_diagnostics,
-            "performance_monitoring_enabled": self._enable_performance_monitoring,
             "pre_execution_diagnostics_enabled": self._pre_execution_diagnostics,
             "detailed_result_reporting_enabled": self._detailed_result_reporting,
             "components": {
                 "diagnostic_service": self._diagnostic_service is not None,
-                "performance_monitor": self._performance_monitor is not None,
                 "execution_tracer": self._execution_tracer is not None,
             },
             "config_keys": list(self._config.keys()) if self._config else [],
@@ -669,25 +601,16 @@ class SimulationService:
             except Exception as e:
                 status["system_health"] = {"error": str(e)}
 
-        # パフォーマンス監視の状態
-        if self._performance_monitor:
-            try:
-                status["performance_monitor_active"] = getattr(self._performance_monitor, "monitoring_active", False)
-            except Exception as e:
-                status["performance_monitor_error"] = str(e)
-
         return status
 
     def enable_enhanced_features(
         self,
         enable_diagnostics: bool = True,
-        enable_performance_monitoring: bool = True,
         enable_detailed_reporting: bool = True,
     ) -> None:
         """拡張機能を有効化"""
         self._use_enhanced_wrapper = True
         self._enable_diagnostics = enable_diagnostics
-        self._enable_performance_monitoring = enable_performance_monitoring
         self._detailed_result_reporting = enable_detailed_reporting
         self._pre_execution_diagnostics = enable_diagnostics
 

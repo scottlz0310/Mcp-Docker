@@ -701,6 +701,7 @@ class ExecutionTracer:
 
     def _trace_to_dict(self, trace: ExecutionTrace) -> Dict[str, Any]:
         """ExecutionTraceを辞書に変換"""
+        from typing import cast as cast_fn
 
         def convert_dataclass(obj: Any) -> Any:
             if hasattr(obj, "__dataclass_fields__"):
@@ -720,4 +721,4 @@ class ExecutionTracer:
             else:
                 return obj
 
-        return convert_dataclass(trace)  # type: ignore[no-any-return]
+        return cast_fn(Dict[str, Any], convert_dataclass(trace))

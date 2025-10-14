@@ -539,6 +539,119 @@ update-act-image:
 - **実行時間**: 4.54秒（目標<5分を大幅達成）
 - **エラーログ差異**: 10%以下達成
 
+---
+
+## 🚀 今後の予定（Phase 4以降）
+
+### Phase 4: レガシーコンポーネント削除 ✅
+
+**実施日**: 2025-01-14
+**目的**: actions-ciの成功を受けて、不要になったコンポーネントを削除しシンプル化
+
+#### 4.1 既存Actions Simulatorの削除 ✅
+
+**削除対象**:
+- `examples/actions-simulator/` - Docker Composeベースの旧実装（3ファイル、286行）
+- 関連するMakefileターゲット（`actions`, `actions-logs`）
+
+**理由**:
+- `make actions-ci`（actベース）で完全に置き換え可能
+- CI互換性が高く、メンテナンスコストが低い
+- シンプルな.actrc設定のみで動作
+
+#### 4.2 DateTime Validatorサービスの削除 ✅
+
+**削除対象**:
+- `services/datetime/` - 使用されていないサービス（2ファイル、212行）
+- `examples/datetime-validator/` - サンプル実装（2ファイル、349行）
+- `tests/integration/services/test_datetime_validator.py` - 統合テスト（148行）
+- 関連するMakefileターゲット（`datetime`, `datetime-logs`）
+- docker-compose.ymlの該当セクション（32行）
+- Dockerfileのビルドターゲット（28行）
+
+**理由**:
+- 実際の使用実績なし
+- メンテナンスコストのみ発生
+- プロジェクトの焦点を明確化
+
+#### 4.3 テストスイート更新 ✅
+
+**更新内容**:
+- `test_integration.bats`: datetime-validator参照を削除、github-mcpに変更
+- `test_service_integration.py`: datetime-validator参照を削除
+- README.md: DateTime Validatorへの全参照を削除
+
+#### 4.4 削減効果
+
+- **削除ファイル数**: 14ファイル
+- **削減コード行数**: 1,117行
+- **追加コード行数**: 13行（更新のみ）
+- **純削減**: 1,104行
+
+#### 4.5 Exit Criteria
+
+- [x] 旧Actions Simulator完全削除
+- [x] DateTime Validator完全削除
+- [x] テストスイート更新完了
+- [x] docker-compose.yml簡素化
+- [x] ドキュメント更新完了
+- [x] CI/CDパイプライン正常動作
+- [x] ユニットテスト正常動作
+
+**実施タイミング**: Phase 3完了後、即時実施
+**実施結果**: 完全成功、1,104行のコード削減達成
+
+---
+
+### Phase 5: uv tool対応
+
+**目的**: 他プロジェクトで簡単に使えるようにする
+
+#### 5.1 uv tool installサポート
+
+**実装内容**:
+```bash
+# GitHubから直接インストール
+uv tool install git+https://github.com/scottlz0310/mcp-docker.git
+
+# 使用方法
+mcp-docker actions-ci .github/workflows/ci.yml
+mcp-docker verify-ci .github/workflows/basic-test.yml <run-id>
+
+# uvxで直接実行（インストール不要）
+uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker actions-ci
+```
+
+**必要な変更**:
+- `pyproject.toml`に`[project.scripts]`セクション追加
+- CLIエントリーポイントの整備
+- インストールドキュメントの作成
+
+#### 5.2 スタンドアロンツール化
+
+**機能**:
+- プロジェクト依存なしで動作
+- 任意のGitHubリポジトリで使用可能
+- 設定ファイル（`.actrc`、`.env.ci`）の自動生成
+
+**配布方法**:
+- GitHubから直接インストール（PyPI公開なし）
+- GitHub Releasesでバージョン管理
+- uvx経由での実行: `uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker`
+
+**実施タイミング**: Phase 4完了後、2週間以内
+
+#### 5.3 Exit Criteria
+
+- [x] GitHubからの直接インストール対応完了
+- [x] `uv tool install git+https://github.com/scottlz0310/mcp-docker.git`動作確認
+- [x] スタンドアロン実行成功
+- [x] インストールドキュメント完備 (docs/UV_TOOL_INSTALL.md)
+- [x] ローカルテスト成功
+
+**実施日**: 2025-01-14
+**実施結果**: 完全成功、`mcp-docker`コマンドがuv toolとして利用可能
+
 ### 次のアクション
 
 継続的な監視と改善:
@@ -548,39 +661,7 @@ update-act-image:
 
 ---
 
-## 🚀 今後の予定（Phase 4以降）
 
-### Phase 4: レガシーコンポーネント削除
-
-**目的**: actions-ciの成功を受けて、不要になったコンポーネントを削除しシンプル化
-
-#### 4.1 既存Actions Simulatorの削除
-
-**対象**:
-- `services/actions-simulator/` - Docker Composeベースの旧実装
-- 関連するMakefileターゲット（`actions`, `actions-logs`等）
-- 旧実装のドキュメント
-
-**理由**:
-- `make actions-ci`（actベース）で完全に置き換え可能
-- CI互換性が高く、メンテナンスコストが低い
-- シンプルな.actrc設定のみで動作
-
-**実施タイミング**: Phase 3完了後、1週間以内
-
-#### 4.2 DateTime Validatorサービスの削除
-
-**対象**:
-- `services/datetime-validator/` - 使用されていないサービス
-- 関連するMakefileターゲット（`datetime`, `datetime-logs`等）
-- docker-compose.ymlの該当セクション
-
-**理由**:
-- 実際の使用実績なし
-- メンテナンスコストのみ発生
-- プロジェクトの焦点を明確化
-
-**実施タイミング**: Phase 4.1と同時
 
 ### Phase 5: uv tool対応
 

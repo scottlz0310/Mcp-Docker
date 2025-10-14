@@ -18,7 +18,6 @@ def all_services(worker_id):
     worker_idごとに全てのコンテナ名をユニーク化して並列実行時の競合を回避
     """
     github_container = f"mcp-github-{worker_id}"
-    datetime_container = f"mcp-datetime-{worker_id}"
     actions_container = f"mcp-actions-simulator-{worker_id}"
 
     # 既存コンテナをチェック
@@ -33,7 +32,7 @@ def all_services(worker_id):
     if not services_exist:
         # イメージをビルド
         build_result = subprocess.run(
-            ["docker", "compose", "build", "github-mcp", "datetime-validator", "actions-simulator"],
+            ["docker", "compose", "build", "github-mcp", "actions-simulator"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -44,14 +43,6 @@ def all_services(worker_id):
         # github-mcpをdocker compose runで起動
         subprocess.run(
             ["docker", "compose", "run", "-d", "--name", github_container, "github-mcp"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-        )
-
-        # datetime-validatorをdocker compose runで起動
-        subprocess.run(
-            ["docker", "compose", "run", "-d", "--name", datetime_container, "datetime-validator"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -81,13 +72,12 @@ def all_services(worker_id):
 
     yield {
         "github": github_container,
-        "datetime": datetime_container,
         "actions_simulator": actions_container,
     }
 
     # クリーンアップ
     subprocess.run(
-        ["docker", "rm", "-f", github_container, datetime_container, actions_container],
+        ["docker", "rm", "-f", github_container, actions_container],
         check=False,
         capture_output=True,
     )
@@ -97,7 +87,7 @@ def test_all_services_running(all_services):
     """全サービスが起動していることを確認"""
     actions_container = all_services["actions_simulator"]
 
-    # Compose管理のサービス（github-mcp, datetime-validator）を確認
+    # Compose管理のサービス（github-mcp）を確認
     result = subprocess.run(
         ["docker", "compose", "ps", "--format", "json"],
         capture_output=True,
@@ -131,7 +121,6 @@ def test_services_on_same_network(all_services):
     """全サービスが同じネットワークに接続されていることを確認"""
     services = [
         all_services["github"],
-        all_services["datetime"],
         all_services["actions_simulator"],
     ]
 
@@ -218,7 +207,6 @@ def test_services_can_be_restarted(all_services):
     """サービスが再起動できることを確認"""
     containers = [
         all_services["github"],
-        all_services["datetime"],
         all_services["actions_simulator"],
     ]
 

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def run_safety_check():
@@ -145,9 +146,9 @@ def check_outdated_packages():
         return {"status": "checked", "outdated_packages": [], "message": str(e)}
 
 
-def generate_audit_report():
+def generate_audit_report() -> dict[str, Any]:
     """Generate comprehensive audit report"""
-    report = {
+    report: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
         "audit_version": "1.0.0",
         "project": "mcp-docker",

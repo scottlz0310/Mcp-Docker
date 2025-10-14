@@ -16,10 +16,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional
 
 # ActWrapperの機能は直接統合されました
-from services.actions import PROJECT_ROOT
 from services.actions.execution_tracer import (
     ExecutionTracer,
     ExecutionStage,
@@ -33,7 +32,11 @@ try:
         DockerIntegrationChecker,
     )
 except ImportError:
-    DockerIntegrationChecker = None  # type: ignore
+    DockerIntegrationChecker = None
+
+# Type checking imports
+if TYPE_CHECKING:
+    pass  # type: ignore[import-not-found]
 
 
 @dataclass
@@ -527,7 +530,7 @@ class EnhancedActWrapper:
                 sock.connect(("10.255.255.255", 1))
                 candidate = sock.getsockname()[0]
                 if not is_loopback(candidate):
-                    return candidate  # type: ignore[no-any-return]
+                    return candidate
         except OSError as exc:
             self.logger.debug(f"UDP経路でのホスト解決に失敗しました: {exc}")
 
@@ -787,13 +790,8 @@ class EnhancedActWrapper:
     def _initialize_diagnostic_service(self) -> None:
         """診断サービスを初期化"""
         try:
-            # 遅延インポートでサイクル依存を回避
-            import sys
-
-            src_path = (PROJECT_ROOT / "src").resolve()
-            if src_path.exists() and str(src_path) not in sys.path:
-                sys.path.append(str(src_path))
-            from diagnostic_service import DiagnosticService
+            # 相対インポートを使用
+            from .diagnostic import DiagnosticService
 
             self._diagnostic_service = DiagnosticService(logger=self.logger)
             self.logger.debug("診断サービスを初期化しました")
@@ -1799,7 +1797,7 @@ class EnhancedActWrapper:
                 "auto_recovery_available": False,
             }
 
-        return self._auto_recovery.get_recovery_statistics()  # type: ignore[no-any-return]
+        return self._auto_recovery.get_recovery_statistics()
 
     def _build_act_command(
         self,

@@ -5,6 +5,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, cast
 
 from .base import NotificationBase, NotificationMessage
 
@@ -12,16 +13,16 @@ from .base import NotificationBase, NotificationMessage
 class FileNotification(NotificationBase):
     """ファイル出力通知"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.output_path = config.get("output_path")
-        self.format = config.get("format", "json")  # "json" or "markdown"
-        self.append = config.get("append", True)
+        output_path_str = config.get("output_path")
+        self.format = cast(str, config.get("format", "json"))  # "json" or "markdown"
+        self.append = cast(bool, config.get("append", True))
 
-        if not self.output_path:
+        if not output_path_str:
             raise ValueError("File output_path is required")
 
-        self.output_path = Path(self.output_path)
+        self.output_path: Path = Path(cast(str, output_path_str))
 
     def send(self, message: NotificationMessage) -> bool:
         """

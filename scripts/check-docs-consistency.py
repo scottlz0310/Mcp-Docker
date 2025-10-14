@@ -16,7 +16,7 @@ import tomllib
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -84,7 +84,7 @@ class DocumentationChecker:
         self.project_version = self._get_project_version()
         self.markdown_files = self._find_markdown_files()
 
-    def _load_config(self, config_path: Optional[Path]) -> Dict:
+    def _load_config(self, config_path: Optional[Path]) -> Dict[str, Any]:
         """設定ファイルを読み込み"""
         if config_path is None:
             config_path = self.root_path / ".docs-check.yaml"
@@ -463,22 +463,22 @@ def print_report(
 
     if report.version_issues:
         print(f"\n🔢 バージョンの問題 ({len(report.version_issues)}件):")
-        for issue in report.version_issues:
-            rel_path = issue.file_path.relative_to(Path.cwd())
-            print(f"  ❌ {rel_path}:{issue.line_number}")
-            print(f"     発見: {issue.found_version} → 期待: {issue.expected_version}")
-            print(f"     コンテキスト: {issue.context}")
+        for v_issue in report.version_issues:
+            rel_path = v_issue.file_path.relative_to(Path.cwd())
+            print(f"  ❌ {rel_path}:{v_issue.line_number}")
+            print(f"     発見: {v_issue.found_version} → 期待: {v_issue.expected_version}")
+            print(f"     コンテキスト: {v_issue.context}")
             if fix_suggestions:
-                print(f"     💡 修正提案: バージョンを {issue.expected_version} に更新してください")
+                print(f"     💡 修正提案: バージョンを {v_issue.expected_version} に更新してください")
 
     if report.consistency_issues:
         print(f"\n📝 整合性の問題 ({len(report.consistency_issues)}件):")
-        for issue in report.consistency_issues:
-            rel_path = issue.file_path.relative_to(Path.cwd())
-            print(f"  ⚠️  {rel_path}:{issue.line_number}")
-            print(f"     問題: {issue.description}")
-            if issue.suggestion:
-                print(f"     提案: {issue.suggestion}")
+        for c_issue in report.consistency_issues:
+            rel_path = c_issue.file_path.relative_to(Path.cwd())
+            print(f"  ⚠️  {rel_path}:{c_issue.line_number}")
+            print(f"     問題: {c_issue.description}")
+            if c_issue.suggestion:
+                print(f"     提案: {c_issue.suggestion}")
 
     if fix_suggestions and report.total_issues > 0:
         print("\n🔧 修正コマンド例:")
@@ -506,9 +506,9 @@ def print_report(
 def save_report_json(report: DocumentationReport, output_path: Path) -> None:
     """レポートをJSONファイルに保存"""
 
-    def convert_to_dict(obj):
+    def convert_to_dict(obj: Any) -> Any:
         if hasattr(obj, "__dict__"):
-            result = {}
+            result: Dict[str, Any] = {}
             for key, value in obj.__dict__.items():
                 if isinstance(value, Path):
                     result[key] = str(value)

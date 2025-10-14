@@ -2,6 +2,8 @@
 Slack Webhook通知
 """
 
+from typing import Any, cast
+
 import httpx
 
 from .base import NotificationBase, NotificationMessage
@@ -10,17 +12,18 @@ from .base import NotificationBase, NotificationMessage
 class SlackNotification(NotificationBase):
     """Slack Webhook通知"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.webhook_url = config.get("webhook_url")
-        self.username = config.get("username", "GitHub Release Watcher")
-        self.icon_emoji = config.get("icon_emoji", ":rocket:")
+        webhook_url_value = config.get("webhook_url")
+        self.username = cast(str, config.get("username", "GitHub Release Watcher"))
+        self.icon_emoji = cast(str, config.get("icon_emoji", ":rocket:"))
         self.channel = config.get("channel")
-        self.mention_users = config.get("mention_users", [])
-        self.timeout = config.get("timeout", 30)
+        self.mention_users = cast(list[str], config.get("mention_users", []))
+        self.timeout = cast(int, config.get("timeout", 30))
 
-        if not self.webhook_url:
+        if not webhook_url_value:
             raise ValueError("Slack webhook_url is required")
+        self.webhook_url: str = cast(str, webhook_url_value)
 
     def send(self, message: NotificationMessage) -> bool:
         """

@@ -76,14 +76,6 @@ github-mcp: ## GitHub MCPサーバー起動
 github-mcp-logs: ## GitHub MCPサーバーのログ表示
 	$(COMPOSE_CMD) logs -f github-mcp
 
-.PHONY: actions
-actions: ## Actions Simulator起動
-	$(COMPOSE_CMD) --profile tools up -d actions-simulator
-
-.PHONY: actions-logs
-actions-logs: ## Actions Simulatorのログ表示
-	$(COMPOSE_CMD) logs -f actions-simulator
-
 .PHONY: release-watcher
 release-watcher: ## GitHub Release Watcher起動
 	$(COMPOSE_CMD) up -d github-release-watcher
@@ -172,14 +164,6 @@ actions-run: ## Actions Simulatorでワークフローを選択して実行
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,); \
 	fi
-
-.PHONY: datetime
-datetime: ## DateTime Validator起動
-	$(COMPOSE_CMD) up -d datetime-validator
-
-.PHONY: datetime-logs
-datetime-logs: ## DateTime Validatorのログ表示
-	$(COMPOSE_CMD) logs -f datetime-validator
 
 # ----------------------------------------
 # 開発

@@ -4,7 +4,7 @@ GitHub API クライアント - 非同期API呼び出しとキャッシュ対応
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, cast
 
 import aiohttp
 from cachetools import TTLCache  # type: ignore[import-untyped]
@@ -54,7 +54,7 @@ class GitHubClient:
         if "X-RateLimit-Reset" in headers:
             self.rate_limit_reset = int(headers["X-RateLimit-Reset"])
 
-    async def get_latest_release_async(self, owner: str, repo: str, use_cache: bool = True) -> Optional[dict]:
+    async def get_latest_release_async(self, owner: str, repo: str, use_cache: bool = True) -> Optional[dict[Any, Any]]:
         """
         最新リリースを非同期取得
 
@@ -70,7 +70,7 @@ class GitHubClient:
 
         # キャッシュチェック
         if use_cache and cache_key in self.cache:
-            return self.cache[cache_key]
+            return cast(Optional[dict[Any, Any]], self.cache[cache_key])
 
         # レート制限チェック
         await self._check_rate_limit_async()
@@ -88,7 +88,7 @@ class GitHubClient:
                     print(f"Error fetching release for {owner}/{repo}: {response.status}")
                     return None
 
-                data = await response.json()
+                data = cast(dict[Any, Any], await response.json())
 
                 # キャッシュに保存
                 self.cache[cache_key] = data
@@ -100,7 +100,7 @@ class GitHubClient:
         repo: str,
         per_page: int = 10,
         use_cache: bool = True,
-    ) -> list[dict]:
+    ) -> list[dict[Any, Any]]:
         """
         リリース一覧を非同期取得
 
@@ -117,7 +117,7 @@ class GitHubClient:
 
         # キャッシュチェック
         if use_cache and cache_key in self.cache:
-            return self.cache[cache_key]
+            return cast(list[dict[Any, Any]], self.cache[cache_key])
 
         # レート制限チェック
         await self._check_rate_limit_async()
@@ -133,7 +133,7 @@ class GitHubClient:
                     print(f"Error fetching releases for {owner}/{repo}: {response.status}")
                     return []
 
-                data = await response.json()
+                data = cast(list[dict[Any, Any]], await response.json())
 
                 # キャッシュに保存
                 self.cache[cache_key] = data
@@ -163,7 +163,7 @@ class GitHubClient:
 
         return results
 
-    async def get_rate_limit_async(self) -> dict:
+    async def get_rate_limit_async(self) -> dict[Any, Any]:
         """
         レート制限情報を取得
 
@@ -175,5 +175,5 @@ class GitHubClient:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=self._get_headers()) as response:
                 if response.status == 200:
-                    return await response.json()
+                    return cast(dict[Any, Any], await response.json())
                 return {}

@@ -5,7 +5,7 @@
 # This Dockerfile consolidates Dockerfile and Dockerfile.actions into a single
 # multi-stage build with multiple targets:
 # - mcp-server: GitHub MCP Server
-# - datetime-validator: DateTime validation service
+# - github-release-watcher: GitHub Release monitoring service
 # - actions-simulator: GitHub Actions Simulator
 #
 # Build examples:
@@ -69,7 +69,7 @@ ENV UV_LINK_MODE=copy
 WORKDIR /app
 
 # Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 COPY LICENSE ./
 COPY README.md ./
 
@@ -79,8 +79,9 @@ COPY src ./src
 COPY scripts ./scripts
 COPY tests ./tests
 COPY main.py ./
+COPY cli.py ./
 
-# Install Python and dependencies
+# Install Python and dependencies (uv sync will generate lock file if missing)
 RUN uv python install "${PYTHON_VERSION}" \
     && uv sync \
     && uv cache prune --ci
@@ -139,32 +140,6 @@ USER mcp
 
 ENTRYPOINT ["tini", "--"]
 CMD ["node", "/usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js"]
-
-# =============================================================================
-# DateTime Validator Target: DateTime validation service
-# =============================================================================
-FROM base AS datetime-validator
-
-# Copy Python environment from builder
-COPY --from=builder /opt/uv /opt/uv
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app /app
-
-ENV UV_PROJECT_ENVIRONMENT=/app/.venv
-ENV UV_PYTHON_INSTALL_DIR=/opt/uv
-ENV PATH="/app/.venv/bin:/usr/local/bin:${PATH}"
-
-WORKDIR /app
-
-# Create non-root user (matches docker-compose user specification)
-RUN groupadd -g 1000 validator \
-    && useradd -l -u 1000 -g 1000 --create-home --shell /bin/bash validator \
-    && chown -R validator:validator /app /opt/uv
-
-USER validator
-
-ENTRYPOINT ["tini", "--"]
-CMD ["python", "services/datetime/datetime_validator.py", "--directory", "/workspace"]
 
 # =============================================================================
 # GitHub Release Watcher Target: Monitor GitHub releases

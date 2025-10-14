@@ -68,6 +68,8 @@ def smart_check(target_version):
 
 def update_changelog(version):
     """Update CHANGELOG.md with new version entry"""
+    from datetime import datetime
+
     changelog_path = Path("CHANGELOG.md")
 
     if not changelog_path.exists():
@@ -109,10 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         commits = result.stdout.strip().split("\n") if result.stdout.strip() else []
 
     # Categorize commits
-    features = []
-    fixes = []
-    docs = []
-    others = []
+    features: list[str] = []
+    fixes: list[str] = []
+    docs: list[str] = []
+    others: list[str] = []
 
     for commit in commits:
         if re.match(r"^feat(\(.+\))?: ", commit):
@@ -125,8 +127,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
             others.append(f"- {commit}")
 
     # Generate changelog entry
-    from datetime import datetime
-
     date_str = datetime.now().strftime("%Y-%m-%d")
 
     entry = f"## [{version}] - {date_str}\n\n"
