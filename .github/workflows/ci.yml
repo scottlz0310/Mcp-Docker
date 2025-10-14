@@ -184,6 +184,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: fast-lint
     timeout-minutes: 20
+    env:
+      ACTIONS_USE_ACT_BRIDGE: "1"
     steps:
       - uses: actions/checkout@v5
 
@@ -260,6 +262,9 @@ jobs:
           echo "| Integration (Common) | ${{ steps.integration-common.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E Tests | ${{ steps.e2e-tests.outcome }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### act bridge mode" >> $GITHUB_STEP_SUMMARY
+          echo "- ACTIONS_USE_ACT_BRIDGE=${ACTIONS_USE_ACT_BRIDGE}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
           # 品質ゲート判定
           FAILED=false
@@ -303,6 +308,8 @@ jobs:
     name: 🧪 Bats Test (shell scripts)
     runs-on: ubuntu-latest
     needs: fast-lint
+    env:
+      ACTIONS_USE_ACT_BRIDGE: "1"
     steps:
       - uses: actions/checkout@v5
 
@@ -525,6 +532,13 @@ jobs:
             echo "❌ Bats not available - tests cannot run"
             exit 1
           fi
+
+      - name: Record bridge mode usage (Bats)
+        if: always()
+        run: |
+          echo "### act bridge mode (Bats)" >> $GITHUB_STEP_SUMMARY
+          echo "- ACTIONS_USE_ACT_BRIDGE=${ACTIONS_USE_ACT_BRIDGE}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Cleanup
         if: always()

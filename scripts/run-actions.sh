@@ -1660,7 +1660,10 @@ execute_simulation() {
 
   # Docker Compose 実行設定
   COMPOSE_RUN_ARGS=("--profile" "tools" "run" "--rm")
-  COMPOSE_ENV_VARS=('-e' "WORKFLOW_FILE=${WORKFLOW}")
+  COMPOSE_ENV_VARS=(
+    '-e' "WORKFLOW_FILE=${WORKFLOW}"
+    '-e' "ACTIONS_USE_ACT_BRIDGE=1"
+  )
   if [[ -n "${ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS:-}" ]]; then
     COMPOSE_ENV_VARS+=(
       "-e" "ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=${ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS}"
@@ -1680,6 +1683,7 @@ execute_simulation() {
   if [[ -n "$WORKFLOW" ]]; then
     info "📄 ワークフロー: $WORKFLOW"
   fi
+  info "⚠️ act bridge (Phase1 skeleton) モードを有効化しています。問題があれば従来実装に自動フォールバックします。"
   if is_non_interactive; then
     info "🤖 非対話モード: 自動実行中"
   fi

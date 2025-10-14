@@ -7,6 +7,8 @@ import pytest
 
 from services.actions.expression import ExpressionEvaluator, ExpressionEvaluationError
 
+pytestmark = pytest.mark.legacy_actions
+
 
 class TestExpressionEvaluator:
     """ExpressionEvaluatorのテストクラス"""

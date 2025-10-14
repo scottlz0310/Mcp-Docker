@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import time
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
-import time
 
+from .act_bridge import ActBridgeRunner
 from .enhanced_act_wrapper import EnhancedActWrapper
 from .logger import ActionsLogger
 from .path_utils import WorkflowResolution, resolve_workflow_reference
@@ -81,6 +83,8 @@ class SimulationService:
         diagnostic_service: Optional[DiagnosticService] = None,
         pre_execution_diagnostics: bool = True,
         detailed_result_reporting: bool = True,
+        use_act_bridge: bool | None = None,
+        act_bridge_config: Mapping[str, Any] | None = None,
     ) -> None:
         self._logger_factory: Callable[[bool], ActionsLogger] = logger_factory or self._default_logger_factory
         self._config: dict[str, Any] = dict(config) if config else {}
@@ -90,6 +94,9 @@ class SimulationService:
         self._diagnostic_service = diagnostic_service
         self._pre_execution_diagnostics = pre_execution_diagnostics
         self._detailed_result_reporting = detailed_result_reporting
+        self._use_act_bridge = self._resolve_use_act_bridge(use_act_bridge)
+        self._act_bridge_config: dict[str, Any] = dict(act_bridge_config) if act_bridge_config else {}
+        self._act_bridge_runner: ActBridgeRunner | None = None
 
         # 診断サービスの初期化
         self._initialize_services()
@@ -97,6 +104,15 @@ class SimulationService:
     @staticmethod
     def _default_logger_factory(verbose: bool) -> ActionsLogger:
         return ActionsLogger(verbose=verbose)
+
+    @staticmethod
+    def _resolve_use_act_bridge(flag: bool | None) -> bool:
+        if flag is not None:
+            return flag
+        env_value = os.getenv("ACTIONS_USE_ACT_BRIDGE")
+        if env_value is None:
+            return False
+        return env_value.strip().lower() in {"1", "true", "yes", "on"}
 
     def _initialize_services(self) -> None:
         """診断サービスを初期化"""
@@ -119,6 +135,15 @@ class SimulationService:
             except Exception as e:
                 logger.warning(f"実行トレーサーの初期化に失敗しました: {e}")
                 self._execution_tracer = None
+
+        if self._use_act_bridge:
+            try:
+                self._act_bridge_runner = ActBridgeRunner(settings=self._act_bridge_config, logger=logger)
+                logger.debug("Act bridge runner (skeleton) を初期化しました")
+            except Exception as exc:
+                logger.warning(f"Act bridge runner の初期化に失敗しました: {exc}")
+                self._use_act_bridge = False
+                self._act_bridge_runner = None
 
     def set_config(self, config: Mapping[str, Any] | None) -> None:
         self._config = dict(config) if config else {}
@@ -149,6 +174,15 @@ class SimulationService:
                     return self._create_failed_result(error_msg, start_time, diagnostic_results=pre_execution_results)
             except Exception as e:
                 runner_logger.warning(f"実行前診断チェックでエラーが発生しました: {e}")
+
+        if self._use_act_bridge and self._act_bridge_runner:
+            runner_logger.info("act bridge モード（スケルトン）を使用します。レガシー実装にフォールバックする場合があります。")
+            try:
+                return self._act_bridge_runner.run(params, logger=runner_logger)
+            except NotImplementedError as exc:
+                runner_logger.debug(f"Act bridge runner は未実装のためフォールバックします: {exc}")
+            except Exception as exc:
+                runner_logger.warning(f"Act bridge runner の実行に失敗しました: {exc}。レガシー実装を使用します。")
 
         stdout_io: StringIO | None = None
         stderr_io: StringIO | None = None

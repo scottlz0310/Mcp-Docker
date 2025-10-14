@@ -24,6 +24,8 @@ from services.actions.hangup_detector import (
 from services.actions.execution_tracer import ExecutionTrace, ExecutionStage
 from services.actions.logger import ActionsLogger
 
+pytestmark = pytest.mark.legacy_actions
+
 
 class TestHangupDetector:
     """HangupDetectorクラスのテスト"""

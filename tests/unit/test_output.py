@@ -12,6 +12,8 @@ import pytest
 
 from services.actions.output import get_output_root, ensure_subdir
 
+pytestmark = pytest.mark.legacy_actions
+
 
 class TestOutputModule:
     """Outputモジュールのテストクラス"""

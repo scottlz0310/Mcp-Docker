@@ -7,10 +7,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from services.actions.api import create_app, get_simulation_service
 from services.actions.service import SimulationResult, SimulationServiceError
+
+pytestmark = pytest.mark.legacy_actions
 
 
 class DummySimulationService:

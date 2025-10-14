@@ -17,6 +17,8 @@ from services.actions.output import (
     write_log,
 )
 
+pytestmark = pytest.mark.legacy_actions
+
 
 def test_save_and_load_summary(
     monkeypatch: pytest.MonkeyPatch,

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 
 from services.actions.execution_tracer import (
     ExecutionStage,
@@ -18,6 +19,8 @@ from services.actions.execution_tracer import (
     ThreadState,
 )
 from services.actions.logger import ActionsLogger
+
+pytestmark = pytest.mark.legacy_actions
 
 
 class TestExecutionTracer:

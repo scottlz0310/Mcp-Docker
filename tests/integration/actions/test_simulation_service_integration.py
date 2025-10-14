@@ -8,10 +8,14 @@ SimulationServiceとEnhancedActWrapper統合のテスト
 - パフォーマンスメトリクスと実行トレースの統合を実装
 """
 
-import pytest
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
+
+os.environ.setdefault("ACTIONS_USE_ACT_BRIDGE", "1")
 
 from services.actions.service import (
     SimulationService,

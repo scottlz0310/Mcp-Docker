@@ -10,6 +10,8 @@ import pytest
 
 from services.actions.logger import ActionsLogger
 
+pytestmark = pytest.mark.legacy_actions
+
 
 class TestActionsLogger:
     """ActionsLoggerのテストクラス"""

@@ -28,6 +28,10 @@ from services.actions.execution_tracer import ExecutionTracer, ExecutionStage
 from services.actions.hangup_detector import HangupDetector
 from services.actions.auto_recovery import AutoRecovery
 from services.actions.logger import ActionsLogger
+import os
+
+os.environ.setdefault("ACTIONS_USE_ACT_BRIDGE", "1")
+
 from services.actions.service import SimulationService, SimulationParameters
 from services.actions.workflow_parser import WorkflowParser
 from src.process_monitor import ProcessMonitor

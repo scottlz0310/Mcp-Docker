@@ -9,6 +9,8 @@ import unittest
 from unittest.mock import Mock, patch
 import pytest
 
+pytestmark = pytest.mark.legacy_actions
+
 # ProcessMonitor クラスが利用できない場合はテストをスキップ
 try:
     from services.actions.enhanced_act_wrapper import (

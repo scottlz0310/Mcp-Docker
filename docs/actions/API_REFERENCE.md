@@ -277,6 +277,8 @@ make actions-run WORKFLOW=.github/workflows/ci.yml JOB=test VERBOSE=1
 INDEX=1 make actions
 ```
 
+> `make actions-run` ファミリーは Phase1 の `act` ブリッジモードを既定で使用します。ブリッジが未対応の機能では自動的に従来実装にフォールバックし、ログで警告します。
+
 ### 配布スクリプト API
 
 #### `run-actions.sh`

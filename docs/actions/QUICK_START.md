@@ -54,6 +54,8 @@ make actions-run WORKFLOW=.github/workflows/ci.yml JOB=test
 make actions-run WORKFLOW=.github/workflows/ci.yml VERBOSE=1
 ```
 
+> Note: `make actions-run` は Phase1 の `act` ブリッジを既定で有効化します。ブリッジが未対応の機能は自動でレガシー実装にフォールバックし、警告を表示します。
+
 ### パターン2: 対話モード
 
 ```bash

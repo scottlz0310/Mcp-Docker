@@ -11,6 +11,8 @@ import pytest
 
 from services.actions.workflow_parser import WorkflowParser, WorkflowParseError
 
+pytestmark = pytest.mark.legacy_actions
+
 
 class TestWorkflowParser:
     """WorkflowParserのテストクラス"""

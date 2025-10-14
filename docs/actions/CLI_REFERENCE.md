@@ -312,6 +312,8 @@ make actions-dry-run WORKFLOW=.github/workflows/ci.yml
 INDEX=1 make actions
 ```
 
+> `make actions-run` 系コマンドは Phase1 の `act` ブリッジモードを既定で有効化します。ブリッジが未対応の機能は自動でレガシー実装にフォールバックし、ログに警告が出力されます。
+
 ### Docker 関連コマンド
 
 | コマンド | 説明 |

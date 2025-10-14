@@ -151,16 +151,20 @@ actions-run: ## Actions Simulatorでワークフローを選択して実行
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
+	echo "⚠️  act bridge (Phase1 skeleton) モードを有効化します。問題があれば従来実装に自動フォールバックします。"; \
+	echo ""; \
 	echo "🔧 Preparing environment..."; \
 	./scripts/fix-permissions.sh >/dev/null 2>&1 || true; \
 	if [ -n "$(JOB)" ]; then \
 		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
+			-e ACTIONS_USE_ACT_BRIDGE=1 \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" --job "$(JOB)" $(if $(VERBOSE),--verbose,); \
 	else \
 		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
+			-e ACTIONS_USE_ACT_BRIDGE=1 \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,); \
 	fi

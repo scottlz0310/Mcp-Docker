@@ -18,6 +18,7 @@ setup() {
     # プロジェクトルートの設定（動的に検出）
     export PROJECT_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
     export ACTIONS_SIMULATOR_ENGINE="mock"
+    export ACTIONS_USE_ACT_BRIDGE="1"
 
     # テスト用の一時ワークスペース作成
     export TEST_WORKSPACE="/tmp/mcp_actions_test_$$"

@@ -95,6 +95,8 @@ make actions-run WORKFLOW=.github/workflows/ci.yml
 # - 開発ワークフローに最適化
 ```
 
+> ℹ️ `make actions-run` は Phase1 の `act` ブリッジモードを既定で使用します。未実装機能に遭遇した場合は自動で従来実装へフォールバックし、ログに警告を出力します。
+
 #### 上級ユーザー・DevOps エンジニア
 ```bash
 # 推奨: Actions Simulator CLI
