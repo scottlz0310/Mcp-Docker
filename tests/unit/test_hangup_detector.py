@@ -334,7 +334,12 @@ class TestHangupDetector:
         """信頼度閾値によるフィルタリングのテスト"""
         hangup_detector.confidence_threshold = 0.8
 
-        with patch.object(hangup_detector, "detect_docker_socket_issues") as mock_docker:
+        with (
+            patch.object(hangup_detector, "detect_docker_socket_issues") as mock_docker,
+            patch.object(hangup_detector, "detect_subprocess_deadlock") as mock_subprocess,
+            patch.object(hangup_detector, "detect_timeout_problems") as mock_timeout,
+            patch.object(hangup_detector, "detect_permission_issues") as mock_permission,
+        ):
             # 信頼度が閾値以下の問題を含める
             mock_docker.return_value = [
                 HangupIssue(
@@ -352,6 +357,9 @@ class TestHangupDetector:
                     confidence_score=0.5,
                 ),
             ]
+            mock_subprocess.return_value = []
+            mock_timeout.return_value = []
+            mock_permission.return_value = []
 
             analysis = hangup_detector.analyze_hangup_conditions()
 
