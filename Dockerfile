@@ -79,6 +79,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY tests ./tests
 COPY main.py ./
+COPY cli.py ./
 
 # Install Python and dependencies
 RUN uv python install "${PYTHON_VERSION}" \
