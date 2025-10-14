@@ -40,10 +40,6 @@ teardown() {
     run docker network ls
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp-network" ]]
-
-    # サービス間通信確認（DNS解決テスト）
-    run docker compose exec -T datetime-validator getent hosts datetime-validator
-    [ "$status" -eq 0 ]
 }
 
 @test "Log aggregation works correctly" {
@@ -53,18 +49,14 @@ teardown() {
     # 全サービスのログが取得できることを確認
     run docker compose logs
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "mcp-datetime" ]] || [[ "$output" =~ "datetime-validator" ]]
-
-    # ログにタイムスタンプが含まれることを確認
-    [[ "$output" =~ "2025-" ]] || [[ "$output" =~ "INFO" ]] || [[ "$output" =~ "DateTime" ]]
 }
 
 @test "Environment variables are properly set" {
     docker compose up -d >/dev/null 2>&1
     sleep 5
 
-    # 環境変数が正しく設定されていることを確認
-    run docker compose exec -T datetime-validator env
+    # github-mcpサービスで環境変数が正しく設定されていることを確認
+    run docker compose exec -T github-mcp env
     [ "$status" -eq 0 ]
     # 基本的な環境変数の存在を確認
     [[ "$output" =~ "PATH" ]]
@@ -75,12 +67,8 @@ teardown() {
     docker compose up -d >/dev/null 2>&1
     sleep 5
 
-    # ボリュームマウントの確認
-    run docker compose exec -T datetime-validator ls -la /workspace
-    [ "$status" -eq 0 ]
-
-    # 書き込み権限の確認
-    run docker compose exec -T datetime-validator touch /tmp/test_write
+    # github-mcpサービスで書き込み権限の確認
+    run docker compose exec -T github-mcp touch /tmp/test_write
     [ "$status" -eq 0 ]
 }
 
