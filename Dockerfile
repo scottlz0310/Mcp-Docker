@@ -69,7 +69,7 @@ ENV UV_LINK_MODE=copy
 WORKDIR /app
 
 # Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 COPY LICENSE ./
 COPY README.md ./
 
@@ -81,7 +81,7 @@ COPY tests ./tests
 COPY main.py ./
 COPY cli.py ./
 
-# Install Python and dependencies
+# Install Python and dependencies (uv sync will generate lock file if missing)
 RUN uv python install "${PYTHON_VERSION}" \
     && uv sync \
     && uv cache prune --ci
