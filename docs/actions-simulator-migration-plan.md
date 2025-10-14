@@ -256,6 +256,7 @@ Phase 1 の実行体制とスケジュールを上記のとおり確定。
 - 2025-10-14: ACT-101 完了。`ActBridgeRunner` スケルトン導入と `ACTIONS_USE_ACT_BRIDGE` フラグ実装。
 - 2025-10-14: ACT-102 完了。`make actions-run` / `scripts/run-actions.sh` がブリッジフラグを既定で有効化。
 - 2025-10-14: ACT-103 着手。`pytest.mark.legacy_actions` を導入し、旧 API 依存ユニットテストをマーク。
+- 2025-10-14: ACT-103 継続。`ActBridgeRunner.run` を実装し、`act` 実行とリトライ/フォールバック処理を追加。
 - 2025-10-14: ACT-104 準備。BATS/E2E/CI ワークフローで `ACTIONS_USE_ACT_BRIDGE=1` を既定化し、サマリーにブリッジモードを記録。
 
 ---
