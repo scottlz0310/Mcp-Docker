@@ -7,20 +7,17 @@ Model Context Protocol (MCP) サーバーとDevOpsツールのプロダクショ
 
 ## 概要
 
-MCP Dockerは、複数のMCPサーバーとDevOpsツールを統合管理するDocker環境です。GitHub MCP Server、DateTime Validator、Actions Simulator、GitHub Release Watcherなど、複数のサービスを簡単にデプロイ・管理できます。
+MCP Dockerは、複数のMCPサーバーとDevOpsツールを統合管理するDocker環境です。GitHub MCP Server、GitHub Actions Simulator、GitHub Release Watcherなど、複数のサービスを簡単にデプロイ・管理できます。
 
 ## 🎯 提供サービス
 
 ### 1. GitHub MCP Server
 GitHub公式のModel Context Protocolサーバー。リポジトリ管理、Issue/PR操作、GitHub Actions連携などを提供。
 
-### 2. DateTime Validator
-ワークスペース内のファイルのタイムスタンプを検証し、一貫性をチェックするサービス。
-
-### 3. GitHub Actions Simulator
+### 2. GitHub Actions Simulator
 GitHub Actionsワークフローのローカルシミュレーター。Dockerコンテナ内でactを使用した高速シミュレーション。
 
-### 4. GitHub Release Watcher 🆕
+### 3. GitHub Release Watcher 🆕
 任意のGitHubリポジトリの新しいリリースを監視し、複数の通知チャネル（Native/Discord/Slack/Email）で通知するサービス。
 
 [→ GitHub Release Watcher 詳細ドキュメント](./examples/github-release-watcher/README.md)
@@ -76,8 +73,6 @@ docker compose up -d
 
 # 特定のサービスのみ起動
 docker compose up -d github-mcp
-docker compose up -d datetime-validator
-docker compose up -d actions-simulator
 docker compose up -d github-release-watcher
 ```
 
@@ -389,11 +384,10 @@ make sbom           - SBOM生成
 make audit-deps     - 依存関係監査
 ```
 
-**レガシーサービス（参考）**
+**補助サービス**
 
 ```bash
 make github         - GitHub MCP server
-make datetime       - DateTime validator
 make start/stop/logs - サービス管理
 ```
 
@@ -496,7 +490,7 @@ curl -X POST http://localhost:8000/actions/simulate \
   -d '{"workflow_file": ".github/workflows/ci.yml"}'
 ```
 
-### 補助サービス（レガシー）
+### 補助サービス
 
 **GitHub MCP Server** (ポート: 8080)
 
@@ -505,11 +499,6 @@ curl -X POST http://localhost:8000/actions/simulate \
   - `GITHUB_PERSONAL_ACCESS_TOKEN`
   - `GITHUB_TOKEN`
   - `GH_TOKEN`
-
-**DateTime Validator**
-
-- ファイル監視による日付自動修正
-- 疑わしい日付パターンの検出・修正
 
 ## 🛡️ セキュリティ
 

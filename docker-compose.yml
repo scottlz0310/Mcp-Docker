@@ -20,38 +20,6 @@ services:
     networks:
       - mcp-network
 
-  datetime-validator:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: datetime-validator
-    container_name: ${DATETIME_VALIDATOR_CONTAINER_NAME:-mcp-datetime}
-    # セキュリティ: 動的UID/GID設定（書き込み権限確保 + Root昇格防止）
-    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
-    volumes:
-      - ~/workspace:/workspace:ro # セキュリティ: 読み取り専用
-      - ./output:/output:rw # セキュリティ: 書き込みは制限された領域のみ
-    restart: unless-stopped
-    command:
-      - python
-      - services/datetime/datetime_validator.py
-      - --directory
-      - /workspace
-    networks:
-      - mcp-network
-    # セキュリティ: リソース制限
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    # セキュリティ: 特権無効化
-    privileged: false
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE # 必要最小限の権限のみ
-
   github-release-watcher:
     build:
       context: .
