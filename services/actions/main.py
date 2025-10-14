@@ -951,7 +951,6 @@ def simulate(
         config=context.config_data,
         use_enhanced_wrapper=enhanced,
         enable_diagnostics=diagnose,
-        enable_performance_monitoring=show_performance_metrics or enhanced,
     )
     context.service = service
 

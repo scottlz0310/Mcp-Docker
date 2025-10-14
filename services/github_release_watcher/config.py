@@ -6,7 +6,7 @@ import os
 import re
 import tomllib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 
 class Config:
@@ -29,7 +29,7 @@ class Config:
             config = tomllib.load(f)
 
         # 環境変数展開
-        return self._expand_env_vars(config)
+        return cast(dict[str, Any], self._expand_env_vars(config))
 
     def _expand_env_vars(self, obj: Any) -> Any:
         """
@@ -88,27 +88,27 @@ class Config:
 
     def get_repositories(self) -> list[dict[str, Any]]:
         """監視リポジトリリストを取得"""
-        return self.get("repositories", [])
+        return cast(list[dict[str, Any]], self.get("repositories", []))
 
     def get_github_token(self) -> Optional[str]:
         """GitHub APIトークンを取得"""
-        return self.get("github.token")
+        return cast(Optional[str], self.get("github.token"))
 
     def get_check_interval(self) -> int:
         """チェック間隔（秒）を取得"""
-        return self.get("github.check_interval", 300)
+        return cast(int, self.get("github.check_interval", 300))
 
     def get_notification_config(self) -> dict[str, Any]:
         """通知設定を取得"""
-        return self.get("notifications", {})
+        return cast(dict[str, Any], self.get("notifications", {}))
 
     def is_notification_enabled(self) -> bool:
         """通知が有効か確認"""
-        return self.get("notifications.enabled", False)
+        return cast(bool, self.get("notifications.enabled", False))
 
     def get_enabled_channels(self) -> list[str]:
         """有効な通知チャネルリストを取得"""
-        return self.get("notifications.channels", [])
+        return cast(list[str], self.get("notifications.channels", []))
 
     def get_channel_config(self, channel: str) -> dict[str, Any]:
         """
@@ -120,7 +120,7 @@ class Config:
         Returns:
             チャネル設定辞書
         """
-        return self.get(f"notifications.{channel}", {})
+        return cast(dict[str, Any], self.get(f"notifications.{channel}", {}))
 
     def validate(self) -> list[str]:
         """

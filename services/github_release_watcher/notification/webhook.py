@@ -2,6 +2,8 @@
 汎用Webhook通知
 """
 
+from typing import Any, cast
+
 import httpx
 
 from .base import NotificationBase, NotificationMessage
@@ -10,15 +12,16 @@ from .base import NotificationBase, NotificationMessage
 class WebhookNotification(NotificationBase):
     """汎用Webhook通知"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.url = config.get("url")
-        self.method = config.get("method", "POST")
-        self.headers = config.get("headers", {})
-        self.timeout = config.get("timeout", 30)
+        url_value = config.get("url")
+        self.method = cast(str, config.get("method", "POST"))
+        self.headers = cast(dict[str, str], config.get("headers", {}))
+        self.timeout = cast(int, config.get("timeout", 30))
 
-        if not self.url:
+        if not url_value:
             raise ValueError("Webhook URL is required")
+        self.url: str = cast(str, url_value)
 
     def send(self, message: NotificationMessage) -> bool:
         """

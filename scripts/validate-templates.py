@@ -113,7 +113,7 @@ class TemplateValidator:
         """テンプレートファイルを検索"""
         self.logger.info("🔍 テンプレートファイルを検索中...")
 
-        template_files = {}
+        template_files: dict[str, list[Path]] = {}
         project_root = Path.cwd()
 
         # 既知のテンプレートファイルを直接チェック
@@ -769,6 +769,8 @@ class TemplateValidator:
 
 def main():
     """メイン関数"""
+    import traceback
+
     parser = argparse.ArgumentParser(
         description="GitHub Actions Simulator テンプレート検証システム",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -833,8 +835,6 @@ def main():
     except Exception as e:
         print(f"❌ エラーが発生しました: {e}")
         if args.verbose:
-            import traceback
-
             traceback.print_exc()
         sys.exit(1)
 

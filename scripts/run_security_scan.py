@@ -98,7 +98,7 @@ def _collect_vulnerabilities(report: Dict[str, Any]) -> Dict[str, int]:
     if not isinstance(raw_results, list):
         return breakdown
 
-    raw_results_list = cast(list[Any], raw_results)
+    raw_results_list = raw_results
 
     typed_results: list[Dict[str, Any]] = []
     for result_entry in raw_results_list:
@@ -109,7 +109,7 @@ def _collect_vulnerabilities(report: Dict[str, Any]) -> Dict[str, int]:
         vulnerabilities = result_dict.get("Vulnerabilities", [])
         if not isinstance(vulnerabilities, list):
             continue
-        vulnerability_list = cast(list[Any], vulnerabilities)
+        vulnerability_list = vulnerabilities
         typed_vulns: list[Dict[str, Any]] = []
         for vuln_entry in vulnerability_list:
             if isinstance(vuln_entry, dict):

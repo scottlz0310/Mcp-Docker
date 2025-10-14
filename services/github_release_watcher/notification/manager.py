@@ -2,6 +2,8 @@
 通知マネージャー - すべての通知チャネルを統合管理
 """
 
+from typing import Any, cast
+
 from .base import NotificationBase, NotificationMessage
 from .discord import DiscordNotification
 from .email import EmailNotification
@@ -15,14 +17,14 @@ from .windows_bridge import WindowsBridgeNotification
 class NotificationManager:
     """通知マネージャー"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         """
         Args:
             config: 通知設定辞書
         """
         self.config = config
-        self.enabled = config.get("enabled", False)
-        self.channels = config.get("channels", [])
+        self.enabled = cast(bool, config.get("enabled", False))
+        self.channels = cast(list[str], config.get("channels", []))
         self.notifiers: dict[str, NotificationBase] = {}
 
         # 通知チャネルを初期化

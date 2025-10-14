@@ -2,6 +2,8 @@
 Discord Webhook通知
 """
 
+from typing import Any, cast
+
 import httpx
 
 from .base import NotificationBase, NotificationMessage
@@ -10,20 +12,24 @@ from .base import NotificationBase, NotificationMessage
 class DiscordNotification(NotificationBase):
     """Discord Webhook通知"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.webhook_url = config.get("webhook_url")
-        self.username = config.get("username", "GitHub Release Watcher")
-        self.avatar_url = config.get(
-            "avatar_url",
-            "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+        webhook_url_value = config.get("webhook_url")
+        self.username = cast(str, config.get("username", "GitHub Release Watcher"))
+        self.avatar_url = cast(
+            str,
+            config.get(
+                "avatar_url",
+                "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            ),
         )
-        self.color = config.get("color", 0x0366D6)  # GitHub blue
-        self.mention_users = config.get("mention_users", [])
-        self.timeout = config.get("timeout", 30)
+        self.color = cast(int, config.get("color", 0x0366D6))  # GitHub blue
+        self.mention_users = cast(list[str], config.get("mention_users", []))
+        self.timeout = cast(int, config.get("timeout", 30))
 
-        if not self.webhook_url:
+        if not webhook_url_value:
             raise ValueError("Discord webhook_url is required")
+        self.webhook_url: str = cast(str, webhook_url_value)
 
     def send(self, message: NotificationMessage) -> bool:
         """
@@ -57,7 +63,7 @@ class DiscordNotification(NotificationBase):
             print(f"Error sending Discord notification: {e}")
             return False
 
-    def _build_discord_payload(self, message: NotificationMessage) -> dict:
+    def _build_discord_payload(self, message: NotificationMessage) -> dict[str, Any]:
         """
         Discord Webhookペイロードを構築
 
@@ -72,11 +78,12 @@ class DiscordNotification(NotificationBase):
         content = mentions if mentions else None
 
         # Embedを構築
-        embed = {
+        fields: list[dict[str, Any]] = []
+        embed: dict[str, Any] = {
             "title": message.title,
             "description": message.body,
             "color": self.color,
-            "fields": [],
+            "fields": fields,
         }
 
         # リポジトリ情報

@@ -55,7 +55,7 @@ class WorkflowParser:
             # マトリックス戦略の展開
             self._expand_matrix_jobs(workflow_data)
 
-            return workflow_data  # type: ignore[no-any-return]
+            return cast(Dict[str, Any], workflow_data)
 
         except yaml.YAMLError as exc:
             raise WorkflowParseError(f"YAML解析エラー: {exc}") from exc

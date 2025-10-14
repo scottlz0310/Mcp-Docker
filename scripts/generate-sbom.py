@@ -6,6 +6,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def get_docker_image_info():
@@ -76,12 +77,12 @@ def get_python_dependencies():
         return deps
 
 
-def generate_cyclonedx_sbom():
+def generate_cyclonedx_sbom() -> dict[str, Any]:
     """Generate CycloneDX SBOM format"""
     image_info = get_docker_image_info()
     python_deps = get_python_dependencies()
 
-    sbom = {
+    sbom: dict[str, Any] = {
         "bomFormat": "CycloneDX",
         "specVersion": "1.4",
         "serialNumber": f"urn:uuid:mcp-docker-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
@@ -151,11 +152,11 @@ def generate_cyclonedx_sbom():
     return sbom
 
 
-def generate_spdx_sbom():
+def generate_spdx_sbom() -> dict[str, Any]:
     """Generate SPDX SBOM format"""
     python_deps = get_python_dependencies()
 
-    sbom = {
+    sbom: dict[str, Any] = {
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",

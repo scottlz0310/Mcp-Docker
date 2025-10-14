@@ -831,7 +831,9 @@ class HangupDetector:
         try:
             # 現在のプロセス情報
             process_info["pid"] = os.getpid()
-            process_info["ppid"] = os.getppid() if hasattr(os, "getppid") else None
+            ppid = os.getppid() if hasattr(os, "getppid") else None
+            if ppid is not None:
+                process_info["ppid"] = ppid
 
         except Exception as e:
             if self.logger:

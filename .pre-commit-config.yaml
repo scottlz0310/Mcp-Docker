@@ -126,7 +126,7 @@ repos:
       - id: mypy
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
-        files: ^(services/|main\.py)
+        files: ^(services/|src/|main\.py|cli\.py)
         args:
           [
             --ignore-missing-imports,

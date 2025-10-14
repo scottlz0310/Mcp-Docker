@@ -5,6 +5,7 @@ Email (SMTP) 通知
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any, cast
 
 from .base import NotificationBase, NotificationMessage
 
@@ -12,23 +13,29 @@ from .base import NotificationBase, NotificationMessage
 class EmailNotification(NotificationBase):
     """Email (SMTP) 通知"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.smtp_server = config.get("smtp_server")
-        self.smtp_port = config.get("smtp_port", 587)
+        smtp_server_value = config.get("smtp_server")
+        self.smtp_port = cast(int, config.get("smtp_port", 587))
         self.username = config.get("username")
         self.password = config.get("password")
-        self.from_addr = config.get("from", self.username)
-        self.to_addrs = config.get("to", [])
-        self.use_tls = config.get("use_tls", True)
-        self.use_ssl = config.get("use_ssl", False)
+        from_addr_value = config.get("from", self.username)
+        to_addrs_value = config.get("to", [])
+        self.use_tls = cast(bool, config.get("use_tls", True))
+        self.use_ssl = cast(bool, config.get("use_ssl", False))
 
-        if not self.smtp_server:
+        if not smtp_server_value:
             raise ValueError("SMTP server is required")
-        if not self.to_addrs:
+        self.smtp_server: str = cast(str, smtp_server_value)
+
+        if not to_addrs_value:
             raise ValueError("Email 'to' address is required")
-        if isinstance(self.to_addrs, str):
-            self.to_addrs = [self.to_addrs]
+        if isinstance(to_addrs_value, str):
+            self.to_addrs: list[str] = [to_addrs_value]
+        else:
+            self.to_addrs = cast(list[str], to_addrs_value)
+
+        self.from_addr: str = cast(str, from_addr_value if from_addr_value else self.username)
 
     def send(self, message: NotificationMessage) -> bool:
         """

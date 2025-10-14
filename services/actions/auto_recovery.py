@@ -217,7 +217,7 @@ class AutoRecovery:
             attempt.duration_ms = (time.time() - start_time) * 1000
             self._record_recovery_attempt(attempt)
 
-    def restart_hung_subprocess(self, process: subprocess.Popen) -> bool:
+    def restart_hung_subprocess(self, process: Optional[subprocess.Popen]) -> bool:
         """
         ハングしたサブプロセスを再起動
 
