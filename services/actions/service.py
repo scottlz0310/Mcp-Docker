@@ -176,7 +176,9 @@ class SimulationService:
                 runner_logger.warning(f"実行前診断チェックでエラーが発生しました: {e}")
 
         if self._use_act_bridge and self._act_bridge_runner:
-            runner_logger.info("act bridge モード（スケルトン）を使用します。レガシー実装にフォールバックする場合があります。")
+            runner_logger.info(
+                "act bridge モード（スケルトン）を使用します。レガシー実装にフォールバックする場合があります。"
+            )
             try:
                 return self._act_bridge_runner.run(params, logger=runner_logger)
             except NotImplementedError as exc:

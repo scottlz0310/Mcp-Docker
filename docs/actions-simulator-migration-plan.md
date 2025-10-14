@@ -199,32 +199,32 @@
 
 ## 14. ブリッジ設計ドラフト（Phase 0 結果）
 
-1. **エントリポイント**  
-   - `SimulationService.run_simulation` で Feature Flag (`ACTIONS_USE_ACT_BRIDGE`) を確認。ON の場合は新しい `ActBridgeRunner` を介して `act` を実行。  
+1. **エントリポイント**
+   - `SimulationService.run_simulation` で Feature Flag (`ACTIONS_USE_ACT_BRIDGE`) を確認。ON の場合は新しい `ActBridgeRunner` を介して `act` を実行。
    - `Makefile:91` と `scripts/run-actions.sh` からは従来通り Python CLI を呼び出しつつ、Flag をデフォルト ON に設定。
 
-2. **ブリッジ構成要素**  
-   - `ActBridgeRunner`: `act` コマンド生成、`.actrc` 設定読み込み、環境変数/シークレット引き継ぎ。  
-   - `BridgeDiagnostics`: 旧 `DiagnosticService` のサブセットを呼び出し、エラー時はガイダンス表示。  
+2. **ブリッジ構成要素**
+   - `ActBridgeRunner`: `act` コマンド生成、`.actrc` 設定読み込み、環境変数/シークレット引き継ぎ。
+   - `BridgeDiagnostics`: 旧 `DiagnosticService` のサブセットを呼び出し、エラー時はガイダンス表示。
    - `BridgeResultAdapter`: act の終了コードと標準出力を逆変換して `SimulationResult` 互換のレスポンスを構築。ログ収集は最小限に抑え、必要に応じて JSON サマリを出力。
 
-3. **設定項目**  
-   - `actions_bridge.enabled`（bool, default true）  
-   - `actions_bridge.retry_limit`（int, default 0）  
-   - `actions_bridge.capture_logs`（enum: none/basic/full）  
+3. **設定項目**
+   - `actions_bridge.enabled`（bool, default true）
+   - `actions_bridge.retry_limit`（int, default 0）
+   - `actions_bridge.capture_logs`（enum: none/basic/full）
    - 旧設定との互換性を確保するため、未指定の場合は既存フィールドからの継承を試みる。
 
-4. **移行ステップ**  
-   - Phase 1: Flag ON をデフォルトにし、主要テストをブリッジ経由で実行。  
-   - Phase 2: 旧コードへのフォールバックを削除、ブリッジを単体 `act` 実行へリネーム。  
+4. **移行ステップ**
+   - Phase 1: Flag ON をデフォルトにし、主要テストをブリッジ経由で実行。
+   - Phase 2: 旧コードへのフォールバックを削除、ブリッジを単体 `act` 実行へリネーム。
    - Phase 3: `ActBridgeRunner` を正式な CLI 層に昇格させ、旧 `EnhancedActWrapper` を削除。
 
 ---
 
 ## 15. Phase 0 完了判定
 
-- [x] 依存関係の洗い出しと分類（セクション 1.1, 12）  
-- [x] 機能ギャップ分析と対応方針整理（セクション 13）  
+- [x] 依存関係の洗い出しと分類（セクション 1.1, 12）
+- [x] 機能ギャップ分析と対応方針整理（セクション 13）
 - [x] ブリッジ設計ドラフトの策定（セクション 14）
 
 Phase 0 の成果物を満たしたため、Phase 1 に着手可能。

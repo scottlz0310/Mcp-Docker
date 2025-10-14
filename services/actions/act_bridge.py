@@ -123,8 +123,7 @@ class ActBridgeRunner:
                 continue
 
         raise RuntimeError(
-            "act bridge failed after "
-            f"{max_attempts} attempt(s) (rc={last_return_code}): {last_stderr.strip()}"
+            f"act bridge failed after {max_attempts} attempt(s) (rc={last_return_code}): {last_stderr.strip()}"
         )
 
     def _load_settings(self, raw: Mapping[str, Any]) -> ActBridgeSettings:
