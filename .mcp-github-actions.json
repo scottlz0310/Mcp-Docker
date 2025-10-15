@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "github-actions": {
+      "command": "uv",
+      "args": [
+        "run",
+        "mcp-github-actions"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
