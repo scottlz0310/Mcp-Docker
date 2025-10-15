@@ -233,14 +233,14 @@ Phase 0 の成果物を満たしたため、Phase 1 に着手可能。
 
 ## 16. Phase 1 作業計画（チケット化）
 
-| チケットID (案) | タスク概要 | 担当 | 期限目安 | 依存 |
-| --- | --- | --- | --- | --- |
-| ACT-101 | `SimulationService` に Feature Flag を追加し、`ActBridgeRunner` のスケルトン実装を作成 | Backend Owner | Week 1 | Phase 0 |
-| ACT-102 | `Makefile` / `scripts/run-actions.sh` から Flag を既定で有効化し、旧 CLI からの警告導線を追加 | Dev Experience | Week 1 | ACT-101 |
-| ACT-103 | 単体テストをブリッジ経由に更新し、`pytest.mark.legacy_actions` を導入 | QA Lead | Week 2 | ACT-101 |
-| ACT-104 | BATS / E2E テストを Flag 切替に対応させ、`make actions-ci` サニティを Nightly に登録 | QA Lead + Ops | Week 2 | ACT-103 |
-| ACT-105 | README / COMMAND ガイドを暫定更新し、コミュニケーションプランを整理 | Docs Owner | Week 2 | ACT-102 |
-| ACT-106 | ブリッジ経由の実行を CI ジョブに組み込み、失敗時の再試行ルールを定義 | Ops | Week 3 | ACT-104 |
+| チケットID (案) | タスク概要 | 担当 | 期限目安 | 状態 | 依存 |
+| --- | --- | --- | --- | --- | --- |
+| ACT-101 | `SimulationService` に Feature Flag を追加し、`ActBridgeRunner` のスケルトン実装を作成 | Backend Owner | Week 1 | ✅ 完了 | Phase 0 |
+| ACT-102 | `Makefile` / `scripts/run-actions.sh` から Flag を既定で有効化し、旧 CLI からの警告導線を追加 | Dev Experience | Week 1 | ✅ 完了 | ACT-101 |
+| ACT-103 | 単体テストをブリッジ経由に更新し、`pytest.mark.legacy_actions` を導入 | QA Lead | Week 2 | ✅ 完了 | ACT-101 |
+| ACT-104 | BATS / E2E テストを Flag 切替に対応させ、`make actions-ci` サニティを Nightly に登録 | QA Lead + Ops | Week 2 | 🔄 進行中 | ACT-103 |
+| ACT-105 | README / COMMAND ガイドを暫定更新し、コミュニケーションプランを整理 | Docs Owner | Week 2 | ✅ 完了 | ACT-102 |
+| ACT-106 | ブリッジ経由の実行を CI ジョブに組み込み、失敗時の再試行ルールを定義 | Ops | Week 3 | ⏳ 保留 | ACT-104 |
 
 **アクションアイテム**
 - 各担当はチケットをプロジェクト管理ツールに登録し、詳細タスクとレビュアを紐付ける。
@@ -258,13 +258,16 @@ Phase 1 の実行体制とスケジュールを上記のとおり確定。
 - 2025-10-14: ACT-103 着手。`pytest.mark.legacy_actions` を導入し、旧 API 依存ユニットテストをマーク。
 - 2025-10-14: ACT-103 継続。`ActBridgeRunner.run` を実装し、`act` 実行とリトライ/フォールバック処理を追加。
 - 2025-10-14: ACT-104 準備。BATS/E2E/CI ワークフローで `ACTIONS_USE_ACT_BRIDGE=1` を既定化し、サマリーにブリッジモードを記録。
+- 2025-10-15: ACT-103 完了。`pyproject.toml` に `legacy_actions` マーカーを追加完了。ブリッジモードでのユニットテスト実行を確認。
 
 ---
 
 ## 18. テスト準備チェックリスト（Phase 1）
 
-- [ ] `ActBridgeRunner` の実行パスを実装し、フォールバックログが出力されないことを確認
+- [x] `ActBridgeRunner` の実行パスを実装し、フォールバックログが出力されないことを確認
+- [x] `legacy_actions` マーカーを導入し、pyproject.toml に登録完了
 - [ ] `legacy_actions` マーカーを段階的に削減し、移行済みテストを通常スイートへ戻す
 - [ ] Nightly CI による `make actions-ci` サニティジョブを導入し、ブリッジ経路との差分を可視化
 - [ ] ブリッジモードのメトリクス（成功/フォールバック回数）をダッシュボード化
 - 2025-10-14: ACT-104 準備として BATS/E2E テストで `ACTIONS_USE_ACT_BRIDGE=1` を既定化し、統合テストがブリッジ経路を通過するよう更新。
+- 2025-10-15: ユニットテスト（test_expression.py, test_logger.py等）がブリッジモードで正常動作することを確認。
