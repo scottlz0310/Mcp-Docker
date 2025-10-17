@@ -88,10 +88,16 @@ release-watcher-logs: ## GitHub Release Watcherのログ表示
 release-watcher-stop: ## GitHub Release Watcher停止
 	$(COMPOSE_CMD) stop github-release-watcher
 
+.PHONY: actions
+actions: actions-ci ## GitHub Actions Simulator（推奨: make actions-ci）
+
 .PHONY: actions-run
-actions-run: ## Actions Simulatorでワークフローを選択して実行
+actions-run: ## ⚠️ 非推奨: 代わりに 'make actions-ci' を使用してください
 	@repo_root="$(ROOT_DIR)"; \
 	cd "$$repo_root"; \
+	echo "⚠️  WARNING: 'make actions-run' is DEPRECATED and will be removed soon."; \
+	echo "⚠️  Please use 'make actions-ci' instead."; \
+	echo ""; \
 	echo "🎭 GitHub Actions Simulator - ワークフロー実行"; \
 	workflows=$$(find .github/workflows -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) 2>/dev/null | sort); \
 	if [ -z "$$workflows" ]; then \
