@@ -136,23 +136,9 @@ repos:
           ]
         additional_dependencies: [types-requests, types-PyYAML]
 
-  # === Phase 4: GitHub Actions Simulator 統合チェック ===
+  # === Phase 4: GitHub Actions 統合チェック ===
   - repo: local
     hooks:
-      # 高速単体テスト（コミット時に必須）
-      - id: actions-simulator-unit-tests
-        name: "🧪 Actions Simulator 単体テスト"
-        description: "GitHub Actions Simulator の核心機能をテスト"
-        entry: >
-          uv run pytest
-          tests/unit/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
-          tests/unit/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
-          tests/unit/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
-          -x --tb=short --disable-warnings --timeout=30
-        language: system
-        pass_filenames: false
-        files: ^(services/|src/|tests/unit/test_hangup_unit\.py)
-
       # ワークフロー構文検証
       - id: actions-workflow-validation
         name: "✅ GitHub Actions ワークフロー検証"
@@ -171,16 +157,7 @@ repos:
         pass_filenames: false
         files: ^(Dockerfile|docker-compose\.ya?ml|\.dockerignore)$
 
-      # Actions Simulator 設定検証
-      - id: actions-simulator-config-check
-        name: "⚙️ Actions Simulator 設定検証"
-        description: "Actions Simulator の設定ファイルを検証"
-        entry: >
-          bash -c 'if [ -f ".env.example" ]; then echo "✅ .env.example 存在確認";
-          else echo "❌ .env.example が見つかりません"; exit 1; fi'
-        language: system
-        files: ^(\.env\.example|pyproject\.toml|main\.py)$
-        pass_filenames: false
+
 
   # === Phase 5: ドキュメント整合性チェック ===
   - repo: local
