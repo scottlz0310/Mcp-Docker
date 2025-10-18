@@ -23,7 +23,7 @@ class ReleaseComparator:
         """
         try:
             # packagingライブラリでセマンティックバージョニング対応
-            return version.parse(latest) > version.parse(current)
+            return bool(version.parse(latest) > version.parse(current))
         except Exception:
             # パース失敗時は文字列比較にフォールバック
             return latest > current

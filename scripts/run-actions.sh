@@ -7,6 +7,9 @@
 # The script ensures the simulator image is up-to-date, then executes the
 # Click CLI inside the dedicated Docker container.
 
+echo "DEBUG: Script started" >&2
+echo "DEBUG: Args: $*" >&2
+
 set -euo pipefail
 
 # エラーハンドリング設定
@@ -327,18 +330,31 @@ prepare_output_dir() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# ログディレクトリの設定
+# PROJECT_ROOTの決定ロジック
+if [[ -n "${PROJECT_ROOT_FROM_ENV:-}" ]]; then
+  # uv tool install時: ユーザーのカレントディレクトリ
+  PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+  PACKAGE_ROOT="${SCRIPT_DIR}/.."
+else
+  # 開発時: スクリプトの親ディレクトリ
+  PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+  PACKAGE_ROOT="${PROJECT_ROOT}"
+fi
+
+# ログディレクトリの設定（常にユーザーのプロジェクトルート）
 readonly LOG_DIR="${PROJECT_ROOT}/logs"
 readonly ERROR_LOG="${LOG_DIR}/error.log"
 readonly DIAGNOSTIC_LOG="${LOG_DIR}/diagnostic.log"
 
-# プロジェクトルートに移動
-cd "${PROJECT_ROOT}" || {
-  echo "❌ プロジェクトディレクトリに移動できません: ${PROJECT_ROOT}" >&2
-  exit 1
-}
+# 作業ディレクトリの設定
+if [[ -z "${PROJECT_ROOT_FROM_ENV:-}" ]]; then
+  # 開発時のみプロジェクトルートに移動
+  cd "${PROJECT_ROOT}" || {
+    echo "❌ プロジェクトディレクトリに移動できません: ${PROJECT_ROOT}" >&2
+    exit 1
+  }
+fi
 
 # ログディレクトリの初期化
 initialize_logging() {
@@ -1212,10 +1228,8 @@ show_progress() {
   local message="$3"
   local percentage=$((step * 100 / total))
 
-  printf "\r🔄 [%d/%d] (%d%%) %s" "$step" "$total" "$percentage" "$message"
-  if [[ "$step" -eq "$total" ]]; then
-    echo  # 最後のステップで改行
-  fi
+  # パイプ経由での実行時に\rが問題を起こすため、通常のechoを使用
+  echo "🔄 [$step/$total] ($percentage%) $message"
 }
 
 # 非対話モードの検出
@@ -1228,8 +1242,14 @@ prepare_docker_image() {
   local total_steps=3
   local current_step=0
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "Docker イメージの確認中..."
+
+  # docker-compose.ymlの絶対パスを取得
+  local compose_file="${PACKAGE_ROOT}/docker-compose.yml"
+  if [[ ! -f "$compose_file" ]]; then
+    compose_file="${PROJECT_ROOT}/docker-compose.yml"
+  fi
 
   # 既存イメージの確認
   local has_existing_image=false
@@ -1237,16 +1257,16 @@ prepare_docker_image() {
     has_existing_image=true
   fi
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "Docker イメージの更新を試行中..."
 
-  # イメージのプル試行
+  # イメージのプル試行（compose fileを明示的に指定）
   local pull_success=false
-  if "${COMPOSE_CMD[@]}" --profile tools pull actions-simulator >/dev/null 2>&1; then
+  if "${COMPOSE_CMD[@]}" -f "$compose_file" --profile tools pull actions-simulator >/dev/null 2>&1; then
     pull_success=true
   fi
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "Docker イメージの準備完了"
   echo
 
@@ -1255,15 +1275,54 @@ prepare_docker_image() {
   elif [[ "$has_existing_image" == "true" ]]; then
     warning "⚠️  Docker イメージの更新に失敗しましたが、既存のイメージを使用します"
   else
-    error "❌ actions-simulator イメージが見つかりません"
+    warning "⚠️  actions-simulator イメージが見つかりません"
     echo
-    echo "🔧 解決方法:"
-    echo "  1. ネットワーク接続を確認してください"
-    echo "  2. Docker Hub にアクセスできることを確認してください"
-    echo "  3. 以下のコマンドで手動でイメージをビルドしてください:"
-    echo "     docker-compose build actions-simulator"
+    info "🔨 Docker イメージを自動ビルド中..."
+    echo "   これには数分かかる場合があります。初回のみ実行されます。"
     echo
-    exit 1
+
+    # docker-compose.ymlが存在する場合はビルドを試行
+    if [[ -f "$compose_file" ]]; then
+      info "📦 docker-compose.yml を使用してビルド中..."
+      echo "   進捗を表示します:"
+      echo
+      if "${COMPOSE_CMD[@]}" -f "$compose_file" build actions-simulator; then
+        echo
+        success "✅ Docker イメージのビルドが完了しました"
+      else
+        echo
+        error "❌ Docker イメージのビルドに失敗しました"
+        echo
+        echo "🔧 手動セットアップ手順:"
+        echo "  1. プロジェクトをクローン:"
+        echo "     git clone https://github.com/scottlz0310/mcp-docker.git"
+        echo "     cd mcp-docker"
+        echo
+        echo "  2. Docker イメージをビルド:"
+        echo "     docker compose build actions-simulator"
+        echo
+        echo "  3. 再実行:"
+        echo "     mcp-docker actions .github/workflows/basic-test.yml"
+        echo
+        exit 1
+      fi
+    else
+      error "❌ docker-compose.yml が見つかりません"
+      echo
+      echo "💡 uv tool install での使用方法:"
+      echo
+      echo "  uv tool install は依存関係チェックなどの軽量操作に適しています:"
+      echo "    mcp-docker actions --check-deps"
+      echo "    mcp-docker --version"
+      echo
+      echo "  実際のワークフロー実行には、プロジェクトのクローンが必要です:"
+      echo "    git clone https://github.com/scottlz0310/mcp-docker.git"
+      echo "    cd mcp-docker"
+      echo "    docker compose build actions-simulator"
+      echo "    ./scripts/run-actions.sh .github/workflows/basic-test.yml"
+      echo
+      exit 1
+    fi
   fi
   echo
 }
@@ -1498,6 +1557,7 @@ if [[ "$check_deps_extended" == "true" ]]; then
 fi
 
 # 依存関係チェックのみの場合
+echo "DEBUG: check_deps_only=$check_deps_only" >&2
 if [[ "$check_deps_only" == "true" ]]; then
   info "🔍 依存関係チェックモード"
   echo
@@ -1516,7 +1576,10 @@ if [[ -n "$ACT_TIMEOUT" ]]; then
   ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS="$ACT_TIMEOUT"
 fi
 
+echo "DEBUG: Current directory: $(pwd)" >&2
+echo "DEBUG: WORKFLOW=$WORKFLOW" >&2
 discover_workflows
+echo "DEBUG: WORKFLOW_CHOICES=(${WORKFLOW_CHOICES[*]})" >&2
 
 if [[ -n "$WORKFLOW" ]]; then
   if [[ "$WORKFLOW" == /* ]]; then
@@ -1549,7 +1612,9 @@ fi
 check_dependencies
 
 # Docker イメージの準備
+echo "=== prepare_docker_image を呼び出します ==="
 prepare_docker_image
+echo "=== prepare_docker_image が完了しました ==="
 
 if [[ -z "$WORKFLOW" ]]; then
   should_prompt="true"
@@ -1589,7 +1654,7 @@ pre_execution_check() {
   info "🔍 実行前チェックを実行中..."
   echo
 
-  ((current_check++))
+  current_check=$((current_check + 1))
   show_progress "$current_check" "$total_checks" "Docker サービス状態を確認中..."
 
   # Docker サービス確認
@@ -1609,7 +1674,7 @@ pre_execution_check() {
     exit 2
   fi
 
-  ((current_check++))
+  current_check=$((current_check + 1))
   show_progress "$current_check" "$total_checks" "ワークフローファイルを確認中..."
 
   # ワークフローファイル確認
@@ -1622,7 +1687,7 @@ pre_execution_check() {
     exit 1
   fi
 
-  ((current_check++))
+  current_check=$((current_check + 1))
   show_progress "$current_check" "$total_checks" "出力ディレクトリを確認中..."
 
   # 出力ディレクトリの確認（実行時のみ必要）
@@ -1633,7 +1698,7 @@ pre_execution_check() {
     }
   fi
 
-  ((current_check++))
+  current_check=$((current_check + 1))
   show_progress "$current_check" "$total_checks" "実行前チェック完了"
   echo
 
@@ -1647,7 +1712,7 @@ execute_simulation() {
   local total_steps=4
   local current_step=0
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "実行環境を準備中..."
 
   # 実行ログの開始
@@ -1659,14 +1724,27 @@ execute_simulation() {
     echo "=========================================="
   } >> "$DIAGNOSTIC_LOG" 2>/dev/null || true
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "Docker Compose 環境を設定中..."
 
   # Docker Compose 実行設定
-  COMPOSE_RUN_ARGS=("--profile" "tools" "run" "--rm")
+  # docker-compose.ymlの絶対パスを使用（uv tool install対応）
+  local compose_file="${PACKAGE_ROOT}/docker-compose.yml"
+  if [[ ! -f "$compose_file" ]]; then
+    compose_file="${PROJECT_ROOT}/docker-compose.yml"
+  fi
+
+  COMPOSE_RUN_ARGS=("-f" "$compose_file" "--profile" "tools" "run" "--rm")
+
+  # ワークフローパスはPROJECT_ROOT相対で解決
+  local workflow_abs="${PROJECT_ROOT}/${WORKFLOW}"
+
   COMPOSE_ENV_VARS=(
     '-e' "WORKFLOW_FILE=${WORKFLOW}"
     '-e' "ACTIONS_USE_ACT_BRIDGE=1"
+    '-v' "${PROJECT_ROOT}/.github:/app/.github:ro"
+    '-v' "${PROJECT_ROOT}/output:/app/output:rw"
+    '-v' "${PROJECT_ROOT}/logs:/app/logs:rw"
   )
   if [[ -n "${ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS:-}" ]]; then
     COMPOSE_ENV_VARS+=(
@@ -1679,7 +1757,7 @@ execute_simulation() {
     )
   fi
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "GitHub Actions シミュレーションを実行中..."
   echo
 
@@ -1701,7 +1779,7 @@ execute_simulation() {
     actions-simulator \
     "${CMD[@]}" || exit_code=$?
 
-  ((current_step++))
+  current_step=$((current_step + 1))
   show_progress "$current_step" "$total_steps" "実行結果を処理中..."
 
   local end_time=$(date +%s)

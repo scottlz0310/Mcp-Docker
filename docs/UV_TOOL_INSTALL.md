@@ -143,9 +143,28 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## 制限事項
 
-- Docker環境が必要です（Docker 20.10+）
-- Python 3.13+が必要です
-- actコマンドが必要です（GitHub Actions Simulator使用時）
+- **Docker環境が必須**: Docker 20.10+ と Docker Compose 2.0+ が必要です
+- **Python 3.13+が必要**: uv tool install時に自動的にインストールされます
+- **Gitリポジトリ内で実行**: `mcp-docker actions`はGitリポジトリのルートディレクトリで実行する必要があります
+- **初回実行時**: Docker イメージのビルドまたはプルが必要です（`docker compose build actions-simulator`）
+
+### 重要な注意事項
+
+`uv tool install`でインストールした場合、以下の準備が必要です:
+
+1. **Docker環境のセットアップ**: Docker と Docker Compose をインストール
+2. **プロジェクトのクローン**: MCP Dockerリポジトリをクローン（初回のみ）
+3. **イメージのビルド**: `docker compose build actions-simulator`を実行
+
+または、プロジェクトをクローンして直接使用することを推奨します:
+
+```bash
+# 推奨: プロジェクトをクローンして使用
+git clone https://github.com/scottlz0310/mcp-docker.git
+cd mcp-docker
+uv sync
+./scripts/run-actions.sh .github/workflows/basic-test.yml
+```
 
 ## 関連ドキュメント
 

@@ -79,20 +79,22 @@ def main():
         # DateTime Validator
         cmd = ["python", "services/datetime/datetime_validator.py"]
     elif service == "actions":
-        # GitHub Actions Simulator
-        # scripts/run-actions.sh を使用
+        # GitHub Actions Simulator - simple act wrapper
         import os
-        script_path = os.path.join(os.path.dirname(__file__), "scripts", "run-actions.sh")
-        args = sys.argv[2:]
-        cmd = [script_path] + args
-        # カレントディレクトリを保持（ユーザーの作業ディレクトリで実行）
-        # subprocess.runはcwdを指定しないとカレントディレクトリで実行される
+        import json
+
+        os.environ["_MCP_DOCKER_ARGS"] = json.dumps(sys.argv[2:])
+        from src.actions.cli import main as actions_main
+
+        actions_main()
     else:
         print(f"Unknown service: {service}")
         sys.exit(1)
 
+    if service == "actions":
+        return  # Already handled above
+
     try:
-        # カレントディレクトリを保持して実行
         result = subprocess.run(cmd, check=False)
         sys.exit(result.returncode)
     except FileNotFoundError:
@@ -102,6 +104,11 @@ def main():
 
 def cli():
     """CLI entry point for uv tool install"""
+    import os
+
+    # uv tool installの場合、カレントディレクトリをPROJECT_ROOTとして設定
+    os.environ.setdefault("PROJECT_ROOT", os.getcwd())
+    os.environ.setdefault("PROJECT_ROOT_FROM_ENV", "1")
     main()
 
 
