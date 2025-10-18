@@ -21,6 +21,23 @@ readonly MIN_DOCKER_VERSION="20.10.0"
 readonly MIN_COMPOSE_VERSION="2.0.0"
 readonly MIN_GIT_VERSION="2.20.0"
 
+# ユーティリティ関数（早期定義）
+info() {
+  printf '👉 %s\n' "$*"
+}
+
+error() {
+  printf '❌ %s\n' "$*" >&2
+}
+
+warning() {
+  printf '⚠️  %s\n' "$*" >&2
+}
+
+success() {
+  printf '✅ %s\n' "$*"
+}
+
 # エラーハンドリング関数
 handle_error() {
   local exit_code=$1
@@ -384,22 +401,6 @@ EOF
     exit 0
   fi
 done
-
-info() {
-  printf '👉 %s\n' "$*"
-}
-
-error() {
-  printf '❌ %s\n' "$*" >&2
-}
-
-warning() {
-  printf '⚠️  %s\n' "$*" >&2
-}
-
-success() {
-  printf '✅ %s\n' "$*"
-}
 
 # プラットフォーム検出
 detect_platform() {
