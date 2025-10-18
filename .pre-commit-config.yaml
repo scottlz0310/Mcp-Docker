@@ -157,7 +157,14 @@ repos:
         pass_filenames: false
         files: ^(Dockerfile|docker-compose\.ya?ml|\.dockerignore)$
 
-
+      # act_bridge 单体テスト
+      - id: act-bridge-unit-tests
+        name: "🧪 act_bridge 单体テスト"
+        description: "act_bridgeの基本機能をテスト"
+        entry: bash -c 'uv run python -c "from src.actions.act_bridge import ActBridgeRunner; print(\"OK\")"'
+        language: system
+        pass_filenames: false
+        files: ^src/actions/.*\.py$
 
   # === Phase 5: ドキュメント整合性チェック ===
   - repo: local
