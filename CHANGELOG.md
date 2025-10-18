@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - Phase 4完了
+
+### Removed
+- `services/actions/` ディレクトリを完全削除（17ファイル）
+- 旧Actions Simulator実装を削除（12モジュール）
+  - api.py, auto_recovery.py, diagnostic.py, docker_integration_checker.py
+  - enhanced_act_wrapper.py, execution_tracer.py, expression.py
+  - hangup_detector.py, main.py, output.py, simulator.py, workflow_parser.py
+- レガシーテスト17ファイルを削除
+  - 10ユニットテスト + 6統合テスト + 1 E2Eテスト
+- サンプルファイル5ファイルを削除（archive/examples/legacy-actions/に移動）
+
+### Changed
+- Actions Simulatorを`src/actions/`に移行
+- `act_bridge.py`ベースの新実装に完全移行
+- `make actions`が`make actions-ci`のエイリアスに変更
+- service.pyを最小限の実装に簡素化
+- pre-commit設定を新構造に対応
+  - 削除: actions-simulator-unit-tests, actions-simulator-config-check
+  - 追加: act-bridge-unit-tests
+
+### Added
+- 軽量診断機能（`src/actions/diagnostics.py`）
+- 標準loggingベースのロギング
+- act_bridge単体テスト（pre-commit統合）
+
+### Fixed
+- Ruffエラー修正（未使用変数・import削除）
+- MyPy型チェックエラー修正
+- import文をsrc.actionsに統一
+
+### Migration Notes
+- 旧`services.actions`モジュールは`src.actions`に移行
+- CLIは`make actions-ci`を使用（`python -m services.actions.main`は廃止）
+- 診断機能は簡易版に置き換え（基本機能のみ）
 
 ## [1.3.0] - 2025-10-06
 
@@ -198,13 +232,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 🎛️ **多様なトリガー**: 手動実行・タグプッシュ・ドキュメント連動
 - 🛡️ **セキュリティ保証**: バージョン後退禁止・権限管理・品質保証統合
 
-### � 修正
+###  修正
 
 - resolve CI test failure in UID validation
 - 自動修正時のコミットメッセージの取り扱いを変更
 - resolve CI test failures with dynamic UID/GID validation
 
-### �📝 ドキュメント
+### 📝 ドキュメント
 
 - enable GitHub Pages integration
 - **📚 リリース自動化システム完全ガイド**: 包括的な13,000文字超ドキュメント作成
