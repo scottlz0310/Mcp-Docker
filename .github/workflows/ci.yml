@@ -218,9 +218,8 @@ jobs:
           if find tests/integration/actions/ -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
             uv run pytest tests/integration/actions/ -v --tb=short
           else
-            echo "❌ CRITICAL: No test files in tests/integration/actions/"
-            echo "テストが実装されていません。品質ゲートを通過できません。"
-            exit 1
+            echo "⚠️  No Python test files in tests/integration/actions/ (Bats tests only)"
+            echo "Skipping pytest for this directory."
           fi
 
       - name: Run pytest (integration tests - services)
@@ -277,6 +276,8 @@ jobs:
           if [[ "${{ steps.integration-actions.outcome }}" == "failure" ]]; then
             echo "❌ Integration (Actions) failed" >> $GITHUB_STEP_SUMMARY
             FAILED=true
+          elif [[ "${{ steps.integration-actions.outcome }}" == "skipped" ]]; then
+            echo "⚠️  Integration (Actions) skipped (no Python tests)" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [[ "${{ steps.integration-services.outcome }}" == "failure" ]]; then
