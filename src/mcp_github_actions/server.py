@@ -33,10 +33,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="list_workflow_runs",
-            description=(
-                "リポジトリのワークフロー実行一覧を取得します。"
-                "最新のワークフロー実行状況を確認できます。"
-            ),
+            description=("リポジトリのワークフロー実行一覧を取得します。最新のワークフロー実行状況を確認できます。"),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -50,10 +47,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "workflow_id": {
                         "type": "string",
-                        "description": (
-                            "ワークフローID (例: ci.yml) - "
-                            "省略時は全ワークフロー"
-                        ),
+                        "description": ("ワークフローID (例: ci.yml) - 省略時は全ワークフロー"),
                     },
                     "branch": {
                         "type": "string",
@@ -61,10 +55,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "status": {
                         "type": "string",
-                        "description": (
-                            "ステータスでフィルタ "
-                            "(queued, in_progress, completed)"
-                        ),
+                        "description": ("ステータスでフィルタ (queued, in_progress, completed)"),
                         "enum": [
                             "queued",
                             "in_progress",
@@ -104,10 +95,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_workflow_run_logs",
-            description=(
-                "ワークフロー実行のログを取得します。"
-                "各ジョブのログ内容を確認できます。"
-            ),
+            description=("ワークフロー実行のログを取得します。各ジョブのログ内容を確認できます。"),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -129,10 +117,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="list_workflow_jobs",
-            description=(
-                "ワークフロー実行のジョブ一覧を取得します。"
-                "各ジョブの実行状況を確認できます。"
-            ),
+            description=("ワークフロー実行のジョブ一覧を取得します。各ジョブの実行状況を確認できます。"),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -154,10 +139,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_latest_workflow_logs",
-            description=(
-                "指定したワークフローの最新実行ログを取得します。"
-                "最も簡単にログを確認できる方法です。"
-            ),
+            description=("指定したワークフローの最新実行ログを取得します。最も簡単にログを確認できる方法です。"),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -201,50 +183,63 @@ async def call_tool(name: str, arguments: Any) -> CallToolResult:
                 per_page=arguments.get("per_page", 10),
             )
             result = _format_workflow_runs(runs)
-            return CallToolResult(content=[TextContent(
-                type="text",
-                text=result,
-            )])
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=result,
+                    )
+                ]
+            )
 
         elif name == "get_workflow_run":
             run = api.get_workflow_run(arguments["run_id"])
             result = _format_workflow_run(run)
-            return CallToolResult(content=[TextContent(
-                type="text",
-                text=result,
-            )])
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=result,
+                    )
+                ]
+            )
 
         elif name == "get_workflow_run_logs":
             logs = api.get_workflow_run_logs(arguments["run_id"])
             result = _format_logs(logs)
-            return CallToolResult(content=[TextContent(
-                type="text",
-                text=result,
-            )])
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=result,
+                    )
+                ]
+            )
 
         elif name == "list_workflow_jobs":
             jobs = api.list_workflow_jobs(arguments["run_id"])
             result = _format_jobs(jobs)
-            return CallToolResult(content=[TextContent(
-                type="text",
-                text=result,
-            )])
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=result,
+                    )
+                ]
+            )
 
         elif name == "get_latest_workflow_logs":
             workflow_id = arguments["workflow_id"]
             branch = arguments.get("branch")
-            latest_run = api.get_latest_workflow_run(
-                workflow_id, branch
-            )
+            latest_run = api.get_latest_workflow_run(workflow_id, branch)
             if not latest_run:
                 return CallToolResult(
-                    content=[TextContent(
-                        type="text",
-                        text=(
-                            f"ワークフロー {workflow_id} の実行が"
-                            "見つかりませんでした。"
-                        ),
-                    )],
+                    content=[
+                        TextContent(
+                            type="text",
+                            text=(f"ワークフロー {workflow_id} の実行が見つかりませんでした。"),
+                        )
+                    ],
                     isError=True,
                 )
 
@@ -258,36 +253,46 @@ async def call_tool(name: str, arguments: Any) -> CallToolResult:
                 f"Created: {latest_run.created_at}\n\n"
                 f"{_format_logs(logs)}"
             )
-            return CallToolResult(content=[TextContent(
-                type="text",
-                text=result,
-            )])
+            return CallToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=result,
+                    )
+                ]
+            )
 
         else:
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=f"Unknown tool: {name}",
-                )],
+                content=[
+                    TextContent(
+                        type="text",
+                        text=f"Unknown tool: {name}",
+                    )
+                ],
                 isError=True,
             )
 
     except GitHubActionsAPIError as e:
         logger.error(f"GitHub API Error: {e}")
         return CallToolResult(
-            content=[TextContent(
-                type="text",
-                text=f"GitHub API エラー: {str(e)}",
-            )],
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"GitHub API エラー: {str(e)}",
+                )
+            ],
             isError=True,
         )
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         return CallToolResult(
-            content=[TextContent(
-                type="text",
-                text=f"エラーが発生しました: {str(e)}",
-            )],
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"エラーが発生しました: {str(e)}",
+                )
+            ],
             isError=True,
         )
 
@@ -305,9 +310,7 @@ def _format_workflow_runs(runs: list) -> str:
         lines.append(f"- Conclusion: {run.conclusion or 'N/A'}")
         lines.append(f"- Branch: {run.head_branch}")
         lines.append(f"- SHA: {run.head_sha[:7]}")
-        lines.append(
-            f"- Created: {run.created_at.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        lines.append(f"- Created: {run.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"- URL: {run.html_url}")
         lines.append("")
 
@@ -343,15 +346,9 @@ def _format_jobs(jobs: list) -> str:
         lines.append(f"- Status: {job.status}")
         lines.append(f"- Conclusion: {job.conclusion or 'N/A'}")
         if job.started_at:
-            lines.append(
-                f"- Started: "
-                f"{job.started_at.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            lines.append(f"- Started: {job.started_at.strftime('%Y-%m-%d %H:%M:%S')}")
         if job.completed_at:
-            lines.append(
-                f"- Completed: "
-                f"{job.completed_at.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
+            lines.append(f"- Completed: {job.completed_at.strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"- URL: {job.html_url}")
         lines.append("")
 
@@ -370,9 +367,7 @@ def _format_logs(logs: dict[str, str]) -> str:
         # ログが長すぎる場合は最後の1000行のみ表示
         log_lines = content.split("\n")
         if len(log_lines) > 1000:
-            lines.append(
-                f"... ({len(log_lines) - 1000} 行省略) ...\n"
-            )
+            lines.append(f"... ({len(log_lines) - 1000} 行省略) ...\n")
             lines.extend(log_lines[-1000:])
         else:
             lines.append(content)

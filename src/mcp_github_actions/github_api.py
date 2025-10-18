@@ -16,7 +16,7 @@ import requests
 from pydantic import BaseModel
 
 
-class WorkflowRun(BaseModel):
+class WorkflowRun(BaseModel):  # type: ignore[misc]
     """ワークフロー実行情報"""
 
     id: int
@@ -32,7 +32,7 @@ class WorkflowRun(BaseModel):
     run_attempt: int
 
 
-class WorkflowJob(BaseModel):
+class WorkflowJob(BaseModel):  # type: ignore[misc]
     """ワークフロージョブ情報"""
 
     id: int
@@ -69,25 +69,15 @@ class GitHubActionsAPI:
             owner: リポジトリオーナー
             repo: リポジトリ名
         """
-        self.token = (
-            token
-            or os.getenv("GITHUB_TOKEN")
-            or os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
-        )
+        self.token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
         if not self.token:
-            raise GitHubActionsAPIError(
-                "GitHub token が設定されていません。"
-                "GITHUB_TOKEN 環境変数を設定してください。"
-            )
+            raise GitHubActionsAPIError("GitHub token が設定されていません。GITHUB_TOKEN 環境変数を設定してください。")
 
         self.owner = owner
         self.repo = repo
 
         if not self.owner or not self.repo:
-            raise GitHubActionsAPIError(
-                "リポジトリ情報が必要です。"
-                "owner と repo を指定してください。"
-            )
+            raise GitHubActionsAPIError("リポジトリ情報が必要です。owner と repo を指定してください。")
 
         self.base_url = "https://api.github.com"
         self.headers = {
@@ -96,14 +86,10 @@ class GitHubActionsAPI:
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
-    def _request(
-        self, method: str, endpoint: str, **kwargs: Any
-    ) -> requests.Response:
+    def _request(self, method: str, endpoint: str, **kwargs: Any) -> requests.Response:
         """GitHub API リクエスト実行"""
         url = f"{self.base_url}{endpoint}"
-        response = requests.request(
-            method, url, headers=self.headers, **kwargs
-        )
+        response = requests.request(method, url, headers=self.headers, **kwargs)
 
         if response.status_code >= 400:
             error_msg = f"GitHub API エラー: {response.status_code}"
@@ -137,14 +123,9 @@ class GitHubActionsAPI:
             ワークフロー実行情報のリスト
         """
         if workflow_id:
-            endpoint = (
-                f"/repos/{self.owner}/{self.repo}/actions/"
-                f"workflows/{workflow_id}/runs"
-            )
+            endpoint = f"/repos/{self.owner}/{self.repo}/actions/workflows/{workflow_id}/runs"
         else:
-            endpoint = (
-                f"/repos/{self.owner}/{self.repo}/actions/runs"
-            )
+            endpoint = f"/repos/{self.owner}/{self.repo}/actions/runs"
 
         params: dict[str, Any] = {"per_page": per_page}
         if branch:
@@ -155,10 +136,7 @@ class GitHubActionsAPI:
         response = self._request("GET", endpoint, params=params)
         data = response.json()
 
-        return [
-            WorkflowRun(**run)
-            for run in data.get("workflow_runs", [])
-        ]
+        return [WorkflowRun(**run) for run in data.get("workflow_runs", [])]
 
     def get_workflow_run(self, run_id: int) -> WorkflowRun:
         """
@@ -170,9 +148,7 @@ class GitHubActionsAPI:
         Returns:
             ワークフロー実行情報
         """
-        endpoint = (
-            f"/repos/{self.owner}/{self.repo}/actions/runs/{run_id}"
-        )
+        endpoint = f"/repos/{self.owner}/{self.repo}/actions/runs/{run_id}"
         response = self._request("GET", endpoint)
         return WorkflowRun(**response.json())
 
@@ -186,20 +162,13 @@ class GitHubActionsAPI:
         Returns:
             ジョブ情報のリスト
         """
-        endpoint = (
-            f"/repos/{self.owner}/{self.repo}/actions/"
-            f"runs/{run_id}/jobs"
-        )
+        endpoint = f"/repos/{self.owner}/{self.repo}/actions/runs/{run_id}/jobs"
         response = self._request("GET", endpoint)
         data = response.json()
 
-        return [
-            WorkflowJob(**job) for job in data.get("jobs", [])
-        ]
+        return [WorkflowJob(**job) for job in data.get("jobs", [])]
 
-    def get_workflow_run_logs(
-        self, run_id: int, output_dir: Path | None = None
-    ) -> dict[str, str]:
+    def get_workflow_run_logs(self, run_id: int, output_dir: Path | None = None) -> dict[str, str]:
         """
         ワークフロー実行のログを取得
 
@@ -210,10 +179,7 @@ class GitHubActionsAPI:
         Returns:
             ジョブ名をキー、ログ内容を値とする辞書
         """
-        endpoint = (
-            f"/repos/{self.owner}/{self.repo}/actions/"
-            f"runs/{run_id}/logs"
-        )
+        endpoint = f"/repos/{self.owner}/{self.repo}/actions/runs/{run_id}/logs"
         response = self._request("GET", endpoint)
 
         # ログはZIPファイルとして返される
@@ -228,12 +194,8 @@ class GitHubActionsAPI:
                     # ファイルに保存
                     if output_dir:
                         output_path = output_dir / file_name
-                        output_path.parent.mkdir(
-                            parents=True, exist_ok=True
-                        )
-                        output_path.write_text(
-                            log_content, encoding="utf-8"
-                        )
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        output_path.write_text(log_content, encoding="utf-8")
 
         return logs
 
@@ -247,16 +209,11 @@ class GitHubActionsAPI:
         Returns:
             ログ内容
         """
-        endpoint = (
-            f"/repos/{self.owner}/{self.repo}/actions/"
-            f"jobs/{job_id}/logs"
-        )
+        endpoint = f"/repos/{self.owner}/{self.repo}/actions/jobs/{job_id}/logs"
         response = self._request("GET", endpoint)
         return str(response.text)
 
-    def get_latest_workflow_run(
-        self, workflow_id: str, branch: str | None = None
-    ) -> WorkflowRun | None:
+    def get_latest_workflow_run(self, workflow_id: str, branch: str | None = None) -> WorkflowRun | None:
         """
         最新のワークフロー実行を取得
 
@@ -267,7 +224,5 @@ class GitHubActionsAPI:
         Returns:
             最新のワークフロー実行情報、見つからない場合はNone
         """
-        runs = self.list_workflow_runs(
-            workflow_id=workflow_id, branch=branch, per_page=1
-        )
+        runs = self.list_workflow_runs(workflow_id=workflow_id, branch=branch, per_page=1)
         return runs[0] if runs else None

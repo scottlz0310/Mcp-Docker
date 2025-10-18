@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# type: ignore
 """
 GitHub Actions MCP Server のテストスクリプト
 """
@@ -12,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root / "src") not in sys.path:
     sys.path.insert(0, str(project_root / "src"))
 
-from mcp_github_actions.github_api import (  # noqa: E402
+from mcp_github_actions import (  # noqa: E402
     GitHubActionsAPI,
     GitHubActionsAPIError,
 )
@@ -25,9 +26,7 @@ def test_github_actions_api():
     print("=" * 60)
 
     # 環境変数チェック
-    if not os.getenv("GITHUB_TOKEN") and not os.getenv(
-        "GITHUB_PERSONAL_ACCESS_TOKEN"
-    ):
+    if not os.getenv("GITHUB_TOKEN") and not os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN"):
         print("❌ GITHUB_TOKEN 環境変数が設定されていません")
         return False
 
@@ -62,9 +61,7 @@ def test_github_actions_api():
 
             # ログ取得（完了したワークフローのみ）
             if latest_run.status == "completed":
-                print(
-                    f"\n4. ログ取得 (Run ID: {latest_run.id})..."
-                )
+                print(f"\n4. ログ取得 (Run ID: {latest_run.id})...")
                 try:
                     logs = api.get_workflow_run_logs(latest_run.id)
                     print(f"✅ {len(logs)} 件のログファイルを取得")
@@ -74,22 +71,15 @@ def test_github_actions_api():
                         first_log = list(logs.items())[0]
                         log_name, log_content = first_log
                         print(f"\nログファイル: {log_name}")
-                        print(
-                            f"サイズ: {len(log_content)} 文字"
-                        )
-                        print(
-                            "\n最初の10行:"
-                        )
+                        print(f"サイズ: {len(log_content)} 文字")
+                        print("\n最初の10行:")
                         lines = log_content.split("\n")[:10]
                         for line in lines:
                             print(f"  {line}")
                 except GitHubActionsAPIError as e:
                     print(f"⚠️  ログ取得エラー: {e}")
             else:
-                print(
-                    f"\n4. ログ取得スキップ "
-                    f"(ステータス: {latest_run.status})"
-                )
+                print(f"\n4. ログ取得スキップ (ステータス: {latest_run.status})")
 
         print("\n" + "=" * 60)
         print("✅ すべてのテスト成功")
