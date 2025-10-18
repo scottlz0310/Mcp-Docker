@@ -142,11 +142,6 @@ class SimulationService:
         self,
         params: SimulationParameters,
     ) -> SimulationResult:
-        try:
-            workflow_resolution: WorkflowResolution = resolve_workflow_reference(params.workflow_file)
-        except FileNotFoundError as exc:
-            raise SimulationServiceError(f"ワークフローファイルが見つかりません: {params.workflow_file}") from exc
-
         # 簡易実装: act_bridgeに委譲
         raise SimulationServiceError("Legacy wrapper removed. Use act_bridge instead.")
 
