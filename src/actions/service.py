@@ -11,10 +11,8 @@ from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping
 
-from .act_bridge import ActBridgeRunner
-
 if TYPE_CHECKING:
-    pass
+    from .act_bridge import ActBridgeRunner
 
 
 @dataclass(slots=True)
@@ -58,9 +56,11 @@ class SimulationService:
         self._config: dict[str, Any] = dict(config) if config else {}
         self._use_act_bridge = self._resolve_use_act_bridge(use_act_bridge)
         self._act_bridge_config: dict[str, Any] = dict(act_bridge_config) if act_bridge_config else {}
-        self._act_bridge_runner: ActBridgeRunner | None = None
+        self._act_bridge_runner: "ActBridgeRunner | None" = None
 
         if self._use_act_bridge:
+            from .act_bridge import ActBridgeRunner  # local import to avoid cycle
+
             self._act_bridge_runner = ActBridgeRunner(settings=self._act_bridge_config)
 
     @staticmethod
