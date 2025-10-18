@@ -10,23 +10,10 @@ from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 
+import logging
+
 from .act_bridge import ActBridgeRunner
-from .enhanced_act_wrapper import EnhancedActWrapper
-from .logger import ActionsLogger
 from .path_utils import WorkflowResolution, resolve_workflow_reference
-
-# 後方互換性のためのエイリアス
-ActWrapper = EnhancedActWrapper
-
-# 遅延インポートでサイクル依存を回避
-try:
-    from .diagnostic import DiagnosticService, DiagnosticResult, DiagnosticStatus
-    from .execution_tracer import ExecutionTracer
-except ImportError:
-    DiagnosticService = None  # type: ignore[assignment,misc]
-    DiagnosticResult = None  # type: ignore[assignment,misc]
-    DiagnosticStatus = None  # type: ignore[assignment,misc]
-    ExecutionTracer = None  # type: ignore[assignment,misc]
 
 # Type checking imports
 if TYPE_CHECKING:
@@ -75,35 +62,20 @@ class SimulationService:
 
     def __init__(
         self,
-        logger_factory: Callable[[bool], ActionsLogger] | None = None,
         config: Mapping[str, Any] | None = None,
-        execution_tracer: Optional[ExecutionTracer] = None,
-        use_enhanced_wrapper: bool = False,
-        enable_diagnostics: bool = False,
-        diagnostic_service: Optional[DiagnosticService] = None,
-        pre_execution_diagnostics: bool = True,
-        detailed_result_reporting: bool = True,
         use_act_bridge: bool | None = None,
         act_bridge_config: Mapping[str, Any] | None = None,
     ) -> None:
-        self._logger_factory: Callable[[bool], ActionsLogger] = logger_factory or self._default_logger_factory
+        self._logger = logging.getLogger(__name__)
         self._config: dict[str, Any] = dict(config) if config else {}
-        self._execution_tracer = execution_tracer
-        self._use_enhanced_wrapper = use_enhanced_wrapper
-        self._enable_diagnostics = enable_diagnostics
-        self._diagnostic_service = diagnostic_service
-        self._pre_execution_diagnostics = pre_execution_diagnostics
-        self._detailed_result_reporting = detailed_result_reporting
         self._use_act_bridge = self._resolve_use_act_bridge(use_act_bridge)
         self._act_bridge_config: dict[str, Any] = dict(act_bridge_config) if act_bridge_config else {}
         self._act_bridge_runner: ActBridgeRunner | None = None
 
-        # 診断サービスの初期化
-        self._initialize_services()
+        if self._use_act_bridge:
+            self._act_bridge_runner = ActBridgeRunner(settings=self._act_bridge_config)
 
-    @staticmethod
-    def _default_logger_factory(verbose: bool) -> ActionsLogger:
-        return ActionsLogger(verbose=verbose)
+
 
     @staticmethod
     def _resolve_use_act_bridge(flag: bool | None) -> bool:
@@ -114,36 +86,7 @@ class SimulationService:
             return False
         return env_value.strip().lower() in {"1", "true", "yes", "on"}
 
-    def _initialize_services(self) -> None:
-        """診断サービスを初期化"""
-        logger = self._logger_factory(False)
 
-        # 診断サービスの初期化
-        if self._enable_diagnostics and DiagnosticService and not self._diagnostic_service:
-            try:
-                self._diagnostic_service = DiagnosticService(logger=logger)
-                logger.debug("診断サービスを初期化しました")
-            except Exception as e:
-                logger.warning(f"診断サービスの初期化に失敗しました: {e}")
-                self._enable_diagnostics = False
-
-        # 実行トレーサーの初期化
-        if ExecutionTracer and not self._execution_tracer:
-            try:
-                self._execution_tracer = ExecutionTracer(logger=logger)
-                logger.debug("実行トレーサーを初期化しました")
-            except Exception as e:
-                logger.warning(f"実行トレーサーの初期化に失敗しました: {e}")
-                self._execution_tracer = None
-
-        if self._use_act_bridge:
-            try:
-                self._act_bridge_runner = ActBridgeRunner(settings=self._act_bridge_config, logger=logger)
-                logger.debug("Act bridge runner (skeleton) を初期化しました")
-            except Exception as exc:
-                logger.warning(f"Act bridge runner の初期化に失敗しました: {exc}")
-                self._use_act_bridge = False
-                self._act_bridge_runner = None
 
     def set_config(self, config: Mapping[str, Any] | None) -> None:
         self._config = dict(config) if config else {}
@@ -152,39 +95,19 @@ class SimulationService:
         self,
         params: SimulationParameters,
         *,
-        logger: ActionsLogger | None = None,
         capture_output: bool = False,
     ) -> SimulationResult:
         """Run the workflow simulation and return a structured result."""
         start_time = time.time()
-        runner_logger = logger or self._logger_factory(params.verbose)
-
-        # 実行前診断チェック
-        pre_execution_results = []
-        if self._pre_execution_diagnostics and self._enable_diagnostics and self._diagnostic_service:
-            runner_logger.info("実行前診断チェックを開始します...")
-            try:
-                pre_check = self._run_pre_execution_diagnostics(runner_logger)
-                pre_execution_results.append({"phase": "pre_execution", "timestamp": time.time(), "results": pre_check})
-
-                # 重大な問題がある場合は実行を中止
-                if pre_check.get("overall_status") == "ERROR":
-                    error_msg = f"実行前診断で重大な問題が検出されました: {pre_check.get('summary', '不明なエラー')}"
-                    runner_logger.error(error_msg)
-                    return self._create_failed_result(error_msg, start_time, diagnostic_results=pre_execution_results)
-            except Exception as e:
-                runner_logger.warning(f"実行前診断チェックでエラーが発生しました: {e}")
 
         if self._use_act_bridge and self._act_bridge_runner:
-            runner_logger.info(
-                "act bridge モード（スケルトン）を使用します。レガシー実装にフォールバックする場合があります。"
-            )
+            self._logger.info("act bridge モードを使用します")
             try:
-                return self._act_bridge_runner.run(params, logger=runner_logger)
+                return self._act_bridge_runner.run(params)
             except NotImplementedError as exc:
-                runner_logger.debug(f"Act bridge runner は未実装のためフォールバックします: {exc}")
+                self._logger.debug(f"Act bridge runner は未実装: {exc}")
             except Exception as exc:
-                runner_logger.warning(f"Act bridge runner の実行に失敗しました: {exc}。レガシー実装を使用します。")
+                self._logger.warning(f"Act bridge runner の実行に失敗: {exc}")
 
         stdout_io: StringIO | None = None
         stderr_io: StringIO | None = None
@@ -201,7 +124,7 @@ class SimulationService:
                     result = self._run_with_act(params, runner_logger)
                 except SimulationServiceError:
                     raise
-                except Exception as exc:  # noqa: BLE001 - defensive
+                except Exception as exc:  # noqa: BLE001
                     raise SimulationServiceError(f"Unexpected error: {exc}") from exc
 
             if capture_output:
@@ -212,23 +135,6 @@ class SimulationService:
                 if extra_stderr:
                     result.stderr = f"{extra_stderr}{result.stderr}"
 
-            # 実行後診断チェック
-            post_execution_results = []
-            if self._enable_diagnostics and self._diagnostic_service:
-                try:
-                    post_check = self._run_post_execution_diagnostics(runner_logger, result)
-                    post_execution_results.append(
-                        {"phase": "post_execution", "timestamp": time.time(), "results": post_check}
-                    )
-                except Exception as e:
-                    runner_logger.warning(f"実行後診断チェックでエラーが発生しました: {e}")
-
-            # 詳細結果レポートの生成
-            if self._detailed_result_reporting:
-                result = self._enhance_result_with_detailed_reporting(
-                    result, start_time, pre_execution_results + post_execution_results, runner_logger
-                )
-
             return result
 
         finally:
@@ -237,7 +143,6 @@ class SimulationService:
     def _run_with_act(
         self,
         params: SimulationParameters,
-        logger: ActionsLogger,
     ) -> SimulationResult:
         try:
             workflow_resolution: WorkflowResolution = resolve_workflow_reference(params.workflow_file)
@@ -248,152 +153,10 @@ class SimulationService:
         working_directory = workflow_resolution.project_root
         workflow_argument = workflow_resolution.act_argument
 
-        env_vars: dict[str, str] | None = None
-        if params.env_file:
-            if params.env_file.exists():
-                env_vars = _load_env_file_as_dict(params.env_file, logger)
-            else:
-                logger.warning(f"環境変数ファイルが見つかりません: {params.env_file}")
+        # 簡易実装: act_bridgeに委譲
+        raise SimulationServiceError("Legacy wrapper removed. Use act_bridge instead.")
 
-        if params.env_vars:
-            env_vars = {**(env_vars or {}), **params.env_vars}
-
-        # ExecutionTracerを作成（まだ存在しない場合）
-        tracer = self._execution_tracer or ExecutionTracer(logger=logger)
-
-        # EnhancedActWrapperを統一使用（診断機能の有効/無効で制御）
-        # ワークフローの親ディレクトリからリポジトリルートを推定
-        workflow_parent = resolved_workflow.parent
-
-        wrapper_factory = EnhancedActWrapper
-        wrapper_kwargs = {
-            "working_directory": str(working_directory),
-            "config": self._config,
-            "logger": logger,
-            "execution_tracer": tracer,
-            "enable_diagnostics": self._enable_diagnostics or self._use_enhanced_wrapper,
-        }
-
-        try:
-            wrapper = wrapper_factory(**wrapper_kwargs)
-        except TypeError:
-            try:
-                wrapper = wrapper_factory(str(workflow_parent))
-            except Exception as exc:  # pragma: no cover - defensive
-                raise SimulationServiceError(str(exc)) from exc
-            if hasattr(wrapper, "config"):
-                setattr(wrapper, "config", self._config)
-            if hasattr(wrapper, "logger"):
-                setattr(wrapper, "logger", logger)
-            if hasattr(wrapper, "execution_tracer"):
-                setattr(
-                    wrapper,
-                    "execution_tracer",
-                    self._execution_tracer or ExecutionTracer(logger=logger),
-                )
-        except RuntimeError as exc:
-            raise SimulationServiceError(str(exc)) from exc
-
-        # 診断機能が有効な場合は診断機能付きメソッドを使用
-        if (self._enable_diagnostics or self._use_enhanced_wrapper) and hasattr(
-            wrapper, "run_workflow_with_diagnostics"
-        ):
-            detailed_result = wrapper.run_workflow_with_diagnostics(
-                workflow_file=workflow_argument,
-                job=params.job,
-                dry_run=params.dry_run,
-                verbose=params.verbose,
-                env_vars=env_vars,
-            )
-
-            # DetailedResultをSimulationResultに変換
-            result = {
-                "success": detailed_result.success,
-                "returncode": detailed_result.returncode,
-                "stdout": detailed_result.stdout,
-                "stderr": detailed_result.stderr,
-                "command": detailed_result.command,
-            }
-
-            # 追加の診断情報をメタデータに含める
-            metadata = {
-                "command": detailed_result.command,
-                "execution_time_ms": detailed_result.execution_time_ms,
-                "enhanced_wrapper": True,
-                "trace_id": detailed_result.trace_id,
-            }
-
-            # 診断結果の統合
-            if detailed_result.diagnostic_results:
-                metadata["wrapper_diagnostic_results"] = detailed_result.diagnostic_results
-
-            # デッドロック指標の統合
-            if detailed_result.deadlock_indicators:
-                metadata["deadlock_indicators"] = [
-                    {
-                        "type": di.indicator_type,
-                        "severity": di.severity,
-                        "description": di.description,
-                        "detected_at": di.detected_at,
-                        "details": di.details,
-                    }
-                    for di in detailed_result.deadlock_indicators
-                ]
-
-            # ハングアップ分析の統合
-            if detailed_result.hang_analysis:
-                metadata["hang_analysis"] = detailed_result.hang_analysis
-
-            # ストリーム結果の統合
-            if detailed_result.stream_result:
-                stream_result = detailed_result.stream_result
-                metadata["stream_analysis"] = {
-                    "stdout_bytes": stream_result.stdout_bytes,
-                    "stderr_bytes": stream_result.stderr_bytes,
-                    "threads_completed": stream_result.threads_completed,
-                    "deadlock_detected": stream_result.deadlock_detected,
-                    "stream_duration_ms": stream_result.stream_duration_ms,
-                    "error_message": stream_result.error_message,
-                }
-
-            # リソース使用量の統合
-            if detailed_result.resource_usage:
-                metadata["resource_usage"] = detailed_result.resource_usage
-
-        else:
-            # 基本機能のみ使用（診断機能無効）
-            result = wrapper.run_workflow(
-                workflow_file=workflow_argument,
-                job=params.job,
-                dry_run=params.dry_run,
-                verbose=params.verbose,
-                env_vars=env_vars,
-            )
-            metadata = {"command": result.get("command"), "enhanced_wrapper": False}
-
-        success = bool(result.get("success"))
-        return_code_val = result.get("returncode", 1)
-        return_code = int(return_code_val) if return_code_val is not None else 1  # type: ignore[call-overload]
-        stdout_val = result.get("stdout", "")
-        stdout = str(stdout_val) if stdout_val is not None else ""
-        stderr_val = result.get("stderr", "")
-        stderr = str(stderr_val) if stderr_val is not None else ""
-
-        if success:
-            logger.success("act でのワークフロー実行が完了しました ✓")
-        else:
-            logger.error(f"act 実行が失敗しました (returncode={return_code})")
-
-        return SimulationResult(
-            success=success,
-            return_code=return_code,
-            engine="act",
-            stdout=stdout,
-            stderr=stderr,
-            metadata=metadata,
-        )
-
-    def _run_pre_execution_diagnostics(self, logger: ActionsLogger) -> dict[str, Any]:
+    def _run_pre_execution_diagnostics(self) -> dict[str, Any]:
         """実行前診断チェックを実行"""
         if not self._diagnostic_service:
             return {"overall_status": "SKIPPED", "message": "診断サービスが利用できません"}
@@ -490,7 +253,7 @@ class SimulationService:
                 "timestamp": time.time(),
             }
 
-    def _run_post_execution_diagnostics(self, logger: ActionsLogger, result: SimulationResult) -> dict[str, Any]:
+    def _run_post_execution_diagnostics(self, result: SimulationResult) -> dict[str, Any]:
         """実行後診断チェックを実行"""
         if not self._diagnostic_service:
             return {"overall_status": "SKIPPED", "message": "診断サービスが利用できません"}
@@ -535,7 +298,6 @@ class SimulationService:
         result: SimulationResult,
         start_time: float,
         diagnostic_results: list[dict[str, Any]],
-        logger: ActionsLogger,
     ) -> SimulationResult:
         """詳細結果レポートで結果を拡張"""
         try:
@@ -550,7 +312,7 @@ class SimulationService:
                 try:
                     execution_trace = self._execution_tracer.get_trace_summary()
                 except Exception as e:
-                    logger.warning(f"実行トレースの取得に失敗しました: {e}")
+                    self._logger.warning(f"実行トレースの取得に失敗しました: {e}")
 
             # ボトルネック分析（未実装）
             bottlenecks_detected = []
@@ -580,10 +342,10 @@ class SimulationService:
                 }
             )
 
-            logger.info(f"詳細結果レポートを生成しました (実行時間: {execution_time_ms:.1f}ms)")
+            self._logger.info(f"詳細結果レポートを生成しました (実行時間: {execution_time_ms:.1f}ms)")
 
         except Exception as e:
-            logger.error(f"詳細結果レポートの生成中にエラーが発生しました: {e}")
+            self._logger.error(f"詳細結果レポートの生成中にエラーが発生しました: {e}")
 
         return result
 
@@ -617,60 +379,16 @@ class SimulationService:
         """シミュレーションサービスの現在の状態を取得"""
         status = {
             "service_initialized": True,
-            "enhanced_wrapper_enabled": self._use_enhanced_wrapper,
-            "diagnostics_enabled": self._enable_diagnostics,
-            "pre_execution_diagnostics_enabled": self._pre_execution_diagnostics,
-            "detailed_result_reporting_enabled": self._detailed_result_reporting,
-            "components": {
-                "diagnostic_service": self._diagnostic_service is not None,
-                "execution_tracer": self._execution_tracer is not None,
-            },
+            "act_bridge_enabled": self._use_act_bridge,
             "config_keys": list(self._config.keys()) if self._config else [],
             "timestamp": time.time(),
         }
 
-        # 診断サービスの状態
-        if self._diagnostic_service:
-            try:
-                health = self._diagnostic_service.check_system_health()
-                status["system_health"] = health
-            except Exception as e:
-                status["system_health"] = {"error": str(e)}
+
 
         return status
 
-    def enable_enhanced_features(
-        self,
-        enable_diagnostics: bool = True,
-        enable_detailed_reporting: bool = True,
-    ) -> None:
-        """拡張機能を有効化"""
-        self._use_enhanced_wrapper = True
-        self._enable_diagnostics = enable_diagnostics
-        self._detailed_result_reporting = enable_detailed_reporting
-        self._pre_execution_diagnostics = enable_diagnostics
-
-        # サービスを再初期化
-        self._initialize_services()
 
 
-def _load_env_file_as_dict(
-    env_file: Path,
-    logger: ActionsLogger,
-) -> dict[str, str]:
-    env_vars: dict[str, str] = {}
-    try:
-        with env_file.open("r", encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" not in line:
-                    logger.warning(f"環境変数ファイルの形式が無効です (無視します): {line}")
-                    continue
-                key, value = line.split("=", 1)
-                env_vars[key] = value
-    except OSError as exc:
-        logger.error(f"環境変数ファイルの読み込みに失敗しました: {exc}")
 
-    return env_vars
+

@@ -318,10 +318,10 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 - [x] DEL-404: scripts更新（run_bats.py更新）
 - [x] DEL-405: テスト更新（17ファイル削除）
 
-### Phase 4B 🚧 進行中
+### Phase 4B ✅ 完了
 - [x] DEL-411: ファイル削除（12ファイル削除完了）
-- [ ] DEL-412: ディレクトリ削除（残存: logger.py, config/, __init__.py）
-- [ ] DEL-413: import更新
+- [x] DEL-412: ディレクトリ削除（services/actions/完全削除）
+- [x] DEL-413: import更新（不要 - archive以外に参照なし）
 - [ ] DEL-414: 検証
 
 ### Phase 4C
@@ -356,8 +356,12 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
   - `api.py`, `auto_recovery.py`, `diagnostic.py`, `docker_integration_checker.py`
   - `enhanced_act_wrapper.py`, `execution_tracer.py`, `expression.py`
   - `hangup_detector.py`, `main.py`, `output.py`, `simulator.py`, `workflow_parser.py`
-- 🚧 DEL-412進行中: `services/actions/`残存ファイル確認
-  - 残存: `logger.py`, `config/`, `__init__.py`, `act_bridge.py`, `service.py`, `path_utils.py`
-  - 次: 残存ファイルの処理方針決定
+- ✅ DEL-412完了: `services/actions/`完全削除
+  - `src/actions/service.py`から旧実装依存を削除
+  - `services/actions/`ディレクトリ完全削除
+  - 残存ファイル: なし
+- ✅ DEL-413完了: import更新不要
+  - archive/以外に`services.actions`参照なし
+  - 全て`src.actions`に移行済み
 
-**Phase 4B進行中**: 🚧 DEL-411完了、DEL-412準備中
+**Phase 4B完了**: ✅ 全タスク完了（2025-01-18）
