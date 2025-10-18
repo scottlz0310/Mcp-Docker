@@ -80,9 +80,11 @@ def main():
         cmd = ["python", "services/datetime/datetime_validator.py"]
     elif service == "actions":
         # GitHub Actions Simulator
-        # 追加の引数をそのまま渡す
+        # scripts/run-actions.sh を使用
+        import os
+        script_path = os.path.join(os.path.dirname(__file__), "scripts", "run-actions.sh")
         args = sys.argv[2:]
-        cmd = [sys.executable, "-m", "src.actions.service"] + args
+        cmd = [script_path] + args
     else:
         print(f"Unknown service: {service}")
         sys.exit(1)
