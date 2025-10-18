@@ -572,7 +572,7 @@ jobs:
           GITHUB_PERSONAL_ACCESS_TOKEN: "dummy_token_for_ci"
         run: |
           docker compose build
-          docker compose up -d github-mcp datetime-validator
+          docker compose up -d github-mcp
           docker compose --profile tools up -d actions-simulator
           sleep 30
 
