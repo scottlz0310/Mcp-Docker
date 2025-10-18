@@ -9,9 +9,10 @@ from pathlib import Path
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))
+if str(project_root / "src") not in sys.path:
+    sys.path.insert(0, str(project_root / "src"))
 
-from mcp_github_actions.github_api import (
+from mcp_github_actions.github_api import (  # noqa: E402
     GitHubActionsAPI,
     GitHubActionsAPIError,
 )
@@ -43,7 +44,7 @@ def test_github_actions_api():
 
         if runs:
             latest_run = runs[0]
-            print(f"\n最新の実行:")
+            print("\n最新の実行:")
             print(f"  - Run ID: {latest_run.id}")
             print(f"  - Name: {latest_run.name}")
             print(f"  - Status: {latest_run.status}")

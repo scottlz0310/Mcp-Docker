@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
