@@ -359,8 +359,3 @@ class SimulationService:
 
 
         return status
-
-
-
-
-
