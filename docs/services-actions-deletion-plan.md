@@ -76,6 +76,7 @@ services/actions/ (17 Pythonファイル)
 | DEL-421 | 残存テストの最終評価と削除 | 1日 | 中 |
 | DEL-422 | ドキュメント更新 | 0.5日 | 中 |
 | DEL-423 | CHANGELOG更新 | 0.5日 | 低 |
+| DEL-424 | pre-commit設定修正 | 0.5日 | 高 |
 
 ---
 
@@ -240,17 +241,35 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 ### Removed
 - `services/actions/` ディレクトリを完全削除
 - 旧Actions Simulator実装を削除（12モジュール）
-- レガシーテスト10ファイルを削除
+- レガシーテスト17ファイルを削除
+- サンプルファイル5ファイルを削除
 
 ### Changed
 - Actions Simulatorを`src/actions/`に移動
 - `act_bridge.py`ベースの新実装に完全移行
 - `make actions`が`make actions-ci`のエイリアスに
+- service.pyを最小限の実装に簡素化
 
 ### Added
 - 軽量診断機能（`src/actions/diagnostics.py`）
 - 標準loggingベースのロギング
 ```
+
+### DEL-424: pre-commit設定修正
+
+**目的**: services/actions削除に伴うpre-commit設定の更新
+
+**修正対象**:
+- `.pre-commit-config.yaml`: services/actions参照を削除
+- テストパスの更新
+- 除外パターンの見直し
+
+**実装手順**:
+1. `.pre-commit-config.yaml`を確認
+2. `services/actions`への参照を削除
+3. `src/actions`への参照を追加
+4. pre-commit実行テスト
+5. 動作確認
 
 ---
 
@@ -273,6 +292,7 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 - [ ] 残存テスト評価完了
 - [ ] ドキュメント更新完了
 - [ ] CHANGELOG更新完了
+- [ ] pre-commit設定修正完了
 - [ ] 静的解析エラーゼロ
 
 ---
@@ -290,12 +310,12 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 
 ## 📅 スケジュール
 
-| Phase | 期間 | 開始日 | 完了予定 |
-|-------|------|--------|----------|
-| Phase 4A | 1週間 | 2025-01-16 | 2025-01-22 |
-| Phase 4B | 3日 | 2025-01-23 | 2025-01-25 |
-| Phase 4C | 2日 | 2025-01-26 | 2025-01-27 |
-| **合計** | **12日** | **2025-01-16** | **2025-01-27** |
+| Phase | 期間 | 開始日 | 完了予定 | 実績 |
+|-------|------|--------|----------|------|
+| Phase 4A | 1週間 | 2025-01-15 | 2025-01-22 | ✅ 2025-01-15 |
+| Phase 4B | 3日 | 2025-01-18 | 2025-01-25 | ✅ 2025-01-18 |
+| Phase 4C | 2日 | 2025-01-18 | 2025-01-27 | 🚧 進行中 |
+| **合計** | **12日** | **2025-01-15** | **2025-01-27** | **進行中** |
 
 ---
 
@@ -324,10 +344,11 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 - [x] DEL-413: import更新（不要 - archive以外に参照なし）
 - [ ] DEL-414: 検証
 
-### Phase 4C
+### Phase 4C 🚧 進行中
 - [ ] DEL-421: テスト評価
 - [ ] DEL-422: ドキュメント更新
 - [ ] DEL-423: CHANGELOG更新
+- [ ] DEL-424: pre-commit設定修正
 
 ---
 
@@ -365,3 +386,14 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
   - 全て`src.actions`に移行済み
 
 **Phase 4B完了**: ✅ 全タスク完了（2025-01-18）
+
+### 2025-01-18（続き）
+- ✅ DEL-414進行中: 検証実施
+  - Ruffエラー修正完了（未使用変数・import削除）
+  - src/actions/service.py簡素化完了
+  - src/actions/act_bridge.py修正完了
+  - ✅ Ruff check成功
+- 🚧 Phase 4C開始: クリーンアップ作業
+  - 次: DEL-424（pre-commit設定修正）
+
+**Phase 4C開始**: 🚧 DEL-414ほぼ完了、DEL-424準備中
