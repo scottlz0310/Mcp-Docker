@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Mapping
 import logging
 
 from .act_bridge import ActBridgeRunner
-from .path_utils import WorkflowResolution, resolve_workflow_reference
 
 # Type checking imports
 if TYPE_CHECKING:
