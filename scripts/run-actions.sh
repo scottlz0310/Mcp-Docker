@@ -363,8 +363,6 @@ initialize_logging
 DEFAULT_WORKFLOW=".github/workflows/ci.yml"
 declare -a WORKFLOW_CHOICES=()
 
-prepare_output_dir
-
 # 早期ヘルプチェック（依存関係チェック前）
 for arg in "$@"; do
   if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
@@ -1627,8 +1625,13 @@ pre_execution_check() {
   ((current_check++))
   show_progress "$current_check" "$total_checks" "出力ディレクトリを確認中..."
 
-  # 出力ディレクトリの確認
-  prepare_output_dir
+  # 出力ディレクトリの確認（実行時のみ必要）
+  if [[ ! -d "${PROJECT_ROOT}/output" ]]; then
+    mkdir -p "${PROJECT_ROOT}/output" 2>/dev/null || {
+      warning "output ディレクトリを作成できませんでした（権限不足の可能性）"
+      echo "  実行時に必要に応じて作成されます"
+    }
+  fi
 
   ((current_check++))
   show_progress "$current_check" "$total_checks" "実行前チェック完了"
