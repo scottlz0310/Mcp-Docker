@@ -82,7 +82,7 @@ def main():
         # GitHub Actions Simulator
         # 追加の引数をそのまま渡す
         args = sys.argv[2:]
-        cmd = [sys.executable, "-m", "services.actions.main"] + args
+        cmd = [sys.executable, "-m", "src.actions.service"] + args
     else:
         print(f"Unknown service: {service}")
         sys.exit(1)

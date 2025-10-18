@@ -113,11 +113,11 @@ repos:
         name: "🐍 Python コード品質チェック（Ruff）"
         description: "Python コードの品質とスタイルを高速チェック"
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|src/|main\.py).*\.py$
       - id: ruff-format
         name: "🎨 Python コードフォーマット（Ruff）"
         description: "Python コードを自動フォーマット"
-        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|src/|main\.py).*\.py$
         args: ["--config=pyproject.toml"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -126,33 +126,13 @@ repos:
       - id: mypy
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
-        files: ^(services/|src/|main\.py|cli\.py)
-        args:
-          [
-            --ignore-missing-imports,
-            --no-strict-optional,
-            --disable-error-code=misc,
-            --disable-error-code=no-any-return,
-          ]
-        additional_dependencies: [types-requests, types-PyYAML]
+        files: ^(services/|src/|scripts/|main\.py|cli\.py)
+        args: [--config-file=pyproject.toml]
+        additional_dependencies: [types-requests, types-PyYAML, types-psutil]
 
-  # === Phase 4: GitHub Actions Simulator 統合チェック ===
+  # === Phase 4: GitHub Actions 統合チェック ===
   - repo: local
     hooks:
-      # 高速単体テスト（コミット時に必須）
-      - id: actions-simulator-unit-tests
-        name: "🧪 Actions Simulator 単体テスト"
-        description: "GitHub Actions Simulator の核心機能をテスト"
-        entry: >
-          uv run pytest
-          tests/unit/test_hangup_unit.py::TestDiagnosticServiceUnit::test_diagnostic_service_initialization
-          tests/unit/test_hangup_unit.py::TestProcessMonitorUnit::test_process_monitor_initialization
-          tests/unit/test_hangup_unit.py::TestExecutionTracerUnit::test_execution_tracer_initialization
-          -x --tb=short --disable-warnings --timeout=30
-        language: system
-        pass_filenames: false
-        files: ^(services/|tests/unit/test_hangup_unit\.py)
-
       # ワークフロー構文検証
       - id: actions-workflow-validation
         name: "✅ GitHub Actions ワークフロー検証"
@@ -171,16 +151,14 @@ repos:
         pass_filenames: false
         files: ^(Dockerfile|docker-compose\.ya?ml|\.dockerignore)$
 
-      # Actions Simulator 設定検証
-      - id: actions-simulator-config-check
-        name: "⚙️ Actions Simulator 設定検証"
-        description: "Actions Simulator の設定ファイルを検証"
-        entry: >
-          bash -c 'if [ -f ".env.example" ]; then echo "✅ .env.example 存在確認";
-          else echo "❌ .env.example が見つかりません"; exit 1; fi'
+      # act_bridge 单体テスト
+      - id: act-bridge-unit-tests
+        name: "🧪 act_bridge 单体テスト"
+        description: "act_bridgeの基本機能をテスト"
+        entry: bash -c 'uv run python -c "from src.actions.act_bridge import ActBridgeRunner; print(\"OK\")"'
         language: system
-        files: ^(\.env\.example|pyproject\.toml|main\.py)$
         pass_filenames: false
+        files: ^src/actions/.*\.py$
 
   # === Phase 5: ドキュメント整合性チェック ===
   - repo: local

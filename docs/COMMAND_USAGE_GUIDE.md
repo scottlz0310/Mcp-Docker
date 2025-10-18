@@ -85,8 +85,11 @@ GitHub Actions Simulator では、複数のコマンドインターフェース�
 
 #### 日常的な開発者
 ```bash
-# 推奨: Make コマンド
-make actions
+# 推奨: Make コマンド (CI互換モード)
+make actions-ci
+make actions-ci WORKFLOW=.github/workflows/ci.yml
+
+# 旧コマンド (Phase1 ブリッジモード、移行中)
 make actions-run WORKFLOW=.github/workflows/ci.yml
 
 # 理由:
@@ -94,6 +97,11 @@ make actions-run WORKFLOW=.github/workflows/ci.yml
 # - 豊富なショートカット
 # - 開発ワークフローに最適化
 ```
+
+> ⚠️ **移行情報 (2025-10-15)**:
+> - `make actions-ci`: CI互換モード（推奨）。`act` を直接実行し、GitHub Actions環境に近い動作。
+> - `make actions-run`: Phase1 ブリッジモード（移行中）。従来の診断機能を保持しつつ `act` へ移行中。未実装機能では自動フォールバックします。
+> - 今後は `make actions-ci` の使用を推奨します。Phase 2 完了後、`make actions-run` は `make actions-ci` に統合されます。
 
 #### 上級ユーザー・DevOps エンジニア
 ```bash

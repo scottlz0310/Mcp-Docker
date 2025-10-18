@@ -104,6 +104,8 @@ make actions
 make actions-ci WORKFLOW=.github/workflows/ci.yml
 ```
 
+> `make actions-run` は Phase1 の `act` ブリッジモードを既定で有効化します。未実装の機能に遭遇した場合は自動的に従来実装へフォールバックし、その旨をログで通知します。
+
 ## 📦 バージョン情報
 
 - **現在のバージョン**: v1.2.0

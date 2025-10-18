@@ -88,10 +88,16 @@ release-watcher-logs: ## GitHub Release Watcherのログ表示
 release-watcher-stop: ## GitHub Release Watcher停止
 	$(COMPOSE_CMD) stop github-release-watcher
 
+.PHONY: actions
+actions: actions-ci ## GitHub Actions Simulator（推奨: make actions-ci）
+
 .PHONY: actions-run
-actions-run: ## Actions Simulatorでワークフローを選択して実行
+actions-run: ## ⚠️ 非推奨: 代わりに 'make actions-ci' を使用してください
 	@repo_root="$(ROOT_DIR)"; \
 	cd "$$repo_root"; \
+	echo "⚠️  WARNING: 'make actions-run' is DEPRECATED and will be removed soon."; \
+	echo "⚠️  Please use 'make actions-ci' instead."; \
+	echo ""; \
 	echo "🎭 GitHub Actions Simulator - ワークフロー実行"; \
 	workflows=$$(find .github/workflows -maxdepth 1 -type f \( -name "*.yml" -o -name "*.yaml" \) 2>/dev/null | sort); \
 	if [ -z "$$workflows" ]; then \
@@ -151,16 +157,20 @@ actions-run: ## Actions Simulatorでワークフローを選択して実行
 	echo ""; \
 	echo "🚀 実行ワークフロー: $$selected"; \
 	echo ""; \
+	echo "⚠️  act bridge (Phase1 skeleton) モードを有効化します。問題があれば従来実装に自動フォールバックします。"; \
+	echo ""; \
 	echo "🔧 Preparing environment..."; \
 	./scripts/fix-permissions.sh >/dev/null 2>&1 || true; \
 	if [ -n "$(JOB)" ]; then \
 		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
+			-e ACTIONS_USE_ACT_BRIDGE=1 \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" --job "$(JOB)" $(if $(VERBOSE),--verbose,); \
 	else \
 		USER_ID=$$(id -u) GROUP_ID=$$(id -g) $(COMPOSE_CMD) --profile tools run --rm \
 			-e WORKFLOW_FILE="$$selected" \
+			-e ACTIONS_USE_ACT_BRIDGE=1 \
 			actions-simulator \
 			uv run python main.py actions simulate "$$selected" $(if $(VERBOSE),--verbose,); \
 	fi

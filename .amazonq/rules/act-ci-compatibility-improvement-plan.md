@@ -543,9 +543,9 @@ update-act-image:
 
 ## 🚀 今後の予定（Phase 4以降）
 
-### Phase 4: レガシーコンポーネント削除 ✅
+### Phase 4: レガシーコンポーネント削除 🚧
 
-**実施日**: 2025-01-14
+**実施日**: 2025-10-14 - 2025-10-18（進行中）
 **目的**: actions-ciの成功を受けて、不要になったコンポーネントを削除しシンプル化
 
 #### 4.1 既存Actions Simulatorの削除 ✅
@@ -590,16 +590,23 @@ update-act-image:
 
 #### 4.5 Exit Criteria
 
-- [x] 旧Actions Simulator完全削除
-- [x] DateTime Validator完全削除
-- [x] テストスイート更新完了
-- [x] docker-compose.yml簡素化
-- [x] ドキュメント更新完了
-- [x] CI/CDパイプライン正常動作
-- [x] ユニットテスト正常動作
+- [x] 旧Actions Simulator完全削除（Phase 4A完了）
+- [x] DateTime Validator完全削除（Phase 3完了）
+- [x] テストスイート更新完了（17ファイル削除）
+- [x] docker-compose.yml簡素化（Phase 3完了）
+- [ ] ドキュメント更新完了（Phase 4C予定）
+- [ ] CI/CDパイプライン正常動作（Phase 4B検証中）
+- [ ] ユニットテスト正常動作（Phase 4B検証中）
 
-**実施タイミング**: Phase 3完了後、即時実施
-**実施結果**: 完全成功、1,104行のコード削減達成
+**実施タイミング**: Phase 3完了後、段階的実施
+**Phase 4A実施結果**: ✅ 完了（2025-10-15）
+- src/actions/への移行完了（4ファイル）
+- レガシーテスト削除完了（17ファイル）
+- サンプルファイル削除完了（5ファイル）
+
+**Phase 4B実施状況**: 🚧 進行中（2025-10-18）
+- 削除対象12ファイル削除完了
+- services/actions/残存ファイル処理中
 
 ---
 
@@ -649,7 +656,7 @@ uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker actions-
 - [x] インストールドキュメント完備 (docs/UV_TOOL_INSTALL.md)
 - [x] ローカルテスト成功
 
-**実施日**: 2025-01-14
+**実施日**: 2025-10-14
 **実施結果**: 完全成功、`mcp-docker`コマンドがuv toolとして利用可能
 
 ### 次のアクション

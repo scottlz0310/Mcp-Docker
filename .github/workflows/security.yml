@@ -57,7 +57,7 @@ jobs:
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-fs-results.sarif'
-          ignorefile: .trivyignore
+          trivyignores: .trivyignore
           version: 'latest'
 
       - name: Upload Trivy scan results to GitHub Security tab
@@ -81,7 +81,7 @@ jobs:
           image-ref: 'mcp-docker:security-scan'
           format: 'sarif'
           output: 'trivy-container-results.sarif'
-          ignorefile: .trivyignore
+          trivyignores: .trivyignore
           version: 'latest'
 
       - name: Upload Trivy scan results to GitHub Security tab

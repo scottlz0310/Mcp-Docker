@@ -24,7 +24,7 @@ async def validate_date_in_text(text: str) -> dict:
     import re
 
     suspicious_patterns = [
-        r"2025-01-\d{2}",
+        r"2025-10-\d{2}",
         r"2024-12-\d{2}",
     ]
 
@@ -48,7 +48,7 @@ async def auto_correct_dates(text: str) -> str:
     corrected = text
 
     # 疑わしい日付を現在日付に置換
-    corrected = re.sub(r"2025-01-\d{2}", current_date, corrected)
+    corrected = re.sub(r"2025-10-\d{2}", current_date, corrected)
     corrected = re.sub(r"2024-12-\d{2}", current_date, corrected)
 
     return corrected

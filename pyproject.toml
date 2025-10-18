@@ -113,8 +113,18 @@ warn_unreachable = true
 module = [
     "tests.*",
     "archive.*",
+    "scripts.*",
 ]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "win10toast",
+    "pync",
+    "plyer",
+    "docker",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -135,6 +145,7 @@ markers = [
     "e2e: エンドツーエンドテスト（完全なシナリオ）",
     "slow: 実行時間が長いテスト（Dockerビルド含む、タイムアウト600s）",
     "asyncio: 非同期テスト",
+    "legacy_actions: 旧Actions Simulator経路に依存するテスト（移行対象）",
 ]
 timeout_func_only = true
 asyncio_mode = "auto"

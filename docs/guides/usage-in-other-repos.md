@@ -194,7 +194,7 @@ docker compose logs -f github-mcp
 docker compose logs
 
 # 特定の時刻以降のログ
-docker compose logs --since="2025-01-01T10:00:00"
+docker compose logs --since="2025-10-01T10:00:00"
 ```
 
 ## ベストプラクティス

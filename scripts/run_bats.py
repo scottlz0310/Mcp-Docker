@@ -11,12 +11,34 @@ import time
 from pathlib import Path
 from typing import Iterable, List
 
-from services.actions.output import (
-    generate_run_id,
-    relative_to_output,
-    save_json_payload,
-    write_log,
-)
+# services.actions.outputの機能を簡易実装
+import json
+from datetime import datetime
+
+
+def generate_run_id() -> str:
+    return f"bats_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
+def relative_to_output(path: Path) -> str:
+    return str(path.relative_to(PROJECT_ROOT))
+
+
+def save_json_payload(payload: dict, run_id: str, segments: tuple) -> Path:
+    output_dir = PROJECT_ROOT / "output" / "/".join(segments)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / f"{run_id}.json"
+    output_file.write_text(json.dumps(payload, indent=2))
+    return output_file
+
+
+def write_log(content: str, run_id: str, name: str, channel: str) -> Path:
+    log_dir = PROJECT_ROOT / "output" / "logs" / channel
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"{run_id}_{name}.log"
+    log_file.write_text(content)
+    return log_file
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_PATTERN = "tests/test_*.bats"

@@ -655,10 +655,10 @@ class PerformanceMonitor:
         cpu_values = [m.cpu_percent for m in metrics_list]
         memory_values = [m.memory_rss_mb for m in metrics_list]
 
-        total_duration = 0
+        total_duration: float = 0.0
         if self.execution_stages:
             completed_stages = [s for s in self.execution_stages if s.duration_ms is not None]
-            total_duration = sum(s.duration_ms for s in completed_stages if s.duration_ms is not None)
+            total_duration = float(sum(s.duration_ms for s in completed_stages if s.duration_ms is not None))
 
         return {
             "monitoring_duration_seconds": (
