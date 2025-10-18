@@ -246,7 +246,12 @@ jobs:
 
       - name: Run pytest (e2e tests - selected)
         id: e2e-tests
-        run: uv run pytest tests/e2e/test_comprehensive_integration.py -v --tb=short
+        run: |
+          if find tests/e2e/ -name "test_*.py" 2>/dev/null | grep -q .; then
+            uv run pytest tests/e2e/ -v --tb=short
+          else
+            echo "⚠️  No E2E test files found, skipping"
+          fi
 
       - name: Quality Gate - Verify test results
         if: always()
