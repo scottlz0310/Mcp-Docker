@@ -90,7 +90,7 @@ def mock_github_api(mocker):
         "tag_name": "v1.2.3",
         "name": "Release v1.2.3",
         "html_url": "https://github.com/owner/repo/releases/tag/v1.2.3",
-        "published_at": "2025-01-01T00:00:00Z",
+        "published_at": "2025-10-01T00:00:00Z",
         "prerelease": False,
     }
 
@@ -175,7 +175,7 @@ def sample_release():
         "tag_name": "v1.2.3",
         "name": "Release v1.2.3",
         "html_url": "https://github.com/owner/repo/releases/tag/v1.2.3",
-        "published_at": "2025-01-01T00:00:00Z",
+        "published_at": "2025-10-01T00:00:00Z",
         "prerelease": False,
         "body": "This is a test release",
     }
