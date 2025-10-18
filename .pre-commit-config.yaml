@@ -126,7 +126,7 @@ repos:
       - id: mypy
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
-        files: ^(services/|src/|main\.py|cli\.py)
+        files: ^(services/|src/|scripts/|main\.py|cli\.py)
         args: [--config-file=pyproject.toml]
         additional_dependencies: [types-requests, types-PyYAML, types-psutil]
 
