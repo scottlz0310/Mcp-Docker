@@ -127,14 +127,8 @@ repos:
         name: "🔍 Python 型チェック（MyPy）"
         description: "Python コードの型安全性を検証"
         files: ^(services/|src/|main\.py|cli\.py)
-        args:
-          [
-            --ignore-missing-imports,
-            --no-strict-optional,
-            --disable-error-code=misc,
-            --disable-error-code=no-any-return,
-          ]
-        additional_dependencies: [types-requests, types-PyYAML]
+        args: [--config-file=pyproject.toml]
+        additional_dependencies: [types-requests, types-PyYAML, types-psutil]
 
   # === Phase 4: GitHub Actions 統合チェック ===
   - repo: local
