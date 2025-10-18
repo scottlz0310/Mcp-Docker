@@ -69,7 +69,6 @@ class ActBridgeRunner:
             max_attempts,
         )
 
-        last_stdout = ""
         last_stderr = ""
         last_return_code = -1
 
@@ -89,7 +88,6 @@ class ActBridgeRunner:
                 raise RuntimeError("act binary not found; falling back to legacy implementation") from exc
 
             duration = time.time() - start
-            last_stdout = completed.stdout
             last_stderr = completed.stderr
             last_return_code = completed.returncode
 

@@ -8,7 +8,7 @@ from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Mapping
 
 import logging
 
@@ -98,8 +98,6 @@ class SimulationService:
         capture_output: bool = False,
     ) -> SimulationResult:
         """Run the workflow simulation and return a structured result."""
-        start_time = time.time()
-
         if self._use_act_bridge and self._act_bridge_runner:
             self._logger.info("act bridge モードを使用します")
             try:
@@ -121,7 +119,7 @@ class SimulationService:
                     stack.enter_context(redirect_stderr(stderr_io))
 
                 try:
-                    result = self._run_with_act(params, runner_logger)
+                    result = self._run_with_act(params)
                 except SimulationServiceError:
                     raise
                 except Exception as exc:  # noqa: BLE001
@@ -148,10 +146,6 @@ class SimulationService:
             workflow_resolution: WorkflowResolution = resolve_workflow_reference(params.workflow_file)
         except FileNotFoundError as exc:
             raise SimulationServiceError(f"ワークフローファイルが見つかりません: {params.workflow_file}") from exc
-
-        resolved_workflow = workflow_resolution.absolute_path
-        working_directory = workflow_resolution.project_root
-        workflow_argument = workflow_resolution.act_argument
 
         # 簡易実装: act_bridgeに委譲
         raise SimulationServiceError("Legacy wrapper removed. Use act_bridge instead.")
@@ -245,7 +239,7 @@ class SimulationService:
             }
 
         except Exception as e:
-            logger.error(f"実行前診断チェック中にエラーが発生しました: {e}")
+            self._logger.error(f"実行前診断チェック中にエラーが発生しました: {e}")
             return {
                 "overall_status": "ERROR",
                 "summary": f"診断チェック実行エラー: {str(e)}",
@@ -285,7 +279,7 @@ class SimulationService:
             }
 
         except Exception as e:
-            logger.error(f"実行後診断チェック中にエラーが発生しました: {e}")
+            self._logger.error(f"実行後診断チェック中にエラーが発生しました: {e}")
             return {
                 "overall_status": "ERROR",
                 "summary": f"診断チェック実行エラー: {str(e)}",
@@ -308,11 +302,6 @@ class SimulationService:
 
             # 実行トレースの収集
             execution_trace = {}
-            if self._execution_tracer:
-                try:
-                    execution_trace = self._execution_tracer.get_trace_summary()
-                except Exception as e:
-                    self._logger.warning(f"実行トレースの取得に失敗しました: {e}")
 
             # ボトルネック分析（未実装）
             bottlenecks_detected = []
@@ -350,28 +339,17 @@ class SimulationService:
         return result
 
     def _create_failed_result(
-        self, error_message: str, start_time: float, diagnostic_results: list[dict[str, Any]] | None = None
+        self, error_message: str, diagnostic_results: list[dict[str, Any]] | None = None
     ) -> SimulationResult:
         """失敗結果を作成"""
-        execution_time_ms = (time.time() - start_time) * 1000
-
         return SimulationResult(
             success=False,
             return_code=-1,
             engine="act",
             stdout="",
             stderr=error_message,
-            metadata={
-                "enhanced_wrapper": self._use_enhanced_wrapper,
-                "diagnostics_enabled": self._enable_diagnostics,
-                "failure_reason": "pre_execution_diagnostics_failed",
-            },
-            execution_time_ms=execution_time_ms,
+            metadata={"failure_reason": "pre_execution_diagnostics_failed"},
             diagnostic_results=diagnostic_results or [],
-            performance_metrics={},
-            execution_trace={},
-            bottlenecks_detected=[],
-            optimization_opportunities=[],
             hang_analysis={"failure_type": "pre_execution_check", "error": error_message},
         )
 
