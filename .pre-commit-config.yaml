@@ -113,11 +113,11 @@ repos:
         name: "🐍 Python コード品質チェック（Ruff）"
         description: "Python コードの品質とスタイルを高速チェック"
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|src/|main\.py).*\.py$
       - id: ruff-format
         name: "🎨 Python コードフォーマット（Ruff）"
         description: "Python コードを自動フォーマット"
-        files: ^(tests/|examples/|scripts/|services/|main\.py).*\.py$
+        files: ^(tests/|examples/|scripts/|services/|src/|main\.py).*\.py$
         args: ["--config=pyproject.toml"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -151,7 +151,7 @@ repos:
           -x --tb=short --disable-warnings --timeout=30
         language: system
         pass_filenames: false
-        files: ^(services/|tests/unit/test_hangup_unit\.py)
+        files: ^(services/|src/|tests/unit/test_hangup_unit\.py)
 
       # ワークフロー構文検証
       - id: actions-workflow-validation
