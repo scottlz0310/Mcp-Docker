@@ -50,7 +50,7 @@ services/actions/ (17 Pythonファイル)
 | DEL-404 | `scripts/run_bats.py`の依存を除去 | 0.5日 | 高 |
 | DEL-405 | 残存テストの依存を更新 | 1.5日 | 高 |
 
-**成果物**: 
+**成果物**:
 - `src/actions/`ディレクトリ作成
 - 全依存が`src/actions/`に向く
 
@@ -99,7 +99,7 @@ services/actions/path_utils.py    → src/actions/path_utils.py
 
 ### DEL-402: diagnostic簡易版作成
 
-**方針**: 
+**方針**:
 - 必要最小限の診断機能のみ実装
 - Docker/act存在確認
 - 基本的なヘルスチェック
@@ -331,8 +331,8 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 
 ---
 
-**承認者**: MCP Docker Team  
-**開始日**: 2025-01-15  
+**承認者**: MCP Docker Team
+**開始日**: 2025-01-15
 **完了日**: 進行中
 
 ---

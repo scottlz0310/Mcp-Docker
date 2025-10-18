@@ -15,11 +15,14 @@ from typing import Iterable, List
 import json
 from datetime import datetime
 
+
 def generate_run_id() -> str:
     return f"bats_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
+
 def relative_to_output(path: Path) -> str:
     return str(path.relative_to(PROJECT_ROOT))
+
 
 def save_json_payload(payload: dict, run_id: str, segments: tuple) -> Path:
     output_dir = PROJECT_ROOT / "output" / "/".join(segments)
@@ -28,12 +31,14 @@ def save_json_payload(payload: dict, run_id: str, segments: tuple) -> Path:
     output_file.write_text(json.dumps(payload, indent=2))
     return output_file
 
+
 def write_log(content: str, run_id: str, name: str, channel: str) -> Path:
     log_dir = PROJECT_ROOT / "output" / "logs" / channel
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{run_id}_{name}.log"
     log_file.write_text(content)
     return log_file
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_PATTERN = "tests/test_*.bats"

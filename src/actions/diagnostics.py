@@ -23,7 +23,7 @@ def check_docker() -> DiagnosticResult:
             message="Docker not found in PATH",
             details={"docker_path": None}
         )
-    
+
     try:
         result = subprocess.run(
             ["docker", "--version"],
@@ -60,7 +60,7 @@ def check_act() -> DiagnosticResult:
             message="act not found in PATH",
             details={"act_path": None}
         )
-    
+
     try:
         result = subprocess.run(
             ["act", "--version"],
@@ -99,9 +99,9 @@ def run_basic_diagnostics() -> dict[str, DiagnosticResult]:
 def check_system_health() -> dict:
     """システムヘルスチェック（service.py互換）"""
     diagnostics = run_basic_diagnostics()
-    
+
     all_success = all(result.success for result in diagnostics.values())
-    
+
     return {
         "status": "ok" if all_success else "error",
         "checks": {
