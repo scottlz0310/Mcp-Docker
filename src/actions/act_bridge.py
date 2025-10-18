@@ -8,18 +8,16 @@ fully functional (e.g. `act` が未インストールの場合や未対応機能
 
 from __future__ import annotations
 
+import logging
 import os
 import shlex
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping
 
+from src.actions.models import SimulationParameters, SimulationResult
 from src.actions.path_utils import resolve_workflow_reference
-import logging
-
-if TYPE_CHECKING:
-    from src.actions.service import SimulationParameters, SimulationResult
 
 # 標準loggingを使用
 logger = logging.getLogger(__name__)
@@ -47,8 +45,8 @@ class ActBridgeRunner:
 
     def run(
         self,
-        params: "SimulationParameters",
-    ) -> "SimulationResult":
+        params: SimulationParameters,
+    ) -> SimulationResult:
         """
         Execute the target workflow via `act`.
 
@@ -148,7 +146,7 @@ class ActBridgeRunner:
         except (TypeError, ValueError):
             return 0
 
-    def _build_command(self, params: "SimulationParameters", *, act_argument: str) -> list[str]:
+    def _build_command(self, params: SimulationParameters, *, act_argument: str) -> list[str]:
         """Construct the `act` CLI command."""
         command: list[str] = ["act", "-W", act_argument]
 
@@ -163,7 +161,7 @@ class ActBridgeRunner:
 
         return command
 
-    def _build_environment(self, params: "SimulationParameters") -> dict[str, str]:
+    def _build_environment(self, params: SimulationParameters) -> dict[str, str]:
         """Merge runtime environment variables."""
         merged_env = os.environ.copy()
         merged_env.setdefault("ACTIONS_USE_ACT_BRIDGE", "1")
@@ -175,15 +173,13 @@ class ActBridgeRunner:
     def _build_result(
         self,
         *,
-        params: "SimulationParameters",
+        params: SimulationParameters,
         command: list[str],
         stdout: str,
         stderr: str,
         return_code: int,
         duration_seconds: float,
-    ) -> "SimulationResult":
-        from src.actions.service import SimulationResult  # local import to avoid cycle
-
+    ) -> SimulationResult:
         metadata: dict[str, Any] = {
             "engine": "act",
             "command": command,

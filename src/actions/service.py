@@ -6,37 +6,13 @@ import logging
 import os
 import time
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
-from dataclasses import dataclass, field
 from io import StringIO
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping
+
+from .models import SimulationParameters, SimulationResult
 
 if TYPE_CHECKING:
     from .act_bridge import ActBridgeRunner
-
-
-@dataclass(slots=True)
-class SimulationParameters:
-    """Parameters that control a single simulation run."""
-
-    workflow_file: Path
-    job: str | None = None
-    dry_run: bool = False
-    env_file: Path | None = None
-    env_vars: dict[str, str] | None = None
-    verbose: bool = False
-
-
-@dataclass(slots=True)
-class SimulationResult:
-    """Structured output returned by the simulation service."""
-
-    success: bool
-    return_code: int
-    engine: str = "act"
-    stdout: str = ""
-    stderr: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SimulationServiceError(Exception):
