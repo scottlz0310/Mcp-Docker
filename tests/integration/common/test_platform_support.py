@@ -82,6 +82,7 @@ class PlatformSupportTest(unittest.TestCase):
         except Exception as e:
             return -1, "", str(e)
 
+    @unittest.skip("旧実装に依存 - Phase 4で削除された機能")
     def test_platform_detection(self):
         """プラットフォーム検出のテスト"""
         script_path = self.scripts_dir / "run-actions.sh"
@@ -112,6 +113,7 @@ class PlatformSupportTest(unittest.TestCase):
                 "Windows プラットフォームが検出されていません",
             )
 
+    @unittest.skip("旧実装に依存 - Phase 4で削除された機能")
     def test_extended_dependency_check(self):
         """拡張依存関係チェックのテスト"""
         script_path = self.scripts_dir / "run-actions.sh"
