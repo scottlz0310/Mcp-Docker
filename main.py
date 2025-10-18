@@ -85,15 +85,16 @@ def main():
         script_path = os.path.join(os.path.dirname(__file__), "scripts", "run-actions.sh")
         args = sys.argv[2:]
         cmd = [script_path] + args
+        # カレントディレクトリを保持（ユーザーの作業ディレクトリで実行）
+        # subprocess.runはcwdを指定しないとカレントディレクトリで実行される
     else:
         print(f"Unknown service: {service}")
         sys.exit(1)
 
     try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Service {service} failed with exit code {e.returncode}")
-        sys.exit(e.returncode)
+        # カレントディレクトリを保持して実行
+        result = subprocess.run(cmd, check=False)
+        sys.exit(result.returncode)
     except FileNotFoundError:
         print(f"Service {service} not found")
         sys.exit(1)
