@@ -17,11 +17,14 @@ uv tool install git+https://github.com/scottlz0310/mcp-docker.git@v1.3.0
 ### 使用方法
 
 ```bash
-# GitHub Actions Simulatorを実行
-mcp-docker actions simulate .github/workflows/ci.yml
+# GitHub Actions Simulatorを実行（ワークフロー指定）
+mcp-docker actions .github/workflows/ci.yml
 
-# CI互換性検証
-mcp-docker actions verify-ci .github/workflows/basic-test.yml <run-id>
+# 対話的にワークフローを選択
+mcp-docker actions
+
+# 依存関係チェック
+mcp-docker actions --check-deps
 
 # バージョン確認
 mcp-docker --version
@@ -31,9 +34,9 @@ mcp-docker --version
 
 ```bash
 # インストールせずに直接実行
-uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker actions simulate .github/workflows/ci.yml
+uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker actions .github/workflows/ci.yml
 
-# 短縮形
+# バージョン確認
 uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker --version
 ```
 
@@ -43,13 +46,22 @@ uvx --from git+https://github.com/scottlz0310/mcp-docker.git mcp-docker --versio
 
 ```bash
 # ワークフローシミュレーション
-mcp-docker actions simulate <workflow-file>
+mcp-docker actions <workflow-file>
 
-# 特定のジョブのみ実行
-mcp-docker actions simulate <workflow-file> --job <job-name>
+# 対話的にワークフローを選択
+mcp-docker actions
 
-# CI互換性検証
-mcp-docker actions verify-ci <workflow-file> <run-id>
+# 依存関係チェック
+mcp-docker actions --check-deps
+
+# 拡張依存関係チェック
+mcp-docker actions --check-deps-extended
+
+# 非対話モード
+mcp-docker actions --non-interactive <workflow-file>
+
+# タイムアウト設定
+mcp-docker actions --timeout=60 <workflow-file>
 
 # ヘルプ表示
 mcp-docker actions --help
@@ -76,7 +88,7 @@ cd /path/to/project-a
 uv tool install git+https://github.com/scottlz0310/mcp-docker.git
 
 # ワークフローを実行
-mcp-docker actions simulate .github/workflows/test.yml
+mcp-docker actions .github/workflows/test.yml
 ```
 
 ### プロジェクトBでの使用（uvx）
@@ -86,7 +98,7 @@ cd /path/to/project-b
 
 # インストール不要で直接実行
 uvx --from git+https://github.com/scottlz0310/mcp-docker.git \
-  mcp-docker actions simulate .github/workflows/deploy.yml
+  mcp-docker actions .github/workflows/deploy.yml
 ```
 
 ## アップグレード
