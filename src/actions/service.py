@@ -74,8 +74,6 @@ class SimulationService:
         if self._use_act_bridge:
             self._act_bridge_runner = ActBridgeRunner(settings=self._act_bridge_config)
 
-
-
     @staticmethod
     def _resolve_use_act_bridge(flag: bool | None) -> bool:
         if flag is not None:
@@ -84,8 +82,6 @@ class SimulationService:
         if env_value is None:
             return False
         return env_value.strip().lower() in {"1", "true", "yes", "on"}
-
-
 
     def set_config(self, config: Mapping[str, Any] | None) -> None:
         self._config = dict(config) if config else {}
@@ -355,7 +351,5 @@ class SimulationService:
             "config_keys": list(self._config.keys()) if self._config else [],
             "timestamp": time.time(),
         }
-
-
 
         return status

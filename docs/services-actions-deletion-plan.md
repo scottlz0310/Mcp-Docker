@@ -348,7 +348,7 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 - [ ] DEL-421: テスト評価
 - [ ] DEL-422: ドキュメント更新
 - [ ] DEL-423: CHANGELOG更新
-- [ ] DEL-424: pre-commit設定修正
+- [x] DEL-424: pre-commit設定修正
 
 ---
 
@@ -396,4 +396,14 @@ make actions-ci WORKFLOW=.github/workflows/basic-test.yml
 - 🚧 Phase 4C開始: クリーンアップ作業
   - 次: DEL-424（pre-commit設定修正）
 
-**Phase 4C開始**: 🚧 DEL-414ほぼ完了、DEL-424準備中
+**Phase 4C開始**: 🚧 DEL-414ほぼ完了、DEL-424完了
+
+### 2025-01-18（続き2）
+- ✅ DEL-424完了: pre-commit設定修正
+  - src/ディレクトリをRuff/MyPyチェック対象に追加
+  - services/actionsからsrc/actionsへの移行を反映
+  - 単体テストのファイルパターンにsrc/追加
+  - ✅ pre-commit run ruff 成功
+- 🚧 次: DEL-421（残存テスト評価）
+
+**Phase 4C進捗**: 🚧 DEL-424完了、DEL-421準備中
