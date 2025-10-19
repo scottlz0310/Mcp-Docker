@@ -118,6 +118,16 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 # ~/.kiro/settings/mcp.json
 ```
 
+### Amazon Q
+
+```bash
+# 設定生成
+./scripts/generate-ide-config.sh --ide amazonq
+
+# 設定方法
+# VS Code: 設定 > Amazon Q > MCP Servers
+```
+
 ## 基本操作
 
 ### サービス管理
@@ -137,12 +147,129 @@ docker compose ps
 
 # ログ確認
 docker compose logs -f github-mcp
+
+# ログ（最新100行）
+docker compose logs --tail=100 github-mcp
 ```
 
 ### ヘルスチェック
 
 ```bash
 ./scripts/health-check.sh
+```
+
+## 開発
+
+### リント・テスト
+
+```bash
+# すべてのリント実行
+make lint
+
+# シェルスクリプトのみ
+make lint-shell
+
+# Pythonコードのみ
+make lint-python
+
+# シェルスクリプトテスト
+make test-shell
+
+# 型チェック
+make type-check
+```
+
+## メンテナンス
+
+### コンテナ管理
+
+```bash
+# コンテナ内でコマンド実行
+docker compose exec github-mcp sh
+
+# コンテナの詳細情報
+docker compose ps --format json
+docker inspect mcp-github
+
+# リソース使用状況
+docker stats mcp-github
+
+# コンテナ再作成（設定変更後）
+docker compose up -d --force-recreate github-mcp
+```
+
+### イメージ管理
+
+```bash
+# イメージ更新
+docker compose pull github-mcp
+docker compose up -d github-mcp
+
+# イメージ一覧
+docker images | grep github-mcp-server
+
+# 古いイメージ削除
+docker image prune -f
+```
+
+### ログ管理
+
+```bash
+# ログ確認（リアルタイム）
+docker compose logs -f github-mcp
+
+# ログ確認（最新N行）
+docker compose logs --tail=100 github-mcp
+
+# ログ確認（タイムスタンプ付き）
+docker compose logs -t github-mcp
+
+# ログ確認（特定期間）
+docker compose logs --since="2024-01-01" github-mcp
+
+# ログファイル確認
+docker inspect mcp-github --format='{{.LogPath}}'
+```
+
+### データ管理
+
+```bash
+# ボリューム一覧
+docker volume ls | grep mcp
+
+# ボリューム詳細
+docker volume inspect mcp-docker_github-mcp-cache
+
+# キャッシュクリア
+docker compose down
+docker volume rm mcp-docker_github-mcp-cache
+docker compose up -d
+
+# 設定ファイルバックアップ
+tar -czf config-backup-$(date +%Y%m%d).tar.gz config/
+```
+
+### トラブルシューティング
+
+```bash
+# コンテナ完全リセット
+docker compose down -v
+docker compose up -d
+
+# ネットワーク確認
+docker network ls | grep mcp
+docker network inspect mcp-docker_mcp-network
+
+# リソースクリーンアップ
+docker system prune -f
+docker volume prune -f
+
+# 全コンテナ・イメージ削除（注意）
+docker compose down -v --rmi all
+
+# 全コンテナを強制停止・削除
+docker ps -aq | xargs -r docker stop
+docker ps -aq | xargs -r docker rm
 ```
 
 ## ディレクトリ構成
@@ -157,7 +284,10 @@ Mcp-Docker/
 ├── scripts/
 │   ├── setup.sh              # セットアップ
 │   ├── generate-ide-config.sh # IDE設定生成
-│   └── health-check.sh       # ヘルスチェック
+│   ├── health-check.sh       # ヘルスチェック
+│   └── lint-shell.sh         # シェルスクリプトLint
+├── tests/
+│   └── shell/                # シェルスクリプトテスト
 ├── docs/
 │   └── setup/                # IDE別セットアップガイド
 └── examples/
@@ -172,9 +302,15 @@ Mcp-Docker/
 # ログ確認
 docker compose logs github-mcp
 
+# 詳細ログ確認
+docker compose logs --tail=200 github-mcp
+
 # コンテナ再作成
 docker compose down
 docker compose up -d
+
+# 強制再作成
+docker compose up -d --force-recreate github-mcp
 ```
 
 ### GitHub API接続エラー
@@ -185,6 +321,9 @@ cat .env | grep GITHUB_PERSONAL_ACCESS_TOKEN
 
 # トークンの有効性確認
 curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user
+
+# コンテナ内から確認
+docker compose exec github-mcp env | grep GITHUB
 ```
 
 ### ヘルスチェック失敗
@@ -195,6 +334,31 @@ docker compose ps
 
 # ヘルスチェックログ
 docker compose logs github-mcp | grep health
+
+# 手動ヘルスチェック
+docker compose exec github-mcp curl -f http://localhost:3000/health
+```
+
+### メモリ不足
+
+```bash
+# リソース使用状況確認
+docker stats mcp-github
+
+# メモリ制限変更（docker-compose.yml編集後）
+docker compose up -d --force-recreate github-mcp
+```
+
+### ポート競合
+
+```bash
+# ポート使用状況確認
+lsof -i :3000
+netstat -an | grep 3000
+
+# ポート変更（docker-compose.yml編集）
+# ports:
+#   - "3001:3000"  # ホスト側ポートを変更
 ```
 
 ## セキュリティ

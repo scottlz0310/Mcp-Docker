@@ -1,18 +1,15 @@
-version: '3.8'
-
 services:
   github-mcp:
     image: ghcr.io/github/github-mcp-server:latest
     container_name: mcp-github
     restart: unless-stopped
+    stdin_open: true
+    tty: true
     
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-    
-    ports:
-      - "3000:3000"
     
     volumes:
       - ./config/github-mcp:/app/config
@@ -22,11 +19,11 @@ services:
       - mcp-network
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "test", "-f", "/server/github-mcp-server"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 10s
     
     logging:
       driver: "json-file"

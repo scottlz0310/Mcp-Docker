@@ -1,0 +1,62 @@
+name: Lint and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-shell:
+    name: シェルスクリプトLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: shellcheckインストール
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      
+      - name: シェルスクリプトLint実行
+        run: bash scripts/lint-shell.sh
+
+  test-shell:
+    name: シェルスクリプトテスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Batsインストール
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+      
+      - name: シェルスクリプトテスト実行
+        run: bats tests/shell/*.bats
+
+  lint-python:
+    name: Pythonコードlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: uvインストール
+        uses: astral-sh/setup-uv@v5
+      
+      - name: Python lint実行
+        run: |
+          uv sync
+          uv run ruff check .
+
+  type-check:
+    name: 型チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: uvインストール
+        uses: astral-sh/setup-uv@v5
+      
+      - name: 型チェック実行
+        run: |
+          uv sync
+          uv run mypy .
