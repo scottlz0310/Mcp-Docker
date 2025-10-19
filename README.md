@@ -372,8 +372,12 @@ netstat -an | grep 3000
 
 MIT License - 詳細は[LICENSE](LICENSE)を参照
 
+## 関連プロジェクト
+
+- **[ci-helper](https://github.com/scottlz0310/ci-helper)** - GitHub Actions ローカル実行ツール（旧Actions Simulator）
+- **WSL-kernel-watcher** - WSLカーネル更新監視ツール（開発予定）
+
 ## 関連リンク
 
 - [GitHub MCP Server公式](https://github.com/github/github-mcp-server)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- [設計ドキュメント](.kiro/specs/architecture/github-mcp-server-design.md)
