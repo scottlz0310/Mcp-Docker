@@ -228,3 +228,9 @@ output/*
 # GitHub Release Watcher runtime files
 examples/github-release-watcher/config/state.json
 examples/github-release-watcher/config/notifications.json
+
+# ci-helper
+.ci-helper/
+.actrc
+ci-helper.toml
+.env
