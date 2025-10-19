@@ -84,12 +84,7 @@ build-backend = "hatchling.build"
 packages = ["services", "src", "scripts"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"main.py" = "main.py"
-"scripts/run-actions.sh" = "scripts/run-actions.sh"
 "docker-compose.yml" = "docker-compose.yml"
-"Dockerfile" = "Dockerfile"
-".actrc" = ".actrc"
-".env.ci" = ".env.ci"
 
 [tool.ruff]
 line-length = 120
