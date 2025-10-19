@@ -1,298 +1,52 @@
----
+version: '3.8'
+
 services:
-  # ==========================================================================
-  # GitHub MCP Server
-  # ==========================================================================
-  # IMPORTANT: Use official GitHub-maintained image, NOT the deprecated
-  # @modelcontextprotocol/server-github npm package
-  # Official image: ghcr.io/github/github-mcp-server:latest
-  # DO NOT change to build from Dockerfile - always use the official image
-  # ==========================================================================
   github-mcp:
     image: ghcr.io/github/github-mcp-server:latest
-    container_name: ${GITHUB_MCP_CONTAINER_NAME:-mcp-github}
-    stdin_open: true
-    tty: true
-    environment:
-      # GPAT: .bashrc環境変数 -> .env -> デフォルト値の順でフォールバック
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-your_token_here}}}
+    container_name: mcp-github
     restart: unless-stopped
-    networks:
-      - mcp-network
-
-  github-release-watcher:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: github-release-watcher
-    container_name: ${GITHUB_RELEASE_WATCHER_CONTAINER_NAME:-mcp-github-release-watcher}
-    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
-    volumes:
-      - ./examples/github-release-watcher/config:/app/data:rw # 設定と状態ファイル
-      - ./logs:/app/logs:rw # ログファイル
-      # Windows Toast通知ブリッジ（WSL環境のみ）はdocker-compose.override.ymlで定義
+    
     environment:
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
-      - SMTP_SERVER=${SMTP_SERVER:-}
-      - SMTP_USERNAME=${SMTP_USERNAME:-}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
-      - WINDOWS_BRIDGE_PATH=/windows-notifications # コンテナ内のマウントパス
-    restart: unless-stopped
-    networks:
-      - mcp-network
-    # セキュリティ: リソース制限
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    # セキュリティ: 特権無効化
-    privileged: false
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-
-  actions-simulator:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: actions-simulator
-      args:
-        USER_ID: "${USER_ID:-1000}"
-        GROUP_ID: "${GROUP_ID:-1000}"
-    container_name: ${ACTIONS_SIMULATOR_CONTAINER_NAME:-mcp-actions-simulator}
-    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
-    group_add:
-      - "${DOCKER_GID:-999}"  # Docker group ID for socket access
-    volumes:
-      - ./.github:/app/.github:ro # ワークフローファイル（読み取り専用）
-      - ./output:/app/output:rw # 実行結果出力
-      - ./logs:/app/logs:rw # ログファイル出力
-      - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
-      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
-      - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
-      - /tmp:/tmp:rw # 一時ファイル用
-      - act-workspace:/github/workspace:rw # actワークスペース
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - HOST=0.0.0.0
-      - PORT=8000
-      - ACT_CACHE_DIR=/opt/act/cache
-      - ACTIONS_SIMULATOR_ENGINE=act
-      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
-      - DOCKER_BUILDKIT=1 # BuildKit有効化
-      - COMPOSE_DOCKER_CLI_BUILD=1 # Docker Compose CLI Build有効化
-      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-info} # actログレベル
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41} # Docker APIバージョン
-      - PYTHONUNBUFFERED=1 # Python出力バッファリング無効化
-      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-false} # GitHub Actionsデバッグ
-      - RUNNER_DEBUG=${RUNNER_DEBUG:-false} # ランナーデバッグ
-      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
-      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
-      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
-      - HOME=/app # Set HOME directory for user
-      - USER_ID=${USER_ID:-1000}
-      - GROUP_ID=${GROUP_ID:-1000}
-      - DOCKER_GID=${DOCKER_GID:-999}
-    profiles:
-      - tools
-    command: ["bash", "-c", "uv run python main.py actions --help"]
-    networks:
-      - mcp-network
-
-  # Actions Simulator - 常駐サーバーモード（デバッグ用）
-  actions-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: actions-simulator
-      args:
-        USER_ID: "${USER_ID:-1000}"
-        GROUP_ID: "${GROUP_ID:-1000}"
-    container_name: mcp-actions-server
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    
     ports:
-      - "8000:8000" # HTTPサーバーポート
+      - "3000:3000"
+    
     volumes:
-      - ./.github:/app/.github:rw # ワークフローファイル（読み書き可能 - デバッグ用）
-      - ./output:/app/output:rw # 実行結果出力
-      - ./logs:/app/logs:rw # ログファイル出力
-      - ./services:/app/services:rw # ソースコード（ホットリロード用）
-      - ./src:/app/src:rw # ソースコード（ホットリロード用）
-      - ./main.py:/app/main.py:rw # メインファイル（ホットリロード用）
-      - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
-      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
-      - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
-      - /tmp:/tmp:rw # 一時ファイル用
-      - act-workspace:/github/workspace:rw # actワークスペース
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - HOST=0.0.0.0
-      - PORT=8000
-      - ACT_CACHE_DIR=/opt/act/cache
-      - ACTIONS_SIMULATOR_ENGINE=act
-      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
-      - DOCKER_BUILDKIT=1 # BuildKit有効化
-      - COMPOSE_DOCKER_CLI_BUILD=1 # Docker Compose CLI Build有効化
-      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-debug} # デバッグ用にログレベルを上げる
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41} # Docker APIバージョン
-      - PYTHONUNBUFFERED=1 # Python出力バッファリング無効化
-      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-true} # GitHub Actionsデバッグ有効
-      - RUNNER_DEBUG=${RUNNER_DEBUG:-true} # ランナーデバッグ有効
-      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
-      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
-      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
-      - HOME=/app # Set HOME directory for user
-      - ACTIONS_SIMULATOR_VERBOSE=true # 詳細ログ有効
-      - ACTIONS_SIMULATOR_DEBUG=true # デバッグモード有効
-    profiles:
-      - debug
-    command: ["bash", "-c", "uv run python main.py actions server --host 0.0.0.0 --port 8000 --debug"]
+      - ./config/github-mcp:/app/config
+      - github-mcp-cache:/app/cache
+    
     networks:
       - mcp-network
-    stdin_open: true # インタラクティブモード
-    tty: true # TTY有効
-    restart: unless-stopped
-
-  # Actions Simulator - インタラクティブシェル（デバッグ用）
-  actions-shell:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: actions-simulator
-      args:
-        USER_ID: "${USER_ID:-1000}"
-        GROUP_ID: "${GROUP_ID:-1000}"
-    container_name: mcp-actions-shell
-    volumes:
-      - ./.github:/app/.github:rw # ワークフローファイル（読み書き可能）
-      - ./output:/app/output:rw # 実行結果出力
-      - ./logs:/app/logs:rw # ログファイル出力
-      - ./services:/app/services:rw # ソースコード（ホットリロード用）
-      - ./src:/app/src:rw # ソースコード（ホットリロード用）
-      - ./main.py:/app/main.py:rw # メインファイル（ホットリロード用）
-      - act-cache:/opt/act/cache:rw # actキャッシュ（読み書き可能）
-      - uv-cache:/app/.cache/uv:rw # UVキャッシュ（読み書き可能）
-      - /var/run/docker.sock:/var/run/docker.sock:rw # Dockerアクセス（act用、読み書き可能）
-      - /tmp:/tmp:rw # 一時ファイル用
-      - act-workspace:/github/workspace:rw # actワークスペース
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - HOST=0.0.0.0
-      - PORT=8000
-      - ACT_CACHE_DIR=/opt/act/cache
-      - ACTIONS_SIMULATOR_ENGINE=act
-      - ACTIONS_SIMULATOR_ACT_TIMEOUT_SECONDS=600
-      - DOCKER_BUILDKIT=1 # BuildKit有効化
-      - COMPOSE_DOCKER_CLI_BUILD=1 # Docker Compose CLI Build有効化
-      - ACT_LOG_LEVEL=${ACT_LOG_LEVEL:-debug} # デバッグ用にログレベルを上げる
-      - DOCKER_API_VERSION=${DOCKER_API_VERSION:-1.41} # Docker APIバージョン
-      - PYTHONUNBUFFERED=1 # Python出力バッファリング無効化
-      - ACTIONS_RUNNER_DEBUG=${ACTIONS_RUNNER_DEBUG:-true} # GitHub Actionsデバッグ有効
-      - RUNNER_DEBUG=${RUNNER_DEBUG:-true} # ランナーデバッグ有効
-      - ACT_PLATFORM=${ACT_PLATFORM:-ubuntu-latest=catthehacker/ubuntu:act-latest} # actプラットフォーム
-      - ACT_CONTAINER_DAEMON_SOCKET=/var/run/docker.sock # コンテナ内Dockerソケット
-      - UV_CACHE_DIR=/app/.cache/uv # UV cache directory
-      - HOME=/app # Set HOME directory for user
-      - ACTIONS_SIMULATOR_VERBOSE=true # 詳細ログ有効
-      - ACTIONS_SIMULATOR_DEBUG=true # デバッグモード有効
-    profiles:
-      - debug
-    command:
-      - "bash"
-      - "-c"
-      - >
-        echo '🐚 Actions Simulator Debug Shell';
-        echo '使用可能なコマンド:';
-        echo '  uv run python main.py actions --help';
-        echo '  act --help';
-        echo '  docker ps';
-        echo '';
-        exec bash
-    networks:
-      - mcp-network
-    stdin_open: true # インタラクティブモード
-    tty: true # TTY有効
-    # 改良されたヘルスチェック設定
+    
     healthcheck:
-      test: [
-        "CMD",
-        "bash",
-        "-c",
-        "python -c 'import docker; docker.from_env().ping()' && act --version > /dev/null"
-      ]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 30s
-    # セキュリティ: リソース制限
-    deploy:
-      resources:
-        limits:
-          memory: 4G # actの実行に必要なメモリを増加
-          cpus: "4.0" # CPUリソースを増加
-        reservations:
-          memory: 1G # 最小メモリ予約を増加
-          cpus: "1.0" # 最小CPU予約を増加
-    # Docker統合のための権限設定
-    privileged: false
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-      - DAC_OVERRIDE # ファイル権限のオーバーライド（act用）
-      - SETUID # UID変更（act用）
-      - SETGID # GID変更（act用）
-      - SYS_PTRACE # プロセストレース（デバッグ用）
-      - CHOWN # ファイル所有者変更（act用）
-      - FOWNER # ファイル所有者操作（act用）
-    # Docker socket グループアクセス
-    group_add:
-      - "${DOCKER_GID:-999}" # Dockerグループへの追加
-    # 依存関係設定（一時的に無効化）
-    # depends_on:
-    #   - docker-health-check
-    # 再起動ポリシー
-    restart: unless-stopped
-    # ログ設定
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
-        max-file: "5"
-        labels: "service=actions-simulator"
+        max-size: "10m"
+        max-file: "3"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
-  # Docker接続ヘルスチェック用サービス
-  docker-health-check:
-    image: docker:24-cli
-    container_name: mcp-docker-health-check
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command:
-      [
-        "sh",
-        "-c",
-        "docker version && docker info && echo 'Docker daemon is healthy'",
-      ]
-    networks:
-      - mcp-network
-    healthcheck:
-      test: ["CMD", "docker", "version"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    restart: "no" # 一度実行されれば終了
-    profiles:
-      - tools
+volumes:
+  github-mcp-cache:
+    driver: local
 
 networks:
   mcp-network:
     driver: bridge
-
-volumes:
-  act-cache:
-  act-workspace:
-  uv-cache:
