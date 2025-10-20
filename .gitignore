@@ -221,6 +221,7 @@ yarn-error.log*
 .vscode/launch.json
 .vscode/settings.json
 .vscode/tasks.json
+.amazonq/agents/default.json
 
 # Test result files (all test outputs go to output/ directory)
 output/*

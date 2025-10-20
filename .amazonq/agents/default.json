@@ -5,6 +5,8 @@
   "mcpServers": {
     "github": {
       "command": "docker",
+      "disabled": false,
+      "timeout": 60000,
       "args": [
         "exec",
         "-i",
@@ -30,7 +32,8 @@
     "fileSearch",
     "executeBash",
     "codeReview",
-    "displayFindings"
+    "displayFindings",
+    "@github"
   ],
   "toolAliases": {},
   "allowedTools": [
