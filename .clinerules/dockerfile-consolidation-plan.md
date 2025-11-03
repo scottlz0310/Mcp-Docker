@@ -107,7 +107,7 @@ key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile', 'docker-compose.yml') }
 
 ```dockerfile
 # ベース: Python 3.13
-FROM python:3.13-slim AS base
+FROM python:3.14-slim AS base
 
 # 共通の依存関係インストール
 RUN apt-get update && apt-get install -y \
