@@ -182,8 +182,6 @@ env.bak/
 env/
 go.work
 nosetests.xml
-requirements.txt
-uv.lock
 vendor/
 venv.bak/
 venv/
