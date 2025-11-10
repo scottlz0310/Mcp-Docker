@@ -117,7 +117,6 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-uv.lock
 
 # Test artifacts
 test-results/
