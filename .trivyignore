@@ -10,6 +10,12 @@
 # Review date: 2025-09-24
 CVE-2024-21538
 
+# GitHub MCP Server binary (Go stdlib)
+# CVE-2025-61729: crypto/x509 host validation DoS
+# Status: Upstream Go 1.25.5 patch pending in github/github-mcp-server image
+# Review date: 2026-01-13
+CVE-2025-61729
+
 # CodeQL CLI vulnerabilities - development tool dependencies only
 # These do not affect runtime security of the MCP services
 # Review date: 2025-09-25

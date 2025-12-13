@@ -20,6 +20,7 @@ permissions:
 jobs:
   codeql:
     name: CodeQL Analysis
+    if: ${{ hashFiles('**/*.py') != '' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -63,11 +64,12 @@ jobs:
           scan-ref: .
           format: sarif
           output: trivy-fs-results.sarif
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           scanners: vuln,secret,misconfig
           skip-dirs: .git,.ci-helper,.venv,dist
           limit-severities-for-sarif: true
+          trivyignores: .trivyignore
 
       - name: Upload Trivy filesystem results
         uses: github/codeql-action/upload-sarif@v3
@@ -93,8 +95,9 @@ jobs:
           output: trivy-container-results.sarif
           vuln-type: os,library
           ignore-unfixed: true
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           limit-severities-for-sarif: true
+          trivyignores: .trivyignore
 
       - name: Upload Trivy container results
         uses: github/codeql-action/upload-sarif@v3
