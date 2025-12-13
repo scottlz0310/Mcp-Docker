@@ -158,6 +158,23 @@ docker compose logs --tail=100 github-mcp
 ./scripts/health-check.sh
 ```
 
+## セキュリティ
+
+### イメージのバージョン固定
+
+- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.24.1` を使用します。GitHubが2025年12月8日に公開した v0.24.1 リリースには最新のバグ修正とセキュリティパッチが含まれています。
+- 別のバージョンを使う場合は次のように上書きします:
+
+```bash
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.24.1
+docker compose pull github-mcp
+```
+
+### GitHub Actionsでのセキュリティスキャン
+
+- `Security Scan` ワークフロー（`.github/workflows/security.yml`）を復元し、CodeQL と Trivy の結果を GitHub Security タブへ送信します。
+- ワークフローは `push`/`pull_request` に加えて毎週月曜 15:00 JST (`0 6 * * 1` UTC) に実行され、リポジトリ/コンテナ双方の脆弱性を継続的に監視します。
+
 ## 開発
 
 ### リント・テスト
@@ -361,7 +378,7 @@ netstat -an | grep 3000
 #   - "3001:3000"  # ホスト側ポートを変更
 ```
 
-## セキュリティ
+## 運用ガードレール
 
 - トークンは`.env`ファイルで管理（gitignore済み）
 - コンテナは専用ネットワークで分離

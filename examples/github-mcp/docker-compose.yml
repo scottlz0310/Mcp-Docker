@@ -1,7 +1,7 @@
 ---
 services:
   github-mcp:
-    image: ghcr.io/github/github-mcp-server:latest
+    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:v0.24.1}
     container_name: mcp-github
     env_file: .env
     stdin_open: true
