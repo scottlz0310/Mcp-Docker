@@ -105,6 +105,8 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - uses: actions/checkout@v4
+
       - name: Pull GitHub MCP Server image
         run: docker pull ${{ env.GITHUB_MCP_IMAGE }}
 
