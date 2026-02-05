@@ -39,10 +39,11 @@
 
 1. **ベースイメージ**: 最新のDebian 12 (Bookworm) Slimイメージを使用
 2. **パッケージ更新**: `apt-get update && apt-get upgrade`で全パッケージを最新化
-3. **OpenSSLインストール**: 修正済みのlibssl3 3.0.18-1~deb12u2をインストール
-4. **ライブラリコピー**: 更新されたOpenSSLライブラリをdistroless基盤イメージにコピー
-5. **バイナリ統合**: GitHub公式MCPサーバーのバイナリを最終イメージに統合
-6. **非rootユーザー**: セキュリティ強化のため、UID 65532（nonroot）で実行
+3. **OpenSSLインストール**: Debianリポジトリで提供される最新のセキュリティパッチ適用済みlibssl3をインストール
+4. **ライブラリコピー**: 更新されたOpenSSLライブラリをdistroless基盤イメージにコピー（マルチアーキテクチャ対応）
+5. **CA証明書更新**: 最新の信頼できるCA証明書をコピー
+6. **バイナリ統合**: GitHub公式MCPサーバーのバイナリを最終イメージに統合
+7. **非rootユーザー**: セキュリティ強化のため、UID 65532（nonroot）で実行
 
 ### マルチステージビルド
 
@@ -51,15 +52,18 @@
 FROM debian:bookworm-slim AS debian-updates
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y libssl3 openssl ca-certificates
+    apt-get install -y libssl3 openssl ca-certificates && \
+    update-ca-certificates
 
 # Stage 2: 公式MCPサーバーイメージからバイナリを取得
 FROM ghcr.io/github/github-mcp-server:v0.30.3 AS upstream
 
 # Stage 3: 最終イメージ構築（distroless基盤 + 更新済みOpenSSL + MCPサーバーバイナリ）
 FROM gcr.io/distroless/base-debian12:latest
-COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libssl.so.* /usr/lib/x86_64-linux-gnu/
-COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libcrypto.so.* /usr/lib/x86_64-linux-gnu/
+# マルチアーキテクチャ対応: 全てのアーキテクチャのライブラリをコピー
+COPY --from=debian-updates /usr/lib/*-linux-gnu*/libssl.so* /usr/lib/
+COPY --from=debian-updates /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
+COPY --from=debian-updates /etc/ssl/certs /etc/ssl/certs
 COPY --from=upstream /server/github-mcp-server .
 USER 65532:65532
 ```

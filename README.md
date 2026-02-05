@@ -11,7 +11,7 @@ VS Code、Cursor、Kiro等の統合IDEにGitHub MCP Server機能を提供するD
 - **CVE-2025-9230** (High): OpenSSL - Denial of Service via malformed PKCS#12 file
 - **CVE-2025-9231** (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12
 
-カスタムイメージは最新のOpenSSL 3.0.18-1~deb12u2を使用しており、上記の脆弱性が修正されています。
+カスタムイメージはDebian 12リポジトリが提供する最新のセキュリティパッチ適用済みOpenSSL 3.x系を使用しており、上記の脆弱性が修正されています。
 
 ## 概要
 

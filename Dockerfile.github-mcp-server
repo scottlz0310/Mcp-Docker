@@ -8,6 +8,7 @@
 
 # Stage 1: Get updated OpenSSL libraries from latest Debian 12
 FROM debian:bookworm-slim AS debian-updates
+
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
@@ -31,9 +32,11 @@ LABEL org.opencontainers.image.description="GitHub MCP Server with updated OpenS
 LABEL org.opencontainers.image.base.name="gcr.io/distroless/base-debian12:latest"
 LABEL org.opencontainers.image.version="v0.30.3-patched"
 
-# Copy updated OpenSSL libraries from Debian stage
-COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libssl.so.* /usr/lib/x86_64-linux-gnu/
-COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libcrypto.so.* /usr/lib/x86_64-linux-gnu/
+# Copy updated OpenSSL libraries and CA certificates from Debian stage
+# Note: Copying from all arch-specific lib directories to support multi-architecture builds
+COPY --from=debian-updates /usr/lib/*-linux-gnu*/libssl.so* /usr/lib/
+COPY --from=debian-updates /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
+COPY --from=debian-updates /etc/ssl/certs /etc/ssl/certs
 
 # Set the working directory
 WORKDIR /server

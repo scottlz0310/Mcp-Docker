@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed CVE-2025-15467 (Critical): OpenSSL - Remote code execution or Denial of Service via oversized Initialization Vector in CMS parsing
   - Fixed CVE-2025-9230 (High): OpenSSL - Denial of Service via malformed PKCS#12 file processing
   - Fixed CVE-2025-9231 (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12 processing
-- Added `Dockerfile.github-mcp-server` that wraps the official GitHub MCP Server image with updated OpenSSL (libssl3 3.0.18-1~deb12u2)
+  - Note: CVE-2025-9230 and CVE-2025-9231 are additional PKCS#12 vulnerabilities distinct from CVE-2025-69419 mentioned in v2.0.2
+- Added `Dockerfile.github-mcp-server` that wraps the official GitHub MCP Server image with the latest security-patched OpenSSL from Debian 12 repositories
 - Container now runs as non-root user (UID 65532) for enhanced security (fixes Trivy DS002)
+- Multi-architecture support added (x86_64, ARM64/aarch64)
+- Updated CA certificates copied from latest Debian security updates
 - Updated docker-compose.yml files to build and use the patched custom image
 - Updated security scanning workflow to build the custom image before scanning
 
