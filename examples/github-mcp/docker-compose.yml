@@ -1,7 +1,10 @@
 ---
 services:
   github-mcp:
-    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:v0.30.2}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.github-mcp-server
+    image: ${GITHUB_MCP_IMAGE:-mcp-docker/github-mcp-server:v0.30.3-patched}
     container_name: mcp-github
     env_file: .env
     stdin_open: true
