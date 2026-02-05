@@ -53,10 +53,10 @@ mkdir -p "${PROJECT_ROOT}/config/github-mcp"
 echo "✅ 設定ディレクトリを作成しました"
 echo ""
 
-# Dockerイメージのプル
-echo "📦 Docker イメージをプル中..."
-docker compose pull github-mcp
-echo "✅ Docker イメージをプルしました"
+# Dockerイメージのビルド
+echo "🔨 Docker イメージをビルド中..."
+docker compose build github-mcp
+echo "✅ Docker イメージをビルドしました"
 echo ""
 
 # サービスの起動
