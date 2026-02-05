@@ -46,6 +46,9 @@ COPY --from=upstream /server/github-mcp-server .
 # Set environment variable for SSL certificates (distroless already has them)
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
+# Run as non-root user for security (distroless includes nonroot user with UID 65532)
+USER 65532:65532
+
 # Set the entrypoint to the server binary
 ENTRYPOINT ["/server/github-mcp-server"]
 

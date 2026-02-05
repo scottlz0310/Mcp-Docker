@@ -42,6 +42,7 @@
 3. **OpenSSLインストール**: 修正済みのlibssl3 3.0.18-1~deb12u2をインストール
 4. **ライブラリコピー**: 更新されたOpenSSLライブラリをdistroless基盤イメージにコピー
 5. **バイナリ統合**: GitHub公式MCPサーバーのバイナリを最終イメージに統合
+6. **非rootユーザー**: セキュリティ強化のため、UID 65532（nonroot）で実行
 
 ### マルチステージビルド
 
@@ -60,6 +61,7 @@ FROM gcr.io/distroless/base-debian12:latest
 COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libssl.so.* /usr/lib/x86_64-linux-gnu/
 COPY --from=debian-updates /usr/lib/x86_64-linux-gnu/libcrypto.so.* /usr/lib/x86_64-linux-gnu/
 COPY --from=upstream /server/github-mcp-server .
+USER 65532:65532
 ```
 
 ## 検証方法
