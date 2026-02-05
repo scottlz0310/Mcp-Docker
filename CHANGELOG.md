@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔐 Security
+
+- **Critical Security Fix**: Created custom Docker image with updated OpenSSL to fix multiple critical vulnerabilities
+  - Fixed CVE-2025-15467 (Critical): OpenSSL - Remote code execution or Denial of Service via oversized Initialization Vector in CMS parsing
+  - Fixed CVE-2025-9230 (High): OpenSSL - Denial of Service via malformed PKCS#12 file processing
+  - Fixed CVE-2025-9231 (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12 processing
+- Added `Dockerfile.github-mcp-server` that wraps the official GitHub MCP Server image with updated OpenSSL (libssl3 3.0.18-1~deb12u2)
+- Updated docker-compose.yml files to build and use the patched custom image
+- Updated security scanning workflow to build the custom image before scanning
+
+### 🔧 Improvements
+
+- Updated documentation to reflect security patches and custom image usage
+- Modified setup script to build custom image instead of pulling upstream image
+- Added build target to Makefile for custom image
+
 ## [2.0.2] - 2026-02-05
 
 ### 🔐 Security
