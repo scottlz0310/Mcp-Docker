@@ -1,0 +1,58 @@
+# Git
+.git/
+.github/
+.gitignore
+
+# Documentation
+*.md
+docs/
+examples/
+
+# Configuration
+.env
+.env.*
+!.env.template
+
+# Cache and logs
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+tests/
+*.bats
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# CI/CD
+.actrc*
+ci-helper.toml*
+.trivyignore
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Other
+.DS_Store
+Thumbs.db
+*.lock
