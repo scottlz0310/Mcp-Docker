@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-02-05
+
+### 🔐 Security
+
+- **Critical Security Update**: Updated GitHub MCP Server from v0.24.1 to v0.30.2 to address multiple security vulnerabilities
+  - Fixed CVE-2025-15467 (Critical): OpenSSL CMS parsing vulnerability - stack buffer overflow allowing remote code execution
+  - Fixed CVE-2025-69419 (High): OpenSSL PKCS#12 vulnerability - out-of-bounds write
+  - Fixed CVE-2025-61728 (High): Go archive/zip excessive CPU consumption (Go 1.25.6)
+  - Fixed CVE-2025-61726 (High): Go net/url query parameter limit vulnerability (Go 1.25.6)
+- Updated all docker-compose.yml files to use `ghcr.io/github/github-mcp-server:v0.30.2`
+- Updated security scanning workflow to use the new image version
+
+### 🔧 Improvements
+- Documentation updated to reflect the new image version and security patches
+
 ## [2.0.1] - 2025-12-13
 
 ### 🔐 Security
@@ -12,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filesystem and container scans now upload SARIF results with `aquasecurity/trivy-action@0.33.1`, matching the simplified MCP-only codebase.
 
 ### 🔧 Improvements
-- `docker-compose.yml` とサンプル構成が `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.24.1` に固定。
+- `docker-compose.yml` とサンプル構成が `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.30.2` に固定。
 - `.env.template` に `GITHUB_MCP_IMAGE` のオーバーライドを追加し、READMEへ利用手順を追記。
 
 ## [2.0.0] - 2025-10-19

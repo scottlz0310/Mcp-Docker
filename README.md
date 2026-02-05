@@ -162,11 +162,11 @@ docker compose logs --tail=100 github-mcp
 
 ### イメージのバージョン固定
 
-- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.24.1` を使用します。GitHubが2025年12月8日に公開した v0.24.1 リリースには最新のバグ修正とセキュリティパッチが含まれています。
+- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.30.2` を使用します。GitHubが2026年2月3日に公開した v0.30.2 リリースには最新のバグ修正とセキュリティパッチが含まれています。
 - 別のバージョンを使う場合は次のように上書きします:
 
 ```bash
-export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.24.1
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.30.2
 docker compose pull github-mcp
 ```
 

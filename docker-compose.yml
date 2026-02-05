@@ -1,6 +1,6 @@
 services:
   github-mcp:
-    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:v0.24.1}
+    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:v0.30.2}
     container_name: mcp-github
     restart: unless-stopped
     stdin_open: true

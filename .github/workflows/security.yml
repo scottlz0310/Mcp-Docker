@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_MCP_IMAGE: ${{ vars.GITHUB_MCP_IMAGE || 'ghcr.io/github/github-mcp-server:v0.24.1' }}
+  GITHUB_MCP_IMAGE: ${{ vars.GITHUB_MCP_IMAGE || 'ghcr.io/github/github-mcp-server:v0.30.2' }}
 
 permissions:
   contents: read
