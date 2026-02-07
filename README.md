@@ -112,7 +112,7 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 - 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
 
 ```bash
-curl -i http://127.0.0.1:8082/
+curl -i "http://127.0.0.1:${GITHUB_MCP_HTTP_PORT:-8082}/"
 ```
 
 ```bash
@@ -412,9 +412,9 @@ docker compose up -d --force-recreate github-mcp
 ### ポート競合
 
 ```bash
-# ポート使用状況確認
-lsof -i :8082
-netstat -an | grep 8082
+# ポート使用状況確認（使用中のポート番号を指定）
+lsof -i :${GITHUB_MCP_HTTP_PORT:-8082}
+netstat -an | grep ${GITHUB_MCP_HTTP_PORT:-8082}
 
 # ポート変更（環境変数）
 export GITHUB_MCP_HTTP_PORT=8083
