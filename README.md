@@ -40,7 +40,10 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 git clone https://github.com/scottlz0310/mcp-docker.git
 cd mcp-docker
 
-# 2. セットアップ実行
+# 2. 環境整備のみ実行（初回推奨）
+./scripts/setup.sh --prepare-only
+
+# 3. セットアップ本実行
 ./scripts/setup.sh
 ```
 
@@ -48,9 +51,17 @@ cd mcp-docker
 1. `.env`ファイルの作成（初回のみ）
 2. GITHUB_PERSONAL_ACCESS_TOKENの設定確認
 3. 設定ディレクトリの作成
-4. Dockerイメージのプル
-5. サービスの起動
-6. ヘルスチェック
+4. Docker依存関係の確認
+5. Dockerイメージのビルド
+6. サービスの起動
+7. コンテナ状態の確認
+
+`--prepare-only` を使うと、Docker未導入の段階でも `.env` と設定ディレクトリの準備だけ先に完了できます。
+
+```bash
+# Makefile経由でも実行可能
+make prepare
+```
 
 ### GitHub Token設定
 
@@ -166,18 +177,25 @@ docker compose logs --tail=100 github-mcp
 ### ヘルスチェック
 
 ```bash
+# 標準チェック（コンテナ状態 + トークンがあればAPI確認）
 ./scripts/health-check.sh
+
+# API確認をスキップ
+./scripts/health-check.sh --no-api
+
+# API確認を強制実行
+./scripts/health-check.sh --with-api
 ```
 
 ## セキュリティ
 
 ### イメージのバージョン固定
 
-- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:v0.30.2` を使用します。GitHub が公開している v0.30.2 リリースには最新のバグ修正とセキュリティパッチが含まれており、本リポジトリでは 2026 年 2 月 5 日時点の安定版として採用しています。
+- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `mcp-docker/github-mcp-server:v0.30.3-patched` を使用します。
 - 別のバージョンを使う場合は次のように上書きします:
 
 ```bash
-export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.30.2
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.30.3
 docker compose pull github-mcp
 ```
 
@@ -197,14 +215,8 @@ make lint
 # シェルスクリプトのみ
 make lint-shell
 
-# Pythonコードのみ
-make lint-python
-
 # シェルスクリプトテスト
 make test-shell
-
-# 型チェック
-make type-check
 ```
 
 ## メンテナンス
@@ -212,8 +224,9 @@ make type-check
 ### コンテナ管理
 
 ```bash
-# コンテナ内でコマンド実行
-docker compose exec github-mcp sh
+# distrolessイメージのためシェルはありません（exec sh不可）
+# 起動コマンドを確認
+docker inspect mcp-github --format='Entrypoint={{.Config.Entrypoint}} Cmd={{.Config.Cmd}}'
 
 # コンテナの詳細情報
 docker compose ps --format json
@@ -348,23 +361,26 @@ docker compose up -d --force-recreate github-mcp
 cat .env | grep GITHUB_PERSONAL_ACCESS_TOKEN
 
 # トークンの有効性確認
-curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user
+curl -H "Authorization: Bearer YOUR_TOKEN" https://api.github.com/user
 
-# コンテナ内から確認
-docker compose exec github-mcp env | grep GITHUB
+# コンテナ設定から確認（distrolessのため exec env は非対応）
+docker inspect mcp-github --format='{{range .Config.Env}}{{println .}}{{end}}' | grep GITHUB
 ```
 
 ### ヘルスチェック失敗
 
 ```bash
 # コンテナ状態確認
-docker compose ps
+docker compose ps github-mcp
 
-# ヘルスチェックログ
-docker compose logs github-mcp | grep health
+# 再起動回数の確認
+docker inspect mcp-github --format='running={{.State.Running}} restart={{.RestartCount}}'
 
-# 手動ヘルスチェック
-docker compose exec github-mcp curl -f http://localhost:3000/health
+# ログ確認
+docker compose logs --tail=200 github-mcp
+
+# API含むヘルスチェック
+./scripts/health-check.sh --with-api
 ```
 
 ### メモリ不足
