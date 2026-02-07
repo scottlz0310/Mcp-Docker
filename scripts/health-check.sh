@@ -169,7 +169,11 @@ fi
 server_url="$(resolve_server_url)"
 if command -v curl > /dev/null 2>&1; then
     # curl failures should not abort the script, so we use || true and check the result
-    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${server_url}/" || echo "000")"
+    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${server_url}/" || true)"
+    # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
+    if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
+        http_status="000"
+    fi
     if [[ "${http_status}" == "200" ]] || [[ "${http_status}" == "401" ]]; then
         echo "✅ MCP HTTPエンドポイント疎通成功 (${server_url}, status=${http_status})"
     else

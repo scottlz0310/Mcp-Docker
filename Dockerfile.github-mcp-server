@@ -40,7 +40,6 @@ COPY --from=debian-updates /etc/ssl/certs /etc/ssl/certs
 WORKDIR /server
 
 # Copy the binary from the upstream image
-# Note: Binary integrity is maintained by using the official GitHub image with a pinned version tag
 # The upstream image is built and signed by GitHub's official CI/CD pipeline
 COPY --from=upstream /server/github-mcp-server .
 

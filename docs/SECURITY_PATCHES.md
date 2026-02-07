@@ -28,10 +28,10 @@ docker pull ghcr.io/github/github-mcp-server:main
 docker inspect ghcr.io/github/github-mcp-server:main --format='{{index .RepoDigests 0}}'
 ```
 
-取得した digest を使用してバージョンを固定:
+取得した digest の完全な文字列（`ghcr.io/github/github-mcp-server@sha256:...`）をそのまま使用してバージョンを固定:
 
 ```bash
-export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server@sha256:<your-digest-here>
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server@sha256:1234567890abcdef...
 docker compose pull github-mcp
 docker compose up -d github-mcp
 ```
