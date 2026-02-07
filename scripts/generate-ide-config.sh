@@ -214,17 +214,25 @@ EOF
         ;;
 
     copilot-cli)
-        cat > "${OUTPUT_DIR}/config.toml" <<EOF
-[mcp_servers.github]
-url = "${SERVER_URL}"
-bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
+        cat > "${OUTPUT_DIR}/mcp-config.json" <<EOF
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "${SERVER_URL}",
+      "headers": {
+        "Authorization": "Bearer \${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
 EOF
-        echo "✅ Copilot CLI設定(TOML)を生成しました: ${OUTPUT_DIR}/config.toml"
+        echo "✅ Copilot CLI設定(JSON)を生成しました: ${OUTPUT_DIR}/mcp-config.json"
         echo ""
         echo "📋 設定方法:"
         echo "   1. Dockerコンテナを起動: docker compose up -d"
-        echo "   2. Copilot CLI設定にTOMLを反映"
-        echo "      （必要に応じて ~/.copilot 配下の設定へ転記）"
+        echo "   2. Copilot CLI MCP設定ファイルにJSONを配置"
+        echo "      既定: ~/.copilot/mcp-config.json"
         echo "   3. 接続先URL: ${SERVER_URL}"
         echo ""
         echo "💡 環境変数の設定も忘れずに:"
