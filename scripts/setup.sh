@@ -125,27 +125,22 @@ ensure_docker_ready() {
     fi
 }
 
-validate_token_or_exit() {
+validate_token() {
     local token="$1"
 
     if [[ -z "${token}" ]]; then
-        echo "❌ GITHUB_PERSONAL_ACCESS_TOKEN が設定されていません"
-        echo "   .env または環境変数に設定してください。"
-        echo "   取得先: https://github.com/settings/tokens?type=beta"
-        exit 1
+        return 1
     fi
 
     if is_placeholder_token "${token}"; then
-        echo "❌ GITHUB_PERSONAL_ACCESS_TOKEN がプレースホルダのままです"
-        echo "   実際のトークン値に置き換えてください。"
-        exit 1
+        return 1
     fi
 
     if ! is_token_prefix_valid "${token}"; then
-        echo "❌ GITHUB_PERSONAL_ACCESS_TOKEN の形式が不正です"
-        echo "   github_pat_ または ghp_ で始まるトークンを設定してください。"
-        exit 1
+        return 1
     fi
+
+    return 0
 }
 
 show_token_setup_help() {
@@ -173,16 +168,22 @@ if [[ "${PREPARE_ONLY}" == "true" ]]; then
     echo "🧰 環境整備モードで実行します (--prepare-only)"
     echo ""
 
-    if [[ -z "${token}" ]] || is_placeholder_token "${token}" || ! is_token_prefix_valid "${token}"; then
-        show_token_setup_help
-    else
+    if validate_token "${token}"; then
         echo "✅ GITHUB_PERSONAL_ACCESS_TOKEN は ${token_source} から検出されました"
         echo ""
+    else
+        show_token_setup_help
     fi
 else
-    validate_token_or_exit "${token}"
-    echo "✅ GITHUB_PERSONAL_ACCESS_TOKEN を ${token_source} から使用します"
-    echo ""
+    if validate_token "${token}"; then
+        echo "✅ GITHUB_PERSONAL_ACCESS_TOKEN を ${token_source} から使用します"
+        echo ""
+    else
+        echo "ℹ️  GITHUB_PERSONAL_ACCESS_TOKEN が未設定または無効です"
+        echo "   HTTPモードでは、各IDE設定の Authorization ヘッダーでPAT/OAuthトークンを渡せます。"
+        echo "   必要に応じて後で設定してください: https://github.com/settings/tokens?type=beta"
+        echo ""
+    fi
 fi
 
 # 設定ディレクトリの作成
@@ -204,10 +205,10 @@ fi
 
 ensure_docker_ready
 
-# Dockerイメージのビルド
-echo "🔨 Docker イメージをビルド中..."
-docker compose build github-mcp
-echo "✅ Docker イメージをビルドしました"
+# Dockerイメージの取得
+echo "📦 Docker イメージを取得中..."
+docker compose pull github-mcp
+echo "✅ Docker イメージを取得しました"
 echo ""
 
 # サービスの起動

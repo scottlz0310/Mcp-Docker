@@ -2,16 +2,15 @@
 
 VS Code、Cursor、Kiro等の統合IDEにGitHub MCP Server機能を提供するDocker常駐サービス。
 
-## セキュリティパッチ適用済み
+## HTTP transport対応
 
-このプロジェクトでは、GitHub公式MCPサーバーイメージにOpenSSLセキュリティパッチを適用したカスタムイメージを使用しています。
+このプロジェクトは `github-mcp-server` のHTTP接続を優先採用しています。  
+複数IDEウィンドウから同時接続しやすく、`stdio` 方式より並列利用に向いた構成です。
 
-**修正済みの脆弱性:**
-- **CVE-2025-15467** (Critical): OpenSSL - Remote code execution via oversized IV in CMS parsing
-- **CVE-2025-9230** (High): OpenSSL - Denial of Service via malformed PKCS#12 file
-- **CVE-2025-9231** (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12
-
-カスタムイメージはDebian 12リポジトリが提供する最新のセキュリティパッチ適用済みOpenSSL 3.x系を使用しており、上記の脆弱性が修正されています。
+**イメージ方針（2026-02-07時点）:**
+- 既定イメージ: `ghcr.io/github/github-mcp-server:main`
+- 理由: 公式最新リリース `v0.30.3` には `http` サブコマンドが未搭載で、`http` 対応は現時点で `main` タグに含まれるため
+- セキュリティ: `.github/workflows/security.yml` でTrivyスキャンを継続実行
 
 ## 概要
 
@@ -31,7 +30,7 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 ### 前提条件
 
 - Docker 20.10+
-- GitHub Personal Access Token (PAT)
+- GitHub Personal Access Token (PAT) または OAuth対応クライアント
 
 ### インストール
 
@@ -49,10 +48,10 @@ cd mcp-docker
 
 セットアップスクリプトが以下を実行します：
 1. `.env`ファイルの作成（初回のみ）
-2. GITHUB_PERSONAL_ACCESS_TOKENの設定確認
+2. GITHUB_PERSONAL_ACCESS_TOKENの設定確認（未設定でも起動可能）
 3. 設定ディレクトリの作成
 4. Docker依存関係の確認
-5. Dockerイメージのビルド
+5. Dockerイメージの取得（pull）
 6. サービスの起動
 7. コンテナ状態の確認
 
@@ -104,6 +103,16 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 ```
 
 **注意**: 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` が設定されている場合、`.env`ファイルの設定より優先されます。
+
+## HTTPエンドポイント
+
+- 既定URL: `http://127.0.0.1:8082`
+- HTTPモードでは各クライアントから `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送る必要があります。
+- 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
+
+```bash
+curl -i http://127.0.0.1:8082/
+```
 
 ## IDE統合
 
@@ -191,7 +200,7 @@ docker compose logs --tail=100 github-mcp
 
 ### イメージのバージョン固定
 
-- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `mcp-docker/github-mcp-server:v0.30.3-patched` を使用します。
+- `docker-compose.yml` と各サンプルは `GITHUB_MCP_IMAGE` 変数を参照し、デフォルトで `ghcr.io/github/github-mcp-server:main` を使用します。
 - 別のバージョンを使う場合は次のように上書きします:
 
 ```bash
@@ -201,7 +210,7 @@ docker compose pull github-mcp
 
 ### GitHub Actionsでのセキュリティスキャン
 
-- `Security Scan` ワークフロー（`.github/workflows/security.yml`）を復元し、CodeQL と Trivy の結果を GitHub Security タブへ送信します。
+- `Security Scan` ワークフロー（`.github/workflows/security.yml`）で、CodeQL と Trivy の結果を GitHub Security タブへ送信します。
 - ワークフローは `push`/`pull_request` に加えて毎週月曜 15:00 JST (`0 6 * * 1` UTC) に実行され、リポジトリ/コンテナ双方の脆弱性を継続的に監視します。
 
 ## 開発
@@ -330,9 +339,9 @@ Mcp-Docker/
 ├── tests/
 │   └── shell/                # シェルスクリプトテスト
 ├── docs/
-│   └── setup/                # IDE別セットアップガイド
+│   └── SECURITY_PATCHES.md   # セキュリティ方針
 └── examples/
-    └── ide-configs/          # IDE設定例
+    └── github-mcp/           # サンプルCompose
 ```
 
 ## トラブルシューティング
@@ -397,12 +406,12 @@ docker compose up -d --force-recreate github-mcp
 
 ```bash
 # ポート使用状況確認
-lsof -i :3000
-netstat -an | grep 3000
+lsof -i :8082
+netstat -an | grep 8082
 
 # ポート変更（docker-compose.yml編集）
 # ports:
-#   - "3001:3000"  # ホスト側ポートを変更
+#   - "127.0.0.1:8083:8082"  # ホスト側ポートを変更
 ```
 
 ## 運用ガードレール

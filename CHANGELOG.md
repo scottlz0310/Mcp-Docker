@@ -7,25 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🔐 Security
+### 🚨 Breaking Changes
 
-- **Critical Security Fix**: Created custom Docker image with updated OpenSSL to fix multiple critical vulnerabilities
-  - Fixed CVE-2025-15467 (Critical): OpenSSL - Remote code execution or Denial of Service via oversized Initialization Vector in CMS parsing
-  - Fixed CVE-2025-9230 (High): OpenSSL - Denial of Service via malformed PKCS#12 file processing
-  - Fixed CVE-2025-9231 (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12 processing
-  - Note: CVE-2025-9230 and CVE-2025-9231 are additional PKCS#12 vulnerabilities distinct from CVE-2025-69419 mentioned in v2.0.2
-- Added `Dockerfile.github-mcp-server` that wraps the official GitHub MCP Server image with the latest security-patched OpenSSL from Debian 12 repositories
-- Container now runs as non-root user (UID 65532) for enhanced security (fixes Trivy DS002)
-- Multi-architecture support added (x86_64, ARM64/aarch64)
-- Updated CA certificates copied from latest Debian security updates
-- Updated docker-compose.yml files to build and use the patched custom image
-- Updated security scanning workflow to build the custom image before scanning
+- Docker運用を `stdio` 前提から HTTP transport 前提へ変更
+- `docker-compose.yml` とサンプルの既定イメージを `ghcr.io/github/github-mcp-server:main` に変更
+- IDE設定生成スクリプトが `docker exec ... stdio` ではなく HTTP接続設定を出力するよう変更
 
 ### 🔧 Improvements
 
-- Updated documentation to reflect security patches and custom image usage
-- Modified setup script to build custom image instead of pulling upstream image
-- Added build target to Makefile for custom image
+- `setup.sh` を「build中心」から「pull中心」に更新
+- `health-check.sh` に MCP HTTPエンドポイント疎通チェックを追加
+- `security.yml` のコンテナスキャン対象を pull した公式イメージに変更
+- ドキュメントを HTTP運用・認証ヘッダー方式・最新イメージ方針に合わせて更新
 
 ## [2.0.2] - 2026-02-05
 

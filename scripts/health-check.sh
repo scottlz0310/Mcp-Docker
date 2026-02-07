@@ -69,24 +69,44 @@ ensure_docker_ready() {
     fi
 }
 
-extract_token_from_env_file() {
+extract_env_value() {
+    local key="$1"
     if [[ ! -f "${ENV_FILE}" ]]; then
         return 0
     fi
 
-    local token_line
-    token_line="$(grep -E "^GITHUB_PERSONAL_ACCESS_TOKEN=" "${ENV_FILE}" | tail -n1 || true)"
-    echo "${token_line#GITHUB_PERSONAL_ACCESS_TOKEN=}"
+    local line
+    line="$(grep -E "^${key}=" "${ENV_FILE}" | tail -n1 || true)"
+    echo "${line#*=}"
+}
+
+extract_token_from_env_file() {
+    extract_env_value "GITHUB_PERSONAL_ACCESS_TOKEN"
 }
 
 extract_api_url_from_env_file() {
-    if [[ ! -f "${ENV_FILE}" ]]; then
-        return 0
+    extract_env_value "GITHUB_API_URL"
+}
+
+resolve_server_url() {
+    local server_url="${GITHUB_MCP_SERVER_URL:-}"
+    if [[ -z "${server_url}" ]]; then
+        server_url="$(extract_env_value "GITHUB_MCP_SERVER_URL")"
     fi
 
-    local api_url_line
-    api_url_line="$(grep -E "^GITHUB_API_URL=" "${ENV_FILE}" | tail -n1 || true)"
-    echo "${api_url_line#GITHUB_API_URL=}"
+    if [[ -z "${server_url}" ]]; then
+        local http_port="${GITHUB_MCP_HTTP_PORT:-}"
+        if [[ -z "${http_port}" ]]; then
+            http_port="$(extract_env_value "GITHUB_MCP_HTTP_PORT")"
+        fi
+        if [[ -z "${http_port}" ]]; then
+            http_port="8082"
+        fi
+        server_url="http://127.0.0.1:${http_port}"
+    fi
+
+    server_url="${server_url%/}"
+    echo "${server_url}"
 }
 
 is_placeholder_token() {
@@ -143,6 +163,25 @@ if [[ "${restart_count}" != "0" ]]; then
     echo "   不安定な可能性があるためログ確認を推奨: docker compose logs --tail=200 github-mcp"
 else
     echo "✅ 再起動は発生していません"
+fi
+
+# HTTPエンドポイント確認
+server_url="$(resolve_server_url)"
+if command -v curl > /dev/null 2>&1; then
+    # curl failures should not abort the script, so we use || true and check the result
+    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${server_url}/" || true)"
+    # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
+    if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
+        http_status="000"
+    fi
+    if [[ "${http_status}" == "200" ]] || [[ "${http_status}" == "401" ]]; then
+        echo "✅ MCP HTTPエンドポイント疎通成功 (${server_url}, status=${http_status})"
+    else
+        echo "❌ MCP HTTPエンドポイント疎通失敗 (${server_url}, status=${http_status})"
+        exit 1
+    fi
+else
+    echo "⚠️  curl が未インストールのため、MCP HTTPエンドポイント確認をスキップします"
 fi
 
 # GitHub API接続確認

@@ -1,13 +1,9 @@
 services:
   github-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile.github-mcp-server
-    image: ${GITHUB_MCP_IMAGE:-mcp-docker/github-mcp-server:v0.30.3-patched}
+    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}
     container_name: mcp-github
     restart: unless-stopped
-    stdin_open: true
-    tty: true
+    command: ["http", "--port", "8082"]
 
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
@@ -18,11 +14,14 @@ services:
       - ./config/github-mcp:/app/config
       - github-mcp-cache:/app/cache
 
+    ports:
+      - "127.0.0.1:8082:8082"
+
     networks:
       - mcp-network
 
     # Note: GitHub MCP Server uses a distroless image without shell commands.
-    # Standard healthchecks are not possible for stdio-based MCP servers.
+    # Health is validated from host side via scripts/health-check.sh.
     healthcheck:
       disable: true
 

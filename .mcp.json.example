@@ -1,16 +1,10 @@
 {
   "mcpServers": {
     "github": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "mcp-github",
-        "/server/github-mcp-server",
-        "stdio"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      "type": "http",
+      "url": "http://127.0.0.1:8082",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
     }
   }
