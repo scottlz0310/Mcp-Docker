@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `setup.sh` を「build中心」から「pull中心」に更新
 - `health-check.sh` に MCP HTTPエンドポイント疎通チェックを追加
 - `security.yml` のコンテナスキャン対象を pull した公式イメージに変更
+- `docker-compose.yml` とサンプルのHTTPポートを `GITHUB_MCP_HTTP_PORT`（未設定時 `8082`）で一元化
 - ドキュメントを HTTP運用・認証ヘッダー方式・最新イメージ方針に合わせて更新
 
 ## [2.0.2] - 2026-02-05
