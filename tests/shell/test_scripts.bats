@@ -92,11 +92,11 @@ setup() {
     [ -f "${PROJECT_ROOT}/config/ide-configs/codex/config.toml" ]
 }
 
-@test "generate-ide-config.sh: copilot-cli設定(TOML)生成が動作する" {
+@test "generate-ide-config.sh: copilot-cli設定(JSON)生成が動作する" {
     run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide copilot-cli
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "Copilot CLI設定(TOML)を生成しました" ]]
-    [ -f "${PROJECT_ROOT}/config/ide-configs/copilot-cli/config.toml" ]
+    [[ "$output" =~ "Copilot CLI設定(JSON)を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/copilot-cli/mcp-config.json" ]
 }
 
 @test "generate-ide-config.sh: 無効なIDE名でエラー" {

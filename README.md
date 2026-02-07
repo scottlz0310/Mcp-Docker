@@ -179,11 +179,11 @@ docker compose up -d github-mcp
 ### Copilot CLI
 
 ```bash
-# 設定生成 (TOML)
+# 設定生成 (JSON)
 ./scripts/generate-ide-config.sh --ide copilot-cli
 
-# 必要に応じて Copilot CLI 設定へ転記
-# ~/.copilot 配下の設定ファイル
+# Copilot CLI MCP設定ファイルに配置
+# ~/.copilot/mcp-config.json
 ```
 
 ## 基本操作

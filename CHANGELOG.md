@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixes
+
+- `generate-ide-config.sh --ide copilot-cli` の出力形式を TOML から JSON（`mcp-config.json`）へ修正
+- README とシェルテストを Copilot CLI の JSON 設定方式に合わせて更新
+
 ## [2.1.0] - 2026-02-07
 
 ### 🚨 Breaking Changes
