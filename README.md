@@ -361,7 +361,7 @@ docker compose up -d --force-recreate github-mcp
 cat .env | grep GITHUB_PERSONAL_ACCESS_TOKEN
 
 # トークンの有効性確認
-curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user
+curl -H "Authorization: Bearer YOUR_TOKEN" https://api.github.com/user
 
 # コンテナ設定から確認（distrolessのため exec env は非対応）
 docker inspect mcp-github --format='{{range .Config.Env}}{{println .}}{{end}}' | grep GITHUB
