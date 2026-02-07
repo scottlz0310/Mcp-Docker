@@ -15,6 +15,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Use the official github-mcp-server image as source
+# NOTE: Using :main tag for access to HTTP transport support (not in stable releases as of v0.30.3).
+# The :main tag is mutable and not suitable for reproducible builds.
+# For production environments, consider pinning by digest once HTTP support is in a stable release.
 FROM ghcr.io/github/github-mcp-server:main AS upstream
 
 # Stage 3: Build final image with updated OpenSSL
@@ -37,7 +40,6 @@ COPY --from=debian-updates /etc/ssl/certs /etc/ssl/certs
 WORKDIR /server
 
 # Copy the binary from the upstream image
-# Note: Binary integrity is maintained by using the official GitHub image with a pinned version tag
 # The upstream image is built and signed by GitHub's official CI/CD pipeline
 COPY --from=upstream /server/github-mcp-server .
 

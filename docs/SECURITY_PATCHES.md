@@ -21,8 +21,17 @@
 
 `main` タグは更新されるため、再現性が必要な環境では digest 固定を推奨します。
 
+現在利用中のイメージの digest は以下のコマンドで取得できます:
+
 ```bash
-export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server@sha256:cfbd0263d511234a9f1d8c045de74f05509ca2f0d0dd35cb4b63024f4c3a0b37
+docker pull ghcr.io/github/github-mcp-server:main
+docker inspect ghcr.io/github/github-mcp-server:main --format='{{index .RepoDigests 0}}'
+```
+
+取得した digest の完全な文字列（`ghcr.io/github/github-mcp-server@sha256:...`）をそのまま使用してバージョンを固定:
+
+```bash
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server@sha256:1234567890abcdef...
 docker compose pull github-mcp
 docker compose up -d github-mcp
 ```
