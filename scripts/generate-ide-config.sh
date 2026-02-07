@@ -14,11 +14,15 @@ IDE名:
   claude-desktop  Claude Desktop
   kiro            Kiro
   amazonq         Amazon Q
+  codex           Codex CLI
+  copilot-cli     GitHub Copilot CLI
 
 例:
   $0 --ide vscode
   $0 --ide claude-desktop
   $0 --ide amazonq
+  $0 --ide codex
+  $0 --ide copilot-cli
 EOF
     exit 1
 }
@@ -185,6 +189,43 @@ EOF
         echo "      VS Code: 設定 > Amazon Q > MCP Servers"
         echo "   3. 上記の設定を追加"
         echo "   4. 接続先URL: ${SERVER_URL}"
+        echo ""
+        echo "💡 環境変数の設定も忘れずに:"
+        echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
+        ;;
+
+    codex)
+        cat > "${OUTPUT_DIR}/config.toml" <<EOF
+[mcp_servers.github]
+url = "${SERVER_URL}"
+bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
+EOF
+        echo "✅ Codex設定(TOML)を生成しました: ${OUTPUT_DIR}/config.toml"
+        echo ""
+        echo "📋 設定方法:"
+        echo "   1. Dockerコンテナを起動: docker compose up -d"
+        echo "   2. Codex設定ファイルを開く"
+        echo "      既定: ~/.codex/config.toml"
+        echo "   3. 上記設定を追記"
+        echo "   4. 接続先URL: ${SERVER_URL}"
+        echo ""
+        echo "💡 環境変数の設定も忘れずに:"
+        echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
+        ;;
+
+    copilot-cli)
+        cat > "${OUTPUT_DIR}/config.toml" <<EOF
+[mcp_servers.github]
+url = "${SERVER_URL}"
+bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
+EOF
+        echo "✅ Copilot CLI設定(TOML)を生成しました: ${OUTPUT_DIR}/config.toml"
+        echo ""
+        echo "📋 設定方法:"
+        echo "   1. Dockerコンテナを起動: docker compose up -d"
+        echo "   2. Copilot CLI設定にTOMLを反映"
+        echo "      （必要に応じて ~/.copilot 配下の設定へ転記）"
+        echo "   3. 接続先URL: ${SERVER_URL}"
         echo ""
         echo "💡 環境変数の設定も忘れずに:"
         echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"

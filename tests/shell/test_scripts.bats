@@ -85,6 +85,20 @@ setup() {
     [ -f "${PROJECT_ROOT}/config/ide-configs/amazonq/mcp.json" ]
 }
 
+@test "generate-ide-config.sh: codex設定(TOML)生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide codex
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Codex設定(TOML)を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/codex/config.toml" ]
+}
+
+@test "generate-ide-config.sh: copilot-cli設定(TOML)生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide copilot-cli
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Copilot CLI設定(TOML)を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/copilot-cli/config.toml" ]
+}
+
 @test "generate-ide-config.sh: 無効なIDE名でエラー" {
     run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide invalid
     [ "$status" -eq 1 ]
