@@ -5,9 +5,9 @@ services:
     container_name: mcp-github
     env_file: .env
     restart: unless-stopped
-    command: ["http", "--port", "8082"]
+    command: ["http", "--port", "${GITHUB_MCP_HTTP_PORT:-8082}"]
     ports:
-      - "127.0.0.1:8082:8082"
+      - "127.0.0.1:${GITHUB_MCP_HTTP_PORT:-8082}:${GITHUB_MCP_HTTP_PORT:-8082}"
     networks:
       - mcp-network
 

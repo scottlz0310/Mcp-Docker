@@ -107,11 +107,18 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 ## HTTPエンドポイント
 
 - 既定URL: `http://127.0.0.1:8082`
+- ポートを変更する場合: `GITHUB_MCP_HTTP_PORT` を設定（未設定時は `8082`）
 - HTTPモードでは各クライアントから `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送る必要があります。
 - 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
 
 ```bash
 curl -i http://127.0.0.1:8082/
+```
+
+```bash
+# 例: 18082で起動
+export GITHUB_MCP_HTTP_PORT=18082
+docker compose up -d github-mcp
 ```
 
 ## IDE統合
@@ -409,9 +416,9 @@ docker compose up -d --force-recreate github-mcp
 lsof -i :8082
 netstat -an | grep 8082
 
-# ポート変更（docker-compose.yml編集）
-# ports:
-#   - "127.0.0.1:8083:8082"  # ホスト側ポートを変更
+# ポート変更（環境変数）
+export GITHUB_MCP_HTTP_PORT=8083
+docker compose up -d --force-recreate github-mcp
 ```
 
 ## 運用ガードレール
