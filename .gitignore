@@ -159,6 +159,7 @@ $RECYCLE.BIN/
 .coverage.*
 .dmypy.json
 .docker/
+.dockerignore
 .env.development.local
 .env.local
 .env.production.local

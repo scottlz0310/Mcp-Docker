@@ -2,17 +2,6 @@
 
 VS Code、Cursor、Kiro等の統合IDEにGitHub MCP Server機能を提供するDocker常駐サービス。
 
-## セキュリティパッチ適用済み
-
-このプロジェクトでは、GitHub公式MCPサーバーイメージにOpenSSLセキュリティパッチを適用したカスタムイメージを使用しています。
-
-**修正済みの脆弱性:**
-- **CVE-2025-15467** (Critical): OpenSSL - Remote code execution via oversized IV in CMS parsing
-- **CVE-2025-9230** (High): OpenSSL - Denial of Service via malformed PKCS#12 file
-- **CVE-2025-9231** (High): OpenSSL - Arbitrary code execution due to out-of-bounds write in PKCS#12
-
-カスタムイメージはDebian 12リポジトリが提供する最新のセキュリティパッチ適用済みOpenSSL 3.x系を使用しており、上記の脆弱性が修正されています。
-
 ## 概要
 
 GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各IDEから統一的にGitHub機能を利用できます。

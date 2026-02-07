@@ -33,11 +33,8 @@ status: ## 状態確認
 	docker compose ps
 
 .PHONY: pull
-pull: build ## Dockerイメージをビルド（build と同じ）
-
-.PHONY: build
-build: ## Dockerイメージをビルド
-	docker compose build github-mcp
+pull: ## Dockerイメージを更新
+	docker compose pull github-mcp
 
 # ----------------------------------------
 # 開発
