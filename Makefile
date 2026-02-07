@@ -17,6 +17,10 @@ help: ## 利用可能なターゲット一覧を表示
 start: ## GitHub MCPサーバー起動
 	docker compose up -d github-mcp
 
+.PHONY: prepare
+prepare: ## 環境整備のみ実行（.env作成・事前確認）
+	./scripts/setup.sh --prepare-only
+
 .PHONY: stop
 stop: ## GitHub MCPサーバー停止
 	docker compose down

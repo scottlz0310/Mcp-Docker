@@ -16,6 +16,12 @@ setup() {
     bash -n "${SCRIPTS_DIR}/setup.sh"
 }
 
+@test "setup.sh: prepare-onlyモードが動作する" {
+    run "${SCRIPTS_DIR}/setup.sh" --prepare-only
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "環境整備のみ完了しました" ]]
+}
+
 @test "health-check.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/health-check.sh" ]
     [ -x "${SCRIPTS_DIR}/health-check.sh" ]
