@@ -79,6 +79,16 @@ extract_token_from_env_file() {
     echo "${token_line#GITHUB_PERSONAL_ACCESS_TOKEN=}"
 }
 
+extract_api_url_from_env_file() {
+    if [[ ! -f "${ENV_FILE}" ]]; then
+        return 0
+    fi
+
+    local api_url_line
+    api_url_line="$(grep -E "^GITHUB_API_URL=" "${ENV_FILE}" | tail -n1 || true)"
+    echo "${api_url_line#GITHUB_API_URL=}"
+}
+
 is_placeholder_token() {
     local token="$1"
 
@@ -86,8 +96,10 @@ is_placeholder_token() {
         return 0
     fi
 
+    # Match common placeholder patterns from .env.template
+    # Explicit patterns improve readability despite redundancy with *your_token_here*
     case "${token}" in
-        github_pat_x*|ghp_x*|github_pat_your_token_here|ghp_your_token_here|*your_token_here*)
+        github_pat_your_token_here|ghp_your_token_here|*your_token_here*)
             return 0
             ;;
     esac
@@ -110,16 +122,10 @@ echo ""
 ensure_docker_ready
 
 # コンテナ状態確認
-if ! docker compose ps github-mcp | grep -q "Up"; then
-    echo "❌ コンテナが起動していません"
-    echo "   起動: docker compose up -d github-mcp"
-    exit 1
-fi
-echo "✅ コンテナは起動しています"
-
 container_id="$(docker compose ps -q github-mcp)"
 if [[ -z "${container_id}" ]]; then
-    echo "❌ コンテナIDを取得できませんでした"
+    echo "❌ コンテナが見つかりません"
+    echo "   起動: docker compose up -d github-mcp"
     exit 1
 fi
 
@@ -129,7 +135,7 @@ if [[ "${running_state}" != "true" ]]; then
     echo "   ログ確認: docker compose logs github-mcp"
     exit 1
 fi
-echo "✅ コンテナ実行状態は正常です"
+echo "✅ コンテナは起動しています"
 
 restart_count="$(docker inspect -f '{{.RestartCount}}' "${container_id}")"
 if [[ "${restart_count}" != "0" ]]; then
@@ -145,6 +151,14 @@ if [[ -z "${token}" ]]; then
     token="$(extract_token_from_env_file)"
 fi
 
+api_url="${GITHUB_API_URL:-}"
+if [[ -z "${api_url}" ]]; then
+    api_url="$(extract_api_url_from_env_file)"
+fi
+if [[ -z "${api_url}" ]]; then
+    api_url="https://api.github.com"
+fi
+
 should_run_api_check=false
 if [[ "${WITH_API_CHECK}" == "always" ]]; then
     should_run_api_check=true
@@ -157,7 +171,7 @@ if [[ "${should_run_api_check}" == "true" ]]; then
         echo "⚠️  GITHUB_PERSONAL_ACCESS_TOKEN が未設定またはプレースホルダのため、API接続確認をスキップします"
     elif ! command -v curl > /dev/null 2>&1; then
         echo "⚠️  curl が未インストールのため、API接続確認をスキップします"
-    elif curl -fsS -H "Authorization: Bearer ${token}" https://api.github.com/user > /dev/null; then
+    elif curl -fsS -H "Authorization: Bearer ${token}" "${api_url}/user" > /dev/null; then
         echo "✅ GitHub API接続成功"
     else
         echo "❌ GitHub API接続失敗"

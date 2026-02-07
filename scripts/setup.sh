@@ -64,8 +64,10 @@ is_placeholder_token() {
         return 0
     fi
 
+    # Match common placeholder patterns from .env.template
+    # Explicit patterns improve readability despite redundancy with *your_token_here*
     case "${token}" in
-        github_pat_x*|ghp_x*|github_pat_your_token_here|ghp_your_token_here|*your_token_here*)
+        github_pat_your_token_here|ghp_your_token_here|*your_token_here*)
             return 0
             ;;
     esac

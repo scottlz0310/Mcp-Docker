@@ -31,6 +31,24 @@ setup() {
     bash -n "${SCRIPTS_DIR}/health-check.sh"
 }
 
+@test "health-check.sh: --helpオプションが動作する" {
+    run "${SCRIPTS_DIR}/health-check.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "使用方法" ]]
+}
+
+@test "health-check.sh: -hオプションが動作する" {
+    run "${SCRIPTS_DIR}/health-check.sh" -h
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "使用方法" ]]
+}
+
+@test "health-check.sh: 不明なオプションでエラー終了する" {
+    run "${SCRIPTS_DIR}/health-check.sh" --unknown-option
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "不明なオプション" ]]
+}
+
 @test "generate-ide-config.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/generate-ide-config.sh" ]
     [ -x "${SCRIPTS_DIR}/generate-ide-config.sh" ]
