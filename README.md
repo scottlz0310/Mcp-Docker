@@ -166,6 +166,26 @@ docker compose up -d github-mcp
 # VS Code: 設定 > Amazon Q > MCP Servers
 ```
 
+### Codex CLI
+
+```bash
+# 設定生成 (TOML)
+./scripts/generate-ide-config.sh --ide codex
+
+# 設定ファイルに追記
+# ~/.codex/config.toml
+```
+
+### Copilot CLI
+
+```bash
+# 設定生成 (TOML)
+./scripts/generate-ide-config.sh --ide copilot-cli
+
+# 必要に応じて Copilot CLI 設定へ転記
+# ~/.copilot 配下の設定ファイル
+```
+
 ## 基本操作
 
 ### サービス管理
