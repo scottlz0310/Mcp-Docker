@@ -1,15 +1,13 @@
 ---
 services:
   github-mcp:
-    build:
-      context: ../..
-      dockerfile: Dockerfile.github-mcp-server
-    image: ${GITHUB_MCP_IMAGE:-mcp-docker/github-mcp-server:v0.30.3-patched}
+    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}
     container_name: mcp-github
     env_file: .env
-    stdin_open: true
-    tty: true
     restart: unless-stopped
+    command: ["http", "--port", "8082"]
+    ports:
+      - "127.0.0.1:8082:8082"
     networks:
       - mcp-network
 
