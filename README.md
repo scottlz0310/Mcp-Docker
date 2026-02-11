@@ -237,7 +237,7 @@ docker compose pull github-mcp
 
 ### GitHub Actionsでのセキュリティスキャン
 
-- `Security Scan` ワークフロー（`.github/workflows/security.yml`）で、CodeQL と Trivy の結果を GitHub Security タブへ送信します。
+- `Security Scan` ワークフロー（`.github/workflows/security.yml`）で、Trivy の結果を GitHub Security タブへ送信します。
 - ワークフローは `push`/`pull_request` に加えて毎週月曜 15:00 JST (`0 6 * * 1` UTC) に実行され、リポジトリ/コンテナ双方の脆弱性を継続的に監視します。
 
 ## 開発
