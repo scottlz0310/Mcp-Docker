@@ -1,5 +1,5 @@
 # Optional custom Dockerfile for github-mcp-server with refreshed OpenSSL
-# This wraps the official image while preserving upstream server behavior.
+# Builds github-mcp-server from source and packages it in a distroless runtime image.
 
 # Stage 1: Get updated OpenSSL libraries from latest Debian 12
 FROM debian:bookworm-slim AS debian-updates
@@ -14,11 +14,40 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Use the official github-mcp-server image as source
-# NOTE: Using :main tag for access to HTTP transport support (not in stable releases as of v0.30.3).
-# The :main tag is mutable and not suitable for reproducible builds.
-# For production environments, consider pinning by digest once HTTP support is in a stable release.
-FROM ghcr.io/github/github-mcp-server:main AS upstream
+# Stage 2: Build github-mcp-server with a patched Go SDK dependency
+FROM golang:1.24-bookworm AS builder
+
+ARG GITHUB_MCP_SERVER_REPO=https://github.com/github/github-mcp-server.git
+ARG GITHUB_MCP_SERVER_REF=main
+ARG GO_SDK_VERSION=v1.3.1
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+WORKDIR /src
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        ca-certificates && \
+    update-ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git init . && \
+    git remote add origin ${GITHUB_MCP_SERVER_REPO} && \
+    git fetch --depth 1 origin ${GITHUB_MCP_SERVER_REF} && \
+    git checkout FETCH_HEAD
+
+# Keep compatibility with go-sdk v1.3.1 capability naming.
+RUN sed -i 's/Capabilities.Extensions/Capabilities.Experimental/g' /src/pkg/github/ui_capability.go
+
+# Pin go-sdk to the fixed release for CVE-2026-27896.
+RUN go mod edit -require=github.com/modelcontextprotocol/go-sdk@${GO_SDK_VERSION} && \
+    go mod tidy && \
+    test "$(go list -m -f '{{.Version}}' github.com/modelcontextprotocol/go-sdk)" = "${GO_SDK_VERSION}"
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /server/github-mcp-server ./cmd/github-mcp-server
 
 # Stage 3: Build final image with updated OpenSSL
 FROM gcr.io/distroless/base-debian12:latest
@@ -39,9 +68,8 @@ COPY --from=debian-updates /etc/ssl/certs /etc/ssl/certs
 # Set the working directory
 WORKDIR /server
 
-# Copy the binary from the upstream image
-# The upstream image is built and signed by GitHub's official CI/CD pipeline
-COPY --from=upstream /server/github-mcp-server .
+# Copy the binary from the builder stage
+COPY --from=builder /server/github-mcp-server .
 
 # Set environment variable for SSL certificates (distroless already has them)
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
