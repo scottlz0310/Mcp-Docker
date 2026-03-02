@@ -10,7 +10,9 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_MCP_IMAGE: ${{ vars.GITHUB_MCP_IMAGE || 'ghcr.io/github/github-mcp-server:main' }}
+  GITHUB_MCP_SERVER_REF: ${{ vars.GITHUB_MCP_SERVER_REF || 'main' }}
+  GITHUB_MCP_GO_SDK_VERSION: ${{ vars.GITHUB_MCP_GO_SDK_VERSION || 'v1.3.1' }}
+  SECURITY_SCAN_IMAGE: github-mcp-server:security-scan
 
 permissions:
   contents: read
@@ -56,13 +58,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Pull GitHub MCP Server image
-        run: docker pull ${{ env.GITHUB_MCP_IMAGE }}
+      - name: Build patched GitHub MCP Server image
+        run: |
+          docker build \
+            --build-arg GITHUB_MCP_SERVER_REF=${{ env.GITHUB_MCP_SERVER_REF }} \
+            --build-arg GO_SDK_VERSION=${{ env.GITHUB_MCP_GO_SDK_VERSION }} \
+            -f Dockerfile.github-mcp-server \
+            -t ${{ env.SECURITY_SCAN_IMAGE }} \
+            .
 
       - name: Run Trivy container scan
         uses: aquasecurity/trivy-action@0.34.1
         with:
-          image-ref: ${{ env.GITHUB_MCP_IMAGE }}
+          image-ref: ${{ env.SECURITY_SCAN_IMAGE }}
           format: sarif
           output: trivy-container-results.sarif
           vuln-type: os,library

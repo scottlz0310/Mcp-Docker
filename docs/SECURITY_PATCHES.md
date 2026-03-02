@@ -2,18 +2,19 @@
 
 ## 現在の運用
 
-2026-02-07時点で、本プロジェクトは公式イメージを直接利用します。
+2026-03-02時点で、本プロジェクトは実行時には公式イメージを利用しつつ、Security Scan では再ビルドした検証用イメージを利用します。
 
 - 既定: `ghcr.io/github/github-mcp-server:main`
 - 理由: HTTP transport（`github-mcp-server http`）を利用するため
 - 補足: 公式最新リリース `v0.30.3` には `http` サブコマンドが未搭載
+- Security Scan補足: `Dockerfile.github-mcp-server` で `go-sdk v1.3.1` を固定してビルドしたイメージをTrivyでスキャン
 
 ## 脆弱性管理
 
 `.github/workflows/security.yml` で以下を継続実行します。
 
 1. Trivy filesystem scan（リポジトリ全体）
-2. Trivy container scan（`GITHUB_MCP_IMAGE`）
+2. Trivy container scan（`Dockerfile.github-mcp-server` からビルドした `github-mcp-server:security-scan`）
 
 これにより、利用イメージを更新しても継続的に脆弱性を検出できます。
 
