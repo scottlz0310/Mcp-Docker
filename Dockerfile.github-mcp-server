@@ -35,6 +35,9 @@ RUN apt-get update && \
 
 RUN git clone --depth 1 --branch ${GITHUB_MCP_SERVER_REF} ${GITHUB_MCP_SERVER_REPO} /src
 
+# Keep compatibility with go-sdk v1.3.1 capability naming.
+RUN sed -i 's/Capabilities.Extensions/Capabilities.Experimental/g' /src/pkg/github/ui_capability.go
+
 # Pin go-sdk to the fixed release for CVE-2026-27896.
 RUN go mod edit -require=github.com/modelcontextprotocol/go-sdk@${GO_SDK_VERSION} && \
     go mod tidy && \
