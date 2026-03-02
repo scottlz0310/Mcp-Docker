@@ -33,7 +33,10 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch ${GITHUB_MCP_SERVER_REF} ${GITHUB_MCP_SERVER_REPO} /src
+RUN git init . && \
+    git remote add origin ${GITHUB_MCP_SERVER_REPO} && \
+    git fetch --depth 1 origin ${GITHUB_MCP_SERVER_REF} && \
+    git checkout FETCH_HEAD
 
 # Keep compatibility with go-sdk v1.3.1 capability naming.
 RUN sed -i 's/Capabilities.Extensions/Capabilities.Experimental/g' /src/pkg/github/ui_capability.go
