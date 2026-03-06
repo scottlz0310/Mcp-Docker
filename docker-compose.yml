@@ -6,7 +6,7 @@ services:
     command: ["http", "--port", "${GITHUB_MCP_HTTP_PORT:-8082}"]
 
     environment:
-      - MCP_GITHUB_PAT=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - MCP_GITHUB_PAT=${MCP_GITHUB_PAT:-${GITHUB_PERSONAL_ACCESS_TOKEN}}
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - LOG_LEVEL=${LOG_LEVEL:-info}
