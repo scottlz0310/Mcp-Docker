@@ -111,24 +111,28 @@ Mcp-Docker/
 | `pull_number` | int | ✓ | - | PRの番号 |
 | `is_resolved` | bool/null | - | `null` | `true`: 解決済みのみ, `false`: 未解決のみ, `null` (省略): 全件 |
 
-#### 返却値（スレッド配列）
+#### 返却値
 
 ```json
-[
-  {
-    "id": "PRRT_kwDOxxxxxxxxxxxxxxxx",
-    "isResolved": false,
-    "isOutdated": false,
-    "path": "src/foo.go",
-    "line": 42,
-    "startLine": 40,
-    "firstComment": {
-      "body": "この処理はエラーハンドリングが必要では？",
-      "author": "reviewer",
-      "createdAt": "2026-03-15T10:00:00Z"
+{
+  "threads": [
+    {
+      "id": "PRRT_kwDOxxxxxxxxxxxxxxxx",
+      "isResolved": false,
+      "isOutdated": false,
+      "path": "src/foo.go",
+      "line": 42,
+      "startLine": 40,
+      "firstComment": {
+        "body": "この処理はエラーハンドリングが必要では？",
+        "author": "reviewer",
+        "createdAt": "2026-03-15T10:00:00Z"
+      }
     }
-  }
-]
+  ],
+  "totalCount": 1,
+  "truncated": false
+}
 ```
 
 | フィールド | 説明 |
@@ -194,7 +198,7 @@ query ListPRReviewThreads($owner: String!, $repo: String!, $number: Int!, $after
 - URL: `${GITHUB_API_URL}/graphql` (デフォルト: `https://api.github.com/graphql`)
 - 認証: `Authorization: Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}`
 - メソッド: `POST`
-- 依存ライブラリ: 追加なし（Go標準の `net/http` + `encoding/json` で実装）
+- 依存ライブラリ: `github.com/shurcooL/githubv4`（既存の依存、`go.mod` への追加変更なし）
 
 ### 5.3 ページネーション
 
