@@ -153,7 +153,7 @@ Mcp-Docker/
 |------|------|
 | PR が存在しない | `404 Not Found` エラー |
 | 権限不足 | `403 Forbidden` エラー |
-| スレッドが0件 | `{ "threads": [], "totalCount": 0, "truncated": false }` |
+| スレッドが0件 | `{ "threads": [], "totalCount": 0 }` （`truncated` は `true` のときのみ返却） |
 
 ---
 
@@ -167,6 +167,9 @@ query ListPRReviewThreads($owner: String!, $repo: String!, $number: Int!) {
     pullRequest(number: $number) {
       reviewThreads(first: 100) {
         totalCount
+        pageInfo {
+          hasNextPage
+        }
         nodes {
           id
           isResolved
