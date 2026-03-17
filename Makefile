@@ -43,6 +43,14 @@ pull: ## Dockerイメージを取得
 .PHONY: build
 build: pull ## 互換性のため pull を実行
 
+.PHONY: build-custom
+build-custom: ## カスタムビルド（list_pull_request_review_threads パッチ適用）
+	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose build github-mcp
+
+.PHONY: start-custom
+start-custom: build-custom ## カスタムビルド後に起動
+	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose up -d github-mcp
+
 # ----------------------------------------
 # 開発
 # ----------------------------------------

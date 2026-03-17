@@ -46,6 +46,17 @@ RUN go mod edit -require=github.com/modelcontextprotocol/go-sdk@${GO_SDK_VERSION
     go mod tidy && \
     test "$(go list -m -f '{{.Version}}' github.com/modelcontextprotocol/go-sdk)" = "${GO_SDK_VERSION}"
 
+# Inject list_pull_request_review_threads tool (patches/github/list_pr_review_threads.go).
+# This tool exposes GraphQL-only PRRT_ thread node IDs needed by
+# resolve_pull_request_review_thread.
+COPY patches/github/list_pr_review_threads.go /src/pkg/github/
+
+# Register the new tool in AllTools() immediately after AddReplyToPullRequestComment.
+RUN sed -i \
+    's/AddReplyToPullRequestComment(t),/AddReplyToPullRequestComment(t),\n\t\tListPullRequestReviewThreads(t),/' \
+    /src/pkg/github/tools.go && \
+    grep -q 'ListPullRequestReviewThreads' /src/pkg/github/tools.go
+
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w" -o /server/github-mcp-server ./cmd/github-mcp-server
 

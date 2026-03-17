@@ -110,14 +110,21 @@ EOF
         ;;
     
     claude-desktop)
+        # Claude Desktop は HTTP transport 非対応 (stdio のみ)
+        # docker run -i でバイナリを直接 stdio モードで起動する
+        local CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}"
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
     "github": {
-      "type": "http",
-      "url": "${SERVER_URL}",
-      "headers": {
-        "Authorization": "Bearer \${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "${CLAUDE_IMAGE}"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"
       }
     }
   }
@@ -125,17 +132,20 @@ EOF
 EOF
         echo "✅ Claude Desktop設定を生成しました: ${OUTPUT_DIR}/claude_desktop_config.json"
         echo ""
+        echo "⚠️  Claude Desktop は HTTP transport 非対応のため stdio (docker run -i) を使用します"
+        echo "   docker compose up は不要です。Claude Desktop が docker run を直接実行します。"
+        echo ""
         echo "📋 設定方法:"
-        echo "   1. Dockerコンテナを起動: docker compose up -d"
-        echo "   2. Claude Desktop設定ファイルを開く"
+        echo "   1. Claude Desktop設定ファイルを開く"
         echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
         echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
         echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
-        echo "   3. 上記の設定を追加"
-        echo "   4. 接続先URL: ${SERVER_URL}"
+        echo "   2. 上記の設定を追加し、GITHUB_PERSONAL_ACCESS_TOKEN の値を実際のトークンに変更"
+        echo "   3. Claude Desktop を再起動"
         echo ""
-        echo "💡 環境変数の設定も忘れずに:"
-        echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
+        echo "💡 カスタムビルドイメージを使う場合:"
+        echo "   GITHUB_MCP_IMAGE=mcp-github-patched:latest $0 --ide claude-desktop"
+        echo "   (事前に make build-custom でイメージをビルドしてください)"
         ;;
     
     kiro)

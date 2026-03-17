@@ -7,10 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-03-17
+
+### ✨ 新機能
+
+- `list_pull_request_review_threads` ツールを追加（Goソースパッチビルド方式）
+  - `resolve_pull_request_review_thread` との一気通貫フローを実現
+  - GraphQL API 経由でレビュースレッドの node ID（`PRRT_xxx`）を取得可能に
+  - `is_resolved` 引数で解決済み/未解決フィルタが可能（省略時は全件）
+  - `patches/github/list_pr_review_threads.go` を `Dockerfile.github-mcp-server` で注入するソースパッチ方式
+  - カスタムイメージのビルド・起動は `make build-custom` / `make start-custom`
+
 ### 🐛 Fixes
 
-- `generate-ide-config.sh --ide copilot-cli` の出力形式を TOML から JSON（`mcp-config.json`）へ修正
-- README とシェルテストを Copilot CLI の JSON 設定方式に合わせて更新
+- `generate-ide-config.sh --ide claude-desktop` の設定を HTTP から stdio（`docker run -i`）へ修正
+  - Claude Desktop は HTTP transport 非対応のため、`docker run --rm -i` でバイナリを直接 stdio 起動する設定に変更
+  - `GITHUB_MCP_IMAGE` 環境変数でカスタムビルドイメージも指定可能
 
 ## [2.1.0] - 2026-02-07
 
