@@ -153,7 +153,7 @@ Mcp-Docker/
 |------|------|
 | PR が存在しない | `404 Not Found` エラー |
 | 権限不足 | `403 Forbidden` エラー |
-| スレッドが0件 | 空配列 `[]` |
+| スレッドが0件 | `{ "threads": [], "totalCount": 0 }` （`truncated` は `true` のときのみ返却） |
 
 ---
 
@@ -162,13 +162,13 @@ Mcp-Docker/
 ### 5.1 使用するクエリ
 
 ```graphql
-query ListPRReviewThreads($owner: String!, $repo: String!, $number: Int!, $after: String) {
+query ListPRReviewThreads($owner: String!, $repo: String!, $number: Int!) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
-      reviewThreads(first: 100, after: $after) {
+      reviewThreads(first: 100) {
+        totalCount
         pageInfo {
           hasNextPage
-          endCursor
         }
         nodes {
           id
