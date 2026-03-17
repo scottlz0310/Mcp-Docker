@@ -112,7 +112,7 @@ EOF
     claude-desktop)
         # Claude Desktop は HTTP transport 非対応 (stdio のみ)
         # docker run -i でバイナリを直接 stdio モードで起動する
-        local CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}"
+        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}"
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
@@ -121,7 +121,8 @@ EOF
       "args": [
         "run", "--rm", "-i",
         "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "${CLAUDE_IMAGE}"
+        "${CLAUDE_IMAGE}",
+        "stdio"
       ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"

@@ -1,0 +1,13 @@
+# Docker Compose override for custom patched image builds.
+# Use with:
+#   make build-custom   # equivalent to:
+#   docker compose -f docker-compose.yml -f docker-compose.custom.yml build github-mcp
+#
+# This file adds the build: section only when explicitly requested,
+# keeping the default docker-compose.yml clean for normal pull-based operation.
+
+services:
+  github-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.github-mcp-server
