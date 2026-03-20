@@ -71,8 +71,14 @@ setup() {
     [ -f "${PROJECT_ROOT}/config/ide-configs/vscode/settings.json" ]
 }
 
-@test "generate-ide-config.sh: claude-desktop設定生成が動作する" {
-    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop
+@test "generate-ide-config.sh: claude-desktop設定生成がGITHUB_MCP_IMAGE未設定でエラー終了する" {
+    run env -u GITHUB_MCP_IMAGE "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop
+    [ "$status" -eq 1 ]
+    [[ "$output" =~ "エラー" ]]
+}
+
+@test "generate-ide-config.sh: claude-desktop設定生成がGITHUB_MCP_IMAGE設定時に動作する" {
+    run env GITHUB_MCP_IMAGE=mcp-github-patched:latest "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Claude Desktop設定を生成しました" ]]
     [ -f "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json" ]
