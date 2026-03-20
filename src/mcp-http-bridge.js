@@ -224,8 +224,19 @@ async function forwardRequest(rawPayload, options) {
   });
 
   const contentType = response.headers.get('content-type') || '';
+
   if (contentType.toLowerCase().startsWith('text/event-stream')) {
-    throw new Error('text/event-stream responses are not supported');
+    // SSE (Streamable HTTP transport): extract each `data:` line as a JSON-RPC message.
+    const text = await response.text();
+    const results = [];
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('data:')) {
+        const data = trimmed.slice(5).trim();
+        if (data) results.push(data);
+      }
+    }
+    return results.length > 0 ? results : null;
   }
 
   const responseText = await response.text();
@@ -288,27 +299,32 @@ function startBridge(options, io = {}) {
             continue;
           }
 
-          let responsePayload;
-          try {
-            responsePayload = JSON.parse(responseText);
-          } catch (upstreamParseError) {
-            logError(error, 'Upstream returned invalid JSON', upstreamParseError);
-            const requestId = getRequestId(request);
-            if (requestId !== undefined) {
-              writeMessage(
-                output,
-                createJsonRpcError(
-                  requestId,
-                  JSON_RPC_SERVER_ERROR,
-                  'Upstream returned invalid JSON',
-                  truncate(responseText)
-                )
-              );
-            }
-            continue;
-          }
+          // SSE returns string[], plain HTTP returns string
+          const messages = Array.isArray(responseText) ? responseText : [responseText];
 
-          writeMessage(output, responsePayload);
+          for (const msg of messages) {
+            let responsePayload;
+            try {
+              responsePayload = JSON.parse(msg);
+            } catch (upstreamParseError) {
+              logError(error, 'Upstream returned invalid JSON', upstreamParseError);
+              const requestId = getRequestId(request);
+              if (requestId !== undefined) {
+                writeMessage(
+                  output,
+                  createJsonRpcError(
+                    requestId,
+                    JSON_RPC_SERVER_ERROR,
+                    'Upstream returned invalid JSON',
+                    truncate(msg)
+                  )
+                );
+              }
+              continue;
+            }
+
+            writeMessage(output, responsePayload);
+          }
         } catch (requestError) {
           logError(error, 'HTTP forwarding failed', requestError);
           const requestId = getRequestId(request);
