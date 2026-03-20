@@ -214,6 +214,110 @@ test('close removes input listeners including error handler', () => {
   error.end();
 });
 
+test('forwards SSE (text/event-stream) response and emits multiple framed JSON-RPC messages', async () => {
+  const msg1 = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tool: 'first' } });
+  const msg2 = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tool: 'second' } });
+
+  const { server, url } = await startServer(async (_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(`data: ${msg1}\n\n`);
+    res.write(`data: ${msg2}\n\n`);
+    res.end();
+  });
+
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const error = new PassThrough();
+  const bridge = startBridge(
+    {
+      url,
+      timeoutMs: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream'
+      }
+    },
+    { input, output, error }
+  );
+
+  try {
+    // Register listener before writing to ensure no data is missed.
+    const firstPromise = readFramedMessage(output);
+
+    input.write(
+      frameMessage(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'test' }
+        })
+      )
+    );
+
+    // Await first message; the bridge writes both messages synchronously so the
+    // second frame is buffered in the stream by the time we set up the next read.
+    assert.deepEqual(await firstPromise, { jsonrpc: '2.0', id: 1, result: { tool: 'first' } });
+    assert.deepEqual(await readFramedMessage(output), { jsonrpc: '2.0', id: 2, result: { tool: 'second' } });
+  } finally {
+    bridge.close();
+    input.end();
+    output.end();
+    error.end();
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+test('returns a JSON-RPC transport error when SSE upstream responds with non-2xx status', async () => {
+  const { server, url } = await startServer(async (_req, res) => {
+    res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+    res.end('Unauthorized');
+  });
+
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const error = new PassThrough();
+  const bridge = startBridge(
+    {
+      url,
+      timeoutMs: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream'
+      }
+    },
+    { input, output, error }
+  );
+
+  try {
+    const responsePromise = readFramedMessage(output);
+
+    input.write(
+      frameMessage(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: 9,
+          method: 'initialize',
+          params: {}
+        })
+      )
+    );
+
+    const response = await responsePromise;
+    assert.equal(response.jsonrpc, '2.0');
+    assert.equal(response.id, 9);
+    assert.equal(response.error.code, -32000);
+    assert.equal(response.error.message, 'HTTP transport failed');
+    assert.match(response.error.data, /HTTP 401/i);
+  } finally {
+    bridge.close();
+    input.end();
+    output.end();
+    error.end();
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
 test('returns parse error when frame exceeds max frame size', async () => {
   const input = new PassThrough();
   const output = new PassThrough();
