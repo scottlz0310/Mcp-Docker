@@ -28,9 +28,10 @@ IDE名:
   $0 --ide copilot-cli
 
 環境変数:
-  GITHUB_MCP_IMAGE        使用する Docker イメージ（claude-desktop では必須）
-  GITHUB_MCP_SERVER_URL   HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
-  GITHUB_MCP_HTTP_PORT    HTTP ポート番号（デフォルト: 8082）
+  GITHUB_MCP_IMAGE              使用する Docker イメージ（claude-desktop では必須）
+  GITHUB_MCP_SERVER_URL         HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
+  GITHUB_MCP_HTTP_PORT          HTTP ポート番号（デフォルト: 8082）
+  GITHUB_PERSONAL_ACCESS_TOKEN  GitHub API 用の個人アクセストークン（fine-grained PAT 推奨。生成される各 IDE 設定で使用）
 EOF
     exit 1
 }
