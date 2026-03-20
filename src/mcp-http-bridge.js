@@ -226,16 +226,60 @@ async function forwardRequest(rawPayload, options) {
   const contentType = response.headers.get('content-type') || '';
 
   if (contentType.toLowerCase().startsWith('text/event-stream')) {
-    // SSE (Streamable HTTP transport): extract each `data:` line as a JSON-RPC message.
-    const text = await response.text();
-    const results = [];
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('data:')) {
-        const data = trimmed.slice(5).trim();
-        if (data) results.push(data);
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      const statusLabel = `HTTP ${response.status} ${response.statusText}`.trim();
+      const details = errorText.trim();
+      throw new Error(details ? `${statusLabel}: ${truncate(details)}` : statusLabel);
     }
+
+    // SSE (Streamable HTTP transport): parse by event boundaries.
+    // An SSE event may contain multiple `data:` lines joined with `\n` until a blank-line delimiter.
+    const results = [];
+    let currentDataLines = [];
+
+    const processLine = (rawLine) => {
+      const line = rawLine.replace(/\r$/, '');
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        if (currentDataLines.length > 0) {
+          results.push(currentDataLines.join('\n'));
+          currentDataLines = [];
+        }
+        return;
+      }
+      if (trimmed.startsWith(':')) return;
+      const match = line.match(/^\s*data:(.*)$/);
+      if (match) {
+        const value = match[1].startsWith(' ') ? match[1].slice(1) : match[1];
+        currentDataLines.push(value);
+      }
+    };
+
+    if (response.body && typeof response.body.getReader === 'function') {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let lineBuffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        lineBuffer += decoder.decode(value, { stream: true });
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop() || '';
+        for (const line of lines) processLine(line);
+      }
+      if (lineBuffer) processLine(lineBuffer);
+    } else {
+      // Fallback: no streaming reader available, buffer entire body.
+      const text = await response.text();
+      for (const line of text.split('\n')) processLine(line);
+    }
+
+    // Flush last event if stream did not end with a blank line.
+    if (currentDataLines.length > 0) {
+      results.push(currentDataLines.join('\n'));
+    }
+
     return results.length > 0 ? results : null;
   }
 

@@ -4,9 +4,12 @@
  * Usage: node scripts/verify-mcp-endpoint.js [url]
  */
 const http = require('http');
+const https = require('https');
 const url = process.argv[2] || 'http://127.0.0.1:8082';
 
 const parsed = new URL(url);
+const isHttps = parsed.protocol === 'https:';
+const transport = isHttps ? https : http;
 const body = JSON.stringify({
   jsonrpc: '2.0',
   id: 1,
@@ -20,8 +23,8 @@ const body = JSON.stringify({
 
 const options = {
   hostname: parsed.hostname,
-  port: parseInt(parsed.port) || 80,
-  path: parsed.pathname || '/',
+  port: parseInt(parsed.port) || (isHttps ? 443 : 80),
+  path: (parsed.pathname || '/') + (parsed.search || ''),
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -31,24 +34,50 @@ const options = {
 
 console.log(`\n🔍 MCP エンドポイント確認: ${url}`);
 
-const req = http.request(options, (res) => {
+const req = transport.request(options, (res) => {
   let data = '';
   res.on('data', (chunk) => { data += chunk; });
   res.on('end', () => {
-    console.log(`✅ HTTP Status: ${res.statusCode}`);
+    const status = res.statusCode || 0;
+
+    if (status < 200 || status >= 300) {
+      console.error(`❌ HTTP Status: ${status}`);
+      if (data) {
+        console.error(`   Response body (first 200 chars): ${data.slice(0, 200)}`);
+      }
+      process.exit(1);
+    }
+
+    console.log(`✅ HTTP Status: ${status}`);
     try {
       const json = JSON.parse(data);
-      if (json.result) {
+      const hasValidResult =
+        json &&
+        typeof json === 'object' &&
+        json.result &&
+        typeof json.result === 'object' &&
+        typeof json.result.protocolVersion === 'string';
+
+      if (hasValidResult) {
         console.log(`✅ MCP initialize 成功`);
         console.log(`   Server info: ${JSON.stringify(json.result.serverInfo || {})}`);
         console.log(`   protocolVersion: ${json.result.protocolVersion}`);
-      } else if (json.error) {
-        console.log(`⚠️  MCP error: ${JSON.stringify(json.error)}`);
+        process.exit(0);
+      } else if (json && typeof json === 'object' && json.error) {
+        console.error(`❌ MCP error: ${JSON.stringify(json.error)}`);
+        process.exit(1);
       } else {
-        console.log(`   Response: ${data.slice(0, 200)}`);
+        console.error('❌ レスポンスが有効な JSON-RPC initialize 結果ではありません。');
+        console.error(`   Response (first 200 chars): ${data.slice(0, 200)}`);
+        process.exit(1);
       }
-    } catch {
-      console.log(`   Response (raw): ${data.slice(0, 200)}`);
+    } catch (err) {
+      console.error('❌ レスポンスの JSON パースに失敗しました。');
+      if (err && err.message) {
+        console.error(`   Error: ${err.message}`);
+      }
+      console.error(`   Response (raw, first 200 chars): ${data.slice(0, 200)}`);
+      process.exit(1);
     }
   });
 });
