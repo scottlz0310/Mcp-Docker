@@ -112,11 +112,13 @@ EOF
     claude-desktop)
         # Claude Desktop は HTTP transport 非対応 (stdio のみ)
         # docker run -i でバイナリを直接 stdio モードで起動する
-        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}"
+        # ※ Claude Desktop はシェル環境変数を引き継がないため、
+        #   env ブロックにトークンを平文で記載する必要がある（テンプレートではプレースホルダー）
+        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-mcp-github-patched:latest}"
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
-    "github": {
+    "github-mcp-server-docker": {
       "command": "docker",
       "args": [
         "run", "--rm", "-i",
@@ -125,7 +127,7 @@ EOF
         "stdio"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "github_pat_your_token_here"
       }
     }
   }
@@ -136,17 +138,24 @@ EOF
         echo "⚠️  Claude Desktop は HTTP transport 非対応のため stdio (docker run -i) を使用します"
         echo "   docker compose up は不要です。Claude Desktop が docker run を直接実行します。"
         echo ""
+        echo "⚠️  トークンについて:"
+        echo "   Claude Desktop はシェル環境変数を引き継がないため、"
+        echo "   env.GITHUB_PERSONAL_ACCESS_TOKEN に実際のトークンを平文で記載する必要があります。"
+        echo "   生成されたファイルの 'github_pat_your_token_here' を実際のトークンに書き換えてください。"
+        echo "   ※ このファイルをリポジトリにコミットしないよう注意してください。"
+        echo ""
         echo "📋 設定方法:"
-        echo "   1. Claude Desktop設定ファイルを開く"
+        echo "   1. 生成されたファイルのトークンを書き換える"
+        echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
+        echo "   2. Claude Desktop設定ファイルに内容をマージする"
         echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
         echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
         echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
-        echo "   2. 上記の設定を追加し、GITHUB_PERSONAL_ACCESS_TOKEN の値を実際のトークンに変更"
         echo "   3. Claude Desktop を再起動"
         echo ""
-        echo "💡 カスタムビルドイメージを使う場合:"
-        echo "   GITHUB_MCP_IMAGE=mcp-github-patched:latest $0 --ide claude-desktop"
-        echo "   (事前に make build-custom でイメージをビルドしてください)"
+        echo "💡 カスタムビルドイメージ (make build-custom) を使用するのがデフォルトです"
+        echo "   公式イメージを使う場合:"
+        echo "   GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:main $0 --ide claude-desktop"
         ;;
     
     kiro)
