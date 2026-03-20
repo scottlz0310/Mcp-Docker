@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${PROJECT_ROOT}/.env"
 
+# MCP サーバー識別子（全IDE設定で統一）
+MCP_SERVER_KEY="github-mcp-server-docker"
+
 usage() {
     cat <<EOF
 使用方法: $0 --ide <IDE名>
@@ -23,6 +26,11 @@ IDE名:
   $0 --ide amazonq
   $0 --ide codex
   $0 --ide copilot-cli
+
+環境変数:
+  GITHUB_MCP_IMAGE        使用する Docker イメージ（claude-desktop では必須）
+  GITHUB_MCP_SERVER_URL   HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
+  GITHUB_MCP_HTTP_PORT    HTTP ポート番号（デフォルト: 8082）
 EOF
     exit 1
 }
@@ -86,7 +94,7 @@ case "$IDE" in
         cat > "${OUTPUT_DIR}/settings.json" <<EOF
 {
   "mcpServers": {
-    "github": {
+    "${MCP_SERVER_KEY}": {
       "type": "http",
       "url": "${SERVER_URL}",
       "headers": {
@@ -108,17 +116,32 @@ EOF
         echo "💡 環境変数の設定も忘れずに:"
         echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
         ;;
-    
+
     claude-desktop)
         # Claude Desktop は HTTP transport 非対応 (stdio のみ)
         # docker run -i でバイナリを直接 stdio モードで起動する
         # ※ Claude Desktop はシェル環境変数を引き継がないため、
         #   env ブロックにトークンを平文で記載する必要がある（テンプレートではプレースホルダー）
-        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-mcp-github-patched:latest}"
+        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-}"
+        if [[ -z "${CLAUDE_IMAGE}" ]]; then
+            cat >&2 <<'ERRMSG'
+エラー: Claude Desktop 用の GitHub MCP サーバーイメージが設定されていません。
+
+- カスタムイメージを利用する場合（推奨・PRRT対応）:
+    make build-custom
+    GITHUB_MCP_IMAGE=mcp-github-patched:latest ./scripts/generate-ide-config.sh --ide claude-desktop
+
+- 公式イメージを利用する場合:
+    GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:main ./scripts/generate-ide-config.sh --ide claude-desktop
+
+このスクリプトは、利用可能なイメージが明示的に指定されるまで Claude Desktop 用設定を生成しません。
+ERRMSG
+            exit 1
+        fi
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
-    "github-mcp-server-docker": {
+    "${MCP_SERVER_KEY}": {
       "command": "docker",
       "args": [
         "run", "--rm", "-i",
@@ -145,25 +168,22 @@ EOF
         echo "   ※ このファイルをリポジトリにコミットしないよう注意してください。"
         echo ""
         echo "📋 設定方法:"
-        echo "   1. 生成されたファイルのトークンを書き換える"
+        echo "   1. カスタムイメージをビルド（未実施の場合）: make build-custom"
+        echo "   2. 生成されたファイルのトークンを書き換える"
         echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
-        echo "   2. Claude Desktop設定ファイルに内容をマージする"
+        echo "   3. Claude Desktop設定ファイルに内容をマージする"
         echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
         echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
         echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
-        echo "   3. Claude Desktop を再起動"
-        echo ""
-        echo "💡 カスタムビルドイメージ (make build-custom) を使用するのがデフォルトです"
-        echo "   公式イメージを使う場合:"
-        echo "   GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:main $0 --ide claude-desktop"
+        echo "   4. Claude Desktop を再起動"
         ;;
-    
+
     kiro)
         cat > "${OUTPUT_DIR}/mcp.json" <<EOF
 {
   "mcp": {
     "servers": {
-      "github": {
+      "${MCP_SERVER_KEY}": {
         "type": "http",
         "url": "${SERVER_URL}",
         "headers": {
@@ -186,12 +206,12 @@ EOF
         echo "💡 環境変数の設定も忘れずに:"
         echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
         ;;
-    
+
     amazonq)
         cat > "${OUTPUT_DIR}/mcp.json" <<EOF
 {
   "mcpServers": {
-    "github": {
+    "${MCP_SERVER_KEY}": {
       "type": "http",
       "url": "${SERVER_URL}",
       "headers": {
@@ -216,7 +236,7 @@ EOF
 
     codex)
         cat > "${OUTPUT_DIR}/config.toml" <<EOF
-[mcp_servers.github]
+[mcp_servers.${MCP_SERVER_KEY}]
 url = "${SERVER_URL}"
 bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
 EOF
@@ -237,7 +257,7 @@ EOF
         cat > "${OUTPUT_DIR}/mcp-config.json" <<EOF
 {
   "mcpServers": {
-    "github": {
+    "${MCP_SERVER_KEY}": {
       "type": "http",
       "url": "${SERVER_URL}",
       "headers": {
@@ -258,7 +278,7 @@ EOF
         echo "💡 環境変数の設定も忘れずに:"
         echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here"
         ;;
-    
+
     *)
         echo "❌ 未対応のIDE: $IDE"
         usage
