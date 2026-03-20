@@ -1,6 +1,7 @@
 'use strict';
 
 const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_MAX_FRAME_SIZE_BYTES = 1024 * 1024;
 const JSON_RPC_VERSION = '2.0';
 const JSON_RPC_PARSE_ERROR = -32700;
 const JSON_RPC_SERVER_ERROR = -32000;
@@ -9,6 +10,7 @@ function parseArgs(argv) {
   const headers = {};
   let url = '';
   let timeoutMs = DEFAULT_TIMEOUT_MS;
+  let maxFrameSizeBytes = DEFAULT_MAX_FRAME_SIZE_BYTES;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -60,6 +62,21 @@ function parseArgs(argv) {
         index += 1;
         break;
       }
+      case '--max-frame-size': {
+        const value = argv[index + 1];
+        if (!value) {
+          throw new Error('Missing value for --max-frame-size');
+        }
+
+        const parsed = Number.parseInt(value, 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          throw new Error(`Invalid max frame size value: ${value}`);
+        }
+
+        maxFrameSizeBytes = parsed;
+        index += 1;
+        break;
+      }
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
@@ -90,6 +107,7 @@ function parseArgs(argv) {
 
   return {
     headers,
+    maxFrameSizeBytes,
     timeoutMs,
     url: parsedUrl.toString()
   };
@@ -144,7 +162,7 @@ function findHeaderBoundary(buffer) {
   return { headerEnd: lfIndex, separatorLength: 2 };
 }
 
-function parseHeaders(headerText) {
+function parseHeaders(headerText, maxFrameSizeBytes) {
   const headers = {};
   const lines = headerText.split(/\r?\n/).filter(Boolean);
 
@@ -166,6 +184,9 @@ function parseHeaders(headerText) {
   const contentLength = Number.parseInt(headers['content-length'], 10);
   if (!Number.isFinite(contentLength) || contentLength < 0) {
     throw new Error(`Invalid Content-Length value: ${headers['content-length']}`);
+  }
+  if (contentLength > maxFrameSizeBytes) {
+    throw new Error(`Content-Length exceeds max frame size: ${contentLength} > ${maxFrameSizeBytes}`);
   }
 
   return {
@@ -222,11 +243,15 @@ function startBridge(options, io = {}) {
   const input = io.input ?? process.stdin;
   const output = io.output ?? process.stdout;
   const error = io.error ?? process.stderr;
+  const maxFrameSizeBytes = Number.isFinite(options.maxFrameSizeBytes)
+    ? options.maxFrameSizeBytes
+    : DEFAULT_MAX_FRAME_SIZE_BYTES;
 
   input.resume();
-  input.on('error', (streamError) => {
+  const onInputError = (streamError) => {
     logError(error, 'stdin error', streamError);
-  });
+  };
+  input.on('error', onInputError);
 
   let buffer = Buffer.alloc(0);
   let expectedBodyLength = null;
@@ -311,7 +336,7 @@ function startBridge(options, io = {}) {
         const headerText = buffer.slice(0, headerBoundary.headerEnd).toString('utf8');
         let parsedHeaders;
         try {
-          parsedHeaders = parseHeaders(headerText);
+          parsedHeaders = parseHeaders(headerText, maxFrameSizeBytes);
         } catch (frameError) {
           logError(error, 'Invalid MCP stdio frame', frameError);
           writeMessage(
@@ -359,11 +384,16 @@ function startBridge(options, io = {}) {
     close() {
       input.off('data', onData);
       input.off('end', onEnd);
+      input.off('error', onInputError);
+      if (typeof input.pause === 'function') {
+        input.pause();
+      }
     }
   };
 }
 
 module.exports = {
+  DEFAULT_MAX_FRAME_SIZE_BYTES,
   DEFAULT_TIMEOUT_MS,
   parseArgs,
   startBridge,

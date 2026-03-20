@@ -9,7 +9,7 @@ function printUsage() {
   process.stdout.write(`mcp-http-bridge
 
 Usage:
-  mcp-http-bridge --url <http-url> [--header "Name: Value"]... [--timeout <ms>]
+  mcp-http-bridge --url <http-url> [--header "Name: Value"]... [--timeout <ms>] [--max-frame-size <bytes>]
   mcp-http-bridge --help
   mcp-http-bridge --version
 
@@ -17,6 +17,7 @@ Options:
   --url       MCP HTTP endpoint URL. Required.
   --header    Additional HTTP header. Repeatable. Example: --header "Authorization: Bearer token"
   --timeout   Request timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}
+  --max-frame-size   Maximum accepted MCP frame size in bytes. Default: 1048576
   --help      Show this help.
   --version   Show the package version.
 `);

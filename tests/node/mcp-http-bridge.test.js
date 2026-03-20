@@ -182,3 +182,67 @@ test('returns a JSON-RPC error when the upstream HTTP request fails', async () =
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
 });
+
+test('close removes input listeners including error handler', () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const error = new PassThrough();
+
+  const bridge = startBridge(
+    {
+      url: 'http://127.0.0.1:65535/mcp',
+      timeoutMs: 100,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      }
+    },
+    { input, output, error }
+  );
+
+  assert.equal(input.listenerCount('error'), 1);
+  assert.equal(input.listenerCount('data'), 1);
+  assert.equal(input.listenerCount('end'), 1);
+
+  bridge.close();
+
+  assert.equal(input.listenerCount('error'), 0);
+  assert.equal(input.listenerCount('data'), 0);
+  assert.equal(input.listenerCount('end'), 0);
+  input.end();
+  output.end();
+  error.end();
+});
+
+test('returns parse error when frame exceeds max frame size', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const error = new PassThrough();
+  const bridge = startBridge(
+    {
+      url: 'http://127.0.0.1:65535/mcp',
+      timeoutMs: 100,
+      maxFrameSizeBytes: 8,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      }
+    },
+    { input, output, error }
+  );
+
+  try {
+    const responsePromise = readFramedMessage(output);
+    input.write(Buffer.from('Content-Length: 9\r\n\r\n123456789', 'utf8'));
+
+    const response = await responsePromise;
+    assert.equal(response.error.code, -32700);
+    assert.equal(response.error.message, 'Invalid MCP stdio frame');
+    assert.match(response.error.data, /exceeds max frame size/i);
+  } finally {
+    bridge.close();
+    input.end();
+    output.end();
+    error.end();
+  }
+});
