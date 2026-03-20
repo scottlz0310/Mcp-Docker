@@ -229,7 +229,7 @@ case "$IDE" in
         cat > "${OUTPUT_DIR}/settings.json" <<'EOF'
 {
   "mcpServers": {
-    "github": {
+    "github-mcp-server-docker": {
       "command": "docker",
       "args": [
         "exec",
@@ -257,7 +257,7 @@ EOF
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<'EOF'
 {
   "mcpServers": {
-    "github": {
+    "github-mcp-server-docker": {
       "command": "docker",
       "args": [
         "exec",
@@ -288,7 +288,7 @@ EOF
 {
   "mcp": {
     "servers": {
-      "github": {
+      "github-mcp-server-docker": {
         "type": "docker",
         "container": "mcp-github",
         "command": "node /app/dist/index.js",

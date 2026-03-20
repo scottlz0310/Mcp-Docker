@@ -11,14 +11,13 @@
       "disabled": false,
       "autoApprove": []
     },
-    "github-docker": {
+    "github-mcp-server-docker": {
       "command": "docker",
       "args": [
-        "exec",
-        "-i",
-        "mcp-github",
-        "node",
-        "/usr/local/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js"
+        "run", "--rm", "-i",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "mcp-github-patched:latest",
+        "stdio"
       ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
