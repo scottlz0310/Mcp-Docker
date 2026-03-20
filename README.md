@@ -1,11 +1,12 @@
 # GitHub MCP Server - Docker統合環境
 
-VS Code、Cursor、Kiro等の統合IDEにGitHub MCP Server機能を提供するDocker常駐サービス。
+VS Code、Cursor、Kiro、Claude Desktop等の統合IDEにGitHub MCP Server機能を提供するDocker常駐サービス。
 
 ## HTTP transport対応
 
-このプロジェクトは `github-mcp-server` のHTTP接続を優先採用しています。  
+このプロジェクトは `github-mcp-server` のHTTP接続を優先採用しています。
 複数IDEウィンドウから同時接続しやすく、`stdio` 方式より並列利用に向いた構成です。
+Claude Desktop だけは HTTP transport 非対応のため、同梱の `mcp-http-bridge` で `stdio -> HTTP` を中継します。
 
 **イメージ方針（2026-02-07時点）:**
 - 既定イメージ: `ghcr.io/github/github-mcp-server:main`
@@ -30,6 +31,7 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 ### 前提条件
 
 - Docker 20.10+
+- Node.js 18+ / `npx`（Claude Desktop で bridge を使う場合）
 - GitHub Personal Access Token (PAT) または OAuth対応クライアント
 
 ### インストール
@@ -108,7 +110,8 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 
 - 既定URL: `http://127.0.0.1:8082`
 - ポートを変更する場合: `GITHUB_MCP_HTTP_PORT` を設定（未設定時は `8082`）
-- HTTPモードでは各クライアントから `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送る必要があります。
+- 直接 HTTP 接続するクライアントでは、必要に応じて `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送ってください。
+- Claude Desktop は `mcp-http-bridge` を使って stdio から接続します。トークンをコンテナ内環境変数で運用している場合、Claude Desktop 側に追加の env は不要です。
 - 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
 
 ```bash
@@ -145,6 +148,65 @@ docker compose up -d github-mcp
 # Linux: ~/.config/Claude/claude_desktop_config.json
 # Windows: %APPDATA%\Claude\claude_desktop_config.json
 ```
+
+生成される設定は `npx mcp-http-bridge --url http://127.0.0.1:8082` を使う stdio bridge です。
+
+```json
+{
+  "mcpServers": {
+    "github-mcp-server-docker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-http-bridge",
+        "--url",
+        "http://127.0.0.1:8082",
+        "--timeout",
+        "30000"
+      ]
+    }
+  }
+}
+```
+
+bridge に追加ヘッダが必要な場合:
+
+```json
+{
+  "command": "npx",
+  "args": [
+    "-y",
+    "mcp-http-bridge",
+    "--url",
+    "http://127.0.0.1:8082",
+    "--header",
+    "Authorization: Bearer your_token_here"
+  ]
+}
+```
+
+`-y` は初回の `npx` 実行時に対話プロンプトで停止しないために付けています。
+
+### mcp-http-bridge
+
+`mcp-http-bridge` は MCP stdio フレームを受け取り、HTTP POST で MCP サーバーへそのまま転送する最小CLIです。
+
+```bash
+npx -y mcp-http-bridge --url http://127.0.0.1:8082
+```
+
+```bash
+npx -y mcp-http-bridge \
+  --url http://127.0.0.1:8082 \
+  --header "Authorization: Bearer your_token_here" \
+  --timeout 10000
+```
+
+サポートするオプション:
+
+- `--url`: 転送先の MCP HTTP エンドポイント
+- `--header`: 追加 HTTP ヘッダ。複数回指定可能
+- `--timeout`: HTTP タイムアウト（ミリ秒、既定 `30000`）
 
 ### Kiro
 
@@ -443,7 +505,7 @@ docker compose up -d --force-recreate github-mcp
 
 ## 運用ガードレール
 
-- トークンは`.env`ファイルで管理（gitignore済み）
+- トークンは`.env`ファイルやコンテナ環境変数で管理し、Claude Desktop 側には極力持ち込まない
 - コンテナは専用ネットワークで分離
 - ログは機密情報をマスキング
 - リソース制限: 512MB/1CPU

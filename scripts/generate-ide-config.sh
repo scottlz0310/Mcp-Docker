@@ -28,10 +28,11 @@ IDE名:
   $0 --ide copilot-cli
 
 環境変数:
-  GITHUB_MCP_IMAGE              使用する Docker イメージ（claude-desktop では必須）
   GITHUB_MCP_SERVER_URL         HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
   GITHUB_MCP_HTTP_PORT          HTTP ポート番号（デフォルト: 8082）
   GITHUB_PERSONAL_ACCESS_TOKEN  GitHub API 用の個人アクセストークン（fine-grained PAT 推奨。生成される各 IDE 設定で使用）
+  MCP_HTTP_BRIDGE_PACKAGE       Claude Desktop 用 bridge の npx パッケージ名（デフォルト: mcp-http-bridge）
+  MCP_HTTP_BRIDGE_TIMEOUT_MS    Claude Desktop 用 bridge の HTTP タイムアウト（デフォルト: 30000）
 EOF
     exit 1
 }
@@ -87,6 +88,8 @@ resolve_server_url() {
 }
 
 SERVER_URL="$(resolve_server_url)"
+BRIDGE_PACKAGE="${MCP_HTTP_BRIDGE_PACKAGE:-mcp-http-bridge}"
+BRIDGE_TIMEOUT_MS="${MCP_HTTP_BRIDGE_TIMEOUT_MS:-30000}"
 OUTPUT_DIR="${PROJECT_ROOT}/config/ide-configs/${IDE}"
 mkdir -p "${OUTPUT_DIR}"
 
@@ -119,64 +122,38 @@ EOF
         ;;
 
     claude-desktop)
-        # Claude Desktop は HTTP transport 非対応 (stdio のみ)
-        # docker run -i でバイナリを直接 stdio モードで起動する
-        # ※ Claude Desktop はシェル環境変数を引き継がないため、
-        #   env ブロックにトークンを平文で記載する必要がある（テンプレートではプレースホルダー）
-        CLAUDE_IMAGE="${GITHUB_MCP_IMAGE:-}"
-        if [[ -z "${CLAUDE_IMAGE}" ]]; then
-            cat >&2 <<'ERRMSG'
-エラー: Claude Desktop 用の GitHub MCP サーバーイメージが設定されていません。
-
-- カスタムイメージを利用する場合（推奨・PRRT対応）:
-    make build-custom
-    GITHUB_MCP_IMAGE=mcp-github-patched:latest ./scripts/generate-ide-config.sh --ide claude-desktop
-
-- 公式イメージを利用する場合:
-    GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:main ./scripts/generate-ide-config.sh --ide claude-desktop
-
-このスクリプトは、利用可能なイメージが明示的に指定されるまで Claude Desktop 用設定を生成しません。
-ERRMSG
-            exit 1
-        fi
         cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
     "${MCP_SERVER_KEY}": {
-      "command": "docker",
+      "command": "npx",
       "args": [
-        "run", "--rm", "-i",
-        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "${CLAUDE_IMAGE}",
-        "stdio"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "github_pat_your_token_here"
-      }
+        "-y",
+        "${BRIDGE_PACKAGE}",
+        "--url",
+        "${SERVER_URL}",
+        "--timeout",
+        "${BRIDGE_TIMEOUT_MS}"
+      ]
     }
   }
 }
 EOF
         echo "✅ Claude Desktop設定を生成しました: ${OUTPUT_DIR}/claude_desktop_config.json"
         echo ""
-        echo "⚠️  Claude Desktop は HTTP transport 非対応のため stdio (docker run -i) を使用します"
-        echo "   docker compose up は不要です。Claude Desktop が docker run を直接実行します。"
-        echo ""
-        echo "⚠️  トークンについて:"
-        echo "   Claude Desktop はシェル環境変数を引き継がないため、"
-        echo "   env.GITHUB_PERSONAL_ACCESS_TOKEN に実際のトークンを平文で記載する必要があります。"
-        echo "   生成されたファイルの 'github_pat_your_token_here' を実際のトークンに書き換えてください。"
-        echo "   ※ このファイルをリポジトリにコミットしないよう注意してください。"
+        echo "ℹ️  Claude Desktop は HTTP transport 非対応のため stdio bridge を使用します"
+        echo "   Claude Desktop -> npx ${BRIDGE_PACKAGE} -> ${SERVER_URL}"
         echo ""
         echo "📋 設定方法:"
-        echo "   1. カスタムイメージをビルド（未実施の場合）: make build-custom"
-        echo "   2. 生成されたファイルのトークンを書き換える"
+        echo "   1. Dockerコンテナを起動: docker compose up -d github-mcp"
+        echo "   2. 生成された設定を Claude Desktop設定ファイルにマージする"
         echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
-        echo "   3. Claude Desktop設定ファイルに内容をマージする"
         echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
         echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
         echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
-        echo "   4. Claude Desktop を再起動"
+        echo "   3. Claude Desktop を再起動"
+        echo ""
+        echo "💡 追加ヘッダが必要な場合は args に --header \"Name: Value\" を追加してください"
         ;;
 
     kiro)

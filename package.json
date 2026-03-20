@@ -1,0 +1,21 @@
+{
+  "name": "mcp-http-bridge",
+  "version": "0.1.0",
+  "description": "Minimal stdio-to-HTTP bridge for MCP servers",
+  "license": "MIT",
+  "bin": {
+    "mcp-http-bridge": "bin/mcp-http-bridge.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test --test-isolation=none tests/node/**/*.test.js"
+  }
+}
