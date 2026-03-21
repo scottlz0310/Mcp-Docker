@@ -79,11 +79,11 @@ setup() {
 }
 
 @test "generate-ide-config.sh: claude-desktop設定生成でbridge設定が反映される" {
-    run env MCP_HTTP_BRIDGE_PACKAGE=custom-bridge MCP_HTTP_BRIDGE_TIMEOUT_MS=12345 "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop
+    run env MCP_HTTP_BRIDGE_TIMEOUT_MS=12345 "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Claude Desktop設定を生成しました" ]]
     [ -f "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json" ]
-    grep -q '"custom-bridge"' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
+    grep -q 'mcp-http-bridge.js' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
     grep -q '"12345"' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
 }
 
