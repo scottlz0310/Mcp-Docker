@@ -83,8 +83,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Claude Desktop設定を生成しました" ]]
     [ -f "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json" ]
-    grep -q 'mcp-http-bridge.js' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
-    grep -q '"12345"' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
+    [ -f "${PROJECT_ROOT}/config/ide-configs/claude-desktop/start-bridge.sh" ]
+    grep -q 'mcp-http-bridge.js' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/start-bridge.sh"
+    grep -q '12345' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/start-bridge.sh"
 }
 
 @test "generate-ide-config.sh: amazonq設定生成が動作する" {

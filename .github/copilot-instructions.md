@@ -56,17 +56,17 @@ make clean-all       # Full cleanup including images
 - **Port**: Default MCP HTTP port is `8082`. Override with `GITHUB_MCP_HTTP_PORT`.
 - **Image override**: Set `GITHUB_MCP_IMAGE` to swap the default container image.
 - **HTTP transport only in `main` tag**: Using a pinned release (e.g. `v0.30.3`) will silently fall back to stdio-only mode and break.
-- **Claude Desktop exception**: Requires the `mcp-http-bridge` Node.js process (`src/mcp-http-bridge.js`) to translate between stdio MCP and HTTP. All other IDEs connect directly to port 8082.
+- **Claude Desktop exception**: Requires the `mcp-http-bridge` Node.js process (`bin/mcp-http-bridge.js`) to translate between stdio MCP and HTTP. All other IDEs connect directly to port 8082.
 - **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.
 - **Go patches**: Source patches for the custom build live in `patches/github/`. They are copied into the builder stage in `Dockerfile.github-mcp-server`. Add new `.go` files there and reference them in the Dockerfile.
-- **Documentation language**: Docs, Makefile help output, and user-facing messages are written in Japanese.
+- **Documentation language**: User-facing docs, Makefile help output, and messages are written in Japanese.
 - **MCP server key**: Always use `github-mcp-server-docker` as the server identifier in IDE configs.
 
 ## Key Files
 
 | File | Role |
 |------|------|
-| `src/mcp-http-bridge.js` | stdio↔HTTP bridge for Claude Desktop |
+| `bin/mcp-http-bridge.js` | stdio↔HTTP bridge for Claude Desktop |
 | `Dockerfile.github-mcp-server` | 3-stage build: OpenSSL refresh → Go builder (injects patches) → distroless runtime |
 | `patches/github/list_pr_review_threads.go` | Custom GraphQL tool: `list_pull_request_review_threads` |
 | `docker-compose.yml` | Primary compose (official image, resource limits, log rotation) |
