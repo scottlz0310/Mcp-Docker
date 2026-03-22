@@ -124,7 +124,7 @@ EOF
 
         # 環境変数が未設定の場合のみ .env から GITHUB_MCP_IMAGE を補完
         if [ -z "${GITHUB_MCP_IMAGE:-}" ] && [ -f "${ENV_FILE}" ]; then
-            ENV_GITHUB_MCP_IMAGE="$(grep -E '^GITHUB_MCP_IMAGE=' "${ENV_FILE}" | tail -n 1 | cut -d '=' -f 2-)"
+            ENV_GITHUB_MCP_IMAGE="$(extract_env_value "GITHUB_MCP_IMAGE")"
             if [ -n "${ENV_GITHUB_MCP_IMAGE}" ]; then
                 GITHUB_MCP_IMAGE="${ENV_GITHUB_MCP_IMAGE}"
             fi
