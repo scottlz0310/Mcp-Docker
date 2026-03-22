@@ -76,6 +76,8 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Claude Desktop設定を生成しました" ]]
     [ -f "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json" ]
+    grep -q '"ghcr.io/github/github-mcp-server:main"' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
+    grep -q '"github-mcp-cache:/app/cache:rw"' "${PROJECT_ROOT}/config/ide-configs/claude-desktop/claude_desktop_config.json"
 }
 
 @test "generate-ide-config.sh: claude-desktop設定生成でdocker stdio設定が反映される" {

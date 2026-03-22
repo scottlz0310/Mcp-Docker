@@ -165,8 +165,8 @@ docker compose up -d github-mcp
         "-v",
         "C:\\Users\\dev\\src\\Mcp-Docker\\config\\github-mcp:/app/config:rw",
         "-v",
-        "mcp-docker_github-mcp-cache:/app/cache:rw",
-        "mcp-github-patched:latest",
+        "github-mcp-cache:/app/cache:rw",
+        "ghcr.io/github/github-mcp-server:main",
         "stdio"
       ]
     }

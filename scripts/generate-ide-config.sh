@@ -31,7 +31,7 @@ IDE名:
   GITHUB_MCP_SERVER_URL         HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
   GITHUB_MCP_HTTP_PORT          HTTP ポート番号（デフォルト: 8082）
   GITHUB_PERSONAL_ACCESS_TOKEN  GitHub API 用の個人アクセストークン（fine-grained PAT 推奨）
-  GITHUB_MCP_IMAGE              Claude Desktop 用の docker run 対象イメージ（デフォルト: mcp-github-patched:latest）
+  GITHUB_MCP_IMAGE              サーバーで利用するコンテナイメージ全体のオーバーライド（Claude Desktop などからも参照、デフォルト: ghcr.io/github/github-mcp-server:main）
 EOF
     exit 1
 }
@@ -120,7 +120,17 @@ EOF
         ;;
 
     claude-desktop)
-        CLAUDE_DOCKER_IMAGE="${GITHUB_MCP_IMAGE:-mcp-github-patched:latest}"
+        DEFAULT_GITHUB_MCP_IMAGE="ghcr.io/github/github-mcp-server:main"
+
+        # 環境変数が未設定の場合のみ .env から GITHUB_MCP_IMAGE を補完
+        if [ -z "${GITHUB_MCP_IMAGE:-}" ] && [ -f "${ENV_FILE}" ]; then
+            ENV_GITHUB_MCP_IMAGE="$(grep -E '^GITHUB_MCP_IMAGE=' "${ENV_FILE}" | tail -n 1 | cut -d '=' -f 2-)"
+            if [ -n "${ENV_GITHUB_MCP_IMAGE}" ]; then
+                GITHUB_MCP_IMAGE="${ENV_GITHUB_MCP_IMAGE}"
+            fi
+        fi
+
+        CLAUDE_DOCKER_IMAGE="${GITHUB_MCP_IMAGE:-${DEFAULT_GITHUB_MCP_IMAGE}}"
         CONFIG_BIND_PATH="${PROJECT_ROOT}/config/github-mcp"
 
         if command -v wslpath &>/dev/null; then
@@ -137,7 +147,7 @@ EOF
         "run", "-i", "--rm",
         "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
         "-v", "${CONFIG_BIND_PATH_JSON}:/app/config:rw",
-        "-v", "mcp-docker_github-mcp-cache:/app/cache:rw",
+        "-v", "github-mcp-cache:/app/cache:rw",
         "${CLAUDE_DOCKER_IMAGE}",
         "stdio"
       ]
