@@ -11,7 +11,7 @@ GitHub API (REST v3 + GraphQL v4)
 
 Claude Desktop (stdio only)
   ↓ stdio
-mcp-http-bridge (Node.js)  →  HTTP (port 8082)  →  same container above
+docker run -i --rm <image> stdio
 ```
 
 Two image modes:
@@ -56,7 +56,7 @@ make clean-all       # Full cleanup including images
 - **Port**: Default MCP HTTP port is `8082`. Override with `GITHUB_MCP_HTTP_PORT`.
 - **Image override**: Set `GITHUB_MCP_IMAGE` to swap the default container image.
 - **HTTP transport only in `main` tag**: Using a pinned release (e.g. `v0.30.3`) will silently fall back to stdio-only mode and break.
-- **Claude Desktop exception**: Requires the `mcp-http-bridge` Node.js process (`bin/mcp-http-bridge.js`) to translate between stdio MCP and HTTP. All other IDEs connect directly to port 8082.
+- **Claude Desktop exception**: HTTP transport 非対応のため、`docker run -i --rm <image> stdio` で直接起動する。VS Code/Cursor/Kiro/Amazon Q/Codex/Copilot CLI は HTTP (port 8082) に接続する。
 - **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.
 - **Go patches**: Source patches for the custom build live in `patches/github/`. They are copied into the builder stage in `Dockerfile.github-mcp-server`. Add new `.go` files there and reference them in the Dockerfile.
 - **Documentation language**: User-facing docs, Makefile help output, and messages are written in Japanese.
@@ -66,7 +66,7 @@ make clean-all       # Full cleanup including images
 
 | File | Role |
 |------|------|
-| `bin/mcp-http-bridge.js` | stdio↔HTTP bridge for Claude Desktop |
+| `bin/mcp-http-bridge.js` | stdio↔HTTP bridge utility (検証/互換用途) |
 | `Dockerfile.github-mcp-server` | 3-stage build: OpenSSL refresh → Go builder (injects patches) → distroless runtime |
 | `patches/github/list_pr_review_threads.go` | Custom GraphQL tool: `list_pull_request_review_threads` |
 | `docker-compose.yml` | Primary compose (official image, resource limits, log rotation) |
@@ -76,7 +76,7 @@ make clean-all       # Full cleanup including images
 
 ## Gotchas
 
-- **Frame size** (`mcp-http-bridge`): default max frame is 1 MB. Large GitHub responses need `--max-frame-size`.
+- **Frame size** (`mcp-http-bridge`): bridge を使う場合の既定 max frame は 1 MB。大きいレスポンスでは `--max-frame-size` が必要。
 - **Timeout**: default HTTP timeout is 30 s. Complex operations may need `--timeout` tuning.
 - **GraphQL rate limits**: the custom `list_pull_request_review_threads` tool uses GraphQL (not REST), which has separate rate limits. Paginates at 100 threads/query.
 - **Stale config volume**: `./config/github-mcp` persists after `make clean`. Remove manually if reconfiguring from scratch.
