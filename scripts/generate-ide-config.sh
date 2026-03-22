@@ -30,9 +30,8 @@ IDE名:
 環境変数:
   GITHUB_MCP_SERVER_URL         HTTP 接続先 URL（未設定時は GITHUB_MCP_HTTP_PORT から生成）
   GITHUB_MCP_HTTP_PORT          HTTP ポート番号（デフォルト: 8082）
-  GITHUB_PERSONAL_ACCESS_TOKEN  GitHub API 用の個人アクセストークン（fine-grained PAT 推奨。生成される各 IDE 設定で使用）
-  MCP_HTTP_BRIDGE_JS_PATH       Claude Desktop 用 bridge JS のパス（デフォルト: bin/mcp-http-bridge.js）
-  MCP_HTTP_BRIDGE_TIMEOUT_MS    Claude Desktop 用 bridge の HTTP タイムアウト（デフォルト: 30000）
+  GITHUB_PERSONAL_ACCESS_TOKEN  GitHub API 用の個人アクセストークン（fine-grained PAT 推奨）
+  GITHUB_MCP_IMAGE              サーバーで利用するコンテナイメージ全体のオーバーライド（Claude Desktop などからも参照、デフォルト: ghcr.io/github/github-mcp-server:main）
 EOF
     exit 1
 }
@@ -121,79 +120,54 @@ EOF
         ;;
 
     claude-desktop)
-        BRIDGE_JS_PATH="${BRIDGE_JS_PATH:-${MCP_HTTP_BRIDGE_JS_PATH:-${PROJECT_ROOT}/bin/mcp-http-bridge.js}}"
+        DEFAULT_GITHUB_MCP_IMAGE="ghcr.io/github/github-mcp-server:main"
+
+        # 環境変数が未設定の場合のみ .env から GITHUB_MCP_IMAGE を補完
+        if [ -z "${GITHUB_MCP_IMAGE:-}" ] && [ -f "${ENV_FILE}" ]; then
+            ENV_GITHUB_MCP_IMAGE="$(extract_env_value "GITHUB_MCP_IMAGE")"
+            if [ -n "${ENV_GITHUB_MCP_IMAGE}" ]; then
+                GITHUB_MCP_IMAGE="${ENV_GITHUB_MCP_IMAGE}"
+            fi
+        fi
+
+        CLAUDE_DOCKER_IMAGE="${GITHUB_MCP_IMAGE:-${DEFAULT_GITHUB_MCP_IMAGE}}"
+        CONFIG_BIND_PATH="${PROJECT_ROOT}/config/github-mcp"
 
         if command -v wslpath &>/dev/null; then
-            # WSL環境: Windows用 .cmd ラッパーを生成し、node で直接起動する設定を出力
-            BRIDGE_JS_WIN="$(wslpath -w "${BRIDGE_JS_PATH}")"
-            CMD_FILE="${OUTPUT_DIR}/start-bridge.cmd"
-
-            cat > "${CMD_FILE}" <<EOF
-@echo off
-node "${BRIDGE_JS_WIN}" --url ${SERVER_URL} --timeout ${BRIDGE_TIMEOUT_MS} --header "Authorization: Bearer %GITHUB_PERSONAL_ACCESS_TOKEN%"
-EOF
-
-            CMD_WIN="$(wslpath -w "${CMD_FILE}")"
-            # JSON用にバックスラッシュをエスケープ
-            CMD_WIN_JSON="${CMD_WIN//\\/\\\\}"
-
-            cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
-{
-  "mcpServers": {
-    "${MCP_SERVER_KEY}": {
-      "command": "cmd",
-      "args": ["/C", "${CMD_WIN_JSON}"]
-    }
-  }
-}
-EOF
-            echo "✅ Windows用ブリッジラッパーを生成しました: ${CMD_FILE}"
-            echo "✅ Claude Desktop設定を生成しました: ${OUTPUT_DIR}/claude_desktop_config.json"
-            echo ""
-            echo "ℹ️  Claude Desktop -> cmd /C start-bridge.cmd -> node bin/mcp-http-bridge.js -> ${SERVER_URL}"
-            echo "   PATは Windows環境変数 GITHUB_PERSONAL_ACCESS_TOKEN から取得します"
-            echo ""
-            echo "📋 設定方法:"
-            echo "   1. Dockerコンテナを起動"
-            echo "   2. Windows環境変数 GITHUB_PERSONAL_ACCESS_TOKEN を設定"
-            echo "   3. 生成された設定を Claude Desktop設定ファイルにマージする"
-            echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
-            echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
-            echo "   4. Claude Desktop を再起動"
-        else
-            # macOS/Linux環境: start-bridge.sh を生成し、sh 経由で env 展開して起動する設定を出力
-            SH_FILE="${OUTPUT_DIR}/start-bridge.sh"
-            cat > "${SH_FILE}" <<EOF
-#!/bin/sh
-exec node "${BRIDGE_JS_PATH}" --url ${SERVER_URL} --timeout ${BRIDGE_TIMEOUT_MS} --header "Authorization: Bearer \${GITHUB_PERSONAL_ACCESS_TOKEN}"
-EOF
-            chmod +x "${SH_FILE}"
-
-            cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
-{
-  "mcpServers": {
-    "${MCP_SERVER_KEY}": {
-      "command": "sh",
-      "args": ["${SH_FILE}"]
-    }
-  }
-}
-EOF
-            echo "✅ macOS/Linux用ブリッジラッパーを生成しました: ${SH_FILE}"
-            echo "✅ Claude Desktop設定を生成しました: ${OUTPUT_DIR}/claude_desktop_config.json"
-            echo ""
-            echo "ℹ️  Claude Desktop -> sh start-bridge.sh -> node bin/mcp-http-bridge.js -> ${SERVER_URL}"
-            echo "   PATは環境変数 GITHUB_PERSONAL_ACCESS_TOKEN から取得します"
-            echo ""
-            echo "📋 設定方法:"
-            echo "   1. Dockerコンテナを起動: docker compose up -d github-mcp"
-            echo "   2. 環境変数 GITHUB_PERSONAL_ACCESS_TOKEN を設定"
-            echo "   3. 生成された設定を Claude Desktop設定ファイルにマージする"
-            echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
-            echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
-            echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
-            echo "   4. Claude Desktop を再起動"
+            CONFIG_BIND_PATH="$(wslpath -w "${CONFIG_BIND_PATH}")"
         fi
+        CONFIG_BIND_PATH_JSON="${CONFIG_BIND_PATH//\\/\\\\}"
+
+        cat > "${OUTPUT_DIR}/claude_desktop_config.json" <<EOF
+{
+  "mcpServers": {
+    "${MCP_SERVER_KEY}": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-v", "${CONFIG_BIND_PATH_JSON}:/app/config:rw",
+        "-v", "github-mcp-cache:/app/cache:rw",
+        "${CLAUDE_DOCKER_IMAGE}",
+        "stdio"
+      ]
+    }
+  }
+}
+EOF
+        echo "✅ Claude Desktop設定を生成しました: ${OUTPUT_DIR}/claude_desktop_config.json"
+        echo ""
+        echo "ℹ️  Claude Desktop -> docker run -i --rm ${CLAUDE_DOCKER_IMAGE} stdio"
+        echo "   PATは環境変数 GITHUB_PERSONAL_ACCESS_TOKEN を -e で受け渡します"
+        echo ""
+        echo "📋 設定方法:"
+        echo "   1. 生成された設定を Claude Desktop設定ファイルにマージする"
+        echo "      ${OUTPUT_DIR}/claude_desktop_config.json"
+        echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
+        echo "      macOS: ~/Library/Application Support/Claude/claude_desktop_config.json"
+        echo "      Linux: ~/.config/Claude/claude_desktop_config.json"
+        echo "   2. 環境変数 GITHUB_PERSONAL_ACCESS_TOKEN を設定"
+        echo "   3. Claude Desktop を再起動"
         ;;
 
     kiro)
