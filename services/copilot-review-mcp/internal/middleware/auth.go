@@ -24,14 +24,14 @@ func Auth(v TokenValidator) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractBearer(r)
 			if token == "" {
-				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				writeUnauthorized(w, "missing_token")
 				return
 			}
 
 			login, err := v.ValidateToken(r.Context(), token)
 			if err != nil {
 				slog.Warn("auth failed", "err", err, "path", r.URL.Path)
-				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				writeUnauthorized(w, "invalid_token")
 				return
 			}
 
@@ -42,10 +42,18 @@ func Auth(v TokenValidator) func(http.Handler) http.Handler {
 	}
 }
 
+func writeUnauthorized(w http.ResponseWriter, errCode string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("WWW-Authenticate", `Bearer realm="copilot-review-mcp"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write([]byte(`{"error":"` + errCode + `"}`))
+}
+
 func extractBearer(r *http.Request) string {
 	h := r.Header.Get("Authorization")
-	if strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ")
+	fields := strings.Fields(h)
+	if len(fields) == 2 && strings.EqualFold(fields[0], "bearer") {
+		return fields[1]
 	}
 	return ""
 }

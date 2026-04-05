@@ -13,6 +13,9 @@ import (
 	"log/slog"
 )
 
+// githubClient is a shared HTTP client with timeouts to avoid hanging requests.
+var githubClient = &http.Client{Timeout: 15 * time.Second}
+
 // Config holds OAuth façade configuration.
 type Config struct {
 	GitHubClientID     string
@@ -39,12 +42,12 @@ func NewHandler(cfg Config) *Handler {
 // Discovery returns RFC 8414 metadata.
 func (h *Handler) Discovery(w http.ResponseWriter, r *http.Request) {
 	doc := map[string]any{
-		"issuer":                                h.cfg.BaseURL,
-		"authorization_endpoint":               h.cfg.BaseURL + "/authorize",
-		"token_endpoint":                        h.cfg.BaseURL + "/token",
-		"response_types_supported":             []string{"code"},
-		"grant_types_supported":                []string{"authorization_code"},
-		"code_challenge_methods_supported":     []string{"S256"},
+		"issuer":                           h.cfg.BaseURL,
+		"authorization_endpoint":           h.cfg.BaseURL + "/authorize",
+		"token_endpoint":                   h.cfg.BaseURL + "/token",
+		"response_types_supported":         []string{"code"},
+		"grant_types_supported":            []string{"authorization_code"},
+		"code_challenge_methods_supported": []string{"S256"},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
@@ -59,6 +62,13 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 
 	if state == "" || redirectURI == "" {
 		http.Error(w, "missing state or redirect_uri", http.StatusBadRequest)
+		return
+	}
+
+	// Validate redirect_uri: only http/https schemes to prevent open-redirect.
+	parsedRedirect, err := url.Parse(redirectURI)
+	if err != nil || (parsedRedirect.Scheme != "http" && parsedRedirect.Scheme != "https") {
+		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
 		return
 	}
 
@@ -83,6 +93,12 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	if code == "" || state == "" {
 		http.Error(w, "missing code or state", http.StatusBadRequest)
+		return
+	}
+
+	// Verify state maps to a live session BEFORE calling GitHub to avoid unnecessary outbound calls.
+	if !h.store.HasSession(state) {
+		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 
@@ -164,7 +180,7 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) (string, erro
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := githubClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("GitHub API unreachable: %w", err)
 	}
@@ -174,7 +190,10 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) (string, erro
 		return "", fmt.Errorf("invalid token: GitHub returned %d", resp.StatusCode)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading GitHub user response: %w", err)
+	}
 	var user struct {
 		Login string `json:"login"`
 	}
@@ -201,18 +220,23 @@ func (h *Handler) exchangeGitHubCode(ctx context.Context, code string) (string, 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := githubClient.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return "", fmt.Errorf("GitHub OAuth returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+	}
 
 	var result struct {
 		AccessToken string `json:"access_token"`
 		Error       string `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return "", fmt.Errorf("decoding GitHub OAuth response: %w", err)
 	}
 	if result.Error != "" {
 		return "", fmt.Errorf("GitHub OAuth error: %s", result.Error)

@@ -64,6 +64,14 @@ func (s *Store) SaveSession(state, redirectURI, codeChallenge string) {
 	}
 }
 
+// HasSession returns true if state maps to a live (non-expired) session.
+func (s *Store) HasSession(state string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sess, ok := s.sessions[state]
+	return ok && !time.Now().After(sess.ExpiresAt)
+}
+
 // CompleteCallback attaches an internal code + access token to the session.
 func (s *Store) CompleteCallback(state, accessToken string) (string, error) {
 	s.mu.Lock()
@@ -75,7 +83,10 @@ func (s *Store) CompleteCallback(state, accessToken string) (string, error) {
 		return "", fmt.Errorf("session not found or expired for state %q", state)
 	}
 
-	code := generateCode()
+	code, err := generateCode()
+	if err != nil {
+		return "", err
+	}
 	sess.InternalCode = code
 	sess.AccessToken = accessToken
 	s.codes[code] = sess
@@ -153,10 +164,12 @@ func (s *Store) janitor() {
 	}
 }
 
-func generateCode() string {
+func generateCode() (string, error) {
 	b := make([]byte, 32)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating code: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func verifyPKCE(verifier, challenge string) error {
