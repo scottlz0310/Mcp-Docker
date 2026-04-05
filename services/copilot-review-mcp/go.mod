@@ -1,12 +1,12 @@
 module github.com/scottlz0310/copilot-review-mcp
 
-go 1.25.8
+go 1.26.1
 
 require (
 	github.com/google/go-github/v72 v72.0.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
-	golang.org/x/oauth2 v0.34.0
+	golang.org/x/oauth2 v0.36.0
 	modernc.org/sqlite v1.48.1
 )
 
