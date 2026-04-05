@@ -102,7 +102,12 @@ func cycleStatusHandler(
 		validFixTypes := map[string]bool{
 			"logic": true, "spec_change": true, "trivial": true, "none": true,
 		}
-		if in.FixType != "" && !validFixTypes[in.FixType] {
+		if in.FixType == "" {
+			return nil, CycleStatusOutput{}, fmt.Errorf(
+				`fix_type is required and must be one of: "logic", "spec_change", "trivial", "none"`,
+			)
+		}
+		if !validFixTypes[in.FixType] {
 			return nil, CycleStatusOutput{}, fmt.Errorf(
 				"fix_type must be one of: logic, spec_change, trivial, none (got %q)", in.FixType,
 			)
@@ -166,9 +171,17 @@ func cycleStatusHandler(
 			if !t.IsResolved {
 				unresolvedCount++
 			}
-			// A thread is "replied" when it has more than 1 comment
-			// (original Copilot comment + at least one user reply).
-			if len(t.Comments) <= 1 {
+			// A thread is "replied" only when there are comments from
+			// at least two distinct authors (for example, Copilot and a user).
+			uniqueAuthors := make(map[string]struct{})
+			for _, c := range t.Comments {
+				authorKey := strings.TrimSpace(c.Author)
+				if authorKey == "" {
+					continue
+				}
+				uniqueAuthors[authorKey] = struct{}{}
+			}
+			if len(uniqueAuthors) < 2 {
 				allReplied = false
 			}
 		}
@@ -189,6 +202,13 @@ func cycleStatusHandler(
 		reviewData, err := gh.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 		if err != nil {
 			return nil, CycleStatusOutput{}, fmt.Errorf("failed to fetch review data: %w", err)
+		}
+		if reviewData.RateLimitRemaining < 10 {
+			return nil, CycleStatusOutput{}, fmt.Errorf(
+				"insufficient GitHub API rate limit remaining to safely derive review status: remaining=%d, retry-after=%v",
+				reviewData.RateLimitRemaining,
+				reviewData.RateLimitReset,
+			)
 		}
 
 		entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
@@ -211,16 +231,11 @@ func cycleStatusHandler(
 			}
 		}
 
-		// ── Determine cycle_status ────────────────────────────────────────────
+		// ── Termination condition checks (used for action and notes) ─────────
 		// Condition 1: all comments resolved, no blocking, CI OK.
 		terminateCond1 := blockingCount == 0 && unresolvedCount == 0 && in.CIAllSuccess
 		// Condition 2: no new Copilot comment for ≥ threshold minutes, CI OK, no blocking.
 		terminateCond2 := elapsedMinutes >= noCommentThreshold && in.CIAllSuccess && blockingCount == 0
-
-		cycleStatus := "CONTINUE"
-		if terminateCond1 || terminateCond2 {
-			cycleStatus = "TERMINATE"
-		}
 
 		// ── Determine recommended_action ──────────────────────────────────────
 		var recommendedAction string
@@ -245,14 +260,22 @@ func cycleStatusHandler(
 				recommendedAction = "REPLY_RESOLVE"
 			}
 
-		case cycleStatus == "TERMINATE":
+		case terminateCond1 || terminateCond2:
 			recommendedAction = "READY_TO_MERGE"
 
 		default:
 			// Remaining case: blocking==0, unresolved==0, rereview not required,
-			// but cycle is still CONTINUE (e.g. CI not yet green).
+			// but termination conditions not met (e.g. CI not yet green).
 			// WAIT is the most conservative choice until the next cycle.
 			recommendedAction = "WAIT"
+		}
+
+		// ── Derive cycle_status from recommended_action ───────────────────────
+		// Only READY_TO_MERGE implies cycle termination; all other actions continue the cycle.
+		// This ensures cycle_status and recommended_action are always consistent.
+		cycleStatus := "CONTINUE"
+		if recommendedAction == "READY_TO_MERGE" {
+			cycleStatus = "TERMINATE"
 		}
 
 		// ── Build notes ───────────────────────────────────────────────────────
