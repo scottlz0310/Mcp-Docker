@@ -32,6 +32,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration) http.Handler 
 		RegisterWaitTool(srv, gh, db)
 		RegisterRequestTool(srv, gh, db)
 		RegisterThreadTools(srv, gh)
+		RegisterCycleTool(srv, gh, db)
 		return srv
 	}
 	return mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
