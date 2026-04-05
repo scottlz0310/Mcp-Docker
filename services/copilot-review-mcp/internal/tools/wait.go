@@ -96,7 +96,10 @@ func waitHandler(
 
 			// Check rate limit before proceeding.
 			if data.RateLimitRemaining < 10 {
-				entry, _ := db.GetLatest(in.Owner, in.Repo, in.PR)
+				entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
+				if err != nil {
+					return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (RATE_LIMITED): %w", err)
+				}
 				var reqAt *time.Time
 				if entry != nil {
 					reqAt = &entry.RequestedAt
@@ -147,7 +150,10 @@ func waitHandler(
 		if err != nil {
 			return nil, WaitOutput{}, fmt.Errorf("final review data fetch failed after %d polls: %w", in.MaxPolls, err)
 		}
-		entry, _ := db.GetLatest(in.Owner, in.Repo, in.PR)
+		entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
+		if err != nil {
+			return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (TIMEOUT): %w", err)
+		}
 		var requestedAt *time.Time
 		if entry != nil {
 			requestedAt = &entry.RequestedAt

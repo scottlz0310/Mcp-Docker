@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS trigger_log (
     repo         TEXT    NOT NULL,
     pr           INTEGER NOT NULL,
     trigger      TEXT    NOT NULL,
-    requested_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-    completed_at INTEGER
+    requested_at INTEGER NOT NULL DEFAULT (strftime('%s','now')), -- epoch seconds (UTC)
+    completed_at INTEGER                                          -- epoch seconds (UTC), NULL while pending
 );
 CREATE INDEX IF NOT EXISTS idx_trigger_log_pr ON trigger_log(owner, repo, pr);
 `

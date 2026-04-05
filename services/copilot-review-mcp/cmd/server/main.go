@@ -63,7 +63,7 @@ func main() {
 	addr := ":" + cfg.port
 	slog.Info("copilot-review-mcp starting", "addr", addr, "base_url", cfg.baseURL)
 	// WriteTimeout is set to 0 (unlimited) because wait_for_copilot_review may block
-	// for up to max_polls * poll_interval_seconds (default: 10 minutes).
+	// for up to (max_polls−1) × poll_interval_seconds + API latency (at most 30 minutes).
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
