@@ -70,7 +70,7 @@ type CycleClassificationSummary struct {
 
 // CycleStatusOutput is the output schema for get_pr_review_cycle_status.
 type CycleStatusOutput struct {
-	CycleStatus           string                     `json:"cycle_status"`       // CONTINUE | TERMINATE
+	CycleStatus           string                     `json:"cycle_status"`       // CONTINUE | TERMINATE  ※TERMINATE は推奨アクションが終端アクション(READY_TO_MERGE/ESCALATE)の場合のみ
 	RecommendedAction     string                     `json:"recommended_action"` // WAIT | APPLY_FIXES | REPLY_RESOLVE | REQUEST_REREVIEW | READY_TO_MERGE | ESCALATE
 	RereviewRequired      bool                       `json:"rereview_required"`
 	RereviewReason        *string                    `json:"rereview_reason"`
@@ -87,7 +87,12 @@ var cycleTool = &mcp.Tool{
 	Name: "get_pr_review_cycle_status",
 	Description: "PR レビューサイクルの現在状態を評価し、次の推奨アクション " +
 		"(WAIT / APPLY_FIXES / REPLY_RESOLVE / REQUEST_REREVIEW / READY_TO_MERGE / ESCALATE) を返す。" +
-		"ISSUE#25・ISSUE#26 のツール群を組み合わせた PR レビューサイクルのオーケストレーション用。",
+		"ISSUE#25・ISSUE#26 のツール群を組み合わせた PR レビューサイクルのオーケストレーション用。\n\n" +
+		"【cycle_status の定義】\n" +
+		"  TERMINATE = recommended_action が READY_TO_MERGE または ESCALATE の場合のみ。\n" +
+		"  これらは \"次のサイクル不要\" を意味する終端アクション。\n" +
+		"  終了条件 (terminateCond) が満たされても rereview_required=true 等の理由で\n" +
+		"  recommended_action が READY_TO_MERGE でない場合は CONTINUE になることがある。",
 }
 
 func cycleStatusHandler(
@@ -287,10 +292,14 @@ func cycleStatusHandler(
 		}
 
 		// ── Derive cycle_status from recommended_action ───────────────────────
-		// Only READY_TO_MERGE implies cycle termination; all other actions continue the cycle.
-		// This ensures cycle_status and recommended_action are always consistent.
+		// cycle_status=TERMINATE は「終端アクション」の場合のみ。
+		// 終端アクション = READY_TO_MERGE または ESCALATE（次のサイクル不要）。
+		// terminateCond1/2 は READY_TO_MERGE 到達のための入力条件であり、
+		// 直接 cycle_status を制御しない。これにより cycle_status と
+		// recommended_action が常に整合する（e.g. rereview 必要な場合は
+		// terminateCond が満たされても CONTINUE のまま）。
 		cycleStatus := "CONTINUE"
-		if recommendedAction == "READY_TO_MERGE" {
+		if recommendedAction == "READY_TO_MERGE" || recommendedAction == "ESCALATE" {
 			cycleStatus = "TERMINATE"
 		}
 
