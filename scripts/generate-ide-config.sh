@@ -135,6 +135,18 @@ COPILOT_REVIEW_URL="$(resolve_copilot_review_url)"
 if [[ "$SERVICE" == "copilot-review-mcp" ]]; then
     CRM_SERVER_KEY="copilot-review-mcp"
     CRM_MCP_URL="${COPILOT_REVIEW_URL}/mcp"
+
+    # IDE の妥当性を先に検証（mkdir より前）
+    case "$IDE" in
+        vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
+            ;;
+        *)
+            echo "❌ 未対応のIDEです: $IDE"
+            echo "対応IDE: vscode, claude-desktop, kiro, amazonq, codex, copilot-cli"
+            exit 1
+            ;;
+    esac
+
     CRM_OUTPUT_DIR="${PROJECT_ROOT}/config/ide-configs/copilot-review-mcp/${IDE}"
     mkdir -p "${CRM_OUTPUT_DIR}"
 

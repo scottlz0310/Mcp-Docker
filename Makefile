@@ -58,7 +58,8 @@ start-custom: build-custom ## カスタムビルド後に起動
 CRM_IMAGE       ?= copilot-review-mcp:latest
 CRM_CONTAINER   ?= copilot-review-mcp
 CRM_PORT        ?= 8083
-CRM_SQLITE_PATH ?= /tmp/copilot-review.db
+CRM_VOLUME      ?= copilot-review-data
+CRM_SQLITE_PATH ?= /data/copilot-review.db
 CRM_DIR         := services/copilot-review-mcp
 
 .PHONY: crm-build
@@ -74,6 +75,7 @@ crm-start: crm-stop ## copilot-review-mcp コンテナを起動（バックグ�
 	docker run -d \
 		--name $(CRM_CONTAINER) \
 		-p $(CRM_PORT):8083 \
+		-v $(CRM_VOLUME):/data \
 		-e GITHUB_CLIENT_ID \
 		-e GITHUB_CLIENT_SECRET \
 		-e BASE_URL=$${BASE_URL:-http://localhost:$(CRM_PORT)} \
