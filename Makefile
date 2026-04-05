@@ -2,6 +2,16 @@
 # GitHub MCP Server - サービス管理
 # ========================================
 
+# 環境変数優先、.env フォールバック
+# 既に export 済みの変数は上書きしない (override しない)
+ifneq (,$(wildcard .env))
+  include .env
+  export
+endif
+# .env のシェルスタイル引用符 ("value" → value) を除去
+GITHUB_CLIENT_ID     := $(patsubst "%",%,$(GITHUB_CLIENT_ID))
+GITHUB_CLIENT_SECRET := $(patsubst "%",%,$(GITHUB_CLIENT_SECRET))
+
 .DEFAULT_GOAL := help
 
 .PHONY: help

@@ -47,7 +47,7 @@ func NewHandler(cfg Config) *Handler {
 	// Normalize BaseURL: strip trailing slash to prevent double-slash in endpoint URLs.
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if len(cfg.AllowedRedirectHosts) == 0 {
-		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1"}
+		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1", "vscode.dev"}
 	}
 	return &Handler{
 		cfg:   cfg,
@@ -61,12 +61,42 @@ func (h *Handler) Discovery(w http.ResponseWriter, r *http.Request) {
 		"issuer":                           h.cfg.BaseURL,
 		"authorization_endpoint":           h.cfg.BaseURL + "/authorize",
 		"token_endpoint":                   h.cfg.BaseURL + "/token",
+		"registration_endpoint":            h.cfg.BaseURL + "/register",
 		"response_types_supported":         []string{"code"},
 		"grant_types_supported":            []string{"authorization_code"},
 		"code_challenge_methods_supported": []string{"S256"},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
+}
+
+// Register implements RFC 7591 Dynamic Client Registration (pseudo).
+// Always returns the pre-configured GitHub OAuth App client_id; no new client
+// is created. This allows MCP clients (e.g. VS Code) to proceed automatically
+// without requiring the user to enter a client_id manually.
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	var meta map[string]json.RawMessage
+	// Ignore decode errors — metadata fields are all optional per RFC 7591.
+	_ = json.NewDecoder(r.Body).Decode(&meta)
+
+	resp := map[string]any{
+		"client_id":                  h.cfg.GitHubClientID,
+		"client_id_issued_at":        time.Now().Unix(),
+		"client_secret_expires_at":   0,
+		"token_endpoint_auth_method": "none",
+		"grant_types":                []string{"authorization_code"},
+		"response_types":             []string{"code"},
+	}
+	// Echo back optional metadata fields if provided by the client.
+	for _, field := range []string{"redirect_uris", "client_name", "scope"} {
+		if v, ok := meta[field]; ok {
+			resp[field] = v
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Authorize redirects the MCP client to GitHub OAuth.

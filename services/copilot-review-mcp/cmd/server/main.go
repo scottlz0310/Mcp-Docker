@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/scottlz0310/copilot-review-mcp/internal/auth"
@@ -47,6 +48,7 @@ func main() {
 	mux.HandleFunc("GET /authorize", oauthHandler.Authorize)
 	mux.HandleFunc("GET /callback", oauthHandler.Callback)
 	mux.HandleFunc("POST /token", oauthHandler.Token)
+	mux.HandleFunc("POST /register", oauthHandler.Register)
 
 	// Health check (no auth required)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +110,7 @@ func loadConfig() config {
 }
 
 func mustEnv(key string) string {
-	v := os.Getenv(key)
+	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
 		slog.Error("required environment variable not set", "key", key)
 		os.Exit(1)
@@ -117,7 +119,7 @@ func mustEnv(key string) string {
 }
 
 func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
 	return fallback
