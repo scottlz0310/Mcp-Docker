@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -18,6 +20,12 @@ type TokenValidator interface {
 	ValidateToken(ctx context.Context, token string) (string, error)
 }
 
+// upstreamErrorer is satisfied by errors that represent upstream service failures
+// (network errors, GitHub 5xx), allowing the middleware to return 503 instead of 401.
+type upstreamErrorer interface {
+	IsUpstreamError() bool
+}
+
 // Auth returns a middleware that validates Bearer tokens via the GitHub API.
 func Auth(v TokenValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -30,6 +38,14 @@ func Auth(v TokenValidator) func(http.Handler) http.Handler {
 
 			login, err := v.ValidateToken(r.Context(), token)
 			if err != nil {
+				var ue upstreamErrorer
+				if errors.As(err, &ue) {
+					slog.Error("upstream error during auth", "err", err, "path", r.URL.Path)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": "upstream_error"})
+					return
+				}
 				slog.Warn("auth failed", "err", err, "path", r.URL.Path)
 				writeUnauthorized(w, "invalid_token")
 				return
@@ -46,7 +62,7 @@ func writeUnauthorized(w http.ResponseWriter, errCode string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("WWW-Authenticate", `Bearer realm="copilot-review-mcp"`)
 	w.WriteHeader(http.StatusUnauthorized)
-	_, _ = w.Write([]byte(`{"error":"` + errCode + `"}`))
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": errCode})
 }
 
 func extractBearer(r *http.Request) string {

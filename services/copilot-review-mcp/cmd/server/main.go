@@ -47,6 +47,7 @@ func main() {
 	// MCP endpoints (auth required) — placeholder until Tools 1-3 are implemented
 	mcpMux := http.NewServeMux()
 	mcpMux.HandleFunc("GET /mcp", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"jsonrpc":"2.0","result":{"serverInfo":{"name":"copilot-review-mcp","version":"0.1.0"}}}`)
 	})
 	mux.Handle("/mcp", authMiddleware(mcpMux))

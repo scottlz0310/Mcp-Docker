@@ -26,6 +26,16 @@ type Config struct {
 	CacheTTL           time.Duration
 }
 
+// UpstreamError represents a failure contacting an upstream service (e.g. GitHub API
+// network error or 5xx response). The auth middleware uses this to return 503 instead of 401.
+type UpstreamError struct {
+	err error
+}
+
+func (e *UpstreamError) Error() string         { return e.err.Error() }
+func (e *UpstreamError) Unwrap() error         { return e.err }
+func (e *UpstreamError) IsUpstreamError() bool { return true }
+
 // Handler implements the OAuth façade endpoints.
 type Handler struct {
 	cfg   Config
@@ -202,17 +212,20 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) (string, erro
 
 	resp, err := githubClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("GitHub API unreachable: %w", err)
+		return "", &UpstreamError{err: fmt.Errorf("GitHub API unreachable: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode >= 500 {
+			return "", &UpstreamError{err: fmt.Errorf("GitHub API returned %d", resp.StatusCode)}
+		}
 		return "", fmt.Errorf("invalid token: GitHub returned %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("reading GitHub user response: %w", err)
+		return "", &UpstreamError{err: fmt.Errorf("reading GitHub user response: %w", err)}
 	}
 	var user struct {
 		Login string `json:"login"`

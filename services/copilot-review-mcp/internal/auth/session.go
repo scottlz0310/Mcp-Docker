@@ -14,7 +14,7 @@ type Session struct {
 	State         string
 	RedirectURI   string
 	CodeChallenge string
-	InternalCode  string // UUID issued at /callback
+	InternalCode  string // base64url-encoded 32-byte random string, issued at /callback
 	AccessToken   string // GitHub access_token stored at /callback
 	ExpiresAt     time.Time
 }
