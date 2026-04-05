@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/google/go-github/v72/github"
@@ -208,21 +209,27 @@ type threadNodeQuery struct {
 	} `graphql:"node(id: $id)"`
 }
 
-// addReplyMutation is the GraphQL mutation for adding a reply to a review thread.
-type addReplyMutation struct {
-	AddPullRequestReviewCommentReply struct {
-		Comment struct {
-			ID        githubv4.ID
-			CreatedAt githubv4.DateTime
-		}
-	} `graphql:"addPullRequestReviewCommentReply(input: $input)"`
-}
-
-// AddPullRequestReviewCommentReplyInput is the input for addReplyMutation.
-// Must be PascalCase so shurcooL/githubv4 sends the correct GraphQL type name.
-type AddPullRequestReviewCommentReplyInput struct {
-	PullRequestReviewThreadID githubv4.ID     `json:"pullRequestReviewThreadId"`
-	Body                      githubv4.String `json:"body"`
+// threadMetadataQuery fetches owner, repo, PR number, and first comment database ID
+// from a review thread node ID. Used to reply via REST API.
+type threadMetadataQuery struct {
+	Node struct {
+		PullRequestReviewThread struct {
+			PullRequest struct {
+				Number     githubv4.Int
+				Repository struct {
+					Name  githubv4.String
+					Owner struct {
+						Login githubv4.String
+					}
+				}
+			}
+			Comments struct {
+				Nodes []struct {
+					DatabaseId githubv4.Int
+				}
+			} `graphql:"comments(first: 1)"`
+		} `graphql:"... on PullRequestReviewThread"`
+	} `graphql:"node(id: $id)"`
 }
 
 // resolveThreadMutation is the GraphQL mutation for resolving a review thread.
@@ -335,20 +342,33 @@ func (c *Client) IsThreadResolved(ctx context.Context, threadID string) (bool, e
 	return bool(q.Node.PullRequestReviewThread.IsResolved), nil
 }
 
-// ReplyToThread adds a reply comment to a review thread.
-// Returns the new comment's ID and creation timestamp.
+// ReplyToThread adds a reply to a review thread via the REST API.
+// It first queries the thread node to resolve owner/repo/PR/commentID,
+// then calls CreateCommentInReplyTo. This avoids the deprecated
+// addPullRequestReviewCommentReply GraphQL mutation.
 func (c *Client) ReplyToThread(ctx context.Context, threadID, body string) (ReplyResult, error) {
-	var m addReplyMutation
-	input := AddPullRequestReviewCommentReplyInput{
-		PullRequestReviewThreadID: githubv4.ID(threadID),
-		Body:                      githubv4.String(body),
+	// Resolve thread metadata via GraphQL.
+	var q threadMetadataQuery
+	if err := c.v4.Query(ctx, &q, map[string]interface{}{"id": githubv4.ID(threadID)}); err != nil {
+		return ReplyResult{}, fmt.Errorf("graphql query failed: %w", err)
 	}
-	if err := c.v4.Mutate(ctx, &m, input, nil); err != nil {
-		return ReplyResult{}, fmt.Errorf("graphql mutation failed: %w", err)
+	meta := q.Node.PullRequestReviewThread
+	if len(meta.Comments.Nodes) == 0 {
+		return ReplyResult{}, fmt.Errorf("thread has no comments")
+	}
+	owner := string(meta.PullRequest.Repository.Owner.Login)
+	repo := string(meta.PullRequest.Repository.Name)
+	prNum := int(meta.PullRequest.Number)
+	commentID := int64(meta.Comments.Nodes[0].DatabaseId)
+
+	// Post reply via REST API.
+	comment, _, err := c.gh.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, prNum, body, commentID)
+	if err != nil {
+		return ReplyResult{}, fmt.Errorf("REST API reply failed: %w", err)
 	}
 	return ReplyResult{
-		CommentID: fmt.Sprintf("%v", m.AddPullRequestReviewCommentReply.Comment.ID),
-		CreatedAt: m.AddPullRequestReviewCommentReply.Comment.CreatedAt.Format(time.RFC3339),
+		CommentID: strconv.FormatInt(comment.GetID(), 10),
+		CreatedAt: comment.GetCreatedAt().Format(time.RFC3339),
 	}, nil
 }
 
