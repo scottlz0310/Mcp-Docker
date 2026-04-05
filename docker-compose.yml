@@ -62,7 +62,7 @@ services:
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
       - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-5}
     ports:
-      - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:8083"
+      - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
 
     networks:
       - mcp-network

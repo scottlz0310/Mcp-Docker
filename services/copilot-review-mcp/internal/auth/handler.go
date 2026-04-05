@@ -33,6 +33,8 @@ type Handler struct {
 }
 
 func NewHandler(cfg Config) *Handler {
+	// Normalize BaseURL: strip trailing slash to prevent double-slash in endpoint URLs.
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	return &Handler{
 		cfg:   cfg,
 		store: NewStore(cfg.SessionTTL, cfg.CacheTTL),
@@ -77,10 +79,14 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate redirect_uri: only http/https schemes to prevent open-redirect.
+	// Validate redirect_uri: must be an absolute URL with http/https scheme,
+	// non-empty host, and no fragment (RFC 6749 §3.1.2).
 	parsedRedirect, err := url.Parse(redirectURI)
-	if err != nil || (parsedRedirect.Scheme != "http" && parsedRedirect.Scheme != "https") {
-		oauthError(w, "invalid_request", "invalid redirect_uri", http.StatusBadRequest)
+	if err != nil ||
+		(parsedRedirect.Scheme != "http" && parsedRedirect.Scheme != "https") ||
+		parsedRedirect.Host == "" ||
+		parsedRedirect.Fragment != "" {
+		oauthError(w, "invalid_request", "invalid redirect_uri: must be absolute http/https URL without fragment", http.StatusBadRequest)
 		return
 	}
 
@@ -153,12 +159,12 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // registry is needed for phase 1. Multi-client support can be added in a future iteration.
 func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		oauthError(w, "invalid_request", "malformed request body", http.StatusBadRequest)
 		return
 	}
 	grantType := r.FormValue("grant_type")
 	if grantType != "authorization_code" {
-		http.Error(w, "unsupported grant_type", http.StatusBadRequest)
+		oauthError(w, "unsupported_grant_type", "only authorization_code is supported", http.StatusBadRequest)
 		return
 	}
 
@@ -169,16 +175,14 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	token, err := h.store.ExchangeCode(code, redirectURI, codeVerifier)
 	if err != nil {
 		slog.Warn("token exchange rejected", "err", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error":             "invalid_grant",
-			"error_description": err.Error(),
-		})
+		oauthError(w, "invalid_grant", err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// RFC 6749 §5.1: token responses MUST NOT be cached.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"access_token": token,
 		"token_type":   "Bearer",
@@ -273,6 +277,8 @@ func (s *Store) lookupByCode(code string) *Session {
 // oauthError writes an RFC 6749-compliant JSON error response.
 func oauthError(w http.ResponseWriter, code, description string, status int) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error":             code,

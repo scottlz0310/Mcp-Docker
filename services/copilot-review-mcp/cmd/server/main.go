@@ -54,7 +54,15 @@ func main() {
 
 	addr := ":" + cfg.port
 	slog.Info("copilot-review-mcp starting", "addr", addr, "base_url", cfg.baseURL)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil {
 		slog.Error("server error", "err", err)
 		os.Exit(1)
 	}
