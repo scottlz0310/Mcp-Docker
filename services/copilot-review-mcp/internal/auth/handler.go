@@ -75,9 +75,33 @@ func (h *Handler) Discovery(w http.ResponseWriter, r *http.Request) {
 // is created. This allows MCP clients (e.g. VS Code) to proceed automatically
 // without requiring the user to enter a client_id manually.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	var meta map[string]json.RawMessage
-	// Ignore decode errors — metadata fields are all optional per RFC 7591.
-	_ = json.NewDecoder(r.Body).Decode(&meta)
+	// Limit body to 64 KB to prevent memory exhaustion from oversized requests.
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+
+	meta := map[string]json.RawMessage{}
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&meta); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_client_metadata",
+			"error_description": "request body must be valid JSON client metadata",
+		})
+		return
+	}
+	// Reject payloads that contain more than a single JSON object (RFC 7591).
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_client_metadata",
+			"error_description": "request body must contain a single JSON object",
+		})
+		return
+	}
 
 	resp := map[string]any{
 		"client_id":                  h.cfg.GitHubClientID,
@@ -95,6 +119,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(resp)
 }

@@ -2,34 +2,19 @@
 # GitHub MCP Server - サービス管理
 # ========================================
 
-# 環境変数優先、.env フォールバック
-# $(origin ...) で環境由来の値を退避 → .env を include → 退避値を復元することで
-# シェルで export 済みの変数が .env より優先されることを保証する。
-ifeq ($(origin GITHUB_CLIENT_ID),environment)
-  ENV_GITHUB_CLIENT_ID := $(GITHUB_CLIENT_ID)
-endif
-ifeq ($(origin GITHUB_CLIENT_ID),environment override)
-  ENV_GITHUB_CLIENT_ID := $(GITHUB_CLIENT_ID)
-endif
-ifeq ($(origin GITHUB_CLIENT_SECRET),environment)
-  ENV_GITHUB_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
-endif
-ifeq ($(origin GITHUB_CLIENT_SECRET),environment override)
-  ENV_GITHUB_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
-endif
+# 環境変数優先、.env フォールバック（安全な shell ベース読み込み）
+# include .env は .env を Makefile として解釈するため $(shell ...) 等が実行される危険がある。
+# 代わりに shell でソースして既知変数のみ抽出することで Make 関数インジェクションを防ぐ。
+# ?= は変数が未定義の場合のみ代入するため、シェルの export 済み変数が自動的に優先される。
 ifneq (,$(wildcard .env))
-  include .env
-  export
+  GITHUB_CLIENT_ID             ?= $(shell . ./.env 2>/dev/null && printf '%s' "$$GITHUB_CLIENT_ID")
+  GITHUB_CLIENT_SECRET         ?= $(shell . ./.env 2>/dev/null && printf '%s' "$$GITHUB_CLIENT_SECRET")
+  GITHUB_PERSONAL_ACCESS_TOKEN ?= $(shell . ./.env 2>/dev/null && printf '%s' "$$GITHUB_PERSONAL_ACCESS_TOKEN")
+  BASE_URL                     ?= $(shell . ./.env 2>/dev/null && printf '%s' "$$BASE_URL")
+  GITHUB_OAUTH_SCOPES          ?= $(shell . ./.env 2>/dev/null && printf '%s' "$$GITHUB_OAUTH_SCOPES")
 endif
-# .env のシェルスタイル引用符 ("value" → value) を除去してから環境由来の値で上書き
-GITHUB_CLIENT_ID     := $(patsubst "%",%,$(GITHUB_CLIENT_ID))
-GITHUB_CLIENT_SECRET := $(patsubst "%",%,$(GITHUB_CLIENT_SECRET))
-ifdef ENV_GITHUB_CLIENT_ID
-  GITHUB_CLIENT_ID := $(ENV_GITHUB_CLIENT_ID)
-endif
-ifdef ENV_GITHUB_CLIENT_SECRET
-  GITHUB_CLIENT_SECRET := $(ENV_GITHUB_CLIENT_SECRET)
-endif
+# 子プロセス（docker compose / docker run）に確実に渡す
+export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES
 
 .DEFAULT_GOAL := help
 
