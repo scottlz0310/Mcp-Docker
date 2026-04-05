@@ -47,7 +47,7 @@ type CycleStatusInput struct {
 	Repo          string  `json:"repo"`
 	PR            int     `json:"pr"`
 	CIAllSuccess  bool    `json:"ci_all_success"`
-	LastCommentAt *string `json:"last_comment_at"` // ISO8601 | null
+	LastCommentAt *string `json:"last_comment_at,omitempty"` // ISO8601 | null | omitted
 	CyclesDone    int     `json:"cycles_done"`
 	MaxCycles     int     `json:"max_cycles"` // 0 → use env/default
 	FixType       string  `json:"fix_type"`   // logic | spec_change | trivial | none

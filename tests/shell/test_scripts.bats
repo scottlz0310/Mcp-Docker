@@ -118,3 +118,16 @@ setup() {
     [ "$status" -eq 1 ]
     [[ "$output" =~ "未対応のIDE" ]]
 }
+
+@test "generate-ide-config.sh: --service copilot-review-mcp vscode設定生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide vscode --service copilot-review-mcp
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VS Code設定を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/copilot-review-mcp/vscode/settings.json" ]
+}
+
+@test "generate-ide-config.sh: --service copilot-review-mcp claude-desktop はexit 0で案内を表示する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop --service copilot-review-mcp
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "HTTP only" ]] || [[ "$output" =~ "stdio" ]]
+}

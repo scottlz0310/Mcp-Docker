@@ -52,6 +52,76 @@ start-custom: build-custom ## カスタムビルド後に起動
 	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose up -d github-mcp
 
 # ----------------------------------------
+# copilot-review-mcp (services/copilot-review-mcp)
+# ----------------------------------------
+
+CRM_IMAGE       ?= copilot-review-mcp:latest
+CRM_CONTAINER   ?= copilot-review-mcp
+CRM_PORT        ?= 8083
+CRM_VOLUME      ?= copilot-review-data
+CRM_SQLITE_PATH ?= /data/copilot-review.db
+CRM_DIR         := services/copilot-review-mcp
+
+.PHONY: crm-build
+crm-build: ## copilot-review-mcp イメージをビルド
+	docker build -t $(CRM_IMAGE) $(CRM_DIR)
+
+.PHONY: crm-start
+crm-start: crm-stop ## copilot-review-mcp コンテナを起動（バックグラウンド、既存コンテナ自動削除）
+	@if [ -z "$$GITHUB_CLIENT_ID" ] || [ -z "$$GITHUB_CLIENT_SECRET" ]; then \
+		echo "❌ 環境変数 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET が未設定です"; \
+		exit 1; \
+	fi
+	docker run -d \
+		--name $(CRM_CONTAINER) \
+		-p $(CRM_PORT):8083 \
+		-v $(CRM_VOLUME):/data \
+		-e GITHUB_CLIENT_ID \
+		-e GITHUB_CLIENT_SECRET \
+		-e BASE_URL=$${BASE_URL:-http://localhost:$(CRM_PORT)} \
+		-e SQLITE_PATH=$(CRM_SQLITE_PATH) \
+		$(if $(GITHUB_OAUTH_SCOPES),-e GITHUB_OAUTH_SCOPES=$(GITHUB_OAUTH_SCOPES)) \
+		$(CRM_IMAGE)
+	@echo "✅ 起動しました (port $(CRM_PORT))"
+	@echo "   ヘルスチェック: curl -s http://localhost:$(CRM_PORT)/health"
+
+.PHONY: crm-stop
+crm-stop: ## copilot-review-mcp コンテナを停止・削除
+	docker stop $(CRM_CONTAINER) 2>/dev/null || true
+	docker rm   $(CRM_CONTAINER) 2>/dev/null || true
+	@echo "✅ 停止しました"
+
+.PHONY: crm-restart
+crm-restart: crm-stop crm-start ## copilot-review-mcp を再起動
+
+.PHONY: crm-logs
+crm-logs: ## copilot-review-mcp ログを表示
+	docker logs -f $(CRM_CONTAINER)
+
+.PHONY: crm-status
+crm-status: ## copilot-review-mcp コンテナの状態確認
+	@docker inspect --format \
+		'{{.Name}}  status={{.State.Status}}  pid={{.State.Pid}}' \
+		$(CRM_CONTAINER) 2>/dev/null || echo "コンテナが見つかりません: $(CRM_CONTAINER)"
+
+.PHONY: crm-health
+crm-health: ## copilot-review-mcp ヘルスチェック
+	@curl -sf http://localhost:$(CRM_PORT)/health > /dev/null || { echo "❌ ヘルスチェック失敗"; exit 1; }
+	@echo ""
+
+# ----------------------------------------
+# 設定生成
+# ----------------------------------------
+
+.PHONY: gen-config
+gen-config: ## IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
+	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
+
+.PHONY: gen-config-crm
+gen-config-crm: ## copilot-review-mcp の IDE設定ファイルを生成 (IDE=vscode|kiro|amazonq|codex|copilot-cli)
+	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode) --service copilot-review-mcp
+
+# ----------------------------------------
 # 開発
 # ----------------------------------------
 
