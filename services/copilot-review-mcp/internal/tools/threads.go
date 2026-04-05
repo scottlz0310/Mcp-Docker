@@ -28,7 +28,7 @@ var blockingKeywords = []string{
 }
 
 var nonBlockingKeywords = []string{
-	"consider adding test", "missing test", "logging",
+	"consider adding test", "missing test", "log", "logging",
 	"consider", "might want to", "optional",
 }
 
@@ -40,10 +40,12 @@ var suggestionKeywords = []string{
 // classifyThread returns the classification and reason for a thread based on its comments.
 // Priority: blocking > non-blocking > suggestion.
 func classifyThread(comments []ghclient.ThreadComment) (classification, reason string) {
-	body := ""
+	var bodyBuilder strings.Builder
 	for _, c := range comments {
-		body += " " + strings.ToLower(c.Body)
+		bodyBuilder.WriteByte(' ')
+		bodyBuilder.WriteString(strings.ToLower(c.Body))
 	}
+	body := bodyBuilder.String()
 
 	for _, kw := range blockingKeywords {
 		if strings.Contains(body, kw) {
@@ -172,9 +174,6 @@ func RegisterGetReviewThreadsTool(server *mcp.Server, gh *ghclient.Client) {
 
 // ReplyToThreadInput is the input schema for reply_to_review_thread.
 type ReplyToThreadInput struct {
-	Owner    string `json:"owner"`
-	Repo     string `json:"repo"`
-	PR       int    `json:"pr"`
 	ThreadID string `json:"threadId"`
 	Body     string `json:"body"`
 }
@@ -195,9 +194,6 @@ func replyToThreadHandler(
 	gh *ghclient.Client,
 ) func(context.Context, *mcp.CallToolRequest, ReplyToThreadInput) (*mcp.CallToolResult, ReplyToThreadOutput, error) {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in ReplyToThreadInput) (*mcp.CallToolResult, ReplyToThreadOutput, error) {
-		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
-			return nil, ReplyToThreadOutput{}, fmt.Errorf("owner, repo, and pr are required")
-		}
 		if in.ThreadID == "" {
 			return nil, ReplyToThreadOutput{}, fmt.Errorf("threadId is required")
 		}
@@ -236,9 +232,6 @@ func RegisterReplyToThreadTool(server *mcp.Server, gh *ghclient.Client) {
 
 // ResolveThreadInput is the input schema for resolve_review_thread.
 type ResolveThreadInput struct {
-	Owner    string `json:"owner"`
-	Repo     string `json:"repo"`
-	PR       int    `json:"pr"`
 	ThreadID string `json:"threadId"`
 }
 
@@ -257,9 +250,6 @@ func resolveThreadHandler(
 	gh *ghclient.Client,
 ) func(context.Context, *mcp.CallToolRequest, ResolveThreadInput) (*mcp.CallToolResult, ResolveThreadOutput, error) {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in ResolveThreadInput) (*mcp.CallToolResult, ResolveThreadOutput, error) {
-		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
-			return nil, ResolveThreadOutput{}, fmt.Errorf("owner, repo, and pr are required")
-		}
 		if in.ThreadID == "" {
 			return nil, ResolveThreadOutput{}, fmt.Errorf("threadId is required")
 		}
@@ -284,9 +274,6 @@ func RegisterResolveThreadTool(server *mcp.Server, gh *ghclient.Client) {
 
 // ReplyAndResolveInput is the input schema for reply_and_resolve_review_thread.
 type ReplyAndResolveInput struct {
-	Owner    string `json:"owner"`
-	Repo     string `json:"repo"`
-	PR       int    `json:"pr"`
 	ThreadID string `json:"threadId"`
 	Body     string `json:"body"`
 	Resolve  bool   `json:"resolve"`
@@ -310,9 +297,6 @@ func replyAndResolveHandler(
 	gh *ghclient.Client,
 ) func(context.Context, *mcp.CallToolRequest, ReplyAndResolveInput) (*mcp.CallToolResult, ReplyAndResolveOutput, error) {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in ReplyAndResolveInput) (*mcp.CallToolResult, ReplyAndResolveOutput, error) {
-		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
-			return nil, ReplyAndResolveOutput{}, fmt.Errorf("owner, repo, and pr are required")
-		}
 		if in.ThreadID == "" {
 			return nil, ReplyAndResolveOutput{}, fmt.Errorf("threadId is required")
 		}
