@@ -59,16 +59,28 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 	state := q.Get("state")
 	redirectURI := q.Get("redirect_uri")
 	codeChallenge := q.Get("code_challenge")
+	responseType := q.Get("response_type")
+	codeChallengeMethod := q.Get("code_challenge_method")
 
+	// Validate required OAuth 2.0 parameters.
+	if responseType != "code" {
+		oauthError(w, "unsupported_response_type", "response_type must be 'code'", http.StatusBadRequest)
+		return
+	}
 	if state == "" || redirectURI == "" {
-		http.Error(w, "missing state or redirect_uri", http.StatusBadRequest)
+		oauthError(w, "invalid_request", "missing state or redirect_uri", http.StatusBadRequest)
+		return
+	}
+	// If code_challenge is provided, enforce S256 method.
+	if codeChallenge != "" && codeChallengeMethod != "S256" {
+		oauthError(w, "invalid_request", "code_challenge_method must be S256", http.StatusBadRequest)
 		return
 	}
 
 	// Validate redirect_uri: only http/https schemes to prevent open-redirect.
 	parsedRedirect, err := url.Parse(redirectURI)
 	if err != nil || (parsedRedirect.Scheme != "http" && parsedRedirect.Scheme != "https") {
-		http.Error(w, "invalid redirect_uri", http.StatusBadRequest)
+		oauthError(w, "invalid_request", "invalid redirect_uri", http.StatusBadRequest)
 		return
 	}
 
@@ -135,6 +147,10 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 // Token handles the authorization_code grant and returns the access token.
+// Note on client_id: this façade authenticates exclusively via GitHub OAuth App (single-client).
+// The client_id presented by MCP clients is the GitHub OAuth App Client ID, which is
+// validated by GitHub during the code-exchange step. No separate façade-level client
+// registry is needed for phase 1. Multi-client support can be added in a future iteration.
 func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -252,4 +268,14 @@ func (s *Store) lookupByCode(code string) *Session {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.codes[code]
+}
+
+// oauthError writes an RFC 6749-compliant JSON error response.
+func oauthError(w http.ResponseWriter, code, description string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"error":             code,
+		"error_description": description,
+	})
 }
