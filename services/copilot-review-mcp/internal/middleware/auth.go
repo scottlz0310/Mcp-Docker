@@ -1,0 +1,57 @@
+package middleware
+
+import (
+	"context"
+	"net/http"
+	"strings"
+
+	"log/slog"
+)
+
+type contextKey string
+
+const ContextKeyLogin contextKey = "github_login"
+const ContextKeyToken contextKey = "github_token"
+
+// TokenValidator is implemented by auth.Handler.
+type TokenValidator interface {
+	ValidateToken(ctx context.Context, token string) (string, error)
+}
+
+// Auth returns a middleware that validates Bearer tokens via the GitHub API.
+func Auth(v TokenValidator) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := extractBearer(r)
+			if token == "" {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+
+			login, err := v.ValidateToken(r.Context(), token)
+			if err != nil {
+				slog.Warn("auth failed", "err", err, "path", r.URL.Path)
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), ContextKeyLogin, login)
+			ctx = context.WithValue(ctx, ContextKeyToken, token)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func extractBearer(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	return ""
+}
+
+// TokenFromContext retrieves the GitHub token injected by Auth middleware.
+func TokenFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(ContextKeyToken).(string)
+	return v
+}
