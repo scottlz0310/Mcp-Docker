@@ -218,8 +218,9 @@ type addReplyMutation struct {
 	} `graphql:"addPullRequestReviewCommentReply(input: $input)"`
 }
 
-// addPullRequestReviewCommentReplyInput is the input for addReplyMutation.
-type addPullRequestReviewCommentReplyInput struct {
+// AddPullRequestReviewCommentReplyInput is the input for addReplyMutation.
+// Must be PascalCase so shurcooL/githubv4 sends the correct GraphQL type name.
+type AddPullRequestReviewCommentReplyInput struct {
 	PullRequestReviewThreadID githubv4.ID     `json:"pullRequestReviewThreadId"`
 	Body                      githubv4.String `json:"body"`
 }
@@ -233,8 +234,9 @@ type resolveThreadMutation struct {
 	} `graphql:"resolveReviewThread(input: $input)"`
 }
 
-// resolveReviewThreadInput is the input for resolveThreadMutation.
-type resolveReviewThreadInput struct {
+// ResolveReviewThreadInput is the input for resolveThreadMutation.
+// Must be PascalCase so shurcooL/githubv4 sends the correct GraphQL type name.
+type ResolveReviewThreadInput struct {
 	ThreadID githubv4.ID `json:"threadId"`
 }
 
@@ -337,7 +339,7 @@ func (c *Client) IsThreadResolved(ctx context.Context, threadID string) (bool, e
 // Returns the new comment's ID and creation timestamp.
 func (c *Client) ReplyToThread(ctx context.Context, threadID, body string) (ReplyResult, error) {
 	var m addReplyMutation
-	input := addPullRequestReviewCommentReplyInput{
+	input := AddPullRequestReviewCommentReplyInput{
 		PullRequestReviewThreadID: githubv4.ID(threadID),
 		Body:                      githubv4.String(body),
 	}
@@ -360,7 +362,7 @@ func (c *Client) ResolveThread(ctx context.Context, threadID string) (alreadyRes
 		return true, nil
 	}
 	var m resolveThreadMutation
-	input := resolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}
+	input := ResolveReviewThreadInput{ThreadID: githubv4.ID(threadID)}
 	if err := c.v4.Mutate(ctx, &m, input, nil); err != nil {
 		return false, fmt.Errorf("graphql mutation failed: %w", err)
 	}
