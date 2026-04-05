@@ -122,6 +122,7 @@ resolve_copilot_review_url() {
         url="http://127.0.0.1:${port}"
     fi
     url="${url%/}"
+    url="${url%/mcp}"  # ベースURLのみ受け付ける。末尾に /mcp が含まれていれば除去
     echo "${url}"
 }
 

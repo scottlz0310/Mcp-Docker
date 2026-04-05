@@ -66,7 +66,7 @@ crm-build: ## copilot-review-mcp イメージをビルド
 	docker build -t $(CRM_IMAGE) $(CRM_DIR)
 
 .PHONY: crm-start
-crm-start: ## copilot-review-mcp コンテナを起動（バックグラウンド）
+crm-start: crm-stop ## copilot-review-mcp コンテナを起動（バックグラウンド、既存コンテナ自動削除）
 	@if [ -z "$$GITHUB_CLIENT_ID" ] || [ -z "$$GITHUB_CLIENT_SECRET" ]; then \
 		echo "❌ 環境変数 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET が未設定です"; \
 		exit 1; \
@@ -104,7 +104,8 @@ crm-status: ## copilot-review-mcp コンテナの状態確認
 
 .PHONY: crm-health
 crm-health: ## copilot-review-mcp ヘルスチェック
-	curl -sf http://localhost:$(CRM_PORT)/health && echo "" || echo "❌ ヘルスチェック失敗"
+	@curl -sf http://localhost:$(CRM_PORT)/health > /dev/null || { echo "❌ ヘルスチェック失敗"; exit 1; }
+	@echo ""
 
 # ----------------------------------------
 # 設定生成
