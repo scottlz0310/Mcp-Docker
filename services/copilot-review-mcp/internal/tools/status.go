@@ -98,6 +98,10 @@ func statusHandler(
 			out.ElapsedSinceRequest = &s
 			t := entry.Trigger
 			out.Trigger = &t
+		} else if data.IsCopilotInReviewers {
+			// No trigger_log entry but Copilot is in reviewers → AUTO trigger inferred.
+			auto := "AUTO"
+			out.Trigger = &auto
 		}
 
 		return nil, out, nil

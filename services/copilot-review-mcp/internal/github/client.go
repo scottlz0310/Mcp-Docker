@@ -87,24 +87,31 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 		return data, nil
 	}
 
-	// Fetch submitted reviews.
-	reviews, resp2, err := c.gh.PullRequests.ListReviews(ctx, owner, repo, prNumber, nil)
-	if err != nil {
-		return nil, err
-	}
-	if resp2 != nil {
-		data.RateLimitRemaining = resp2.Rate.Remaining
-		data.RateLimitReset = resp2.Rate.Reset.Time
-	}
-	for _, r := range reviews {
-		if !isCopilot(r.GetUser().GetLogin()) {
-			continue
+	// Fetch submitted reviews across all pages.
+	reviewOpts := &github.ListOptions{PerPage: 100}
+	for {
+		reviews, resp2, err := c.gh.PullRequests.ListReviews(ctx, owner, repo, prNumber, reviewOpts)
+		if err != nil {
+			return nil, err
 		}
-		if data.LatestCopilotReview == nil ||
-			r.GetSubmittedAt().After(data.LatestCopilotReview.GetSubmittedAt().Time) {
-			r2 := r // avoid loop-variable capture
-			data.LatestCopilotReview = r2
+		if resp2 != nil {
+			data.RateLimitRemaining = resp2.Rate.Remaining
+			data.RateLimitReset = resp2.Rate.Reset.Time
 		}
+		for _, r := range reviews {
+			if !isCopilot(r.GetUser().GetLogin()) {
+				continue
+			}
+			if data.LatestCopilotReview == nil ||
+				r.GetSubmittedAt().After(data.LatestCopilotReview.GetSubmittedAt().Time) {
+				r2 := r // avoid loop-variable capture
+				data.LatestCopilotReview = r2
+			}
+		}
+		if resp2 == nil || resp2.NextPage == 0 {
+			break
+		}
+		reviewOpts.Page = resp2.NextPage
 	}
 
 	return data, nil
