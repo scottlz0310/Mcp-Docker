@@ -10,6 +10,8 @@ import (
 
 	"github.com/scottlz0310/copilot-review-mcp/internal/auth"
 	"github.com/scottlz0310/copilot-review-mcp/internal/middleware"
+	"github.com/scottlz0310/copilot-review-mcp/internal/store"
+	"github.com/scottlz0310/copilot-review-mcp/internal/tools"
 )
 
 func main() {
@@ -18,6 +20,14 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: parseLogLevel(cfg.logLevel),
 	})))
+
+	// Open (or create) the SQLite trigger_log database.
+	db, err := store.Open(cfg.sqlitePath)
+	if err != nil {
+		slog.Error("failed to open SQLite database", "path", cfg.sqlitePath, "err", err)
+		os.Exit(1)
+	}
+	defer db.Close()
 
 	oauthHandler := auth.NewHandler(auth.Config{
 		GitHubClientID:     cfg.githubClientID,
@@ -44,23 +54,22 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok"}`)
 	})
 
-	// MCP endpoints (auth required) — placeholder until Tools 1-3 are implemented
-	mcpMux := http.NewServeMux()
-	mcpMux.HandleFunc("GET /mcp", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, `{"jsonrpc":"2.0","result":{"serverInfo":{"name":"copilot-review-mcp","version":"0.1.0"}}}`)
-	})
-	mux.Handle("/mcp", authMiddleware(mcpMux))
-	mux.Handle("/mcp/", authMiddleware(mcpMux))
+	// MCP endpoints (auth required) — Streamable HTTP transport (stateless, per-request server)
+	threshold := time.Duration(cfg.inProgressThresholdSec) * time.Second
+	mcpHandler := tools.BuildStreamableHandler(db, threshold)
+	mux.Handle("/mcp", authMiddleware(mcpHandler))
+	mux.Handle("/mcp/", authMiddleware(mcpHandler))
 
 	addr := ":" + cfg.port
 	slog.Info("copilot-review-mcp starting", "addr", addr, "base_url", cfg.baseURL)
+	// WriteTimeout is set to 0 (unlimited) because wait_for_copilot_review may block
+	// for up to max_polls * poll_interval_seconds (default: 10 minutes).
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      0,
 		IdleTimeout:       120 * time.Second,
 	}
 	if err := server.ListenAndServe(); err != nil {
@@ -70,26 +79,30 @@ func main() {
 }
 
 type config struct {
-	githubClientID     string
-	githubClientSecret string
-	baseURL            string
-	oauthScopes        string
-	port               string
-	logLevel           string
-	sessionTTLMin      int
-	tokenCacheTTLMin   int
+	githubClientID         string
+	githubClientSecret     string
+	baseURL                string
+	oauthScopes            string
+	port                   string
+	logLevel               string
+	sessionTTLMin          int
+	tokenCacheTTLMin       int
+	sqlitePath             string
+	inProgressThresholdSec int
 }
 
 func loadConfig() config {
 	c := config{
-		githubClientID:     mustEnv("GITHUB_CLIENT_ID"),
-		githubClientSecret: mustEnv("GITHUB_CLIENT_SECRET"),
-		baseURL:            getEnv("BASE_URL", "http://localhost:8083"),
-		oauthScopes:        getEnv("GITHUB_OAUTH_SCOPES", "repo,user"),
-		port:               getEnv("MCP_PORT", "8083"),
-		logLevel:           getEnv("LOG_LEVEL", "info"),
-		sessionTTLMin:      getEnvInt("SESSION_TTL_MIN", 10),
-		tokenCacheTTLMin:   getEnvInt("TOKEN_CACHE_TTL_MIN", 5),
+		githubClientID:         mustEnv("GITHUB_CLIENT_ID"),
+		githubClientSecret:     mustEnv("GITHUB_CLIENT_SECRET"),
+		baseURL:                getEnv("BASE_URL", "http://localhost:8083"),
+		oauthScopes:            getEnv("GITHUB_OAUTH_SCOPES", "repo,user"),
+		port:                   getEnv("MCP_PORT", "8083"),
+		logLevel:               getEnv("LOG_LEVEL", "info"),
+		sessionTTLMin:          getEnvInt("SESSION_TTL_MIN", 10),
+		tokenCacheTTLMin:       getEnvInt("TOKEN_CACHE_TTL_MIN", 5),
+		sqlitePath:             getEnv("SQLITE_PATH", "/data/copilot-review.db"),
+		inProgressThresholdSec: getEnvInt("IN_PROGRESS_THRESHOLD_SEC", 30),
 	}
 	return c
 }
