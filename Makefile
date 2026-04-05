@@ -52,6 +52,18 @@ start-custom: build-custom ## カスタムビルド後に起動
 	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose up -d github-mcp
 
 # ----------------------------------------
+# 設定生成
+# ----------------------------------------
+
+.PHONY: gen-config
+gen-config: ## IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
+	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
+
+.PHONY: gen-config-crm
+gen-config-crm: ## copilot-review-mcp の IDE設定ファイルを生成 (IDE=vscode|kiro|amazonq|codex|copilot-cli)
+	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode) --service copilot-review-mcp
+
+# ----------------------------------------
 # 開発
 # ----------------------------------------
 
