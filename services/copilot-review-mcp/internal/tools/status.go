@@ -1,4 +1,4 @@
-// Package tools registers the three Copilot-review MCP tools and builds the MCP server.
+// Package tools registers the Copilot-review MCP tools (status, request, wait, and thread operations) and builds the MCP server.
 package tools
 
 import (
