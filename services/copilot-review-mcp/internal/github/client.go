@@ -225,7 +225,7 @@ type threadMetadataQuery struct {
 			}
 			Comments struct {
 				Nodes []struct {
-					DatabaseId githubv4.Int
+					DatabaseId int64 // githubv4.Int (int32) overflows for large comment IDs
 				}
 			} `graphql:"comments(first: 1)"`
 		} `graphql:"... on PullRequestReviewThread"`
