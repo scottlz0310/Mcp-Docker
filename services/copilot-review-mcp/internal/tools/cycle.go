@@ -142,7 +142,10 @@ func cycleStatusHandler(
 				RereviewReason:    rereviewReason,
 				CyclesDone:        in.CyclesDone,
 				MaxCycles:         maxCycles,
-				Notes:             notes,
+				// Reflect at least the caller-provided CI status; thread counts are unavailable
+				// at this early-exit point (threads not yet fetched).
+				MergeConditions: MergeConditions{CIOK: in.CIAllSuccess},
+				Notes:           notes,
 			}, nil
 		}
 
@@ -205,9 +208,9 @@ func cycleStatusHandler(
 		}
 		if reviewData.RateLimitRemaining < 10 {
 			return nil, CycleStatusOutput{}, fmt.Errorf(
-				"insufficient GitHub API rate limit remaining to safely derive review status: remaining=%d, retry-after=%v",
+				"insufficient GitHub API rate limit remaining to safely derive review status: remaining=%d, retry-after=%s",
 				reviewData.RateLimitRemaining,
-				reviewData.RateLimitReset,
+				reviewData.RateLimitReset.UTC().Format(time.RFC3339),
 			)
 		}
 
@@ -226,9 +229,10 @@ func cycleStatusHandler(
 		elapsedMinutes := 0
 		if in.LastCommentAt != nil && *in.LastCommentAt != "" {
 			lastAt, parseErr := time.Parse(time.RFC3339, *in.LastCommentAt)
-			if parseErr == nil {
-				elapsedMinutes = int(time.Since(lastAt).Minutes())
+			if parseErr != nil {
+				return nil, CycleStatusOutput{}, fmt.Errorf("invalid last_comment_at: must be RFC3339: %w", parseErr)
 			}
+			elapsedMinutes = int(time.Since(lastAt).Minutes())
 		}
 
 		// ── Termination condition checks (used for action and notes) ─────────
@@ -306,17 +310,31 @@ func cycleStatusHandler(
 			}
 		} else {
 			var reasons []string
-			if blockingCount > 0 {
-				reasons = append(reasons, fmt.Sprintf("blocking=%d残存", blockingCount))
-			}
-			if unresolvedCount > 0 {
-				reasons = append(reasons, fmt.Sprintf("unresolved=%d残存", unresolvedCount))
-			}
-			if !in.CIAllSuccess {
-				reasons = append(reasons, "CI未達成")
-			}
-			if len(reasons) == 0 {
-				reasons = append(reasons, "条件評価中")
+			if terminateCond1 || terminateCond2 {
+				// Termination conditions are already met, but the cycle continues
+				// due to a higher-priority action (e.g. rereview required, PENDING status).
+				reasons = append(reasons, "終了条件は達成済み")
+				switch {
+				case rereviewRequired && rereviewReason != nil:
+					reasons = append(reasons, fmt.Sprintf("継続理由: 再レビュー必須（%s）", *rereviewReason))
+				case rereviewRequired:
+					reasons = append(reasons, "継続理由: 再レビュー必須")
+				default:
+					reasons = append(reasons, fmt.Sprintf("継続理由: 推奨アクション=%s", recommendedAction))
+				}
+			} else {
+				if blockingCount > 0 {
+					reasons = append(reasons, fmt.Sprintf("blocking=%d残存", blockingCount))
+				}
+				if unresolvedCount > 0 {
+					reasons = append(reasons, fmt.Sprintf("unresolved=%d残存", unresolvedCount))
+				}
+				if !in.CIAllSuccess {
+					reasons = append(reasons, "CI未達成")
+				}
+				if len(reasons) == 0 {
+					reasons = append(reasons, "条件評価中")
+				}
 			}
 			notes = append(notes, fmt.Sprintf("■ サイクル終了条件: 未達成（%s）", strings.Join(reasons, ", ")))
 		}
