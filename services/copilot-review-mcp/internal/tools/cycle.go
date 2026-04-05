@@ -17,7 +17,7 @@ import (
 // ─── Environment helpers ──────────────────────────────────────────────────────
 
 const (
-	defaultMaxCycles           = 3
+	defaultMaxCycles             = 3
 	defaultNoCommentThresholdMin = 6
 )
 
@@ -99,6 +99,12 @@ func cycleStatusHandler(
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, CycleStatusOutput{}, fmt.Errorf("owner, repo, and pr are required")
 		}
+		if in.CyclesDone < 0 {
+			return nil, CycleStatusOutput{}, fmt.Errorf("cycles_done must be >= 0 (got %d)", in.CyclesDone)
+		}
+		if in.MaxCycles < 0 {
+			return nil, CycleStatusOutput{}, fmt.Errorf("max_cycles must be >= 0 when specified (got %d)", in.MaxCycles)
+		}
 		validFixTypes := map[string]bool{
 			"logic": true, "spec_change": true, "trivial": true, "none": true,
 		}
@@ -163,16 +169,18 @@ func cycleStatusHandler(
 
 		for _, t := range rawThreads {
 			cls, _ := classifyThread(t.Comments)
-			switch cls {
-			case "blocking":
-				blockingCount++
-			case "non-blocking":
-				nonBlockingCount++
-			default:
-				suggestionCount++
-			}
+			// Count classifications only for unresolved threads so that
+			// resolved/fixed issues do not keep the cycle stuck.
 			if !t.IsResolved {
 				unresolvedCount++
+				switch cls {
+				case "blocking":
+					blockingCount++
+				case "non-blocking":
+					nonBlockingCount++
+				default:
+					suggestionCount++
+				}
 			}
 			// A thread is "replied" only when there are comments from
 			// at least two distinct authors (for example, Copilot and a user).
@@ -245,6 +253,10 @@ func cycleStatusHandler(
 		var recommendedAction string
 
 		switch {
+		case reviewStatus == ghclient.StatusNotRequested:
+			// Guard: never mark an unreviewed PR as ready to merge.
+			recommendedAction = "WAIT"
+
 		case reviewStatus == ghclient.StatusPending || reviewStatus == ghclient.StatusInProgress:
 			recommendedAction = "WAIT"
 
