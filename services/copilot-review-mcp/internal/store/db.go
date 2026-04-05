@@ -75,7 +75,7 @@ func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {
 		`SELECT id, trigger, requested_at, completed_at
 		 FROM trigger_log
 		 WHERE owner = ? AND repo = ? AND pr = ?
-		 ORDER BY requested_at DESC
+		 ORDER BY requested_at DESC, id DESC
 		 LIMIT 1`,
 		owner, repo, pr,
 	)

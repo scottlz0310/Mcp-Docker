@@ -50,6 +50,15 @@ func waitHandler(
 		if in.MaxPolls <= 0 {
 			in.MaxPolls = 5
 		}
+		// Enforce upper bounds to prevent goroutine pinning / DoS.
+		const maxPollIntervalSeconds = 3600
+		const maxMaxPolls = 100
+		if in.PollIntervalSeconds > maxPollIntervalSeconds {
+			return nil, WaitOutput{}, fmt.Errorf("poll_interval_seconds must not exceed %d", maxPollIntervalSeconds)
+		}
+		if in.MaxPolls > maxMaxPolls {
+			return nil, WaitOutput{}, fmt.Errorf("max_polls must not exceed %d", maxMaxPolls)
+		}
 
 		pollInterval := time.Duration(in.PollIntervalSeconds) * time.Second
 		start := time.Now()
@@ -59,11 +68,7 @@ func waitHandler(
 			if poll > 0 {
 				select {
 				case <-ctx.Done():
-					return nil, WaitOutput{
-						Status:        "TIMEOUT",
-						PollsDone:     poll,
-						WaitedSeconds: int(time.Since(start).Seconds()),
-					}, nil
+					return nil, WaitOutput{}, ctx.Err()
 				case <-time.After(pollInterval):
 				}
 			}
@@ -97,7 +102,9 @@ func waitHandler(
 			// Auto-update completed_at.
 			if (status == ghclient.StatusCompleted || status == ghclient.StatusBlocked) &&
 				entry != nil && entry.CompletedAt == nil {
-				_ = db.UpdateCompletedAt(entry.ID)
+				if err := db.UpdateCompletedAt(entry.ID); err != nil {
+					return nil, WaitOutput{}, fmt.Errorf("failed to update completed_at: %w", err)
+				}
 			}
 
 			if status == ghclient.StatusCompleted || status == ghclient.StatusBlocked {
@@ -114,7 +121,7 @@ func waitHandler(
 		// All polls exhausted.
 		data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 		if err != nil {
-			return nil, WaitOutput{Status: "TIMEOUT", PollsDone: in.MaxPolls, WaitedSeconds: int(time.Since(start).Seconds())}, nil
+			return nil, WaitOutput{}, fmt.Errorf("final review data fetch failed after %d polls: %w", in.MaxPolls, err)
 		}
 		entry, _ := db.GetLatest(in.Owner, in.Repo, in.PR)
 		var requestedAt *time.Time
@@ -138,9 +145,6 @@ func buildStatusOutput(data *ghclient.ReviewData, entry *store.TriggerEntry, sta
 		Requested:  data.IsCopilotInReviewers || data.LatestCopilotReview != nil,
 		Status:     string(status),
 		IsBlocking: status == ghclient.StatusBlocked,
-	}
-	if status == ghclient.StatusBlocked {
-		out.BlockingThreadCount = 1
 	}
 	if data.LatestCopilotReview != nil {
 		s := data.LatestCopilotReview.GetSubmittedAt().UTC().Format(time.RFC3339)

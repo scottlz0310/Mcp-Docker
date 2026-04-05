@@ -2,6 +2,7 @@ package tools
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -34,8 +35,8 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration) http.Handler 
 	}
 	return mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
 		Stateless: true,
-		// Disable the built-in localhost DNS-rebinding protection because the
-		// server may sit behind a reverse proxy or inside a Docker network.
-		DisableLocalhostProtection: true,
+		// DisableLocalhostProtection is opt-in via MCP_DISABLE_LOCALHOST_PROTECTION=true.
+		// Enable when the server runs behind a reverse proxy or inside a Docker network.
+		DisableLocalhostProtection: os.Getenv("MCP_DISABLE_LOCALHOST_PROTECTION") == "true",
 	})
 }

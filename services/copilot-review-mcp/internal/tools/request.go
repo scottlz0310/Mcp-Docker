@@ -74,10 +74,10 @@ func requestHandler(
 			return nil, RequestOutput{}, err
 		}
 
-		// Record the MANUAL trigger.
+		// Record the MANUAL trigger. This must succeed so future HasPending
+		// checks can prevent duplicate review requests.
 		if _, err := db.Insert(in.Owner, in.Repo, in.PR, "MANUAL"); err != nil {
-			// Non-fatal: log and continue.
-			_ = err
+			return nil, RequestOutput{}, fmt.Errorf("copilot review requested successfully, but failed to record MANUAL trigger: %w", err)
 		}
 
 		return nil, RequestOutput{

@@ -82,6 +82,11 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 		}
 	}
 
+	// Short-circuit if rate limit is already low to avoid consuming the second call.
+	if data.RateLimitRemaining < 10 {
+		return data, nil
+	}
+
 	// Fetch submitted reviews.
 	reviews, resp2, err := c.gh.PullRequests.ListReviews(ctx, owner, repo, prNumber, nil)
 	if err != nil {
@@ -129,9 +134,17 @@ func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewSt
 }
 
 // RequestCopilotReview sends a review request for the Copilot bot on the given PR.
+// It tries each known Copilot identity in order, returning nil on the first success.
 func (c *Client) RequestCopilotReview(ctx context.Context, owner, repo string, prNumber int) error {
-	_, _, err := c.gh.PullRequests.RequestReviewers(ctx, owner, repo, prNumber,
-		github.ReviewersRequest{Reviewers: []string{"github-copilot"}},
-	)
-	return err
+	var lastErr error
+	for _, login := range copilotLogins {
+		_, _, err := c.gh.PullRequests.RequestReviewers(ctx, owner, repo, prNumber,
+			github.ReviewersRequest{Reviewers: []string{login}},
+		)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+	}
+	return lastErr
 }

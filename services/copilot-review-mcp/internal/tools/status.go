@@ -66,17 +66,15 @@ func statusHandler(
 		// Auto-update completed_at when the review is done.
 		if (status == ghclient.StatusCompleted || status == ghclient.StatusBlocked) &&
 			entry != nil && entry.CompletedAt == nil {
-			_ = db.UpdateCompletedAt(entry.ID)
+			if err := db.UpdateCompletedAt(entry.ID); err != nil {
+				return nil, GetStatusOutput{}, fmt.Errorf("failed to update completed_at: %w", err)
+			}
 		}
 
 		out := GetStatusOutput{
 			Requested:  data.IsCopilotInReviewers || data.LatestCopilotReview != nil,
 			Status:     string(status),
 			IsBlocking: status == ghclient.StatusBlocked,
-		}
-
-		if status == ghclient.StatusBlocked {
-			out.BlockingThreadCount = 1
 		}
 
 		if data.LatestCopilotReview != nil {
