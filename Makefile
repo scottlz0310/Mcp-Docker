@@ -2,6 +2,22 @@
 # GitHub MCP Server - サービス管理
 # ========================================
 
+# 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
+# include .env は Makefile として解釈される危険があり、
+# . ./.env (shell source) は .env 内の任意コマンドを実行する危険がある。
+# awk でテキスト解析のみ行い KEY=VALUE 行から値を取り出す（コマンド実行なし）。
+# ?= はシェルの export 済み変数を優先するので、環境変数が設定済みの場合は .env を無視する。
+ENV_GET = $(strip $(shell awk -v key='$(1)' '/^[[:space:]]*#/{next} $$0 ~ ("^[[:space:]]*" key "[[:space:]]*=") {val=substr($$0,index($$0,"=")+1); gsub(/^[[:space:]"'"'"']+|[[:space:]"'"'"']+$$/,"",val); print val; exit}' .env 2>/dev/null))
+ifneq (,$(wildcard .env))
+  GITHUB_CLIENT_ID             ?= $(call ENV_GET,GITHUB_CLIENT_ID)
+  GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
+  GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
+  BASE_URL                     ?= $(call ENV_GET,BASE_URL)
+  GITHUB_OAUTH_SCOPES          ?= $(call ENV_GET,GITHUB_OAUTH_SCOPES)
+endif
+# 子プロセス（docker compose / docker run）に確実に渡す
+export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES
+
 .DEFAULT_GOAL := help
 
 .PHONY: help

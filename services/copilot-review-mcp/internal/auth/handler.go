@@ -24,7 +24,7 @@ type Config struct {
 	Scopes               string // e.g. "repo,user"
 	SessionTTL           time.Duration
 	CacheTTL             time.Duration
-	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1"]
+	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1","vscode.dev"]
 }
 
 // UpstreamError represents a failure contacting an upstream service (e.g. GitHub API
@@ -47,7 +47,7 @@ func NewHandler(cfg Config) *Handler {
 	// Normalize BaseURL: strip trailing slash to prevent double-slash in endpoint URLs.
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if len(cfg.AllowedRedirectHosts) == 0 {
-		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1"}
+		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1", "vscode.dev"}
 	}
 	return &Handler{
 		cfg:   cfg,
@@ -61,12 +61,67 @@ func (h *Handler) Discovery(w http.ResponseWriter, r *http.Request) {
 		"issuer":                           h.cfg.BaseURL,
 		"authorization_endpoint":           h.cfg.BaseURL + "/authorize",
 		"token_endpoint":                   h.cfg.BaseURL + "/token",
+		"registration_endpoint":            h.cfg.BaseURL + "/register",
 		"response_types_supported":         []string{"code"},
 		"grant_types_supported":            []string{"authorization_code"},
 		"code_challenge_methods_supported": []string{"S256"},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(doc)
+}
+
+// Register implements RFC 7591 Dynamic Client Registration (pseudo).
+// Always returns the pre-configured GitHub OAuth App client_id; no new client
+// is created. This allows MCP clients (e.g. VS Code) to proceed automatically
+// without requiring the user to enter a client_id manually.
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	// Limit body to 64 KB to prevent memory exhaustion from oversized requests.
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+
+	meta := map[string]json.RawMessage{}
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&meta); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_client_metadata",
+			"error_description": "request body must be valid JSON client metadata",
+		})
+		return
+	}
+	// Reject payloads that contain more than a single JSON object (RFC 7591).
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_client_metadata",
+			"error_description": "request body must contain a single JSON object",
+		})
+		return
+	}
+
+	resp := map[string]any{
+		"client_id":                  h.cfg.GitHubClientID,
+		"client_id_issued_at":        time.Now().Unix(),
+		"client_secret_expires_at":   0,
+		"token_endpoint_auth_method": "none",
+		"grant_types":                []string{"authorization_code"},
+		"response_types":             []string{"code"},
+	}
+	// Echo back optional metadata fields if provided by the client.
+	for _, field := range []string{"redirect_uris", "client_name", "scope"} {
+		if v, ok := meta[field]; ok {
+			resp[field] = v
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Authorize redirects the MCP client to GitHub OAuth.
