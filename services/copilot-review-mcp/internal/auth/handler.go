@@ -24,7 +24,7 @@ type Config struct {
 	Scopes               string // e.g. "repo,user"
 	SessionTTL           time.Duration
 	CacheTTL             time.Duration
-	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1"]
+	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1","vscode.dev"]
 }
 
 // UpstreamError represents a failure contacting an upstream service (e.g. GitHub API

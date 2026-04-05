@@ -3,14 +3,33 @@
 # ========================================
 
 # 環境変数優先、.env フォールバック
-# 既に export 済みの変数は上書きしない (override しない)
+# $(origin ...) で環境由来の値を退避 → .env を include → 退避値を復元することで
+# シェルで export 済みの変数が .env より優先されることを保証する。
+ifeq ($(origin GITHUB_CLIENT_ID),environment)
+  ENV_GITHUB_CLIENT_ID := $(GITHUB_CLIENT_ID)
+endif
+ifeq ($(origin GITHUB_CLIENT_ID),environment override)
+  ENV_GITHUB_CLIENT_ID := $(GITHUB_CLIENT_ID)
+endif
+ifeq ($(origin GITHUB_CLIENT_SECRET),environment)
+  ENV_GITHUB_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
+endif
+ifeq ($(origin GITHUB_CLIENT_SECRET),environment override)
+  ENV_GITHUB_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
+endif
 ifneq (,$(wildcard .env))
   include .env
   export
 endif
-# .env のシェルスタイル引用符 ("value" → value) を除去
+# .env のシェルスタイル引用符 ("value" → value) を除去してから環境由来の値で上書き
 GITHUB_CLIENT_ID     := $(patsubst "%",%,$(GITHUB_CLIENT_ID))
 GITHUB_CLIENT_SECRET := $(patsubst "%",%,$(GITHUB_CLIENT_SECRET))
+ifdef ENV_GITHUB_CLIENT_ID
+  GITHUB_CLIENT_ID := $(ENV_GITHUB_CLIENT_ID)
+endif
+ifdef ENV_GITHUB_CLIENT_SECRET
+  GITHUB_CLIENT_SECRET := $(ENV_GITHUB_CLIENT_SECRET)
+endif
 
 .DEFAULT_GOAL := help
 
