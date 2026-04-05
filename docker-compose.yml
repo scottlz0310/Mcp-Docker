@@ -44,6 +44,45 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  copilot-review-mcp:
+    build:
+      context: ./services/copilot-review-mcp
+      dockerfile: Dockerfile
+    image: copilot-review-mcp:local
+    container_name: copilot-review-mcp
+    restart: unless-stopped
+
+    environment:
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - BASE_URL=${BASE_URL:-http://localhost:8083}
+      - GITHUB_OAUTH_SCOPES=${GITHUB_OAUTH_SCOPES:-repo,user}
+      - MCP_PORT=${COPILOT_REVIEW_MCP_PORT:-8083}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
+      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-5}
+    ports:
+      - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
+
+    networks:
+      - mcp-network
+
+    # Note: distroless image has no shell/wget. Health is validated host-side.
+    healthcheck:
+      disable: true
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
 volumes:
   github-mcp-cache:
     driver: local
