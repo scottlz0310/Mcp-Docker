@@ -51,6 +51,16 @@ func statusHandler(
 			return nil, GetStatusOutput{}, err
 		}
 
+		// GetReviewData short-circuits ListReviews when rate limit is low.
+		// In that case LatestCopilotReview is nil regardless of actual state,
+		// so DeriveStatus would produce a wrong result. Return an error instead.
+		if data.RateLimitRemaining < 10 {
+			return nil, GetStatusOutput{}, fmt.Errorf(
+				"GitHub API rate limit too low (%d remaining); retry after %s",
+				data.RateLimitRemaining, data.RateLimitReset.UTC().Format(time.RFC3339),
+			)
+		}
+
 		entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 		if err != nil {
 			return nil, GetStatusOutput{}, err

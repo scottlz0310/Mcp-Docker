@@ -33,6 +33,9 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Limit to a single connection to avoid "database is locked" errors with SQLite.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	// Enable WAL mode for better concurrent access.
 	if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"); err != nil {
 		db.Close()
@@ -97,9 +100,13 @@ func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {
 }
 
 // UpdateCompletedAt marks the given trigger_log row as completed (now).
+// The update is conditional on completed_at IS NULL so the original completion
+// time is preserved across retries or concurrent calls.
 func (d *DB) UpdateCompletedAt(id int64) error {
 	_, err := d.db.Exec(
-		`UPDATE trigger_log SET completed_at = strftime('%s','now') WHERE id = ?`,
+		`UPDATE trigger_log
+		 SET completed_at = strftime('%s','now')
+		 WHERE id = ? AND completed_at IS NULL`,
 		id,
 	)
 	return err

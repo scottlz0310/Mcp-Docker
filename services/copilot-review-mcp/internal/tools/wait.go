@@ -59,6 +59,15 @@ func waitHandler(
 		if in.MaxPolls > maxMaxPolls {
 			return nil, WaitOutput{}, fmt.Errorf("max_polls must not exceed %d", maxMaxPolls)
 		}
+		// Enforce a total-wait ceiling to cap goroutine occupancy.
+		const maxTotalWait = 30 * time.Minute
+		totalWait := time.Duration(in.PollIntervalSeconds) * time.Duration(in.MaxPolls-1) * time.Second
+		if totalWait > maxTotalWait {
+			return nil, WaitOutput{}, fmt.Errorf(
+				"total wait time must not exceed %d seconds (poll_interval_seconds\u00d7(max_polls−1) = %d)",
+				int(maxTotalWait.Seconds()), int(totalWait.Seconds()),
+			)
+		}
 
 		pollInterval := time.Duration(in.PollIntervalSeconds) * time.Second
 		start := time.Now()
@@ -66,10 +75,17 @@ func waitHandler(
 		for poll := 0; poll < in.MaxPolls; poll++ {
 			// Wait between polls (skip on first iteration).
 			if poll > 0 {
+				timer := time.NewTimer(pollInterval)
 				select {
 				case <-ctx.Done():
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
 					return nil, WaitOutput{}, ctx.Err()
-				case <-time.After(pollInterval):
+				case <-timer.C:
 				}
 			}
 
@@ -80,8 +96,16 @@ func waitHandler(
 
 			// Check rate limit before proceeding.
 			if data.RateLimitRemaining < 10 {
+				entry, _ := db.GetLatest(in.Owner, in.Repo, in.PR)
+				var reqAt *time.Time
+				if entry != nil {
+					reqAt = &entry.RequestedAt
+				}
+				partialStatus := ghClient.DeriveStatus(data, reqAt)
+				rs := buildStatusOutput(data, entry, partialStatus)
 				return nil, WaitOutput{
 					Status:        "RATE_LIMITED",
+					ReviewStatus:  &rs,
 					PollsDone:     poll + 1,
 					WaitedSeconds: int(time.Since(start).Seconds()),
 				}, nil

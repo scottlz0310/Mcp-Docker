@@ -50,7 +50,7 @@ func requestHandler(
 			return nil, RequestOutput{
 				OK:     false,
 				Reason: "REVIEW_IN_PROGRESS",
-				Note:   "A Copilot review is already pending or in progress for this PR.",
+				Note:   "この PR の Copilot レビューは既に保留中または進行中です。",
 			}, nil
 		}
 
@@ -65,7 +65,7 @@ func requestHandler(
 			return nil, RequestOutput{
 				OK:     false,
 				Reason: "REVIEW_IN_PROGRESS",
-				Note:   "Copilot is already listed as a requested reviewer for this PR.",
+				Note:   "Copilot は既にこの PR のレビュアーとして登録されています。",
 			}, nil
 		}
 
@@ -83,7 +83,7 @@ func requestHandler(
 		return nil, RequestOutput{
 			OK:      true,
 			Trigger: "MANUAL",
-			Note:    "Copilot review requested successfully.",
+			Note:    "Copilot レビューをリクエストしました。",
 		}, nil
 	}
 }
