@@ -85,7 +85,7 @@ type ThreadCommentOutput struct {
 type ThreadResult struct {
 	ID                   string                `json:"id"`
 	Path                 string                `json:"path"`
-	Line                 *int32                `json:"line,omitempty"`
+	Line                 *int32                `json:"line"`
 	IsResolved           bool                  `json:"isResolved"`
 	Classification       string                `json:"classification"`
 	ClassificationReason string                `json:"classificationReason"`
