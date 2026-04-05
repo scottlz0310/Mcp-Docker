@@ -4,6 +4,7 @@ package ghclient
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/go-github/v72/github"
@@ -267,10 +268,13 @@ type ReplyResult struct {
 
 // GetReviewThreads fetches all review threads for a PR using GraphQL (paginated).
 func (c *Client) GetReviewThreads(ctx context.Context, owner, repo string, pr int) ([]ReviewThread, error) {
+	if pr <= 0 || pr > math.MaxInt32 {
+		return nil, fmt.Errorf("pr number out of valid range: %d", pr)
+	}
 	vars := map[string]interface{}{
 		"owner":  githubv4.String(owner),
 		"repo":   githubv4.String(repo),
-		"pr":     githubv4.Int(int32(pr)), //nolint:gosec
+		"pr":     githubv4.Int(int32(pr)), //nolint:gosec // range checked above
 		"cursor": (*githubv4.String)(nil),
 	}
 

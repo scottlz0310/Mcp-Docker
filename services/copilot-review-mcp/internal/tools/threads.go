@@ -62,7 +62,7 @@ func classifyThread(comments []ghclient.ThreadComment) (classification, reason s
 			return "suggestion", fmt.Sprintf("keyword matched: %q", kw)
 		}
 	}
-	return "suggestion", "no blocking/non-blocking keywords matched"
+	return "suggestion", "no keywords matched"
 }
 
 // ─── Tool 4: get_review_threads ───────────────────────────────────────────────
