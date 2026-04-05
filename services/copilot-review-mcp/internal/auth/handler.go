@@ -18,12 +18,13 @@ var githubClient = &http.Client{Timeout: 15 * time.Second}
 
 // Config holds OAuth façade configuration.
 type Config struct {
-	GitHubClientID     string
-	GitHubClientSecret string
-	BaseURL            string // e.g. http://localhost:8083
-	Scopes             string // e.g. "repo,user"
-	SessionTTL         time.Duration
-	CacheTTL           time.Duration
+	GitHubClientID       string
+	GitHubClientSecret   string
+	BaseURL              string // e.g. http://localhost:8083
+	Scopes               string // e.g. "repo,user"
+	SessionTTL           time.Duration
+	CacheTTL             time.Duration
+	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1"]
 }
 
 // UpstreamError represents a failure contacting an upstream service (e.g. GitHub API
@@ -45,6 +46,9 @@ type Handler struct {
 func NewHandler(cfg Config) *Handler {
 	// Normalize BaseURL: strip trailing slash to prevent double-slash in endpoint URLs.
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
+	if len(cfg.AllowedRedirectHosts) == 0 {
+		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1"}
+	}
 	return &Handler{
 		cfg:   cfg,
 		store: NewStore(cfg.SessionTTL, cfg.CacheTTL),
@@ -90,13 +94,17 @@ func (h *Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate redirect_uri: must be an absolute URL with http/https scheme,
-	// non-empty host, and no fragment (RFC 6749 §3.1.2).
+	// non-empty host, no fragment (RFC 6749 §3.1.2), and host in the allowlist.
 	parsedRedirect, err := url.Parse(redirectURI)
 	if err != nil ||
 		(parsedRedirect.Scheme != "http" && parsedRedirect.Scheme != "https") ||
 		parsedRedirect.Host == "" ||
 		parsedRedirect.Fragment != "" {
 		oauthError(w, "invalid_request", "invalid redirect_uri: must be absolute http/https URL without fragment", http.StatusBadRequest)
+		return
+	}
+	if !isAllowedRedirectHost(parsedRedirect.Hostname(), h.cfg.AllowedRedirectHosts) {
+		oauthError(w, "invalid_request", "redirect_uri host not permitted", http.StatusBadRequest)
 		return
 	}
 
@@ -130,14 +138,14 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := h.exchangeGitHubCode(r.Context(), code)
+	accessToken, grantedScope, err := h.exchangeGitHubCode(r.Context(), code)
 	if err != nil {
 		slog.Error("GitHub token exchange failed", "err", err)
 		http.Error(w, "token exchange failed", http.StatusBadGateway)
 		return
 	}
 
-	internalCode, err := h.store.CompleteCallback(state, accessToken)
+	internalCode, err := h.store.CompleteCallback(state, accessToken, grantedScope)
 	if err != nil {
 		slog.Error("session completion failed", "err", err)
 		http.Error(w, "invalid state", http.StatusBadRequest)
@@ -182,22 +190,26 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	redirectURI := r.FormValue("redirect_uri")
 	codeVerifier := r.FormValue("code_verifier")
 
-	token, err := h.store.ExchangeCode(code, redirectURI, codeVerifier)
+	token, grantedScope, err := h.store.ExchangeCode(code, redirectURI, codeVerifier)
 	if err != nil {
 		slog.Warn("token exchange rejected", "err", err)
 		oauthError(w, "invalid_grant", err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	tokenResp := map[string]any{
+		"access_token": token,
+		"token_type":   "Bearer",
+	}
+	// RFC 6749 §5.1: include the scope actually granted by GitHub rather than the requested scope.
+	if grantedScope != "" {
+		tokenResp["scope"] = grantedScope
+	}
 	w.Header().Set("Content-Type", "application/json")
 	// RFC 6749 §5.1: token responses MUST NOT be cached.
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"access_token": token,
-		"token_type":   "Bearer",
-		"scope":        h.cfg.Scopes,
-	})
+	_ = json.NewEncoder(w).Encode(tokenResp)
 }
 
 // ValidateToken checks the bearer token against GitHub API (with cache).
@@ -238,8 +250,8 @@ func (h *Handler) ValidateToken(ctx context.Context, token string) (string, erro
 	return user.Login, nil
 }
 
-// exchangeGitHubCode exchanges GitHub's authorization code for an access token.
-func (h *Handler) exchangeGitHubCode(ctx context.Context, code string) (string, error) {
+// exchangeGitHubCode exchanges GitHub's authorization code for an access token and scope.
+func (h *Handler) exchangeGitHubCode(ctx context.Context, code string) (string, string, error) {
 	form := url.Values{
 		"client_id":     {h.cfg.GitHubClientID},
 		"client_secret": {h.cfg.GitHubClientSecret},
@@ -255,29 +267,30 @@ func (h *Handler) exchangeGitHubCode(ctx context.Context, code string) (string, 
 
 	resp, err := githubClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return "", fmt.Errorf("GitHub OAuth returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+		return "", "", fmt.Errorf("GitHub OAuth returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 	}
 
 	var result struct {
 		AccessToken string `json:"access_token"`
+		Scope       string `json:"scope"`
 		Error       string `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decoding GitHub OAuth response: %w", err)
+		return "", "", fmt.Errorf("decoding GitHub OAuth response: %w", err)
 	}
 	if result.Error != "" {
-		return "", fmt.Errorf("GitHub OAuth error: %s", result.Error)
+		return "", "", fmt.Errorf("GitHub OAuth error: %s", result.Error)
 	}
 	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access_token from GitHub")
+		return "", "", fmt.Errorf("empty access_token from GitHub")
 	}
-	return result.AccessToken, nil
+	return result.AccessToken, result.Scope, nil
 }
 
 // lookupByCode is a helper for Callback to read redirect_uri without consuming the code.
@@ -285,6 +298,16 @@ func (s *Store) lookupByCode(code string) *Session {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.codes[code]
+}
+
+// isAllowedRedirectHost returns true when hostname is in the configured allowlist.
+func isAllowedRedirectHost(hostname string, allowed []string) bool {
+	for _, h := range allowed {
+		if h == hostname {
+			return true
+		}
+	}
+	return false
 }
 
 // oauthError writes an RFC 6749-compliant JSON error response.

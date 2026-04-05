@@ -16,6 +16,7 @@ type Session struct {
 	CodeChallenge string
 	InternalCode  string // base64url-encoded 32-byte random string, issued at /callback
 	AccessToken   string // GitHub access_token stored at /callback
+	Scope         string // OAuth scope actually granted by GitHub
 	ExpiresAt     time.Time
 }
 
@@ -73,7 +74,7 @@ func (s *Store) HasSession(state string) bool {
 }
 
 // CompleteCallback attaches an internal code + access token to the session.
-func (s *Store) CompleteCallback(state, accessToken string) (string, error) {
+func (s *Store) CompleteCallback(state, accessToken, scope string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -89,34 +90,36 @@ func (s *Store) CompleteCallback(state, accessToken string) (string, error) {
 	}
 	sess.InternalCode = code
 	sess.AccessToken = accessToken
+	sess.Scope = scope
 	s.codes[code] = sess
 	return code, nil
 }
 
-// ExchangeCode validates PKCE and returns the access token for the given code.
-func (s *Store) ExchangeCode(code, redirectURI, codeVerifier string) (string, error) {
+// ExchangeCode validates PKCE and returns the access token and granted scope for the given code.
+func (s *Store) ExchangeCode(code, redirectURI, codeVerifier string) (string, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	sess, ok := s.codes[code]
 	if !ok || time.Now().After(sess.ExpiresAt) {
 		delete(s.codes, code)
-		return "", fmt.Errorf("code not found or expired")
+		return "", "", fmt.Errorf("code not found or expired")
 	}
 	if sess.RedirectURI != redirectURI {
-		return "", fmt.Errorf("redirect_uri mismatch")
+		return "", "", fmt.Errorf("redirect_uri mismatch")
 	}
 	if sess.CodeChallenge != "" {
 		if err := verifyPKCE(codeVerifier, sess.CodeChallenge); err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
 	token := sess.AccessToken
+	scope := sess.Scope
 	// one-time use
 	delete(s.codes, code)
 	delete(s.sessions, sess.State)
-	return token, nil
+	return token, scope, nil
 }
 
 // CacheToken stores a validated login for a token.
@@ -172,7 +175,28 @@ func generateCode() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// isValidPKCEVerifier checks RFC 7636 requirements: 43-128 chars, unreserved charset only.
+func isValidPKCEVerifier(verifier string) bool {
+	if len(verifier) < 43 || len(verifier) > 128 {
+		return false
+	}
+	for i := 0; i < len(verifier); i++ {
+		c := verifier[i]
+		if (c >= 'A' && c <= 'Z') ||
+			(c >= 'a' && c <= 'z') ||
+			(c >= '0' && c <= '9') ||
+			c == '-' || c == '.' || c == '_' || c == '~' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func verifyPKCE(verifier, challenge string) error {
+	if !isValidPKCEVerifier(verifier) {
+		return fmt.Errorf("invalid_grant")
+	}
 	h := sha256.Sum256([]byte(verifier))
 	got := base64.RawURLEncoding.EncodeToString(h[:])
 	if got != challenge {
