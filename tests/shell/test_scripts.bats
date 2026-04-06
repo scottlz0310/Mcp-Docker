@@ -131,3 +131,34 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "HTTP only" ]] || [[ "$output" =~ "stdio" ]]
 }
+
+@test "generate-ide-config.sh: --service github-oauth-proxy claude-desktop 設定生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide claude-desktop --service github-oauth-proxy
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Claude Desktop設定を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/claude-desktop/claude_desktop_config.json" ]
+    grep -q '"mcp-remote"' "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/claude-desktop/claude_desktop_config.json"
+    grep -q '8084' "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/claude-desktop/claude_desktop_config.json"
+}
+
+@test "generate-ide-config.sh: --service github-oauth-proxy vscode 設定生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide vscode --service github-oauth-proxy
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VS Code設定を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/vscode/settings.json" ]
+    grep -q '8084' "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/vscode/settings.json"
+}
+
+@test "generate-ide-config.sh: --service github-oauth-proxy codex 設定生成が動作する" {
+    run "${SCRIPTS_DIR}/generate-ide-config.sh" --ide codex --service github-oauth-proxy
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Codex設定を生成しました" ]]
+    [ -f "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/codex/config.toml" ]
+    grep -q '8084' "${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/codex/config.toml"
+}
+
+@test "health-check.sh: --helpオプションにサービス説明が含まれる" {
+    run "${SCRIPTS_DIR}/health-check.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "github-oauth-proxy" ]]
+}
