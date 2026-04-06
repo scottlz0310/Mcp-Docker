@@ -106,22 +106,77 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 
 **注意**: 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` が設定されている場合、`.env`ファイルの設定より優先されます。
 
+### OAuthの準備（GitHub App登録）
+
+OAuthプロキシ経由で接続する場合は、GitHub OAuth App の Client ID / Client Secret が必要です。
+
+1. GitHub OAuth App を作成
+  - https://github.com/settings/applications/new にアクセス
+  - Application name: 任意（例: GitHub MCP Proxy）
+  - Homepage URL: http://localhost:8084
+  - Authorization callback URL: http://localhost:8084/callback
+
+2. 作成後に Client ID と Client Secret を取得
+
+3. `.env` に設定
+
+```bash
+GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxx
+GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# 必要に応じて変更（未設定時は 8084）
+# GITHUB_OAUTH_PROXY_PORT=8084
+# GITHUB_OAUTH_PROXY_BASE_URL=http://localhost:8084
+```
+
+4. OAuthプロキシを起動
+
+```bash
+make start-oauth
+```
+
+カスタムイメージで起動する場合:
+
+```bash
+make start-custom-oauth
+```
+
+5. 起動確認
+
+```bash
+make status-oauth
+curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/"
+```
+
+補足:
+- callback URL は `GITHUB_OAUTH_PROXY_BASE_URL` と一致させてください（末尾 `/callback` を付与）。
+- `copilot-review-mcp` で使っている OAuth App を共有しても問題ありません。
+
 ## HTTPエンドポイント
 
-- 既定URL: `http://127.0.0.1:8082`
-- ポートを変更する場合: `GITHUB_MCP_HTTP_PORT` を設定（未設定時は `8082`）
+- 既定でホストに公開されるURL（OAuthプロキシ経由）: `http://127.0.0.1:8084`
+- `github-mcp` 本体の `8082` は Docker ネットワーク内向け（`expose`）で、ホスト直公開はしません。
+- OAuth で接続する場合は `make start-oauth`（カスタムイメージは `make start-custom-oauth`）を実行してください。
+- ポートを変更する場合:
+  - `GITHUB_OAUTH_PROXY_PORT`（未設定時は `8084`）
+  - `GITHUB_MCP_HTTP_PORT`（コンテナ内向け、未設定時は `8082`）
 - 直接 HTTP 接続するクライアントでは、必要に応じて `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送ってください。
 - Claude Desktop は `docker run -i ... stdio` で接続します。`-e GITHUB_PERSONAL_ACCESS_TOKEN`（値なし）を指定すると、ホスト環境変数を安全に受け渡せます。
 - 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
 
 ```bash
-curl -i "http://127.0.0.1:${GITHUB_MCP_HTTP_PORT:-8082}/"
+curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/"
 ```
 
 ```bash
-# 例: 18082で起動
-export GITHUB_MCP_HTTP_PORT=18082
-docker compose up -d github-mcp
+# 例: 18084でOAuthプロキシ起動
+export GITHUB_OAUTH_PROXY_PORT=18084
+make start-oauth
+```
+
+```bash
+# github-mcp本体のみ起動（ホスト直アクセスなし）
+make start
 ```
 
 ## IDE統合
@@ -246,8 +301,14 @@ npx -y mcp-http-bridge \
 ### サービス管理
 
 ```bash
-# 起動
-docker compose up -d
+# 起動（github-mcp本体のみ）
+make start
+
+# OAuthプロキシ経由で起動（localhost:8084）
+make start-oauth
+
+# カスタムビルド + OAuthプロキシ起動
+make start-custom-oauth
 
 # 停止
 docker compose down

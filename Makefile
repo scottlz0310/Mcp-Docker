@@ -11,12 +11,19 @@ ENV_GET = $(strip $(shell awk -v key='$(1)' '/^[[:space:]]*#/{next} $$0 ~ ("^[[:
 ifneq (,$(wildcard .env))
   GITHUB_CLIENT_ID             ?= $(call ENV_GET,GITHUB_CLIENT_ID)
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
+	GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
+	GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
   GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
   BASE_URL                     ?= $(call ENV_GET,BASE_URL)
   GITHUB_OAUTH_SCOPES          ?= $(call ENV_GET,GITHUB_OAUTH_SCOPES)
+	GITHUB_OAUTH_PROXY_PORT      ?= $(call ENV_GET,GITHUB_OAUTH_PROXY_PORT)
 endif
+
+# oauth-proxy向け変数が未設定なら既存OAuth変数をフォールバック利用
+GITHUB_MCP_CLIENT_ID     ?= $(GITHUB_CLIENT_ID)
+GITHUB_MCP_CLIENT_SECRET ?= $(GITHUB_CLIENT_SECRET)
 # 子プロセス（docker compose / docker run）に確実に渡す
-export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES
+export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES GITHUB_OAUTH_PROXY_PORT
 
 .DEFAULT_GOAL := help
 
@@ -33,6 +40,12 @@ help: ## 利用可能なターゲット一覧を表示
 start: ## GitHub MCPサーバー起動
 	docker compose up -d github-mcp
 
+.PHONY: start-oauth
+start-oauth: ## OAuthプロキシ経由で起動（localhost:8084）
+	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	docker compose up -d github-mcp github-oauth-proxy
+	@echo "Started OAuth proxy endpoint: http://127.0.0.1:$(or $(GITHUB_OAUTH_PROXY_PORT),8084)"
+
 .PHONY: prepare
 prepare: ## 環境整備のみ実行（.env作成・事前確認）
 	./scripts/setup.sh --prepare-only
@@ -48,9 +61,17 @@ restart: stop start ## 再起動
 logs: ## ログ表示
 	docker compose logs -f github-mcp
 
+.PHONY: logs-oauth
+logs-oauth: ## OAuthプロキシのログ表示
+	docker compose logs -f github-oauth-proxy
+
 .PHONY: status
 status: ## 状態確認
 	docker compose ps
+
+.PHONY: status-oauth
+status-oauth: ## github-mcp / OAuthプロキシの状態確認
+	docker compose ps github-mcp github-oauth-proxy
 
 .PHONY: pull
 pull: ## Dockerイメージを取得
@@ -66,6 +87,12 @@ build-custom: ## カスタムビルド（list_pull_request_review_threads パッ
 .PHONY: start-custom
 start-custom: build-custom ## カスタムビルド後に起動
 	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose up -d github-mcp
+
+.PHONY: start-custom-oauth
+start-custom-oauth: build-custom ## カスタムビルド + OAuthプロキシ起動（localhost:8084）
+	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose -f docker-compose.yml -f docker-compose.custom.yml up -d github-mcp github-oauth-proxy
+	@echo "Started OAuth proxy endpoint: http://127.0.0.1:$(or $(GITHUB_OAUTH_PROXY_PORT),8084)"
 
 # ----------------------------------------
 # copilot-review-mcp (services/copilot-review-mcp)
