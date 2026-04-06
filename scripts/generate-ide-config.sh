@@ -21,9 +21,11 @@ IDE名:
   copilot-cli     GitHub Copilot CLI
 
 サービス名 (--service):
-  github-mcp          GitHub MCP Server（デフォルト、Docker HTTP ブリッジ port 8082）
+  github-mcp          GitHub MCP Server（Docker ネットワーク内部のみ port 8082、ホストからは直接アクセス不可）
+                      ※ ホストから接続するには github-oauth-proxy 経由を推奨
   copilot-review-mcp  Copilot Review MCP Server（OAuth 付き HTTP、port 8083）
   github-oauth-proxy  GitHub OAuth Proxy（mcp-remote 経由 Claude Desktop 対応、port 8084）
+                      ※ Claude Desktop から github-mcp-server に接続する場合はこちらを使用
 
 例:
   $0 --ide vscode

@@ -76,10 +76,11 @@ func main() {
 		WriteTimeout:      0, // unlimited: MCP streaming responses may be long-lived
 		IdleTimeout:       120 * time.Second,
 	}
-	if err := server.ListenAndServe(); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "err", err)
 		os.Exit(1)
 	}
+	slog.Info("server stopped")
 }
 
 type config struct {

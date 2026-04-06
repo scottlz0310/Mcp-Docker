@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 
 	"github.com/scottlz0310/github-oauth-proxy/internal/middleware"
 )
@@ -35,6 +34,15 @@ func NewHandler(upstream *url.URL, inv TokenInvalidator) http.Handler {
 			pr.Out.Header.Del("X-Forwarded-Host")
 			pr.Out.Header.Del("X-Forwarded-Proto")
 
+			// Normalize Authorization: delete any client-supplied values and set
+			// exactly one "Bearer <token>" from the validated context. This makes
+			// the proxy the single trust anchor and ensures ModifyResponse can
+			// reliably extract the token regardless of original header formatting.
+			pr.Out.Header.Del("Authorization")
+			if token := middleware.TokenFromContext(pr.In.Context()); token != "" {
+				pr.Out.Header.Set("Authorization", "Bearer "+token)
+			}
+
 			// Inject verified user context from auth middleware.
 			if login := middleware.LoginFromContext(pr.In.Context()); login != "" {
 				pr.Out.Header.Set("X-GitHub-Login", login)
@@ -53,6 +61,7 @@ func NewHandler(upstream *url.URL, inv TokenInvalidator) http.Handler {
 		ModifyResponse: func(resp *http.Response) error {
 			// If the upstream rejected the token, invalidate the cache immediately
 			// so the next request triggers a fresh GitHub API validation.
+			// extractBearer is now reliable because Rewrite normalizes the header.
 			if resp.StatusCode == http.StatusUnauthorized {
 				if token := extractBearer(resp.Request); token != "" {
 					inv.InvalidateCachedToken(token)
@@ -73,10 +82,13 @@ func NewHandler(upstream *url.URL, inv TokenInvalidator) http.Handler {
 	return rp
 }
 
+// extractBearer reads the normalized "Bearer <token>" set by Rewrite.
+// Case-sensitivity is not an issue because Rewrite always writes the canonical form.
 func extractBearer(req *http.Request) string {
-	h := req.Header.Get("Authorization")
-	if strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ")
+	auth := req.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if len(auth) > len(prefix) && auth[:len(prefix)] == prefix {
+		return auth[len(prefix):]
 	}
 	return ""
 }
