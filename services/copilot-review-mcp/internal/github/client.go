@@ -130,10 +130,23 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 // requestedAt is nil when no trigger_log entry exists (AUTO trigger or not yet recorded).
 func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewStatus {
 	if data.LatestCopilotReview != nil {
-		if data.LatestCopilotReview.GetState() == "CHANGES_REQUESTED" {
-			return StatusBlocked
+		// When requestedAt is known, only treat this review as relevant if it was submitted
+		// at or after the request time. This prevents a stale pre-existing review from being
+		// mistaken for the result of the current request.
+		// - Use !Before (≥) instead of After (>) to include same-second events.
+		// - nil submittedAt means the review has no timestamp → treat as stale.
+		relevant := true
+		if requestedAt != nil {
+			sat := data.LatestCopilotReview.GetSubmittedAt()
+			// IsZero means no timestamp recorded → treat as stale.
+			relevant = !sat.IsZero() && !sat.Before(*requestedAt)
 		}
-		return StatusCompleted
+		if relevant {
+			if data.LatestCopilotReview.GetState() == "CHANGES_REQUESTED" {
+				return StatusBlocked
+			}
+			return StatusCompleted
+		}
 	}
 	if data.IsCopilotInReviewers {
 		if requestedAt != nil {
