@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-04-06
+
+### ✨ 新機能
+
+- `github-oauth-proxy` サービスを新設（`services/github-oauth-proxy/`）
+  - mcp-remote 経由で Claude Desktop から github-mcp-server へ OAuth 認証付き接続が可能に（ISSUE #41）
+  - RFC 8414 discovery / RFC 7591 Dynamic Client Registration (疑似) / Authorization Code + PKCE フローを実装
+  - Bearer トークンを GitHub API（`GET /user`）で検証しキャッシュ。upstream (github-mcp-server) が HTTP 401 を返した際はキャッシュを即時無効化
+  - `httputil.ReverseProxy.Rewrite` による厳格なヘッダーサニタイズ（`X-Forwarded-For` 等除去・`X-GitHub-Login` 注入）
+  - 監査ログ: login / path / upstream_status / token_hash (SHA-256 前 8 桁) を `slog` で出力
+  - `distroless/static-debian12:nonroot` ベースの最小イメージ。外部依存ライブラリなし（標準ライブラリのみ）
+
+- `docker-compose.yml` に `github-oauth-proxy` サービスを追加
+  - `github-mcp` のホスト公開ポートを廃止し Docker ネットワーク内に閉じ込め（セキュリティ向上）
+  - `github-oauth-proxy` はポート 8084 でホスト公開
+
+- `config/ide-configs/github-oauth-proxy/` に各クライアント向け設定を追加
+  - `claude-desktop/`: mcp-remote 経由 stdio ブリッジ設定
+  - `vscode/`: HTTP 直接接続設定
+  - `codex/`: TOML 形式設定
+
 ## [2.2.0] - 2026-03-17
 
 ### ✨ 新機能
