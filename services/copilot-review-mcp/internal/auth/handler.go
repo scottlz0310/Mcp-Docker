@@ -25,6 +25,11 @@ type Config struct {
 	SessionTTL           time.Duration
 	CacheTTL             time.Duration
 	AllowedRedirectHosts []string // allowlist of permitted redirect_uri hostnames; defaults to ["localhost","127.0.0.1","vscode.dev"]
+	// ExpiresIn is the lifetime advertised to MCP clients via the token response
+	// expires_in field (RFC 6749 §5.1). GitHub classic OAuth tokens do not expire
+	// on GitHub's side, so this value only controls how long the MCP client trusts
+	// its cached copy before re-authenticating. Defaults to 7776000 s (90 days).
+	ExpiresIn time.Duration
 }
 
 // UpstreamError represents a failure contacting an upstream service (e.g. GitHub API
@@ -48,6 +53,9 @@ func NewHandler(cfg Config) *Handler {
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if len(cfg.AllowedRedirectHosts) == 0 {
 		cfg.AllowedRedirectHosts = []string{"localhost", "127.0.0.1", "vscode.dev"}
+	}
+	if cfg.ExpiresIn <= 0 {
+		cfg.ExpiresIn = 90 * 24 * time.Hour // 90 days default
 	}
 	return &Handler{
 		cfg:   cfg,
@@ -252,9 +260,19 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use integer division to avoid float64 precision issues from Duration.Seconds().
+	// Clamp to at least 1 so expires_in is always a positive integer per RFC 6749 §5.1.
+	expiresInSeconds := int64(h.cfg.ExpiresIn / time.Second)
+	if expiresInSeconds < 1 {
+		expiresInSeconds = 1
+	}
 	tokenResp := map[string]any{
 		"access_token": token,
 		"token_type":   "Bearer",
+		// RFC 6749 §5.1: expires_in tells MCP clients how long to trust the cached token.
+		// GitHub classic OAuth tokens do not expire server-side; this value controls
+		// client-side re-authentication frequency only.
+		"expires_in": expiresInSeconds,
 	}
 	// RFC 6749 §5.1: include the scope actually granted by GitHub rather than the requested scope.
 	if grantedScope != "" {
