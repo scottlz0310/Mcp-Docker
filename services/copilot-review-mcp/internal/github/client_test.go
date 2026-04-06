@@ -19,12 +19,15 @@ func newReview(state string, submittedAt *time.Time) *github.PullRequestReview {
 }
 
 func TestDeriveStatus(t *testing.T) {
-	// threshold=30s: requestedAt=now → PENDING, requestedAt=2min ago → IN_PROGRESS
+	// threshold=30s.
+	// recentRequest: 1s elapsed → PENDING (29s slack vs threshold, safe on slow CI).
+	// longAgoRequest: 2min elapsed → IN_PROGRESS.
 	c := &Client{threshold: 30 * time.Second}
 
 	now := time.Now()
+	recentRequest := now.Add(-time.Second)   // 1s ago — safely within 30s threshold
+	longAgoRequest := now.Add(-2 * time.Minute) // 2min ago — safely past threshold
 	threeMinAgo := now.Add(-3 * time.Minute)
-	twoMinAgo := now.Add(-2 * time.Minute)
 	oneMinAgo := now.Add(-1 * time.Minute)
 	oneMinLater := now.Add(1 * time.Minute)
 
@@ -43,13 +46,13 @@ func TestDeriveStatus(t *testing.T) {
 		{
 			name:        "no review, copilot in reviewers, within threshold → PENDING",
 			data:        &ReviewData{IsCopilotInReviewers: true},
-			requestedAt: &now,
+			requestedAt: &recentRequest,
 			want:        StatusPending,
 		},
 		{
 			name:        "no review, copilot in reviewers, threshold elapsed → IN_PROGRESS",
 			data:        &ReviewData{IsCopilotInReviewers: true},
-			requestedAt: &twoMinAgo,
+			requestedAt: &longAgoRequest,
 			want:        StatusInProgress,
 		},
 		{
@@ -94,29 +97,31 @@ func TestDeriveStatus(t *testing.T) {
 
 		// ── stale review (submitted BEFORE requestedAt) ───────────────────────────
 		{
+			// review (1min ago) is older than recentRequest (1s ago) → stale,
+			// then elapsed since request = 1s < 30s threshold → PENDING.
 			name:        "stale APPROVED review, copilot in reviewers, within threshold → PENDING",
 			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("APPROVED", &oneMinAgo)},
-			requestedAt: &now,
+			requestedAt: &recentRequest,
 			want:        StatusPending,
 		},
 		{
 			name:        "stale CHANGES_REQUESTED review, copilot in reviewers, within threshold → PENDING (not BLOCKED)",
 			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("CHANGES_REQUESTED", &oneMinAgo)},
-			requestedAt: &now,
+			requestedAt: &recentRequest,
 			want:        StatusPending,
 		},
 		{
 			name:        "stale review, copilot NOT in reviewers → NOT_REQUESTED",
 			data:        &ReviewData{LatestCopilotReview: newReview("APPROVED", &oneMinAgo)},
-			requestedAt: &now,
+			requestedAt: &recentRequest,
 			want:        StatusNotRequested,
 		},
 		{
-			// review (3min ago) is older than requestedAt (2min ago) → stale,
+			// review (3min ago) is older than longAgoRequest (2min ago) → stale,
 			// then elapsed since request = 2min > 30s threshold → IN_PROGRESS.
 			name:        "stale review, copilot in reviewers, threshold elapsed → IN_PROGRESS",
 			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("APPROVED", &threeMinAgo)},
-			requestedAt: &twoMinAgo,
+			requestedAt: &longAgoRequest,
 			want:        StatusInProgress,
 		},
 
