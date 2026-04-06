@@ -106,7 +106,7 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 
 **注意**: 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` が設定されている場合、`.env`ファイルの設定より優先されます。
 
-### OAuthの準備（GitHub App登録）
+### OAuthの準備（GitHub OAuth App登録）
 
 OAuthプロキシ経由で接続する場合は、GitHub OAuth App の Client ID / Client Secret が必要です。
 
@@ -145,7 +145,7 @@ make start-custom-oauth
 
 ```bash
 make status-oauth
-curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/"
+curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-authorization-server"
 ```
 
 補足:
@@ -162,10 +162,10 @@ curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/"
   - `GITHUB_MCP_HTTP_PORT`（コンテナ内向け、未設定時は `8082`）
 - 直接 HTTP 接続するクライアントでは、必要に応じて `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送ってください。
 - Claude Desktop は `docker run -i ... stdio` で接続します。`-e GITHUB_PERSONAL_ACCESS_TOKEN`（値なし）を指定すると、ホスト環境変数を安全に受け渡せます。
-- 疎通確認（`401 Unauthorized` でもサーバー起動確認としては正常）:
+- 疎通確認（`200 OK` で discovery ドキュメントが返ることを確認）:
 
 ```bash
-curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/"
+curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-authorization-server"
 ```
 
 ```bash
@@ -240,12 +240,12 @@ make start
 `mcp-http-bridge` は MCP stdio フレームを受け取り、HTTP POST で MCP サーバーへそのまま転送する最小CLIです。
 
 ```bash
-npx -y mcp-http-bridge --url http://127.0.0.1:8082
+npx -y mcp-http-bridge --url http://127.0.0.1:8084/mcp
 ```
 
 ```bash
 npx -y mcp-http-bridge \
-  --url http://127.0.0.1:8082 \
+  --url http://127.0.0.1:8084/mcp \
   --header "Authorization: Bearer your_token_here" \
   --timeout 10000
 ```
