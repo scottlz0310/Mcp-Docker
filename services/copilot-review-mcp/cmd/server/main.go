@@ -37,6 +37,7 @@ func main() {
 		Scopes:             cfg.oauthScopes,
 		SessionTTL:         time.Duration(cfg.sessionTTLMin) * time.Minute,
 		CacheTTL:           time.Duration(cfg.tokenCacheTTLMin) * time.Minute,
+		ExpiresIn:          time.Duration(cfg.tokenExpiresInSec) * time.Second,
 	})
 
 	authMiddleware := middleware.Auth(oauthHandler)
@@ -89,6 +90,7 @@ type config struct {
 	logLevel               string
 	sessionTTLMin          int
 	tokenCacheTTLMin       int
+	tokenExpiresInSec      int
 	sqlitePath             string
 	inProgressThresholdSec int
 }
@@ -103,6 +105,7 @@ func loadConfig() config {
 		logLevel:               getEnv("LOG_LEVEL", "info"),
 		sessionTTLMin:          getEnvInt("SESSION_TTL_MIN", 10),
 		tokenCacheTTLMin:       getEnvInt("TOKEN_CACHE_TTL_MIN", 5),
+		tokenExpiresInSec:      getEnvInt("TOKEN_EXPIRES_IN_SEC", 7776000), // 90 days
 		sqlitePath:             getEnv("SQLITE_PATH", "/data/copilot-review.db"),
 		inProgressThresholdSec: getEnvInt("IN_PROGRESS_THRESHOLD_SEC", 30),
 	}
