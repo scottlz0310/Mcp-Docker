@@ -77,6 +77,12 @@ CRM_PORT        ?= 8083
 CRM_VOLUME      ?= copilot-review-data
 CRM_SQLITE_PATH ?= /data/copilot-review.db
 CRM_DIR         := services/copilot-review-mcp
+# Null device: NUL on Windows cmd.exe, /dev/null elsewhere
+ifeq ($(OS),Windows_NT)
+  DEV_NULL := NUL
+else
+  DEV_NULL := /dev/null
+endif
 
 .PHONY: crm-build
 crm-build: ## copilot-review-mcp イメージをビルド
@@ -84,28 +90,26 @@ crm-build: ## copilot-review-mcp イメージをビルド
 
 .PHONY: crm-start
 crm-start: crm-stop ## copilot-review-mcp コンテナを起動（バックグラウンド、既存コンテナ自動削除）
-	@if [ -z "$$GITHUB_CLIENT_ID" ] || [ -z "$$GITHUB_CLIENT_SECRET" ]; then \
-		echo "❌ 環境変数 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET が未設定です"; \
-		exit 1; \
-	fi
+	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment))
 	docker run -d \
 		--name $(CRM_CONTAINER) \
+		--restart unless-stopped \
 		-p $(CRM_PORT):8083 \
 		-v $(CRM_VOLUME):/data \
 		-e GITHUB_CLIENT_ID \
 		-e GITHUB_CLIENT_SECRET \
-		-e BASE_URL=$${BASE_URL:-http://localhost:$(CRM_PORT)} \
+		-e BASE_URL=$(or $(BASE_URL),http://localhost:$(CRM_PORT)) \
 		-e SQLITE_PATH=$(CRM_SQLITE_PATH) \
 		$(if $(GITHUB_OAUTH_SCOPES),-e GITHUB_OAUTH_SCOPES=$(GITHUB_OAUTH_SCOPES)) \
 		$(CRM_IMAGE)
-	@echo "✅ 起動しました (port $(CRM_PORT))"
-	@echo "   ヘルスチェック: curl -s http://localhost:$(CRM_PORT)/health"
+	@echo "Started. (port $(CRM_PORT))"
+	@echo "  Health check: curl -s http://localhost:$(CRM_PORT)/health"
 
 .PHONY: crm-stop
 crm-stop: ## copilot-review-mcp コンテナを停止・削除
-	docker stop $(CRM_CONTAINER) 2>/dev/null || true
-	docker rm   $(CRM_CONTAINER) 2>/dev/null || true
-	@echo "✅ 停止しました"
+	-docker stop $(CRM_CONTAINER) >$(DEV_NULL) 2>&1
+	-docker rm   $(CRM_CONTAINER) >$(DEV_NULL) 2>&1
+	@echo "Stopped."
 
 .PHONY: crm-restart
 crm-restart: crm-stop crm-start ## copilot-review-mcp を再起動
