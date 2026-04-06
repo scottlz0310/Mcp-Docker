@@ -466,6 +466,21 @@ EOF
 fi
 
 # ── github-mcp サービス（既存ロジック）─────────────────────────────────────────
+#
+# ⚠️  注意: docker-compose.yml の変更により github-mcp はホスト非公開（Docker ネットワーク内部のみ）
+# になっています。GITHUB_MCP_SERVER_URL を明示的に設定していない場合、生成される設定の接続先
+# (http://127.0.0.1:8082) には接続できません。
+#
+# ホストから github-mcp-server に接続するには github-oauth-proxy 経由を推奨:
+#   $0 --ide ${IDE} --service github-oauth-proxy
+#
+if [[ -z "${GITHUB_MCP_SERVER_URL:-}" ]] && [[ -z "$(extract_env_value "GITHUB_MCP_SERVER_URL")" ]]; then
+    echo "⚠️  警告: github-mcp はホスト非公開（Docker ネットワーク内部のみ）です。"
+    echo "   生成された設定の接続先 (${SERVER_URL}) には接続できない可能性があります。"
+    echo "   代わりに github-oauth-proxy 経由を使用することを推奨します:"
+    echo "   $0 --ide ${IDE} --service github-oauth-proxy"
+    echo ""
+fi
 
 OUTPUT_DIR="${PROJECT_ROOT}/config/ide-configs/${IDE}"
 mkdir -p "${OUTPUT_DIR}"

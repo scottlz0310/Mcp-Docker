@@ -5,20 +5,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${PROJECT_ROOT}/.env"
 WITH_API_CHECK="auto"
+SERVICE="github-oauth-proxy"
 
 usage() {
     cat <<EOF
 使用方法: $0 [オプション]
 
 オプション:
-  --with-api    GitHub API接続確認を必ず実行
-  --no-api      GitHub API接続確認をスキップ
-  -h, --help    ヘルプを表示
+  --service <サービス名>  ヘルスチェック対象サービス (デフォルト: github-oauth-proxy)
+                          github-oauth-proxy : OAuth プロキシ経由のエンドポイントを確認 (port 8084)
+                          github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
+  --with-api              GitHub API接続確認を必ず実行
+  --no-api                GitHub API接続確認をスキップ
+  -h, --help              ヘルプを表示
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --service)
+            SERVICE="$2"
+            shift 2
+            ;;
         --with-api)
             WITH_API_CHECK="always"
             shift
@@ -39,6 +47,15 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+case "$SERVICE" in
+    github-mcp|github-oauth-proxy) ;;
+    *)
+        echo "❌ 未対応のサービス: $SERVICE"
+        echo "対応サービス: github-mcp, github-oauth-proxy"
+        exit 1
+        ;;
+esac
 
 require_command() {
     local cmd="$1"
@@ -88,25 +105,20 @@ extract_api_url_from_env_file() {
     extract_env_value "GITHUB_API_URL"
 }
 
-resolve_server_url() {
-    local server_url="${GITHUB_MCP_SERVER_URL:-}"
-    if [[ -z "${server_url}" ]]; then
-        server_url="$(extract_env_value "GITHUB_MCP_SERVER_URL")"
+resolve_oauth_proxy_url() {
+    local url="${GITHUB_OAUTH_PROXY_URL:-}"
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "GITHUB_OAUTH_PROXY_URL")"
     fi
-
-    if [[ -z "${server_url}" ]]; then
-        local http_port="${GITHUB_MCP_HTTP_PORT:-}"
-        if [[ -z "${http_port}" ]]; then
-            http_port="$(extract_env_value "GITHUB_MCP_HTTP_PORT")"
+    if [[ -z "${url}" ]]; then
+        local port="${GITHUB_OAUTH_PROXY_PORT:-}"
+        if [[ -z "${port}" ]]; then
+            port="$(extract_env_value "GITHUB_OAUTH_PROXY_PORT")"
         fi
-        if [[ -z "${http_port}" ]]; then
-            http_port="8082"
-        fi
-        server_url="http://127.0.0.1:${http_port}"
+        port="${port:-8084}"
+        url="http://127.0.0.1:${port}"
     fi
-
-    server_url="${server_url%/}"
-    echo "${server_url}"
+    echo "${url%/}"
 }
 
 is_placeholder_token() {
@@ -136,52 +148,74 @@ is_token_prefix_valid() {
     [[ "${token}" =~ ^(github_pat_|ghp_) ]]
 }
 
-echo "🏥 GitHub MCP Server ヘルスチェック"
+check_container_state() {
+    local service_name="$1"
+    local container_id
+    container_id="$(docker compose ps -q "${service_name}")"
+    if [[ -z "${container_id}" ]]; then
+        echo "❌ コンテナが見つかりません (${service_name})"
+        echo "   起動: docker compose up -d ${service_name}"
+        return 1
+    fi
+
+    local running_state
+    running_state="$(docker inspect -f '{{.State.Running}}' "${container_id}")"
+    if [[ "${running_state}" != "true" ]]; then
+        echo "❌ コンテナは停止状態です (${service_name})"
+        echo "   ログ確認: docker compose logs ${service_name}"
+        return 1
+    fi
+    echo "✅ コンテナは起動しています (${service_name})"
+
+    local restart_count
+    restart_count="$(docker inspect -f '{{.RestartCount}}' "${container_id}")"
+    if [[ "${restart_count}" != "0" ]]; then
+        echo "⚠️  コンテナの再起動回数: ${restart_count} (${service_name})"
+        echo "   不安定な可能性があるためログ確認を推奨: docker compose logs --tail=200 ${service_name}"
+    else
+        echo "✅ 再起動は発生していません (${service_name})"
+    fi
+}
+
+echo "🏥 GitHub MCP Server ヘルスチェック (--service ${SERVICE})"
 echo ""
 
 ensure_docker_ready
 
-# コンテナ状態確認
-container_id="$(docker compose ps -q github-mcp)"
-if [[ -z "${container_id}" ]]; then
-    echo "❌ コンテナが見つかりません"
-    echo "   起動: docker compose up -d github-mcp"
-    exit 1
+if [[ "${SERVICE}" == "github-mcp" ]]; then
+    # github-mcp はホスト非公開（Docker ネットワーク内部のみ）のため、
+    # コンテナ状態確認のみ実施。HTTP 疎通は github-oauth-proxy 経由で確認してください。
+    echo "ℹ️  github-mcp はホスト非公開です。HTTP 疎通確認はスキップします。"
+    echo "   HTTP エンドポイントを確認する場合: $0 --service github-oauth-proxy"
+    echo ""
+    check_container_state "github-mcp"
+    echo ""
+    echo "🎉 コンテナ状態チェックに合格しました"
+    exit 0
 fi
 
-running_state="$(docker inspect -f '{{.State.Running}}' "${container_id}")"
-if [[ "${running_state}" != "true" ]]; then
-    echo "❌ コンテナは停止状態です"
-    echo "   ログ確認: docker compose logs github-mcp"
-    exit 1
-fi
-echo "✅ コンテナは起動しています"
+# github-oauth-proxy のヘルスチェック
+# github-mcp コンテナ状態も確認
+check_container_state "github-mcp"
+check_container_state "github-oauth-proxy"
 
-restart_count="$(docker inspect -f '{{.RestartCount}}' "${container_id}")"
-if [[ "${restart_count}" != "0" ]]; then
-    echo "⚠️  コンテナの再起動回数: ${restart_count}"
-    echo "   不安定な可能性があるためログ確認を推奨: docker compose logs --tail=200 github-mcp"
-else
-    echo "✅ 再起動は発生していません"
-fi
-
-# HTTPエンドポイント確認
-server_url="$(resolve_server_url)"
+# HTTP エンドポイント確認 (github-oauth-proxy 経由)
+proxy_url="$(resolve_oauth_proxy_url)"
 if command -v curl > /dev/null 2>&1; then
     # curl failures should not abort the script, so we use || true and check the result
-    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${server_url}/" || true)"
+    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${proxy_url}/health" || true)"
     # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
     if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
         http_status="000"
     fi
-    if [[ "${http_status}" == "200" ]] || [[ "${http_status}" == "401" ]]; then
-        echo "✅ MCP HTTPエンドポイント疎通成功 (${server_url}, status=${http_status})"
+    if [[ "${http_status}" == "200" ]]; then
+        echo "✅ github-oauth-proxy ヘルスエンドポイント疎通成功 (${proxy_url}/health, status=${http_status})"
     else
-        echo "❌ MCP HTTPエンドポイント疎通失敗 (${server_url}, status=${http_status})"
+        echo "❌ github-oauth-proxy ヘルスエンドポイント疎通失敗 (${proxy_url}/health, status=${http_status})"
         exit 1
     fi
 else
-    echo "⚠️  curl が未インストールのため、MCP HTTPエンドポイント確認をスキップします"
+    echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
 fi
 
 # GitHub API接続確認
