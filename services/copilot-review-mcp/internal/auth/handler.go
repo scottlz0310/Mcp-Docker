@@ -260,13 +260,19 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use integer division to avoid float64 precision issues from Duration.Seconds().
+	// Clamp to at least 1 so expires_in is always a positive integer per RFC 6749 §5.1.
+	expiresInSeconds := int64(h.cfg.ExpiresIn / time.Second)
+	if expiresInSeconds < 1 {
+		expiresInSeconds = 1
+	}
 	tokenResp := map[string]any{
 		"access_token": token,
 		"token_type":   "Bearer",
 		// RFC 6749 §5.1: expires_in tells MCP clients how long to trust the cached token.
 		// GitHub classic OAuth tokens do not expire server-side; this value controls
 		// client-side re-authentication frequency only.
-		"expires_in": int64(h.cfg.ExpiresIn.Seconds()),
+		"expires_in": expiresInSeconds,
 	}
 	// RFC 6749 §5.1: include the scope actually granted by GitHub rather than the requested scope.
 	if grantedScope != "" {
