@@ -30,7 +30,11 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 		if token == "" {
 			return nil
 		}
-		gh := ghclient.NewClient(r.Context(), token, threshold, inv.InvalidateCachedToken)
+		var invalidate func(string)
+		if inv != nil {
+			invalidate = inv.InvalidateCachedToken
+		}
+		gh := ghclient.NewClient(r.Context(), token, threshold, invalidate)
 		srv := mcp.NewServer(
 			&mcp.Implementation{Name: "copilot-review-mcp", Version: "1.0.0"},
 			&mcp.ServerOptions{SchemaCache: schemaCache},
