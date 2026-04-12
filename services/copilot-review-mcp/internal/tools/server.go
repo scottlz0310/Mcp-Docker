@@ -14,16 +14,23 @@ import (
 
 var schemaCache = mcp.NewSchemaCache()
 
+// TokenInvalidator is implemented by auth.Handler to clear a token from the
+// validation cache when a downstream GitHub API call returns HTTP 401.
+type TokenInvalidator interface {
+	InvalidateCachedToken(token string)
+}
+
 // BuildStreamableHandler returns an http.Handler that serves MCP over Streamable HTTP.
 // getServer is called for each request (stateless mode) to produce a fresh *mcp.Server
 // bound to the caller's GitHub access token.
-func BuildStreamableHandler(db *store.DB, threshold time.Duration) http.Handler {
+// inv is called to invalidate the cached token when GitHub returns HTTP 401.
+func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInvalidator) http.Handler {
 	getServer := func(r *http.Request) *mcp.Server {
 		token := middleware.TokenFromContext(r.Context())
 		if token == "" {
 			return nil
 		}
-		gh := ghclient.NewClient(token, threshold)
+		gh := ghclient.NewClient(r.Context(), token, threshold, inv.InvalidateCachedToken)
 		srv := mcp.NewServer(
 			&mcp.Implementation{Name: "copilot-review-mcp", Version: "1.0.0"},
 			&mcp.ServerOptions{SchemaCache: schemaCache},

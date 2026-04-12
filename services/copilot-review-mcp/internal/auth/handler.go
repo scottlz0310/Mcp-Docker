@@ -285,6 +285,13 @@ func (h *Handler) Token(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(tokenResp)
 }
 
+// InvalidateCachedToken removes a token from the validation cache immediately.
+// Call when a downstream GitHub API call returns HTTP 401 so the next request
+// forces a fresh GitHub API validation instead of using a stale cached entry.
+func (h *Handler) InvalidateCachedToken(token string) {
+	h.store.InvalidateCachedToken(token)
+}
+
 // ValidateToken checks the bearer token against GitHub API (with cache).
 func (h *Handler) ValidateToken(ctx context.Context, token string) (string, error) {
 	if login, ok := h.store.LookupToken(token); ok {
