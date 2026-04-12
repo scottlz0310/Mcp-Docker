@@ -140,6 +140,15 @@ func (s *Store) LookupToken(token string) (string, bool) {
 	return e.login, true
 }
 
+// InvalidateCachedToken removes a token from the cache immediately.
+// Call this when a downstream GitHub API call returns HTTP 401 to force
+// re-validation on the next request.
+func (s *Store) InvalidateCachedToken(token string) {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	delete(s.cache.entries, token)
+}
+
 func (s *Store) janitor() {
 	ticker := time.NewTicker(time.Minute)
 	for range ticker.C {

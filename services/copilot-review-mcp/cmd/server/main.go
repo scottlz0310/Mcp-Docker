@@ -59,7 +59,7 @@ func main() {
 
 	// MCP endpoints (auth required) — Streamable HTTP transport (stateless, per-request server)
 	threshold := time.Duration(cfg.inProgressThresholdSec) * time.Second
-	mcpHandler := tools.BuildStreamableHandler(db, threshold)
+	mcpHandler := tools.BuildStreamableHandler(db, threshold, oauthHandler)
 	mux.Handle("/mcp", authMiddleware(mcpHandler))
 	mux.Handle("/mcp/", authMiddleware(mcpHandler))
 
@@ -104,7 +104,7 @@ func loadConfig() config {
 		port:                   getEnv("MCP_PORT", "8083"),
 		logLevel:               getEnv("LOG_LEVEL", "info"),
 		sessionTTLMin:          getEnvInt("SESSION_TTL_MIN", 10),
-		tokenCacheTTLMin:       getEnvInt("TOKEN_CACHE_TTL_MIN", 5),
+		tokenCacheTTLMin:       getEnvInt("TOKEN_CACHE_TTL_MIN", 30),
 		tokenExpiresInSec:      getEnvInt("TOKEN_EXPIRES_IN_SEC", 7776000), // 90 days
 		sqlitePath:             getEnv("SQLITE_PATH", "/data/copilot-review.db"),
 		inProgressThresholdSec: getEnvInt("IN_PROGRESS_THRESHOLD_SEC", 30),

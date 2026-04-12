@@ -106,7 +106,7 @@ func loadConfig() config {
 		logLevel:           getEnv("LOG_LEVEL", "info"),
 		upstreamURL:        getEnv("GITHUB_MCP_UPSTREAM_URL", "http://github-mcp:8082"),
 		sessionTTLMin:      getEnvInt("SESSION_TTL_MIN", 10),
-		tokenCacheTTLMin:   getEnvInt("TOKEN_CACHE_TTL_MIN", 5),
+		tokenCacheTTLMin:   getEnvInt("TOKEN_CACHE_TTL_MIN", 30),
 		tokenExpiresInSec:  getEnvInt("TOKEN_EXPIRES_IN_SEC", 7776000), // 90 days
 	}
 }

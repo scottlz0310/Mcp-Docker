@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -12,6 +13,23 @@ import (
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
+
+// invalidatingTransport wraps an HTTP transport and calls invalidate(token) when
+// GitHub returns HTTP 401, so the auth token cache is cleared immediately rather
+// than waiting for cacheTTL to expire.
+type invalidatingTransport struct {
+	inner      http.RoundTripper
+	token      string
+	invalidate func(string)
+}
+
+func (t *invalidatingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.inner.RoundTrip(req)
+	if err == nil && resp != nil && resp.StatusCode == http.StatusUnauthorized {
+		t.invalidate(t.token)
+	}
+	return resp, err
+}
 
 // copilotLogins lists the known GitHub Copilot reviewer identities, checked in order.
 var copilotLogins = []string{
@@ -60,10 +78,21 @@ type Client struct {
 }
 
 // NewClient creates a new GitHub API client authenticated with the given token.
+// ctx should be the request context so GitHub API calls are cancelled when the
+// request is cancelled or times out.
+// invalidate is called with the token when GitHub returns HTTP 401, allowing the
+// auth layer to clear its cache immediately. May be nil to disable invalidation.
 // threshold is the elapsed time after which PENDING becomes IN_PROGRESS.
-func NewClient(token string, threshold time.Duration) *Client {
+func NewClient(ctx context.Context, token string, threshold time.Duration, invalidate func(string)) *Client {
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	httpClient := oauth2.NewClient(context.Background(), src)
+	httpClient := oauth2.NewClient(ctx, src)
+	if invalidate != nil {
+		httpClient.Transport = &invalidatingTransport{
+			inner:      httpClient.Transport,
+			token:      token,
+			invalidate: invalidate,
+		}
+	}
 	return &Client{
 		gh:        github.NewClient(httpClient),
 		v4:        githubv4.NewClient(httpClient),
