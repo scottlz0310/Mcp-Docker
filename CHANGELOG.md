@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fix
+
+- `copilot-review-mcp`: `RequestCopilotReview` を REST API から GraphQL mutation へ移行（ISSUE #52）
+  - `POST /repos/{owner}/{repo}/pulls/{pr}/requested_reviewers` は bot actor を黙って無視する（#47 の根本原因）
+  - GitHub CLI と同じロジック（`requestReviewsByLogin` mutation + `botLogins`）で実装し直し
+  - `union: true` で既存の human reviewer を保持したまま Copilot を追加
+  - PR の GraphQL node ID を取得する際に空チェックを追加（PR 不存在・権限不足の検知）
+  - `copilotBotLogin` 定数と `buildCopilotReviewInput` 関数を分離し、typo ガードのユニットテストを追加
+
 ## [2.3.0] - 2026-04-06
 
 ### ✨ 新機能

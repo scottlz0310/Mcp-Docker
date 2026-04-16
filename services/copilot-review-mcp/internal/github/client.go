@@ -31,7 +31,12 @@ func (t *invalidatingTransport) RoundTrip(req *http.Request) (*http.Response, er
 	return resp, err
 }
 
-// copilotLogins lists the known GitHub Copilot reviewer identities, checked in order.
+// copilotBotLogin is the login passed to the GraphQL requestReviewsByLogin mutation's
+// botLogins field. The [bot] suffix is part of the actor identity on GitHub's side.
+const copilotBotLogin = "copilot-pull-request-reviewer[bot]"
+
+// copilotLogins lists the known GitHub Copilot reviewer identities used for
+// detection in GetReviewData. Kept separate from copilotBotLogin (request path).
 var copilotLogins = []string{
 	"github-copilot[bot]",
 	"copilot-pull-request-reviewer[bot]",
@@ -191,20 +196,76 @@ func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewSt
 	return StatusNotRequested
 }
 
-// RequestCopilotReview sends a review request for the Copilot bot on the given PR.
-// It tries each known Copilot identity in order, returning nil on the first success.
-func (c *Client) RequestCopilotReview(ctx context.Context, owner, repo string, prNumber int) error {
-	var lastErr error
-	for _, login := range copilotLogins {
-		_, _, err := c.gh.PullRequests.RequestReviewers(ctx, owner, repo, prNumber,
-			github.ReviewersRequest{Reviewers: []string{login}},
-		)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
+// prNodeIDQuery fetches the GraphQL node ID for a pull request.
+// Used by RequestCopilotReview to obtain the ID required by the mutation.
+type prNodeIDQuery struct {
+	Repository struct {
+		PullRequest struct {
+			ID githubv4.ID
+		} `graphql:"pullRequest(number: $pr)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+// requestReviewsByLoginMutation is the GraphQL mutation for requesting PR reviews by login.
+type requestReviewsByLoginMutation struct {
+	RequestReviewsByLogin struct {
+		ClientMutationID string `graphql:"clientMutationId"`
+	} `graphql:"requestReviewsByLogin(input: $input)"`
+}
+
+// requestReviewsByLoginInput is the input type for requestReviewsByLoginMutation.
+// Field names must be PascalCase so shurcooL/githubv4 serialises them correctly.
+type requestReviewsByLoginInput struct {
+	PullRequestID githubv4.ID        `json:"pullRequestId"`
+	BotLogins     []githubv4.String  `json:"botLogins"`
+	UserLogins    []githubv4.String  `json:"userLogins"`
+	TeamSlugs     []githubv4.String  `json:"teamSlugs"`
+	Union         githubv4.Boolean   `json:"union"`
+}
+
+// buildCopilotReviewInput constructs the mutation input for adding Copilot as a reviewer.
+// union: true preserves existing reviewers (additive); false would replace the entire set.
+func buildCopilotReviewInput(prNodeID githubv4.ID) requestReviewsByLoginInput {
+	return requestReviewsByLoginInput{
+		PullRequestID: prNodeID,
+		BotLogins:     []githubv4.String{githubv4.String(copilotBotLogin)},
+		UserLogins:    []githubv4.String{},
+		TeamSlugs:     []githubv4.String{},
+		Union:         githubv4.Boolean(true),
 	}
-	return lastErr
+}
+
+// RequestCopilotReview adds Copilot as a reviewer on the given PR using the GraphQL
+// requestReviewsByLogin mutation. This is the only reliable path on github.com;
+// the REST requested_reviewers endpoint silently no-ops for bot actors (#47).
+func (c *Client) RequestCopilotReview(ctx context.Context, owner, repo string, prNumber int) error {
+	if prNumber <= 0 || prNumber > math.MaxInt32 {
+		return fmt.Errorf("pr number out of valid range: %d", prNumber)
+	}
+
+	// Step 1: resolve the PR's GraphQL node ID (distinct from the REST integer ID).
+	var nodeQ prNodeIDQuery
+	if err := c.v4.Query(ctx, &nodeQ, map[string]interface{}{
+		"owner": githubv4.String(owner),
+		"repo":  githubv4.String(repo),
+		"pr":    githubv4.Int(int32(prNumber)), //nolint:gosec // range checked above
+	}); err != nil {
+		return fmt.Errorf("failed to fetch PR node ID: %w", err)
+	}
+	prNodeID := nodeQ.Repository.PullRequest.ID
+	// Guard: Query may succeed with a zero-value struct when the PR doesn't exist
+	// or the token lacks permission. Catch both nil and empty-string cases.
+	if prNodeID == nil || prNodeID == "" {
+		return fmt.Errorf("pull request node ID is empty (PR #%d may not exist or token lacks permission)", prNumber)
+	}
+
+	// Step 2: request review via GraphQL mutation.
+	var m requestReviewsByLoginMutation
+	input := buildCopilotReviewInput(prNodeID)
+	if err := c.v4.Mutate(ctx, &m, input, nil); err != nil {
+		return fmt.Errorf("requestReviewsByLogin mutation failed: %w", err)
+	}
+	return nil
 }
 
 // ─── GraphQL types for review thread operations ───────────────────────────────
