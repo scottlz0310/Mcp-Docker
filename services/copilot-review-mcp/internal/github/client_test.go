@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v72/github"
+	"github.com/shurcooL/githubv4"
 )
 
 // newReview creates a PullRequestReview with the given state and optional submittedAt.
@@ -16,6 +17,53 @@ func newReview(state string, submittedAt *time.Time) *github.PullRequestReview {
 		r.SubmittedAt = &github.Timestamp{Time: *submittedAt}
 	}
 	return r
+}
+
+// TestCopilotBotLoginValue guards against typos in the login constant.
+// A wrong value here would cause a silent failure where GitHub accepts the mutation
+// but Copilot is never actually added as a reviewer.
+func TestCopilotBotLoginValue(t *testing.T) {
+	const want = "copilot-pull-request-reviewer[bot]"
+	if copilotBotLogin != want {
+		t.Errorf("copilotBotLogin = %q, want %q", copilotBotLogin, want)
+	}
+}
+
+// TestBuildCopilotReviewInput verifies the mutation input constructed by
+// buildCopilotReviewInput satisfies the two critical invariants:
+//
+//  1. union must be true — preserves existing human reviewers.
+//     union:false would replace the entire reviewer set with Copilot only.
+//  2. botLogins[0] must equal copilotBotLogin — the exact identity GitHub expects.
+func TestBuildCopilotReviewInput(t *testing.T) {
+	testNodeID := githubv4.ID("PR_kwDOABCDEF12345")
+	input := buildCopilotReviewInput(testNodeID)
+
+	// Invariant 1: union must be true (additive, not replacing existing reviewers).
+	if !bool(input.Union) {
+		t.Error("Union must be true to preserve existing human reviewers; false would remove them")
+	}
+
+	// Invariant 2: exactly one bot login with the correct value.
+	if len(input.BotLogins) != 1 {
+		t.Fatalf("BotLogins length = %d, want 1", len(input.BotLogins))
+	}
+	if got := string(input.BotLogins[0]); got != copilotBotLogin {
+		t.Errorf("BotLogins[0] = %q, want %q", got, copilotBotLogin)
+	}
+
+	// Sanity: userLogins and teamSlugs must be empty — we're only adding Copilot.
+	if len(input.UserLogins) != 0 {
+		t.Errorf("UserLogins must be empty, got %v", input.UserLogins)
+	}
+	if len(input.TeamSlugs) != 0 {
+		t.Errorf("TeamSlugs must be empty, got %v", input.TeamSlugs)
+	}
+
+	// Sanity: PR node ID is passed through unchanged.
+	if input.PullRequestID != testNodeID {
+		t.Errorf("PullRequestID = %v, want %v", input.PullRequestID, testNodeID)
+	}
 }
 
 func TestDeriveStatus(t *testing.T) {
