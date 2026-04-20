@@ -42,8 +42,8 @@
 **ルールファイル確定後に着手。最も影響範囲が広いため最後に実施。**
 
 - `classifyThread()` および `blockingKeywords` 等のキーワード辞書を MCPサーバーから削除する
-- `get_review_threads` のレスポンスから `classification` / `classificationSummary` フィールドを廃止し、Raw コメントデータのみを返す
-- `get_pr_review_cycle_status` の `ClassificationSummary` と `blockingCount` 計算をMCPサーバーから除去し、LLMがルールファイルに基づいて判断する設計に変更する
+- `get_review_threads` のレスポンスから `classification` / `classificationReason` / `summary` フィールドを廃止し、Raw コメントデータのみを返す
+- `get_pr_review_cycle_status` の分類サマリ関連フィールドと `blockingCount` 計算をMCPサーバーから除去し、LLMがルールファイルに基づいて判断する設計に変更する
 - Step 3（#55）の `blockingThreadCount` 廃止もここで合わせて対応する
 
 > 対象ファイル: `services/copilot-review-mcp/internal/tools/threads.go`, `cycle.go`, `status.go`, `wait.go`
