@@ -475,6 +475,43 @@ func (c *Client) ReplyToThread(ctx context.Context, threadID, body string) (Repl
 	}, nil
 }
 
+// GetCIStatus returns true when all GitHub Check Runs for the PR's head commit have
+// passed (conclusion: success, skipped, or neutral). Returns true when no check runs exist.
+// Returns false when any run is not yet completed or has a failing conclusion.
+func (c *Client) GetCIStatus(ctx context.Context, owner, repo string, prNumber int) (bool, error) {
+	pr, _, err := c.gh.PullRequests.Get(ctx, owner, repo, prNumber)
+	if err != nil {
+		return false, fmt.Errorf("failed to get PR: %w", err)
+	}
+	sha := pr.GetHead().GetSHA()
+	if sha == "" {
+		return false, fmt.Errorf("PR #%d head SHA is empty", prNumber)
+	}
+
+	opts := &github.ListCheckRunsOptions{ListOptions: github.ListOptions{PerPage: 100}}
+	for {
+		result, resp, err := c.gh.Checks.ListCheckRunsForRef(ctx, owner, repo, sha, opts)
+		if err != nil {
+			return false, fmt.Errorf("failed to list check runs: %w", err)
+		}
+		for _, r := range result.CheckRuns {
+			if r.GetStatus() != "completed" {
+				return false, nil
+			}
+			switch r.GetConclusion() {
+			case "success", "skipped", "neutral":
+			default:
+				return false, nil
+			}
+		}
+		if resp == nil || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+	return true, nil
+}
+
 // ResolveThread resolves a review thread. Returns true if it was already resolved before the call.
 func (c *Client) ResolveThread(ctx context.Context, threadID string) (alreadyResolved bool, err error) {
 	alreadyResolved, err = c.IsThreadResolved(ctx, threadID)
