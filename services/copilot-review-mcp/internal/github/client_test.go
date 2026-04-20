@@ -1,6 +1,11 @@
 package ghclient
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -195,4 +200,191 @@ func TestDeriveStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newTestGHClient creates a Client backed by a test HTTP server.
+// The caller must call teardown() when done.
+func newTestGHClient(mux *http.ServeMux) (*Client, func()) {
+	srv := httptest.NewServer(mux)
+	gh := github.NewClient(nil)
+	u, _ := url.Parse(srv.URL + "/")
+	gh.BaseURL = u
+	gh.UploadURL = u
+	return &Client{gh: gh}, srv.Close
+}
+
+func TestGetCIStatus(t *testing.T) {
+	const (
+		owner = "owner"
+		repo  = "repo"
+		pr    = 1
+		sha   = "abc123def456"
+	)
+
+	prJSON := fmt.Sprintf(`{"number":%d,"head":{"sha":%q}}`, pr, sha)
+
+	makeChecksJSON := func(runs ...string) string {
+		return fmt.Sprintf(`{"total_count":%d,"check_runs":[%s]}`, len(runs), join(runs, ","))
+	}
+	makeRun := func(status, conclusion string) string {
+		return fmt.Sprintf(`{"id":1,"status":%q,"conclusion":%q}`, status, conclusion)
+	}
+
+	tests := []struct {
+		name       string
+		checksJSON string
+		want       bool
+	}{
+		{
+			name:       "zero check runs → true (CI not configured)",
+			checksJSON: makeChecksJSON(),
+			want:       true,
+		},
+		{
+			name:       "all success → true",
+			checksJSON: makeChecksJSON(makeRun("completed", "success")),
+			want:       true,
+		},
+		{
+			name:       "skipped → true",
+			checksJSON: makeChecksJSON(makeRun("completed", "skipped")),
+			want:       true,
+		},
+		{
+			name:       "neutral → true",
+			checksJSON: makeChecksJSON(makeRun("completed", "neutral")),
+			want:       true,
+		},
+		{
+			name:       "in_progress (not completed) → false",
+			checksJSON: makeChecksJSON(makeRun("in_progress", "")),
+			want:       false,
+		},
+		{
+			name:       "failure → false",
+			checksJSON: makeChecksJSON(makeRun("completed", "failure")),
+			want:       false,
+		},
+		{
+			name: "mixed success and failure → false",
+			checksJSON: makeChecksJSON(
+				makeRun("completed", "success"),
+				makeRun("completed", "failure"),
+			),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr), func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, prJSON)
+			})
+			mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, sha), func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprint(w, tt.checksJSON)
+			})
+
+			c, teardown := newTestGHClient(mux)
+			defer teardown()
+
+			got, err := c.GetCIStatus(context.Background(), owner, repo, pr)
+			if err != nil {
+				t.Fatalf("GetCIStatus() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("GetCIStatus() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("returns false when a later check-runs page contains failure", func(t *testing.T) {
+		mux := http.NewServeMux()
+		pagesSeen := []string{}
+
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr), func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, prJSON)
+		})
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, sha), func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				page = "1"
+			}
+			pagesSeen = append(pagesSeen, page)
+			if page == "1" {
+				w.Header().Set("Link", fmt.Sprintf(`<http://%s/repos/%s/%s/commits/%s/check-runs?page=2>; rel="next"`, r.Host, owner, repo, sha))
+				fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":1,"status":"completed","conclusion":"success"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":2,"status":"completed","conclusion":"failure"}]}`)
+		})
+
+		c, teardown := newTestGHClient(mux)
+		defer teardown()
+
+		got, err := c.GetCIStatus(context.Background(), owner, repo, pr)
+		if err != nil {
+			t.Fatalf("GetCIStatus() error = %v", err)
+		}
+		if got {
+			t.Fatalf("GetCIStatus() = %v, want false", got)
+		}
+		if join(pagesSeen, ",") != "1,2" {
+			t.Fatalf("GetCIStatus() did not request all pages, got pages %q, want %q", join(pagesSeen, ","), "1,2")
+		}
+	})
+
+	t.Run("returns true when all check-runs across later pages succeed", func(t *testing.T) {
+		mux := http.NewServeMux()
+		pagesSeen := []string{}
+
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr), func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, prJSON)
+		})
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, sha), func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				page = "1"
+			}
+			pagesSeen = append(pagesSeen, page)
+			if page == "1" {
+				w.Header().Set("Link", fmt.Sprintf(`<http://%s/repos/%s/%s/commits/%s/check-runs?page=2>; rel="next"`, r.Host, owner, repo, sha))
+				fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":1,"status":"completed","conclusion":"success"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":2,"status":"completed","conclusion":"success"}]}`)
+		})
+
+		c, teardown := newTestGHClient(mux)
+		defer teardown()
+
+		got, err := c.GetCIStatus(context.Background(), owner, repo, pr)
+		if err != nil {
+			t.Fatalf("GetCIStatus() error = %v", err)
+		}
+		if !got {
+			t.Fatalf("GetCIStatus() = %v, want true", got)
+		}
+		if join(pagesSeen, ",") != "1,2" {
+			t.Fatalf("GetCIStatus() did not request all pages, got pages %q, want %q", join(pagesSeen, ","), "1,2")
+		}
+	})
+}
+
+// join concatenates strings with a separator (avoids importing strings in test file).
+func join(ss []string, sep string) string {
+	if len(ss) == 0 {
+		return ""
+	}
+	result := ss[0]
+	for _, s := range ss[1:] {
+		result += sep + s
+	}
+	return result
 }
