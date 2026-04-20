@@ -72,6 +72,12 @@ func waitHandler(
 		pollInterval := time.Duration(in.PollIntervalSeconds) * time.Second
 		start := time.Now()
 
+		// lastData/lastEntry/lastStatus hold the most recent successful poll result.
+		// Reused by TIMEOUT and CANCELLED paths to avoid an extra API call.
+		var lastData *ghclient.ReviewData
+		var lastEntry *store.TriggerEntry
+		var lastStatus ghclient.ReviewStatus
+
 		for poll := 0; poll < in.MaxPolls; poll++ {
 			// Wait between polls (skip on first iteration).
 			if poll > 0 {
@@ -83,6 +89,16 @@ func waitHandler(
 						case <-timer.C:
 						default:
 						}
+					}
+					// Return progress info from the previous poll if available.
+					if lastData != nil {
+						rs := buildStatusOutput(lastData, lastEntry, lastStatus)
+						return nil, WaitOutput{
+							Status:        "CANCELLED",
+							ReviewStatus:  &rs,
+							PollsDone:     poll,
+							WaitedSeconds: int(time.Since(start).Seconds()),
+						}, ctx.Err()
 					}
 					return nil, WaitOutput{}, ctx.Err()
 				case <-timer.C:
@@ -134,6 +150,11 @@ func waitHandler(
 				}
 			}
 
+			// Cache for TIMEOUT/CANCELLED paths.
+			lastData = data
+			lastEntry = entry
+			lastStatus = status
+
 			if status == ghclient.StatusCompleted || status == ghclient.StatusBlocked {
 				rs := buildStatusOutput(data, entry, status)
 				return nil, WaitOutput{
@@ -145,21 +166,8 @@ func waitHandler(
 			}
 		}
 
-		// All polls exhausted.
-		data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
-		if err != nil {
-			return nil, WaitOutput{}, fmt.Errorf("final review data fetch failed after %d polls: %w", in.MaxPolls, err)
-		}
-		entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
-		if err != nil {
-			return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (TIMEOUT): %w", err)
-		}
-		var requestedAt *time.Time
-		if entry != nil {
-			requestedAt = &entry.RequestedAt
-		}
-		status := ghClient.DeriveStatus(data, requestedAt)
-		rs := buildStatusOutput(data, entry, status)
+		// All polls exhausted — reuse last cached poll result (no extra API call).
+		rs := buildStatusOutput(lastData, lastEntry, lastStatus)
 		return nil, WaitOutput{
 			Status:        "TIMEOUT",
 			ReviewStatus:  &rs,
