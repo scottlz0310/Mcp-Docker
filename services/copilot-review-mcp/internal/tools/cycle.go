@@ -46,8 +46,7 @@ type CycleStatusInput struct {
 	Owner         string  `json:"owner"`
 	Repo          string  `json:"repo"`
 	PR            int     `json:"pr"`
-	CIAllSuccess  bool    `json:"ci_all_success"`
-	LastCommentAt *string `json:"last_comment_at,omitempty"` // ISO8601 | null | omitted
+	LastCommentAt *string `json:"last_comment_at,omitempty"` // RFC3339 timestamp (ISO8601 subset) | null | omitted; auto-computed from threads when absent
 	CyclesDone    int     `json:"cycles_done"`
 	MaxCycles     int     `json:"max_cycles"` // 0 → use env/default
 	FixType       string  `json:"fix_type"`   // logic | spec_change | trivial | none
@@ -139,6 +138,12 @@ func cycleStatusHandler(
 			rereviewReason = &reason
 		}
 
+		// Auto-detect CI status early so all exit paths return accurate ci_ok.
+		ciAllSuccess, err := gh.GetCIStatus(ctx, in.Owner, in.Repo, in.PR)
+		if err != nil {
+			return nil, CycleStatusOutput{}, fmt.Errorf("failed to get CI status: %w", err)
+		}
+
 		// ── Early exit: max cycles exceeded ────────────────────────────────
 		if in.CyclesDone >= maxCycles {
 			notes := []string{
@@ -153,10 +158,8 @@ func cycleStatusHandler(
 				RereviewReason:    rereviewReason,
 				CyclesDone:        in.CyclesDone,
 				MaxCycles:         maxCycles,
-				// Reflect at least the caller-provided CI status; thread counts are unavailable
-				// at this early-exit point (threads not yet fetched).
-				MergeConditions: MergeConditions{CIOK: in.CIAllSuccess},
-				Notes:           notes,
+				MergeConditions:   MergeConditions{CIOK: ciAllSuccess},
+				Notes:             notes,
 			}, nil
 		}
 
@@ -207,8 +210,9 @@ func cycleStatusHandler(
 			NonBlocking: nonBlockingCount,
 			Suggestion:  suggestionCount,
 		}
+
 		mergeConditions := MergeConditions{
-			CIOK:            in.CIAllSuccess,
+			CIOK:            ciAllSuccess,
 			BlockingCount:   blockingCount,
 			UnresolvedCount: unresolvedCount,
 			AllReplied:      allReplied,
@@ -246,13 +250,16 @@ func cycleStatusHandler(
 				return nil, CycleStatusOutput{}, fmt.Errorf("invalid last_comment_at: must be RFC3339: %w", parseErr)
 			}
 			elapsedMinutes = int(time.Since(lastAt).Minutes())
+		} else if latest := findLatestCommentAt(rawThreads); latest != nil {
+			// Auto-compute from thread comments when last_comment_at is not provided.
+			elapsedMinutes = int(time.Since(*latest).Minutes())
 		}
 
 		// ── Termination condition checks (used for action and notes) ─────────
 		// Condition 1: all comments resolved, no blocking, CI OK.
-		terminateCond1 := blockingCount == 0 && unresolvedCount == 0 && in.CIAllSuccess
+		terminateCond1 := blockingCount == 0 && unresolvedCount == 0 && ciAllSuccess
 		// Condition 2: no new Copilot comment for ≥ threshold minutes, CI OK, no blocking.
-		terminateCond2 := elapsedMinutes >= noCommentThreshold && in.CIAllSuccess && blockingCount == 0
+		terminateCond2 := elapsedMinutes >= noCommentThreshold && ciAllSuccess && blockingCount == 0
 
 		// ── Determine recommended_action ──────────────────────────────────────
 		var recommendedAction string
@@ -350,7 +357,7 @@ func cycleStatusHandler(
 				if unresolvedCount > 0 {
 					reasons = append(reasons, fmt.Sprintf("unresolved=%d残存", unresolvedCount))
 				}
-				if !in.CIAllSuccess {
+				if !ciAllSuccess {
 					reasons = append(reasons, "CI未達成")
 				}
 				if len(reasons) == 0 {
@@ -378,4 +385,25 @@ func cycleStatusHandler(
 // RegisterCycleTool adds get_pr_review_cycle_status to the MCP server.
 func RegisterCycleTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
 	mcp.AddTool(server, cycleTool, cycleStatusHandler(gh, db))
+}
+
+// findLatestCommentAt returns the most recent CreatedAt across Copilot-authored
+// thread comments, or nil when no such comments exist.
+func findLatestCommentAt(threads []ghclient.ReviewThread) *time.Time {
+	var latest time.Time
+	for _, t := range threads {
+		for _, c := range t.Comments {
+			if !ghclient.IsCopilotLogin(c.Author) {
+				continue
+			}
+			ts, err := time.Parse(time.RFC3339, c.CreatedAt)
+			if err == nil && ts.After(latest) {
+				latest = ts
+			}
+		}
+	}
+	if latest.IsZero() {
+		return nil
+	}
+	return &latest
 }
