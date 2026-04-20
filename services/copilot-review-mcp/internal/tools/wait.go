@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ type WaitOutput struct {
 // waitTool is the MCP tool definition for wait_for_copilot_review.
 var waitTool = &mcp.Tool{
 	Name:        "wait_for_copilot_review",
-	Description: "Copilot のレビューが COMPLETED または BLOCKED になるまで定期的にポーリングして待機する。タイムアウト時は TIMEOUT を返す。レート制限時は RATE_LIMITED を返す。",
+	Description: "Copilot のレビューが COMPLETED または BLOCKED になるまで定期的にポーリングして待機する。タイムアウト時は TIMEOUT を返す。レート制限時は RATE_LIMITED を返す。コンテキストキャンセル時は CANCELLED を返す。",
 }
 
 // waitHandler handles a single wait_for_copilot_review call.
@@ -72,6 +73,12 @@ func waitHandler(
 		pollInterval := time.Duration(in.PollIntervalSeconds) * time.Second
 		start := time.Now()
 
+		// lastData/lastEntry/lastStatus hold the most recent successful poll result.
+		// Reused by TIMEOUT and CANCELLED paths to avoid an extra API call.
+		var lastData *ghclient.ReviewData
+		var lastEntry *store.TriggerEntry
+		var lastStatus ghclient.ReviewStatus
+
 		for poll := 0; poll < in.MaxPolls; poll++ {
 			// Wait between polls (skip on first iteration).
 			if poll > 0 {
@@ -84,13 +91,16 @@ func waitHandler(
 						default:
 						}
 					}
-					return nil, WaitOutput{}, ctx.Err()
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), ctx.Err()
 				case <-timer.C:
 				}
 			}
 
 			data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 			if err != nil {
+				if isCancellation(err) {
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
+				}
 				return nil, WaitOutput{}, err
 			}
 
@@ -98,6 +108,9 @@ func waitHandler(
 			if data.RateLimitRemaining < 10 {
 				entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 				if err != nil {
+					if isCancellation(err) {
+						return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
+					}
 					return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (RATE_LIMITED): %w", err)
 				}
 				var reqAt *time.Time
@@ -116,6 +129,9 @@ func waitHandler(
 
 			entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 			if err != nil {
+				if isCancellation(err) {
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
+				}
 				return nil, WaitOutput{}, err
 			}
 
@@ -134,6 +150,11 @@ func waitHandler(
 				}
 			}
 
+			// Cache for TIMEOUT/CANCELLED paths.
+			lastData = data
+			lastEntry = entry
+			lastStatus = status
+
 			if status == ghclient.StatusCompleted || status == ghclient.StatusBlocked {
 				rs := buildStatusOutput(data, entry, status)
 				return nil, WaitOutput{
@@ -145,21 +166,11 @@ func waitHandler(
 			}
 		}
 
-		// All polls exhausted.
-		data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
-		if err != nil {
-			return nil, WaitOutput{}, fmt.Errorf("final review data fetch failed after %d polls: %w", in.MaxPolls, err)
+		// All polls exhausted — check context before reporting TIMEOUT.
+		if err := ctx.Err(); err != nil {
+			return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, in.MaxPolls, time.Since(start)), err
 		}
-		entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
-		if err != nil {
-			return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (TIMEOUT): %w", err)
-		}
-		var requestedAt *time.Time
-		if entry != nil {
-			requestedAt = &entry.RequestedAt
-		}
-		status := ghClient.DeriveStatus(data, requestedAt)
-		rs := buildStatusOutput(data, entry, status)
+		rs := buildStatusOutput(lastData, lastEntry, lastStatus)
 		return nil, WaitOutput{
 			Status:        "TIMEOUT",
 			ReviewStatus:  &rs,
@@ -167,6 +178,27 @@ func waitHandler(
 			WaitedSeconds: int(time.Since(start).Seconds()),
 		}, nil
 	}
+}
+
+// isCancellation reports whether err represents a context cancellation or deadline.
+func isCancellation(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// buildCancelledOutput assembles a CANCELLED WaitOutput.
+// data may be nil when cancellation occurs before the first successful poll;
+// in that case ReviewStatus is omitted but Status/PollsDone/WaitedSeconds are still set.
+func buildCancelledOutput(data *ghclient.ReviewData, entry *store.TriggerEntry, status ghclient.ReviewStatus, pollsDone int, waited time.Duration) WaitOutput {
+	out := WaitOutput{
+		Status:        "CANCELLED",
+		PollsDone:     pollsDone,
+		WaitedSeconds: int(waited.Seconds()),
+	}
+	if data != nil {
+		rs := buildStatusOutput(data, entry, status)
+		out.ReviewStatus = &rs
+	}
+	return out
 }
 
 // buildStatusOutput assembles a GetStatusOutput from already-fetched data.
