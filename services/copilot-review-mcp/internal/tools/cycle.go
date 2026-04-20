@@ -220,9 +220,9 @@ func cycleStatusHandler(
 		}
 
 		// ── Termination condition checks (used for action and notes) ─────────
-		// Condition 1: all comments resolved, CI OK.
+		// Condition 1: unresolved=0 and CI=OK.
 		terminateCond1 := unresolvedCount == 0 && in.CIAllSuccess
-		// Condition 2: no new Copilot comment for ≥ threshold minutes, CI OK.
+		// Condition 2: no new Copilot comment for ≥ threshold minutes and CI=OK.
 		terminateCond2 := elapsedMinutes >= noCommentThreshold && in.CIAllSuccess
 
 		// ── Determine recommended_action ──────────────────────────────────────
@@ -290,7 +290,7 @@ func cycleStatusHandler(
 		if cycleStatus == "TERMINATE" {
 			switch {
 			case terminateCond1:
-				notes = append(notes, "■ サイクル終了条件: 達成（blocking=0, unresolved=0, CI=OK）")
+				notes = append(notes, "■ サイクル終了条件: 達成（unresolved=0, CI=OK）")
 			default:
 				notes = append(notes, fmt.Sprintf(
 					"■ サイクル終了条件: 達成（コメントなし %d分経過 ≥ %d分閾値 & CI=OK）",
