@@ -25,7 +25,6 @@ type GetStatusOutput struct {
 	Status              string  `json:"status"`
 	Trigger             *string `json:"trigger"`
 	IsBlocking          bool    `json:"isBlocking"`
-	BlockingThreadCount int     `json:"blockingThreadCount"`
 	LastReviewAt        *string `json:"lastReviewAt"`
 	ElapsedSinceRequest *string `json:"elapsedSinceRequest"`
 }

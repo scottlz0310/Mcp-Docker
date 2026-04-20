@@ -10,61 +10,6 @@ import (
 	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
 )
 
-// ─── Classification keywords ──────────────────────────────────────────────────
-
-var blockingKeywords = []string{
-	// エラー・クラッシュ系
-	"panic", "nil pointer", "null reference", "index out of", "runtime error",
-	"will fail", "causes error", "throws exception", "crash",
-	// セキュリティ系
-	"sql injection", "xss", "csrf", "authentication", "authorization",
-	"unvalidated", "unsanitized", "hardcoded secret", "exposed credential",
-	// データ整合性系
-	"data loss", "data corruption", "race condition", "deadlock",
-	"transaction", "rollback", "inconsistent state",
-	// 型・互換性系
-	"type mismatch", "breaking change", "incompatible", "removed api",
-	"deprecated and removed",
-}
-
-var nonBlockingKeywords = []string{
-	"consider adding test", "missing test", "log", "logging",
-	"consider", "might want to", "optional",
-}
-
-var suggestionKeywords = []string{
-	"rename", "refactor", "extract", "naming", "abstract", "simplify",
-	"nit:", "style:", "minor:",
-}
-
-// classifyThread returns the classification and reason for a thread based on its comments.
-// Priority: blocking > non-blocking > suggestion.
-func classifyThread(comments []ghclient.ThreadComment) (classification, reason string) {
-	var bodyBuilder strings.Builder
-	for _, c := range comments {
-		bodyBuilder.WriteByte(' ')
-		bodyBuilder.WriteString(strings.ToLower(c.Body))
-	}
-	body := bodyBuilder.String()
-
-	for _, kw := range blockingKeywords {
-		if strings.Contains(body, kw) {
-			return "blocking", fmt.Sprintf("keyword matched: %q", kw)
-		}
-	}
-	for _, kw := range nonBlockingKeywords {
-		if strings.Contains(body, kw) {
-			return "non-blocking", fmt.Sprintf("keyword matched: %q", kw)
-		}
-	}
-	for _, kw := range suggestionKeywords {
-		if strings.Contains(body, kw) {
-			return "suggestion", fmt.Sprintf("keyword matched: %q", kw)
-		}
-	}
-	return "suggestion", "no keywords matched"
-}
-
 // ─── Tool 4: get_review_threads ───────────────────────────────────────────────
 
 // GetReviewThreadsInput is the input schema for get_review_threads.
@@ -83,22 +28,17 @@ type ThreadCommentOutput struct {
 
 // ThreadResult is the result for a single review thread.
 type ThreadResult struct {
-	ID                   string                `json:"id"`
-	Path                 string                `json:"path"`
-	Line                 *int32                `json:"line"`
-	IsResolved           bool                  `json:"isResolved"`
-	Classification       string                `json:"classification"`
-	ClassificationReason string                `json:"classificationReason"`
-	Comments             []ThreadCommentOutput `json:"comments"`
+	ID         string                `json:"id"`
+	Path       string                `json:"path"`
+	Line       *int32                `json:"line"`
+	IsResolved bool                  `json:"isResolved"`
+	Comments   []ThreadCommentOutput `json:"comments"`
 }
 
 // ThreadSummary holds aggregate counts across all threads.
 type ThreadSummary struct {
-	Total       int `json:"total"`
-	Blocking    int `json:"blocking"`
-	NonBlocking int `json:"nonBlocking"`
-	Suggestion  int `json:"suggestion"`
-	Unresolved  int `json:"unresolved"`
+	Total      int `json:"total"`
+	Unresolved int `json:"unresolved"`
 }
 
 // GetReviewThreadsOutput is the output schema for get_review_threads.
@@ -109,7 +49,7 @@ type GetReviewThreadsOutput struct {
 
 var getReviewThreadsTool = &mcp.Tool{
 	Name:        "get_review_threads",
-	Description: "PR のレビュースレッド一覧を分類情報付きで返す。各スレッドに PRRT_xxx 形式の ID を含む。ページネーション対応。",
+	Description: "PR のレビュースレッド一覧（Raw コメントデータ）を返す。各スレッドに PRRT_xxx 形式の ID を含む。分類（blocking/non-blocking/suggestion）は呼び出し元 LLM がルールファイルに基づいて判断する。",
 }
 
 func getReviewThreadsHandler(
@@ -128,20 +68,9 @@ func getReviewThreadsHandler(
 		summary := ThreadSummary{Total: len(rawThreads)}
 		results := make([]ThreadResult, 0, len(rawThreads))
 		for _, t := range rawThreads {
-			classification, reason := classifyThread(t.Comments)
-
-			switch classification {
-			case "blocking":
-				summary.Blocking++
-			case "non-blocking":
-				summary.NonBlocking++
-			default:
-				summary.Suggestion++
-			}
 			if !t.IsResolved {
 				summary.Unresolved++
 			}
-
 			comments := make([]ThreadCommentOutput, 0, len(t.Comments))
 			for _, c := range t.Comments {
 				comments = append(comments, ThreadCommentOutput{
@@ -151,13 +80,11 @@ func getReviewThreadsHandler(
 				})
 			}
 			results = append(results, ThreadResult{
-				ID:                   t.ID,
-				Path:                 t.Path,
-				Line:                 t.Line,
-				IsResolved:           t.IsResolved,
-				Classification:       classification,
-				ClassificationReason: reason,
-				Comments:             comments,
+				ID:         t.ID,
+				Path:       t.Path,
+				Line:       t.Line,
+				IsResolved: t.IsResolved,
+				Comments:   comments,
 			})
 		}
 
