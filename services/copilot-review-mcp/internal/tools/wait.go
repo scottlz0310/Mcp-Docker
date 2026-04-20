@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ type WaitOutput struct {
 // waitTool is the MCP tool definition for wait_for_copilot_review.
 var waitTool = &mcp.Tool{
 	Name:        "wait_for_copilot_review",
-	Description: "Copilot のレビューが COMPLETED または BLOCKED になるまで定期的にポーリングして待機する。タイムアウト時は TIMEOUT を返す。レート制限時は RATE_LIMITED を返す。",
+	Description: "Copilot のレビューが COMPLETED または BLOCKED になるまで定期的にポーリングして待機する。タイムアウト時は TIMEOUT を返す。レート制限時は RATE_LIMITED を返す。コンテキストキャンセル時は CANCELLED を返す。",
 }
 
 // waitHandler handles a single wait_for_copilot_review call.
@@ -107,6 +108,15 @@ func waitHandler(
 
 			data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 			if err != nil {
+				if isCancellation(err) && lastData != nil {
+					rs := buildStatusOutput(lastData, lastEntry, lastStatus)
+					return nil, WaitOutput{
+						Status:        "CANCELLED",
+						ReviewStatus:  &rs,
+						PollsDone:     poll,
+						WaitedSeconds: int(time.Since(start).Seconds()),
+					}, err
+				}
 				return nil, WaitOutput{}, err
 			}
 
@@ -114,6 +124,15 @@ func waitHandler(
 			if data.RateLimitRemaining < 10 {
 				entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 				if err != nil {
+					if isCancellation(err) && lastData != nil {
+						rs := buildStatusOutput(lastData, lastEntry, lastStatus)
+						return nil, WaitOutput{
+							Status:        "CANCELLED",
+							ReviewStatus:  &rs,
+							PollsDone:     poll,
+							WaitedSeconds: int(time.Since(start).Seconds()),
+						}, err
+					}
 					return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (RATE_LIMITED): %w", err)
 				}
 				var reqAt *time.Time
@@ -132,6 +151,15 @@ func waitHandler(
 
 			entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 			if err != nil {
+				if isCancellation(err) && lastData != nil {
+					rs := buildStatusOutput(lastData, lastEntry, lastStatus)
+					return nil, WaitOutput{
+						Status:        "CANCELLED",
+						ReviewStatus:  &rs,
+						PollsDone:     poll,
+						WaitedSeconds: int(time.Since(start).Seconds()),
+					}, err
+				}
 				return nil, WaitOutput{}, err
 			}
 
@@ -166,7 +194,16 @@ func waitHandler(
 			}
 		}
 
-		// All polls exhausted — reuse last cached poll result (no extra API call).
+		// All polls exhausted — check context before reporting TIMEOUT.
+		if err := ctx.Err(); err != nil && lastData != nil {
+			rs := buildStatusOutput(lastData, lastEntry, lastStatus)
+			return nil, WaitOutput{
+				Status:        "CANCELLED",
+				ReviewStatus:  &rs,
+				PollsDone:     in.MaxPolls,
+				WaitedSeconds: int(time.Since(start).Seconds()),
+			}, err
+		}
 		rs := buildStatusOutput(lastData, lastEntry, lastStatus)
 		return nil, WaitOutput{
 			Status:        "TIMEOUT",
@@ -175,6 +212,11 @@ func waitHandler(
 			WaitedSeconds: int(time.Since(start).Seconds()),
 		}, nil
 	}
+}
+
+// isCancellation reports whether err represents a context cancellation or deadline.
+func isCancellation(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // buildStatusOutput assembles a GetStatusOutput from already-fetched data.
