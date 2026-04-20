@@ -138,6 +138,12 @@ func cycleStatusHandler(
 			rereviewReason = &reason
 		}
 
+		// Auto-detect CI status early so all exit paths return accurate ci_ok.
+		ciAllSuccess, err := gh.GetCIStatus(ctx, in.Owner, in.Repo, in.PR)
+		if err != nil {
+			return nil, CycleStatusOutput{}, fmt.Errorf("failed to get CI status: %w", err)
+		}
+
 		// ── Early exit: max cycles exceeded ────────────────────────────────
 		if in.CyclesDone >= maxCycles {
 			notes := []string{
@@ -152,8 +158,8 @@ func cycleStatusHandler(
 				RereviewReason:    rereviewReason,
 				CyclesDone:        in.CyclesDone,
 				MaxCycles:         maxCycles,
-				MergeConditions: MergeConditions{},
-				Notes:           notes,
+				MergeConditions:   MergeConditions{CIOK: ciAllSuccess},
+				Notes:             notes,
 			}, nil
 		}
 
@@ -203,12 +209,6 @@ func cycleStatusHandler(
 			Blocking:    blockingCount,
 			NonBlocking: nonBlockingCount,
 			Suggestion:  suggestionCount,
-		}
-
-		// Auto-detect CI status from GitHub Checks API.
-		ciAllSuccess, err := gh.GetCIStatus(ctx, in.Owner, in.Repo, in.PR)
-		if err != nil {
-			return nil, CycleStatusOutput{}, fmt.Errorf("failed to get CI status: %w", err)
 		}
 
 		mergeConditions := MergeConditions{
@@ -387,12 +387,15 @@ func RegisterCycleTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
 	mcp.AddTool(server, cycleTool, cycleStatusHandler(gh, db))
 }
 
-// findLatestCommentAt returns the most recent CreatedAt across all thread comments,
-// or nil when there are no comments.
+// findLatestCommentAt returns the most recent CreatedAt across Copilot-authored
+// thread comments, or nil when no such comments exist.
 func findLatestCommentAt(threads []ghclient.ReviewThread) *time.Time {
 	var latest time.Time
 	for _, t := range threads {
 		for _, c := range t.Comments {
+			if !ghclient.IsCopilotLogin(c.Author) {
+				continue
+			}
 			ts, err := time.Parse(time.RFC3339, c.CreatedAt)
 			if err == nil && ts.After(latest) {
 				latest = ts

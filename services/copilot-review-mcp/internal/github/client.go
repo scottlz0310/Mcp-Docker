@@ -52,6 +52,11 @@ func isCopilot(login string) bool {
 	return false
 }
 
+// IsCopilotLogin reports whether login belongs to a known Copilot bot identity.
+func IsCopilotLogin(login string) bool {
+	return isCopilot(login)
+}
+
 // ReviewStatus represents the Copilot review lifecycle state for a PR.
 type ReviewStatus string
 
