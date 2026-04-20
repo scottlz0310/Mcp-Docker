@@ -46,7 +46,7 @@ type CycleStatusInput struct {
 	Owner         string  `json:"owner"`
 	Repo          string  `json:"repo"`
 	PR            int     `json:"pr"`
-	LastCommentAt *string `json:"last_comment_at,omitempty"` // ISO8601 | null | omitted; auto-computed from threads when absent
+	LastCommentAt *string `json:"last_comment_at,omitempty"` // RFC3339 timestamp (ISO8601 subset) | null | omitted; auto-computed from threads when absent
 	CyclesDone    int     `json:"cycles_done"`
 	MaxCycles     int     `json:"max_cycles"` // 0 → use env/default
 	FixType       string  `json:"fix_type"`   // logic | spec_change | trivial | none

@@ -299,6 +299,82 @@ func TestGetCIStatus(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("returns false when a later check-runs page contains failure", func(t *testing.T) {
+		mux := http.NewServeMux()
+		pagesSeen := []string{}
+
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr), func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, prJSON)
+		})
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, sha), func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				page = "1"
+			}
+			pagesSeen = append(pagesSeen, page)
+			if page == "1" {
+				w.Header().Set("Link", fmt.Sprintf(`<http://%s/repos/%s/%s/commits/%s/check-runs?page=2>; rel="next"`, r.Host, owner, repo, sha))
+				fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":1,"status":"completed","conclusion":"success"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":2,"status":"completed","conclusion":"failure"}]}`)
+		})
+
+		c, teardown := newTestGHClient(mux)
+		defer teardown()
+
+		got, err := c.GetCIStatus(context.Background(), owner, repo, pr)
+		if err != nil {
+			t.Fatalf("GetCIStatus() error = %v", err)
+		}
+		if got {
+			t.Fatalf("GetCIStatus() = %v, want false", got)
+		}
+		if join(pagesSeen, ",") != "1,2" {
+			t.Fatalf("GetCIStatus() did not request all pages, got pages %q, want %q", join(pagesSeen, ","), "1,2")
+		}
+	})
+
+	t.Run("returns true when all check-runs across later pages succeed", func(t *testing.T) {
+		mux := http.NewServeMux()
+		pagesSeen := []string{}
+
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, pr), func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, prJSON)
+		})
+		mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, sha), func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			page := r.URL.Query().Get("page")
+			if page == "" {
+				page = "1"
+			}
+			pagesSeen = append(pagesSeen, page)
+			if page == "1" {
+				w.Header().Set("Link", fmt.Sprintf(`<http://%s/repos/%s/%s/commits/%s/check-runs?page=2>; rel="next"`, r.Host, owner, repo, sha))
+				fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":1,"status":"completed","conclusion":"success"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"total_count":2,"check_runs":[{"id":2,"status":"completed","conclusion":"success"}]}`)
+		})
+
+		c, teardown := newTestGHClient(mux)
+		defer teardown()
+
+		got, err := c.GetCIStatus(context.Background(), owner, repo, pr)
+		if err != nil {
+			t.Fatalf("GetCIStatus() error = %v", err)
+		}
+		if !got {
+			t.Fatalf("GetCIStatus() = %v, want true", got)
+		}
+		if join(pagesSeen, ",") != "1,2" {
+			t.Fatalf("GetCIStatus() did not request all pages, got pages %q, want %q", join(pagesSeen, ","), "1,2")
+		}
+	})
 }
 
 // join concatenates strings with a separator (avoids importing strings in test file).
