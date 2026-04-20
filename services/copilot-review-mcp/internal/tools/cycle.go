@@ -56,29 +56,20 @@ type CycleStatusInput struct {
 // MergeConditions holds the per-condition merge readiness check.
 type MergeConditions struct {
 	CIOK            bool `json:"ci_ok"`
-	BlockingCount   int  `json:"blocking_count"`
 	UnresolvedCount int  `json:"unresolved_count"`
 	AllReplied      bool `json:"all_replied"`
 }
 
-// CycleClassificationSummary holds aggregate thread classification counts.
-type CycleClassificationSummary struct {
-	Blocking    int `json:"blocking"`
-	NonBlocking int `json:"nonBlocking"`
-	Suggestion  int `json:"suggestion"`
-}
-
 // CycleStatusOutput is the output schema for get_pr_review_cycle_status.
 type CycleStatusOutput struct {
-	CycleStatus           string                     `json:"cycle_status"`       // CONTINUE | TERMINATE  ※TERMINATE は推奨アクションが終端アクション(READY_TO_MERGE/ESCALATE)の場合のみ
-	RecommendedAction     string                     `json:"recommended_action"` // WAIT | APPLY_FIXES | REPLY_RESOLVE | REQUEST_REREVIEW | READY_TO_MERGE | ESCALATE
-	RereviewRequired      bool                       `json:"rereview_required"`
-	RereviewReason        *string                    `json:"rereview_reason"`
-	CyclesDone            int                        `json:"cycles_done"`
-	MaxCycles             int                        `json:"max_cycles"`
-	MergeConditions       MergeConditions            `json:"merge_conditions"`
-	ClassificationSummary CycleClassificationSummary `json:"classification_summary"`
-	Notes                 []string                   `json:"notes"`
+	CycleStatus       string          `json:"cycle_status"`       // CONTINUE | TERMINATE
+	RecommendedAction string          `json:"recommended_action"` // WAIT | REPLY_RESOLVE | REQUEST_REREVIEW | READY_TO_MERGE | ESCALATE
+	RereviewRequired  bool            `json:"rereview_required"`
+	RereviewReason    *string         `json:"rereview_reason"`
+	CyclesDone        int             `json:"cycles_done"`
+	MaxCycles         int             `json:"max_cycles"`
+	MergeConditions   MergeConditions `json:"merge_conditions"`
+	Notes             []string        `json:"notes"`
 }
 
 // ─── Tool 8: get_pr_review_cycle_status ──────────────────────────────────────
@@ -86,8 +77,8 @@ type CycleStatusOutput struct {
 var cycleTool = &mcp.Tool{
 	Name: "get_pr_review_cycle_status",
 	Description: "PR レビューサイクルの現在状態を評価し、次の推奨アクション " +
-		"(WAIT / APPLY_FIXES / REPLY_RESOLVE / REQUEST_REREVIEW / READY_TO_MERGE / ESCALATE) を返す。" +
-		"ISSUE#25・ISSUE#26 のツール群を組み合わせた PR レビューサイクルのオーケストレーション用。\n\n" +
+		"(WAIT / REPLY_RESOLVE / REQUEST_REREVIEW / READY_TO_MERGE / ESCALATE) を返す。" +
+		"スレッドの blocking/non-blocking/suggestion 分類は呼び出し元 LLM がルールファイルに基づいて判断する。\n\n" +
 		"【cycle_status の定義】\n" +
 		"  TERMINATE = recommended_action が READY_TO_MERGE または ESCALATE の場合のみ。\n" +
 		"  これらは \"次のサイクル不要\" を意味する終端アクション。\n" +
@@ -160,32 +151,18 @@ func cycleStatusHandler(
 			}, nil
 		}
 
-		// ── Fetch review threads and classify ────────────────────────────────
+		// ── Fetch review threads ─────────────────────────────────────────────
 		rawThreads, err := gh.GetReviewThreads(ctx, in.Owner, in.Repo, in.PR)
 		if err != nil {
 			return nil, CycleStatusOutput{}, fmt.Errorf("failed to fetch review threads: %w", err)
 		}
 
-		blockingCount := 0
-		nonBlockingCount := 0
-		suggestionCount := 0
 		unresolvedCount := 0
 		allReplied := true // vacuously true when there are no threads
 
 		for _, t := range rawThreads {
-			cls, _ := classifyThread(t.Comments)
-			// Count classifications only for unresolved threads so that
-			// resolved/fixed issues do not keep the cycle stuck.
 			if !t.IsResolved {
 				unresolvedCount++
-				switch cls {
-				case "blocking":
-					blockingCount++
-				case "non-blocking":
-					nonBlockingCount++
-				default:
-					suggestionCount++
-				}
 			}
 			// A thread is "replied" only when there are comments from
 			// at least two distinct authors (for example, Copilot and a user).
@@ -202,14 +179,8 @@ func cycleStatusHandler(
 			}
 		}
 
-		classSummary := CycleClassificationSummary{
-			Blocking:    blockingCount,
-			NonBlocking: nonBlockingCount,
-			Suggestion:  suggestionCount,
-		}
 		mergeConditions := MergeConditions{
 			CIOK:            in.CIAllSuccess,
-			BlockingCount:   blockingCount,
 			UnresolvedCount: unresolvedCount,
 			AllReplied:      allReplied,
 		}
@@ -249,10 +220,10 @@ func cycleStatusHandler(
 		}
 
 		// ── Termination condition checks (used for action and notes) ─────────
-		// Condition 1: all comments resolved, no blocking, CI OK.
-		terminateCond1 := blockingCount == 0 && unresolvedCount == 0 && in.CIAllSuccess
-		// Condition 2: no new Copilot comment for ≥ threshold minutes, CI OK, no blocking.
-		terminateCond2 := elapsedMinutes >= noCommentThreshold && in.CIAllSuccess && blockingCount == 0
+		// Condition 1: all comments resolved, CI OK.
+		terminateCond1 := unresolvedCount == 0 && in.CIAllSuccess
+		// Condition 2: no new Copilot comment for ≥ threshold minutes, CI OK.
+		terminateCond2 := elapsedMinutes >= noCommentThreshold && in.CIAllSuccess
 
 		// ── Determine recommended_action ──────────────────────────────────────
 		var recommendedAction string
@@ -265,10 +236,8 @@ func cycleStatusHandler(
 		case reviewStatus == ghclient.StatusPending || reviewStatus == ghclient.StatusInProgress:
 			recommendedAction = "WAIT"
 
-		case blockingCount > 0:
-			recommendedAction = "APPLY_FIXES"
-
 		case unresolvedCount > 0:
+			// LLM determines blocking vs non-blocking from raw thread content per SKILL.md.
 			recommendedAction = "REPLY_RESOLVE"
 
 		case rereviewRequired:
@@ -306,8 +275,7 @@ func cycleStatusHandler(
 		// ── Build notes ───────────────────────────────────────────────────────
 		notes := []string{
 			fmt.Sprintf("■ サイクル: %d/%d回目", in.CyclesDone+1, maxCycles),
-			fmt.Sprintf("■ コメント分類: blocking=%d, non-blocking=%d, suggestion=%d",
-				blockingCount, nonBlockingCount, suggestionCount),
+			fmt.Sprintf("■ 未解決スレッド: %d件", unresolvedCount),
 		}
 		if in.FixType != "" {
 			fixNote := fmt.Sprintf("■ 修正種別: %s", in.FixType)
@@ -344,9 +312,6 @@ func cycleStatusHandler(
 					reasons = append(reasons, fmt.Sprintf("継続理由: 推奨アクション=%s", recommendedAction))
 				}
 			} else {
-				if blockingCount > 0 {
-					reasons = append(reasons, fmt.Sprintf("blocking=%d残存", blockingCount))
-				}
 				if unresolvedCount > 0 {
 					reasons = append(reasons, fmt.Sprintf("unresolved=%d残存", unresolvedCount))
 				}
@@ -362,15 +327,14 @@ func cycleStatusHandler(
 		notes = append(notes, fmt.Sprintf("■ 推奨アクション: %s", recommendedAction))
 
 		return nil, CycleStatusOutput{
-			CycleStatus:           cycleStatus,
-			RecommendedAction:     recommendedAction,
-			RereviewRequired:      rereviewRequired,
-			RereviewReason:        rereviewReason,
-			CyclesDone:            in.CyclesDone,
-			MaxCycles:             maxCycles,
-			MergeConditions:       mergeConditions,
-			ClassificationSummary: classSummary,
-			Notes:                 notes,
+			CycleStatus:       cycleStatus,
+			RecommendedAction: recommendedAction,
+			RereviewRequired:  rereviewRequired,
+			RereviewReason:    rereviewReason,
+			CyclesDone:        in.CyclesDone,
+			MaxCycles:         maxCycles,
+			MergeConditions:   mergeConditions,
+			Notes:             notes,
 		}, nil
 	}
 }
