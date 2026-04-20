@@ -91,31 +91,15 @@ func waitHandler(
 						default:
 						}
 					}
-					// Return progress info from the previous poll if available.
-					if lastData != nil {
-						rs := buildStatusOutput(lastData, lastEntry, lastStatus)
-						return nil, WaitOutput{
-							Status:        "CANCELLED",
-							ReviewStatus:  &rs,
-							PollsDone:     poll,
-							WaitedSeconds: int(time.Since(start).Seconds()),
-						}, ctx.Err()
-					}
-					return nil, WaitOutput{}, ctx.Err()
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), ctx.Err()
 				case <-timer.C:
 				}
 			}
 
 			data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 			if err != nil {
-				if isCancellation(err) && lastData != nil {
-					rs := buildStatusOutput(lastData, lastEntry, lastStatus)
-					return nil, WaitOutput{
-						Status:        "CANCELLED",
-						ReviewStatus:  &rs,
-						PollsDone:     poll,
-						WaitedSeconds: int(time.Since(start).Seconds()),
-					}, err
+				if isCancellation(err) {
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
 				}
 				return nil, WaitOutput{}, err
 			}
@@ -124,14 +108,8 @@ func waitHandler(
 			if data.RateLimitRemaining < 10 {
 				entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 				if err != nil {
-					if isCancellation(err) && lastData != nil {
-						rs := buildStatusOutput(lastData, lastEntry, lastStatus)
-						return nil, WaitOutput{
-							Status:        "CANCELLED",
-							ReviewStatus:  &rs,
-							PollsDone:     poll,
-							WaitedSeconds: int(time.Since(start).Seconds()),
-						}, err
+					if isCancellation(err) {
+						return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
 					}
 					return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (RATE_LIMITED): %w", err)
 				}
@@ -151,14 +129,8 @@ func waitHandler(
 
 			entry, err := db.GetLatest(in.Owner, in.Repo, in.PR)
 			if err != nil {
-				if isCancellation(err) && lastData != nil {
-					rs := buildStatusOutput(lastData, lastEntry, lastStatus)
-					return nil, WaitOutput{
-						Status:        "CANCELLED",
-						ReviewStatus:  &rs,
-						PollsDone:     poll,
-						WaitedSeconds: int(time.Since(start).Seconds()),
-					}, err
+				if isCancellation(err) {
+					return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, poll, time.Since(start)), err
 				}
 				return nil, WaitOutput{}, err
 			}
@@ -195,14 +167,8 @@ func waitHandler(
 		}
 
 		// All polls exhausted — check context before reporting TIMEOUT.
-		if err := ctx.Err(); err != nil && lastData != nil {
-			rs := buildStatusOutput(lastData, lastEntry, lastStatus)
-			return nil, WaitOutput{
-				Status:        "CANCELLED",
-				ReviewStatus:  &rs,
-				PollsDone:     in.MaxPolls,
-				WaitedSeconds: int(time.Since(start).Seconds()),
-			}, err
+		if err := ctx.Err(); err != nil {
+			return nil, buildCancelledOutput(lastData, lastEntry, lastStatus, in.MaxPolls, time.Since(start)), err
 		}
 		rs := buildStatusOutput(lastData, lastEntry, lastStatus)
 		return nil, WaitOutput{
@@ -217,6 +183,22 @@ func waitHandler(
 // isCancellation reports whether err represents a context cancellation or deadline.
 func isCancellation(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// buildCancelledOutput assembles a CANCELLED WaitOutput.
+// data may be nil when cancellation occurs before the first successful poll;
+// in that case ReviewStatus is omitted but Status/PollsDone/WaitedSeconds are still set.
+func buildCancelledOutput(data *ghclient.ReviewData, entry *store.TriggerEntry, status ghclient.ReviewStatus, pollsDone int, waited time.Duration) WaitOutput {
+	out := WaitOutput{
+		Status:        "CANCELLED",
+		PollsDone:     pollsDone,
+		WaitedSeconds: int(waited.Seconds()),
+	}
+	if data != nil {
+		rs := buildStatusOutput(data, entry, status)
+		out.ReviewStatus = &rs
+	}
+	return out
 }
 
 // buildStatusOutput assembles a GetStatusOutput from already-fetched data.
