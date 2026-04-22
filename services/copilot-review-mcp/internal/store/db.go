@@ -1,5 +1,5 @@
-// Package store manages the SQLite trigger_log database used to track
-// when Copilot reviews were requested and completed.
+// Package store manages the SQLite database used to track trigger_log
+// and persisted review_watch state.
 package store
 
 import (
@@ -20,7 +20,38 @@ CREATE TABLE IF NOT EXISTS trigger_log (
     completed_at INTEGER                                          -- epoch seconds (UTC), NULL while pending
 );
 CREATE INDEX IF NOT EXISTS idx_trigger_log_pr ON trigger_log(owner, repo, pr);
+
+CREATE TABLE IF NOT EXISTS review_watch (
+    id                  TEXT PRIMARY KEY,
+    github_login        TEXT    NOT NULL,
+    owner               TEXT    NOT NULL,
+    repo                TEXT    NOT NULL,
+    pr                  INTEGER NOT NULL,
+    trigger_log_id      INTEGER,
+    resource_uri        TEXT,
+    watch_status        TEXT    NOT NULL,
+    review_status       TEXT,
+    failure_reason      TEXT,
+    is_active           INTEGER NOT NULL DEFAULT 1,
+    started_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    completed_at        INTEGER,
+    stale_at            INTEGER,
+    last_error          TEXT,
+    rate_limit_reset_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_review_watch_active_per_pr
+    ON review_watch(github_login, owner, repo, pr)
+    WHERE is_active = 1;
 `
+
+const reviewWatchLookupIndexSQL = `
+DROP INDEX IF EXISTS idx_review_watch_lookup;
+CREATE INDEX idx_review_watch_lookup
+    ON review_watch(github_login, owner, repo, pr, updated_at DESC, started_at DESC);
+`
+
+const staleOnOpenMessage = "watch became stale because the copilot-review-mcp process restarted"
 
 // DB wraps a SQLite database for trigger_log operations.
 type DB struct {
@@ -45,7 +76,16 @@ func Open(path string) (*DB, error) {
 		db.Close()
 		return nil, err
 	}
-	return &DB{db: db}, nil
+	if _, err := db.Exec(reviewWatchLookupIndexSQL); err != nil {
+		db.Close()
+		return nil, err
+	}
+	d := &DB{db: db}
+	if _, err := d.MarkActiveReviewWatchesStale(staleOnOpenMessage); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return d, nil
 }
 
 // Close releases the database connection.
@@ -57,6 +97,27 @@ type TriggerEntry struct {
 	Trigger     string    // "MANUAL" or "AUTO"
 	RequestedAt time.Time // when the review was requested
 	CompletedAt *time.Time
+}
+
+// ReviewWatchEntry is a persisted watch snapshot in review_watch.
+type ReviewWatchEntry struct {
+	ID               string
+	GitHubLogin      string
+	Owner            string
+	Repo             string
+	PR               int
+	TriggerLogID     *int64
+	ResourceURI      *string
+	WatchStatus      string
+	ReviewStatus     *string
+	FailureReason    *string
+	IsActive         bool
+	StartedAt        time.Time
+	UpdatedAt        time.Time
+	CompletedAt      *time.Time
+	StaleAt          *time.Time
+	LastError        *string
+	RateLimitResetAt *time.Time
 }
 
 // Insert adds a new trigger_log entry and returns the assigned ID.
@@ -121,4 +182,212 @@ func (d *DB) HasPending(owner, repo string, pr int) (bool, error) {
 		owner, repo, pr,
 	).Scan(&count)
 	return count > 0, err
+}
+
+// UpsertReviewWatch inserts or updates a persisted review_watch snapshot by watch ID.
+func (d *DB) UpsertReviewWatch(entry ReviewWatchEntry) error {
+	_, err := d.db.Exec(
+		`INSERT INTO review_watch (
+		    id, github_login, owner, repo, pr, trigger_log_id, resource_uri,
+		    watch_status, review_status, failure_reason, is_active,
+		    started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+		    trigger_log_id      = excluded.trigger_log_id,
+		    resource_uri        = excluded.resource_uri,
+		    watch_status        = excluded.watch_status,
+		    review_status       = excluded.review_status,
+		    failure_reason      = excluded.failure_reason,
+		    is_active           = excluded.is_active,
+		    updated_at          = excluded.updated_at,
+		    completed_at        = excluded.completed_at,
+		    stale_at            = excluded.stale_at,
+		    last_error          = excluded.last_error,
+		    rate_limit_reset_at = excluded.rate_limit_reset_at`,
+		entry.ID,
+		entry.GitHubLogin,
+		entry.Owner,
+		entry.Repo,
+		entry.PR,
+		nullInt64(entry.TriggerLogID),
+		nullString(entry.ResourceURI),
+		entry.WatchStatus,
+		nullString(entry.ReviewStatus),
+		nullString(entry.FailureReason),
+		boolToInt(entry.IsActive),
+		entry.StartedAt.UTC().Unix(),
+		entry.UpdatedAt.UTC().Unix(),
+		nullTime(entry.CompletedAt),
+		nullTime(entry.StaleAt),
+		nullString(entry.LastError),
+		nullTime(entry.RateLimitResetAt),
+	)
+	return err
+}
+
+// GetReviewWatchByID returns a persisted review_watch row by watch ID.
+func (d *DB) GetReviewWatchByID(id string) (*ReviewWatchEntry, error) {
+	row := d.db.QueryRow(
+		`SELECT id, github_login, owner, repo, pr, trigger_log_id, resource_uri,
+		        watch_status, review_status, failure_reason, is_active,
+		        started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
+		   FROM review_watch
+		  WHERE id = ?`,
+		id,
+	)
+	return scanReviewWatch(row)
+}
+
+// GetLatestReviewWatch returns the most recently updated watch for the user/PR key.
+func (d *DB) GetLatestReviewWatch(login, owner, repo string, pr int) (*ReviewWatchEntry, error) {
+	row := d.db.QueryRow(
+		`SELECT id, github_login, owner, repo, pr, trigger_log_id, resource_uri,
+		        watch_status, review_status, failure_reason, is_active,
+		        started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
+		   FROM review_watch
+		  WHERE github_login = ? AND owner = ? AND repo = ? AND pr = ?
+		  ORDER BY updated_at DESC, started_at DESC, rowid DESC
+		  LIMIT 1`,
+		login, owner, repo, pr,
+	)
+	return scanReviewWatch(row)
+}
+
+// MarkActiveReviewWatchesStale deactivates any persisted active watches.
+// Used on startup because worker state is memory-only and cannot survive process restart.
+func (d *DB) MarkActiveReviewWatchesStale(lastError string) (int64, error) {
+	res, err := d.db.Exec(
+		`UPDATE review_watch
+		    SET watch_status = 'STALE',
+		        failure_reason = NULL,
+		        is_active = 0,
+		        updated_at = strftime('%s','now'),
+		        completed_at = COALESCE(completed_at, strftime('%s','now')),
+		        stale_at = COALESCE(stale_at, strftime('%s','now')),
+		        last_error = CASE
+		                       WHEN ? = '' THEN last_error
+		                       WHEN last_error IS NULL OR last_error = '' THEN ?
+		                       ELSE last_error
+		                     END
+		  WHERE is_active = 1`,
+		lastError,
+		lastError,
+	)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return rows, nil
+}
+
+func scanReviewWatch(row scanner) (*ReviewWatchEntry, error) {
+	var entry ReviewWatchEntry
+	var (
+		triggerLogID     sql.NullInt64
+		resourceURI      sql.NullString
+		reviewStatus     sql.NullString
+		failureReason    sql.NullString
+		completedAt      sql.NullInt64
+		staleAt          sql.NullInt64
+		lastError        sql.NullString
+		rateLimitResetAt sql.NullInt64
+		isActive         int
+		startedAtUnix    int64
+		updatedAtUnix    int64
+	)
+	if err := row.Scan(
+		&entry.ID,
+		&entry.GitHubLogin,
+		&entry.Owner,
+		&entry.Repo,
+		&entry.PR,
+		&triggerLogID,
+		&resourceURI,
+		&entry.WatchStatus,
+		&reviewStatus,
+		&failureReason,
+		&isActive,
+		&startedAtUnix,
+		&updatedAtUnix,
+		&completedAt,
+		&staleAt,
+		&lastError,
+		&rateLimitResetAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	entry.IsActive = isActive != 0
+	entry.StartedAt = time.Unix(startedAtUnix, 0).UTC()
+	entry.UpdatedAt = time.Unix(updatedAtUnix, 0).UTC()
+	entry.TriggerLogID = fromNullInt64(triggerLogID)
+	entry.ResourceURI = fromNullString(resourceURI)
+	entry.ReviewStatus = fromNullString(reviewStatus)
+	entry.FailureReason = fromNullString(failureReason)
+	entry.CompletedAt = fromNullUnix(completedAt)
+	entry.StaleAt = fromNullUnix(staleAt)
+	entry.LastError = fromNullString(lastError)
+	entry.RateLimitResetAt = fromNullUnix(rateLimitResetAt)
+	return &entry, nil
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
+}
+
+func nullInt64(v *int64) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *v, Valid: true}
+}
+
+func nullString(v *string) sql.NullString {
+	if v == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *v, Valid: true}
+}
+
+func nullTime(v *time.Time) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: v.UTC().Unix(), Valid: true}
+}
+
+func fromNullInt64(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
+}
+
+func fromNullString(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	value := v.String
+	return &value
+}
+
+func fromNullUnix(v sql.NullInt64) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	t := time.Unix(v.Int64, 0).UTC()
+	return &t
 }

@@ -64,12 +64,12 @@ type GetReviewWatchStatusOutput struct {
 
 var startWatchTool = &mcp.Tool{
 	Name:        "start_copilot_review_watch",
-	Description: "Copilot review の background watch を開始し、即時 return する。同一ユーザー・同一 PR の active watch があればそれを再利用する。watch state は memory-only で、サーバー再起動後は維持されない。",
+	Description: "Copilot review の background watch を開始し、即時 return する。同一ユーザー・同一 PR の active watch があればそれを再利用する。watch state は SQLite に保存されるが、worker 自体は memory-only のためサーバー再起動後の active watch は STALE として扱われる。",
 }
 
 var getWatchStatusTool = &mcp.Tool{
 	Name:        "get_copilot_review_watch_status",
-	Description: "background watch の現在状態を memory-only state から返す。watch_id を優先し、watch_id が無い場合は owner/repo/pr から同一ユーザーの最新 watch を引く。",
+	Description: "background watch の現在状態をローカル state から返す。まず in-memory worker state を見て、見つからなければ SQLite に保存された watch snapshot を返す。watch_id を優先し、watch_id が無い場合は owner/repo/pr から同一ユーザーの最新 watch を引く。",
 }
 
 func startWatchHandler(
