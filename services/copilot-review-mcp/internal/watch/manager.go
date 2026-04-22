@@ -113,24 +113,28 @@ type watchKey struct {
 }
 
 type watchState struct {
-	id            string
-	key           watchKey
-	token         string
-	ctx           context.Context
-	cancel        context.CancelFunc
-	clientMu      sync.RWMutex
-	client        ReviewDataFetcher
-	status        Status
-	reviewStatus  *ghclient.ReviewStatus
-	failureReason *FailureReason
-	terminal      bool
-	workerRunning bool
-	pollsDone     int
-	startedAt     time.Time
-	updatedAt     time.Time
-	completedAt   *time.Time
-	lastPolledAt  *time.Time
-	lastError     *string
+	id               string
+	key              watchKey
+	triggerLogID     *int64
+	resourceURI      *string
+	token            string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	clientMu         sync.RWMutex
+	client           ReviewDataFetcher
+	status           Status
+	reviewStatus     *ghclient.ReviewStatus
+	failureReason    *FailureReason
+	terminal         bool
+	workerRunning    bool
+	pollsDone        int
+	startedAt        time.Time
+	updatedAt        time.Time
+	completedAt      *time.Time
+	staleAt          *time.Time
+	lastPolledAt     *time.Time
+	lastError        *string
+	rateLimitResetAt *time.Time
 }
 
 // NewManager creates a process-local, memory-only watch manager.
@@ -195,12 +199,14 @@ func (m *Manager) Close() {
 		w.workerRunning = false
 		w.updatedAt = now
 		w.completedAt = timePtr(now)
+		w.staleAt = timePtr(now)
 		w.token = ""
 		w.clientMu.Lock()
 		w.client = nil
 		w.clientMu.Unlock()
 		errText := "watch manager closed before the watch could finish"
 		w.lastError = &errText
+		_ = m.persistLocked(w)
 		watches = append(watches, w)
 		delete(m.activeByKey, key)
 	}
@@ -216,6 +222,18 @@ func (m *Manager) Close() {
 func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 	if in.Login == "" || in.Token == "" || in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 		return Snapshot{}, false, fmt.Errorf("login, token, owner, repo, and pr are required")
+	}
+
+	var triggerLogID *int64
+	if m.db != nil {
+		entry, err := m.db.GetLatest(in.Owner, in.Repo, in.PR)
+		if err != nil {
+			return Snapshot{}, false, fmt.Errorf("failed to read trigger_log: %w", err)
+		}
+		if entry != nil {
+			id := entry.ID
+			triggerLogID = &id
+		}
 	}
 
 	key := watchKey{
@@ -234,12 +252,22 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 
 	if id, ok := m.activeByKey[key]; ok {
 		if existing := m.watchesByID[id]; existing != nil && !existing.terminal {
-			if existing.token != in.Token {
+			tokenChanged := existing.token != in.Token
+			triggerLinked := existing.triggerLogID == nil && triggerLogID != nil
+			if tokenChanged {
 				existing.token = in.Token
 				existing.clientMu.Lock()
 				existing.client = m.clientFactory(existing.ctx, in.Token)
 				existing.clientMu.Unlock()
 				existing.updatedAt = m.now().UTC()
+			}
+			if triggerLinked {
+				existing.triggerLogID = cloneInt64Ptr(triggerLogID)
+			}
+			if tokenChanged || triggerLinked {
+				if err := m.persistLocked(existing); err != nil {
+					return Snapshot{}, false, fmt.Errorf("failed to persist review_watch: %w", err)
+				}
 			}
 			return snapshotFromState(existing), true, nil
 		}
@@ -252,6 +280,7 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 	state := &watchState{
 		id:            id,
 		key:           key,
+		triggerLogID:  cloneInt64Ptr(triggerLogID),
 		token:         in.Token,
 		ctx:           watchCtx,
 		cancel:        cancel,
@@ -260,6 +289,10 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 		workerRunning: true,
 		startedAt:     now,
 		updatedAt:     now,
+	}
+	if err := m.persistLocked(state); err != nil {
+		cancel()
+		return Snapshot{}, false, fmt.Errorf("failed to persist review_watch: %w", err)
 	}
 	m.watchesByID[id] = state
 	m.activeByKey[key] = id
@@ -273,30 +306,47 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 // GetByID returns the latest snapshot for a watch ID.
 func (m *Manager) GetByID(watchID string) (Snapshot, bool) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	w := m.watchesByID[watchID]
-	if w == nil {
+	if w != nil {
+		snapshot := snapshotFromState(w)
+		m.mu.RUnlock()
+		return snapshot, true
+	}
+	m.mu.RUnlock()
+
+	if m.db == nil {
 		return Snapshot{}, false
 	}
-	return snapshotFromState(w), true
+	entry, err := m.db.GetReviewWatchByID(watchID)
+	if err != nil || entry == nil {
+		return Snapshot{}, false
+	}
+	return snapshotFromReviewWatchEntry(entry), true
 }
 
 // GetLatest returns the latest watch snapshot for a given user/PR key.
 func (m *Manager) GetLatest(login, owner, repo string, pr int) (Snapshot, bool) {
 	key := watchKey{login: login, owner: owner, repo: repo, pr: pr}
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	id, ok := m.latestByKey[key]
-	if !ok {
+	if ok {
+		w := m.watchesByID[id]
+		if w != nil {
+			snapshot := snapshotFromState(w)
+			m.mu.RUnlock()
+			return snapshot, true
+		}
+	}
+	m.mu.RUnlock()
+
+	if m.db == nil {
 		return Snapshot{}, false
 	}
-	w := m.watchesByID[id]
-	if w == nil {
+	entry, err := m.db.GetLatestReviewWatch(login, owner, repo, pr)
+	if err != nil || entry == nil {
 		return Snapshot{}, false
 	}
-	return snapshotFromState(w), true
+	return snapshotFromReviewWatchEntry(entry), true
 }
 
 func (m *Manager) run(w *watchState) {
@@ -375,10 +425,14 @@ func (m *Manager) pollOnce(watchID string) bool {
 		return true
 	}
 
-	entry, err := m.db.GetLatest(w.key.owner, w.key.repo, w.key.pr)
-	if err != nil {
-		m.finishFailureWithPoll(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to read trigger_log: %v", err))
-		return true
+	var entry *store.TriggerEntry
+	if m.db != nil {
+		var err error
+		entry, err = m.db.GetLatest(w.key.owner, w.key.repo, w.key.pr)
+		if err != nil {
+			m.finishFailureWithPoll(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to read trigger_log: %v", err))
+			return true
+		}
 	}
 
 	var requestedAt *time.Time
@@ -397,6 +451,11 @@ func (m *Manager) pollOnce(watchID string) bool {
 		m.markPollLocked(current, now)
 		current.reviewStatus = reviewStatusPtr(reviewStatus)
 		current.lastError = nil
+		if data.RateLimitReset.IsZero() {
+			current.rateLimitResetAt = nil
+		} else {
+			current.rateLimitResetAt = cloneTimePtr(&data.RateLimitReset)
+		}
 		m.finishLocked(current, StatusRateLimited, nil, now, formatRateLimitMessage(data.RateLimitRemaining, data.RateLimitReset))
 		m.mu.Unlock()
 		return true
@@ -404,7 +463,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 
 	terminalStatus, terminal := watchStatusForReview(reviewStatus)
 	if terminal {
-		if entry != nil && entry.CompletedAt == nil {
+		if m.db != nil && entry != nil && entry.CompletedAt == nil {
 			if err := m.db.UpdateCompletedAt(entry.ID); err != nil {
 				m.finishFailureWithPoll(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to update trigger_log completed_at: %v", err))
 				return true
@@ -419,6 +478,11 @@ func (m *Manager) pollOnce(watchID string) bool {
 		m.markPollLocked(current, now)
 		current.reviewStatus = reviewStatusPtr(reviewStatus)
 		current.lastError = nil
+		current.rateLimitResetAt = nil
+		if current.triggerLogID == nil && entry != nil {
+			id := entry.ID
+			current.triggerLogID = &id
+		}
 		m.finishLocked(current, terminalStatus, nil, now, "")
 		m.mu.Unlock()
 		return true
@@ -433,8 +497,14 @@ func (m *Manager) pollOnce(watchID string) bool {
 	m.markPollLocked(current, now)
 	current.reviewStatus = reviewStatusPtr(reviewStatus)
 	current.lastError = nil
+	current.rateLimitResetAt = nil
+	if current.triggerLogID == nil && entry != nil {
+		id := entry.ID
+		current.triggerLogID = &id
+	}
 	current.status = StatusWatching
 	current.workerRunning = true
+	_ = m.persistLocked(current)
 	m.mu.Unlock()
 	return false
 }
@@ -500,6 +570,9 @@ func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReas
 	w.workerRunning = false
 	w.updatedAt = now
 	w.completedAt = timePtr(now)
+	if status == StatusStale {
+		w.staleAt = timePtr(now)
+	}
 	w.token = ""
 	w.clientMu.Lock()
 	w.client = nil
@@ -508,6 +581,7 @@ func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReas
 		w.lastError = &errText
 	}
 	delete(m.activeByKey, w.key)
+	_ = m.persistLocked(w)
 	w.cancel()
 }
 
@@ -537,9 +611,82 @@ func snapshotFromState(w *watchState) Snapshot {
 	}
 }
 
+func snapshotFromReviewWatchEntry(entry *store.ReviewWatchEntry) Snapshot {
+	var reviewStatus *ghclient.ReviewStatus
+	if entry.ReviewStatus != nil {
+		status := ghclient.ReviewStatus(*entry.ReviewStatus)
+		reviewStatus = &status
+	}
+	var failureReason *FailureReason
+	if entry.FailureReason != nil {
+		reason := FailureReason(*entry.FailureReason)
+		failureReason = &reason
+	}
+	return Snapshot{
+		WatchID:       entry.ID,
+		Login:         entry.GitHubLogin,
+		Owner:         entry.Owner,
+		Repo:          entry.Repo,
+		PR:            entry.PR,
+		WatchStatus:   Status(entry.WatchStatus),
+		ReviewStatus:  reviewStatus,
+		FailureReason: failureReason,
+		Terminal:      !entry.IsActive,
+		WorkerRunning: false,
+		PollsDone:     0,
+		StartedAt:     entry.StartedAt,
+		UpdatedAt:     entry.UpdatedAt,
+		CompletedAt:   cloneTimePtr(entry.CompletedAt),
+		LastPolledAt:  nil,
+		LastError:     cloneStringPtr(entry.LastError),
+	}
+}
+
+func (m *Manager) persistLocked(w *watchState) error {
+	if m.db == nil {
+		return nil
+	}
+	reviewWatch := store.ReviewWatchEntry{
+		ID:               w.id,
+		GitHubLogin:      w.key.login,
+		Owner:            w.key.owner,
+		Repo:             w.key.repo,
+		PR:               w.key.pr,
+		TriggerLogID:     cloneInt64Ptr(w.triggerLogID),
+		ResourceURI:      cloneStringPtr(w.resourceURI),
+		WatchStatus:      string(w.status),
+		ReviewStatus:     reviewStatusStringPtr(w.reviewStatus),
+		FailureReason:    failureReasonStringPtr(w.failureReason),
+		IsActive:         !w.terminal,
+		StartedAt:        w.startedAt,
+		UpdatedAt:        w.updatedAt,
+		CompletedAt:      cloneTimePtr(w.completedAt),
+		StaleAt:          cloneTimePtr(w.staleAt),
+		LastError:        cloneStringPtr(w.lastError),
+		RateLimitResetAt: cloneTimePtr(w.rateLimitResetAt),
+	}
+	return m.db.UpsertReviewWatch(reviewWatch)
+}
+
 func reviewStatusPtr(status ghclient.ReviewStatus) *ghclient.ReviewStatus {
 	s := status
 	return &s
+}
+
+func reviewStatusStringPtr(status *ghclient.ReviewStatus) *string {
+	if status == nil {
+		return nil
+	}
+	value := string(*status)
+	return &value
+}
+
+func failureReasonStringPtr(reason *FailureReason) *string {
+	if reason == nil {
+		return nil
+	}
+	value := string(*reason)
+	return &value
 }
 
 func cloneReviewStatusPtr(status *ghclient.ReviewStatus) *ghclient.ReviewStatus {
@@ -572,6 +719,14 @@ func cloneStringPtr(s *string) *string {
 	}
 	v := *s
 	return &v
+}
+
+func cloneInt64Ptr(v *int64) *int64 {
+	if v == nil {
+		return nil
+	}
+	value := *v
+	return &value
 }
 
 func timePtr(t time.Time) *time.Time {

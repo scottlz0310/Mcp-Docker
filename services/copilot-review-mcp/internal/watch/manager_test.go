@@ -63,6 +63,47 @@ func TestManagerStartReusesActiveWatch(t *testing.T) {
 	}
 }
 
+func TestManagerStartPersistsActiveWatch(t *testing.T) {
+	db := openTestDB(t)
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    41,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	persisted, err := db.GetReviewWatchByID(started.WatchID)
+	if err != nil {
+		t.Fatalf("GetReviewWatchByID() error = %v", err)
+	}
+	if persisted == nil {
+		t.Fatal("GetReviewWatchByID() = nil, want persisted watch")
+	}
+	if persisted.WatchStatus != string(StatusWatching) {
+		t.Fatalf("WatchStatus = %q, want %q", persisted.WatchStatus, StatusWatching)
+	}
+	if !persisted.IsActive {
+		t.Fatal("IsActive = false, want true")
+	}
+}
+
 func TestManagerMarksCompletedAndClearsActiveKey(t *testing.T) {
 	db := openTestDB(t)
 	if _, err := db.Insert("octo", "demo", 7, "MANUAL"); err != nil {
@@ -206,6 +247,77 @@ func TestManagerCloseMarksActiveWatchStale(t *testing.T) {
 	}
 	if snapshot.WorkerRunning {
 		t.Fatal("WorkerRunning = true, want false")
+	}
+
+	persisted, err := db.GetReviewWatchByID(started.WatchID)
+	if err != nil {
+		t.Fatalf("GetReviewWatchByID() error = %v", err)
+	}
+	if persisted == nil {
+		t.Fatal("GetReviewWatchByID() = nil, want persisted watch")
+	}
+	if persisted.WatchStatus != string(StatusStale) {
+		t.Fatalf("persisted WatchStatus = %q, want %q", persisted.WatchStatus, StatusStale)
+	}
+	if persisted.IsActive {
+		t.Fatal("persisted IsActive = true, want false")
+	}
+	if persisted.StaleAt == nil {
+		t.Fatal("persisted StaleAt = nil, want timestamp")
+	}
+}
+
+func TestManagerGetLatestFallsBackToPersistedWatch(t *testing.T) {
+	db := openTestDB(t)
+	if _, err := db.Insert("octo", "demo", 55, "MANUAL"); err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+	reviewTime := time.Now().Add(time.Minute)
+	manager := NewManager(db, Options{
+		PollInterval: 5 * time.Millisecond,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{
+						data: &ghclient.ReviewData{
+							LatestCopilotReview: newReview("APPROVED", &reviewTime),
+							RateLimitRemaining:  100,
+						},
+					},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    55,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool { return s.Terminal })
+
+	restarted := NewManager(db, Options{Threshold: 30 * time.Second})
+	t.Cleanup(restarted.Close)
+
+	snapshot, ok := restarted.GetLatest("alice", "octo", "demo", 55)
+	if !ok {
+		t.Fatal("GetLatest() = not found, want persisted watch")
+	}
+	if snapshot.WatchID != started.WatchID {
+		t.Fatalf("GetLatest().WatchID = %q, want %q", snapshot.WatchID, started.WatchID)
+	}
+	if snapshot.WatchStatus != StatusCompleted {
+		t.Fatalf("GetLatest().WatchStatus = %q, want %q", snapshot.WatchStatus, StatusCompleted)
+	}
+	if snapshot.WorkerRunning {
+		t.Fatal("GetLatest().WorkerRunning = true, want false for DB fallback")
 	}
 }
 
