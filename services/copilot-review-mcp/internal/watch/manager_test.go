@@ -248,17 +248,35 @@ func TestManagerPollTimeoutFailsWatch(t *testing.T) {
 
 func TestManagerMaxWatchDurationTransitionsToTimeout(t *testing.T) {
 	db := openTestDB(t)
+	base := time.Now().UTC()
+	nowValues := []time.Time{
+		base,
+		base,
+		base.Add(2 * time.Millisecond),
+	}
+	var nowMu sync.Mutex
+	nowIndex := 0
+	nowFn := func() time.Time {
+		nowMu.Lock()
+		defer nowMu.Unlock()
+		if nowIndex >= len(nowValues) {
+			return nowValues[len(nowValues)-1]
+		}
+		value := nowValues[nowIndex]
+		nowIndex++
+		return value
+	}
+	fetcher := &fakeFetcher{
+		results: []fetchResult{
+			{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+		},
+	}
 	manager := NewManager(db, Options{
 		PollInterval:     1 * time.Millisecond,
 		MaxWatchDuration: 1 * time.Millisecond,
 		Threshold:        30 * time.Second,
-		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
-			return &fakeFetcher{
-				results: []fetchResult{
-					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
-				},
-			}
-		},
+		Now:              nowFn,
+		ClientFactory:    func(_ context.Context, _ string) ReviewDataFetcher { return fetcher },
 	})
 	t.Cleanup(manager.Close)
 
@@ -278,6 +296,15 @@ func TestManagerMaxWatchDurationTransitionsToTimeout(t *testing.T) {
 	})
 	if snapshot.WatchStatus != StatusTimeout {
 		t.Fatalf("WatchStatus = %q, want %q", snapshot.WatchStatus, StatusTimeout)
+	}
+	if snapshot.PollsDone != 0 {
+		t.Fatalf("PollsDone = %d, want 0 when timeout occurs before polling", snapshot.PollsDone)
+	}
+	if snapshot.LastPolledAt != nil {
+		t.Fatalf("LastPolledAt = %v, want nil when timeout occurs before polling", snapshot.LastPolledAt)
+	}
+	if fetcher.calls != 0 {
+		t.Fatalf("GetReviewData() calls = %d, want 0", fetcher.calls)
 	}
 }
 
@@ -347,6 +374,107 @@ func TestIsRateLimitHTTPError(t *testing.T) {
 			t.Fatal("generic HTTP 403 should not be classified as rate limited")
 		}
 	})
+}
+
+func TestSnapshotFromStateClonesPointerFields(t *testing.T) {
+	reviewStatus := ghclient.StatusCompleted
+	failureReason := FailureReasonGitHubError
+	startedAt := time.Now().UTC()
+	updatedAt := startedAt.Add(time.Minute)
+	completedAt := updatedAt.Add(time.Minute)
+	lastPolledAt := updatedAt
+	lastError := "original error"
+
+	state := &watchState{
+		id:            "cw_test",
+		key:           watchKey{login: "alice", owner: "octo", repo: "demo", pr: 42},
+		status:        StatusFailed,
+		reviewStatus:  &reviewStatus,
+		failureReason: &failureReason,
+		terminal:      true,
+		startedAt:     startedAt,
+		updatedAt:     updatedAt,
+		completedAt:   &completedAt,
+		lastPolledAt:  &lastPolledAt,
+		lastError:     &lastError,
+	}
+
+	snapshot := snapshotFromState(state)
+	if snapshot.ReviewStatus == state.reviewStatus {
+		t.Fatal("ReviewStatus pointer aliases internal state")
+	}
+	if snapshot.FailureReason == state.failureReason {
+		t.Fatal("FailureReason pointer aliases internal state")
+	}
+	if snapshot.CompletedAt == state.completedAt {
+		t.Fatal("CompletedAt pointer aliases internal state")
+	}
+	if snapshot.LastPolledAt == state.lastPolledAt {
+		t.Fatal("LastPolledAt pointer aliases internal state")
+	}
+	if snapshot.LastError == state.lastError {
+		t.Fatal("LastError pointer aliases internal state")
+	}
+
+	*snapshot.ReviewStatus = ghclient.StatusBlocked
+	*snapshot.FailureReason = FailureReasonInternal
+	*snapshot.CompletedAt = snapshot.CompletedAt.Add(time.Hour)
+	*snapshot.LastPolledAt = snapshot.LastPolledAt.Add(time.Hour)
+	*snapshot.LastError = "mutated error"
+
+	if *state.reviewStatus != ghclient.StatusCompleted {
+		t.Fatalf("internal ReviewStatus = %q, want %q", *state.reviewStatus, ghclient.StatusCompleted)
+	}
+	if *state.failureReason != FailureReasonGitHubError {
+		t.Fatalf("internal FailureReason = %q, want %q", *state.failureReason, FailureReasonGitHubError)
+	}
+	if !state.completedAt.Equal(completedAt) {
+		t.Fatalf("internal CompletedAt = %v, want %v", state.completedAt, completedAt)
+	}
+	if !state.lastPolledAt.Equal(lastPolledAt) {
+		t.Fatalf("internal LastPolledAt = %v, want %v", state.lastPolledAt, lastPolledAt)
+	}
+	if *state.lastError != "original error" {
+		t.Fatalf("internal LastError = %q, want %q", *state.lastError, "original error")
+	}
+}
+
+func TestFinishFailureWithPollCountsExactlyOnce(t *testing.T) {
+	manager := &Manager{
+		watchesByID: make(map[string]*watchState),
+		activeByKey: make(map[watchKey]string),
+		latestByKey: make(map[watchKey]string),
+	}
+	key := watchKey{login: "alice", owner: "octo", repo: "demo", pr: 77}
+	now := time.Now().UTC()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	state := &watchState{
+		id:     "cw_test_failure",
+		key:    key,
+		ctx:    ctx,
+		cancel: cancel,
+		status: StatusWatching,
+	}
+	manager.watchesByID[state.id] = state
+	manager.activeByKey[key] = state.id
+	manager.latestByKey[key] = state.id
+
+	manager.finishFailureWithPoll(state.id, now, FailureReasonInternal, "failed to update trigger_log completed_at")
+
+	if state.pollsDone != 1 {
+		t.Fatalf("PollsDone = %d, want 1", state.pollsDone)
+	}
+	if state.lastPolledAt == nil {
+		t.Fatal("LastPolledAt = nil, want poll timestamp")
+	}
+	if state.status != StatusFailed {
+		t.Fatalf("status = %q, want %q", state.status, StatusFailed)
+	}
+	if state.failureReason == nil || *state.failureReason != FailureReasonInternal {
+		t.Fatalf("FailureReason = %v, want %q", state.failureReason, FailureReasonInternal)
+	}
 }
 
 type fetchResult struct {

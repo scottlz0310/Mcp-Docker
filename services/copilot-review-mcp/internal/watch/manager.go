@@ -334,7 +334,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 	}
 	now := m.now().UTC()
 	if now.Sub(w.startedAt) >= m.maxWatchDuration {
-		m.finishStatus(w.id, now, StatusTimeout, nil, fmt.Sprintf("watch exceeded max duration of %s", m.maxWatchDuration))
+		m.finishStatusWithoutPoll(w.id, now, StatusTimeout, nil, fmt.Sprintf("watch exceeded max duration of %s", m.maxWatchDuration))
 		return true
 	}
 
@@ -342,7 +342,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 	client := w.client
 	w.clientMu.RUnlock()
 	if client == nil {
-		m.finishFailure(w.id, now, FailureReasonInternal, "watch client is unavailable")
+		m.finishFailureWithoutPoll(w.id, now, FailureReasonInternal, "watch client is unavailable")
 		return true
 	}
 
@@ -360,24 +360,24 @@ func (m *Manager) pollOnce(watchID string) bool {
 			if w.ctx.Err() != nil {
 				return true
 			}
-			m.finishFailure(w.id, now, FailureReasonGitHubError, fmt.Sprintf("github poll timed out after %s", m.pollTimeout))
+			m.finishFailureWithPoll(w.id, now, FailureReasonGitHubError, fmt.Sprintf("github poll timed out after %s", m.pollTimeout))
 			return true
 		}
 		if IsRateLimitHTTPError(err) {
-			m.finishStatus(w.id, now, StatusRateLimited, nil, err.Error())
+			m.finishStatusWithPoll(w.id, now, StatusRateLimited, nil, err.Error())
 			return true
 		}
 		reason := FailureReasonGitHubError
 		if ghclient.IsAuthError(err) {
 			reason = FailureReasonAuthExpired
 		}
-		m.finishFailure(w.id, now, reason, err.Error())
+		m.finishFailureWithPoll(w.id, now, reason, err.Error())
 		return true
 	}
 
 	entry, err := m.db.GetLatest(w.key.owner, w.key.repo, w.key.pr)
 	if err != nil {
-		m.finishFailure(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to read trigger_log: %v", err))
+		m.finishFailureWithPoll(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to read trigger_log: %v", err))
 		return true
 	}
 
@@ -387,20 +387,16 @@ func (m *Manager) pollOnce(watchID string) bool {
 	}
 	reviewStatus := ghclient.DeriveStatusWithThreshold(m.threshold, data, requestedAt)
 
-	m.mu.Lock()
-	current := m.watchesByID[watchID]
-	if current == nil || current.terminal {
-		m.mu.Unlock()
-		return true
-	}
-
-	current.pollsDone++
-	current.updatedAt = now
-	current.lastPolledAt = timePtr(now)
-	current.reviewStatus = reviewStatusPtr(reviewStatus)
-	current.lastError = nil
-
 	if data.RateLimitRemaining < 10 {
+		m.mu.Lock()
+		current := m.watchesByID[watchID]
+		if current == nil || current.terminal {
+			m.mu.Unlock()
+			return true
+		}
+		m.markPollLocked(current, now)
+		current.reviewStatus = reviewStatusPtr(reviewStatus)
+		current.lastError = nil
 		m.finishLocked(current, StatusRateLimited, nil, now, formatRateLimitMessage(data.RateLimitRemaining, data.RateLimitReset))
 		m.mu.Unlock()
 		return true
@@ -408,46 +404,60 @@ func (m *Manager) pollOnce(watchID string) bool {
 
 	terminalStatus, terminal := watchStatusForReview(reviewStatus)
 	if terminal {
-		m.mu.Unlock()
 		if entry != nil && entry.CompletedAt == nil {
 			if err := m.db.UpdateCompletedAt(entry.ID); err != nil {
-				m.finishFailure(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to update trigger_log completed_at: %v", err))
+				m.finishFailureWithPoll(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to update trigger_log completed_at: %v", err))
 				return true
 			}
 		}
 		m.mu.Lock()
-		current = m.watchesByID[watchID]
+		current := m.watchesByID[watchID]
 		if current == nil || current.terminal {
 			m.mu.Unlock()
 			return true
 		}
+		m.markPollLocked(current, now)
+		current.reviewStatus = reviewStatusPtr(reviewStatus)
+		current.lastError = nil
 		m.finishLocked(current, terminalStatus, nil, now, "")
 		m.mu.Unlock()
 		return true
 	}
 
+	m.mu.Lock()
+	current := m.watchesByID[watchID]
+	if current == nil || current.terminal {
+		m.mu.Unlock()
+		return true
+	}
+	m.markPollLocked(current, now)
+	current.reviewStatus = reviewStatusPtr(reviewStatus)
+	current.lastError = nil
 	current.status = StatusWatching
 	current.workerRunning = true
 	m.mu.Unlock()
 	return false
 }
 
-func (m *Manager) finishFailure(watchID string, now time.Time, reason FailureReason, errText string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	w := m.watchesByID[watchID]
-	if w == nil || w.terminal {
-		return
-	}
-
-	w.pollsDone++
-	w.updatedAt = now
-	w.lastPolledAt = timePtr(now)
-	m.finishLocked(w, StatusFailed, &reason, now, errText)
+func (m *Manager) finishFailureWithPoll(watchID string, now time.Time, reason FailureReason, errText string) {
+	reasonCopy := reason
+	m.finishState(watchID, now, StatusFailed, &reasonCopy, errText, true)
 }
 
-func (m *Manager) finishStatus(watchID string, now time.Time, status Status, reason *FailureReason, errText string) {
+func (m *Manager) finishFailureWithoutPoll(watchID string, now time.Time, reason FailureReason, errText string) {
+	reasonCopy := reason
+	m.finishState(watchID, now, StatusFailed, &reasonCopy, errText, false)
+}
+
+func (m *Manager) finishStatusWithPoll(watchID string, now time.Time, status Status, reason *FailureReason, errText string) {
+	m.finishState(watchID, now, status, reason, errText, true)
+}
+
+func (m *Manager) finishStatusWithoutPoll(watchID string, now time.Time, status Status, reason *FailureReason, errText string) {
+	m.finishState(watchID, now, status, reason, errText, false)
+}
+
+func (m *Manager) finishState(watchID string, now time.Time, status Status, reason *FailureReason, errText string, countedPoll bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -456,9 +466,11 @@ func (m *Manager) finishStatus(watchID string, now time.Time, status Status, rea
 		return
 	}
 
-	w.pollsDone++
-	w.updatedAt = now
-	w.lastPolledAt = timePtr(now)
+	if countedPoll {
+		m.markPollLocked(w, now)
+	} else {
+		w.updatedAt = now
+	}
 	m.finishLocked(w, status, reason, now, errText)
 }
 
@@ -473,6 +485,12 @@ func (m *Manager) markStale(watchID, errText string) {
 
 	now := m.now().UTC()
 	m.finishLocked(w, StatusStale, nil, now, errText)
+}
+
+func (m *Manager) markPollLocked(w *watchState, now time.Time) {
+	w.pollsDone++
+	w.updatedAt = now
+	w.lastPolledAt = timePtr(now)
 }
 
 func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReason, now time.Time, errText string) {
@@ -506,22 +524,54 @@ func snapshotFromState(w *watchState) Snapshot {
 		Repo:          w.key.repo,
 		PR:            w.key.pr,
 		WatchStatus:   w.status,
-		ReviewStatus:  w.reviewStatus,
-		FailureReason: w.failureReason,
+		ReviewStatus:  cloneReviewStatusPtr(w.reviewStatus),
+		FailureReason: cloneFailureReasonPtr(w.failureReason),
 		Terminal:      w.terminal,
 		WorkerRunning: w.workerRunning,
 		PollsDone:     w.pollsDone,
 		StartedAt:     w.startedAt,
 		UpdatedAt:     w.updatedAt,
-		CompletedAt:   w.completedAt,
-		LastPolledAt:  w.lastPolledAt,
-		LastError:     w.lastError,
+		CompletedAt:   cloneTimePtr(w.completedAt),
+		LastPolledAt:  cloneTimePtr(w.lastPolledAt),
+		LastError:     cloneStringPtr(w.lastError),
 	}
 }
 
 func reviewStatusPtr(status ghclient.ReviewStatus) *ghclient.ReviewStatus {
 	s := status
 	return &s
+}
+
+func cloneReviewStatusPtr(status *ghclient.ReviewStatus) *ghclient.ReviewStatus {
+	if status == nil {
+		return nil
+	}
+	s := *status
+	return &s
+}
+
+func cloneFailureReasonPtr(reason *FailureReason) *FailureReason {
+	if reason == nil {
+		return nil
+	}
+	r := *reason
+	return &r
+}
+
+func cloneTimePtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	v := *t
+	return &v
+}
+
+func cloneStringPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := *s
+	return &v
 }
 
 func timePtr(t time.Time) *time.Time {
