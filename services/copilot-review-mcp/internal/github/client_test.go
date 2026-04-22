@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -85,8 +86,8 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 		prNodeID = "PR_kwDOABCDEF12345"
 	)
 
-	sawNodeIDQuery := false
-	sawRequestMutation := false
+	var sawNodeIDQuery atomic.Bool
+	var sawRequestMutation atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -110,10 +111,10 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 
 		switch {
 		case strings.Contains(normalizedQuery, "pullRequest(number:$pr){id}"):
-			sawNodeIDQuery = true
+			sawNodeIDQuery.Store(true)
 			fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"id":%q}}}}`, prNodeID)
 		case strings.Contains(normalizedQuery, "requestReviewsByLogin(input:$input)"):
-			sawRequestMutation = true
+			sawRequestMutation.Store(true)
 			if !strings.Contains(normalizedQuery, "$input:RequestReviewsByLoginInput!") {
 				t.Errorf("mutation query = %q, want RequestReviewsByLoginInput", req.Query)
 			}
@@ -163,10 +164,10 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 	if err := c.RequestCopilotReview(context.Background(), owner, repo, pr); err != nil {
 		t.Fatalf("RequestCopilotReview() error = %v", err)
 	}
-	if !sawNodeIDQuery {
+	if !sawNodeIDQuery.Load() {
 		t.Fatal("did not observe PR node ID query")
 	}
-	if !sawRequestMutation {
+	if !sawRequestMutation.Load() {
 		t.Fatal("did not observe requestReviewsByLogin mutation")
 	}
 }
