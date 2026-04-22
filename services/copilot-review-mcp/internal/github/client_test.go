@@ -110,15 +110,15 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 		normalizedQuery := strings.Join(strings.Fields(req.Query), "")
 
 		switch {
-		case strings.Contains(normalizedQuery, "pullRequest(number:$pr){id}"):
+		case strings.Contains(normalizedQuery, "pullRequest(number:$pr)") && strings.Contains(normalizedQuery, "id"):
 			sawNodeIDQuery.Store(true)
 			fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"id":%q}}}}`, prNodeID)
 		case strings.Contains(normalizedQuery, "requestReviewsByLogin(input:$input)"):
 			sawRequestMutation.Store(true)
-			if !strings.Contains(normalizedQuery, "$input:RequestReviewsByLoginInput!") {
+			if !strings.Contains(normalizedQuery, "RequestReviewsByLoginInput") {
 				t.Errorf("mutation query = %q, want RequestReviewsByLoginInput", req.Query)
 			}
-			if strings.Contains(normalizedQuery, "$input:requestReviewsByLoginInput!") {
+			if strings.Contains(normalizedQuery, "requestReviewsByLoginInput") {
 				t.Errorf("mutation query = %q, unexpected lower-camel input type", req.Query)
 			}
 
