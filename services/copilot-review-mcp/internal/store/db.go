@@ -193,17 +193,12 @@ func (d *DB) UpsertReviewWatch(entry ReviewWatchEntry) error {
 		    started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-		    github_login        = excluded.github_login,
-		    owner               = excluded.owner,
-		    repo                = excluded.repo,
-		    pr                  = excluded.pr,
 		    trigger_log_id      = excluded.trigger_log_id,
 		    resource_uri        = excluded.resource_uri,
 		    watch_status        = excluded.watch_status,
 		    review_status       = excluded.review_status,
 		    failure_reason      = excluded.failure_reason,
 		    is_active           = excluded.is_active,
-		    started_at          = excluded.started_at,
 		    updated_at          = excluded.updated_at,
 		    completed_at        = excluded.completed_at,
 		    stale_at            = excluded.stale_at,

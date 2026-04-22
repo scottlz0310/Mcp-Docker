@@ -46,6 +46,81 @@ func TestReviewWatchActiveUniqueConstraint(t *testing.T) {
 	}
 }
 
+func TestUpsertReviewWatchKeepsImmutableIdentityFields(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "review-watch-upsert-identity.db"))
+
+	startedAt := time.Now().UTC().Truncate(time.Second)
+	updatedAt := startedAt.Add(time.Minute)
+	first := ReviewWatchEntry{
+		ID:          "cw_identity",
+		GitHubLogin: "alice",
+		Owner:       "octo",
+		Repo:        "demo",
+		PR:          42,
+		WatchStatus: "WATCHING",
+		IsActive:    true,
+		StartedAt:   startedAt,
+		UpdatedAt:   startedAt,
+	}
+	if err := db.UpsertReviewWatch(first); err != nil {
+		t.Fatalf("UpsertReviewWatch(first) error = %v", err)
+	}
+
+	lastError := "persisted update"
+	reviewStatus := "COMPLETED"
+	updated := ReviewWatchEntry{
+		ID:           first.ID,
+		GitHubLogin:  "bob",
+		Owner:        "other-owner",
+		Repo:         "other-repo",
+		PR:           99,
+		WatchStatus:  "COMPLETED",
+		ReviewStatus: &reviewStatus,
+		IsActive:     false,
+		StartedAt:    startedAt.Add(24 * time.Hour),
+		UpdatedAt:    updatedAt,
+		LastError:    &lastError,
+	}
+	if err := db.UpsertReviewWatch(updated); err != nil {
+		t.Fatalf("UpsertReviewWatch(updated) error = %v", err)
+	}
+
+	got, err := db.GetReviewWatchByID(first.ID)
+	if err != nil {
+		t.Fatalf("GetReviewWatchByID() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetReviewWatchByID() = nil, want row")
+	}
+	if got.GitHubLogin != first.GitHubLogin {
+		t.Fatalf("GitHubLogin = %q, want %q", got.GitHubLogin, first.GitHubLogin)
+	}
+	if got.Owner != first.Owner {
+		t.Fatalf("Owner = %q, want %q", got.Owner, first.Owner)
+	}
+	if got.Repo != first.Repo {
+		t.Fatalf("Repo = %q, want %q", got.Repo, first.Repo)
+	}
+	if got.PR != first.PR {
+		t.Fatalf("PR = %d, want %d", got.PR, first.PR)
+	}
+	if !got.StartedAt.Equal(first.StartedAt) {
+		t.Fatalf("StartedAt = %v, want %v", got.StartedAt, first.StartedAt)
+	}
+	if got.WatchStatus != updated.WatchStatus {
+		t.Fatalf("WatchStatus = %q, want %q", got.WatchStatus, updated.WatchStatus)
+	}
+	if got.UpdatedAt != updatedAt {
+		t.Fatalf("UpdatedAt = %v, want %v", got.UpdatedAt, updatedAt)
+	}
+	if got.LastError == nil || *got.LastError != lastError {
+		t.Fatalf("LastError = %v, want %q", got.LastError, lastError)
+	}
+	if got.IsActive {
+		t.Fatal("IsActive = true, want false")
+	}
+}
+
 func TestGetLatestReviewWatchReturnsNewestSnapshot(t *testing.T) {
 	db := openTestDB(t, filepath.Join(t.TempDir(), "review-watch-latest.db"))
 
