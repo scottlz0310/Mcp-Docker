@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,6 +112,7 @@ type watchState struct {
 	token         string
 	ctx           context.Context
 	cancel        context.CancelFunc
+	clientMu      sync.RWMutex
 	client        ReviewDataFetcher
 	status        Status
 	reviewStatus  *ghclient.ReviewStatus
@@ -217,7 +217,9 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 		if existing := m.watchesByID[id]; existing != nil && !existing.terminal {
 			if existing.token != in.Token {
 				existing.token = in.Token
+				existing.clientMu.Lock()
 				existing.client = m.clientFactory(existing.ctx, in.Token)
+				existing.clientMu.Unlock()
 				existing.updatedAt = m.now().UTC()
 			}
 			return snapshotFromState(existing), true, nil
@@ -312,7 +314,11 @@ func (m *Manager) pollOnce(watchID string) bool {
 		return true
 	}
 
-	data, err := w.client.GetReviewData(w.ctx, w.key.owner, w.key.repo, w.key.pr)
+	w.clientMu.RLock()
+	client := w.client
+	w.clientMu.RUnlock()
+
+	data, err := client.GetReviewData(w.ctx, w.key.owner, w.key.repo, w.key.pr)
 	now := m.now().UTC()
 
 	if err != nil {
@@ -362,27 +368,30 @@ func (m *Manager) pollOnce(watchID string) bool {
 		return true
 	}
 
-	switch reviewStatus {
-	case ghclient.StatusCompleted:
-		m.finishLocked(current, StatusCompleted, nil, now, "")
+	terminalStatus, terminal := watchStatusForReview(reviewStatus)
+	if terminal {
 		m.mu.Unlock()
 		if entry != nil && entry.CompletedAt == nil {
-			_ = m.db.UpdateCompletedAt(entry.ID)
+			if err := m.db.UpdateCompletedAt(entry.ID); err != nil {
+				m.finishFailure(w.id, now, FailureReasonInternal, fmt.Sprintf("failed to update trigger_log completed_at: %v", err))
+				return true
+			}
 		}
-		return true
-	case ghclient.StatusBlocked:
-		m.finishLocked(current, StatusBlocked, nil, now, "")
-		m.mu.Unlock()
-		if entry != nil && entry.CompletedAt == nil {
-			_ = m.db.UpdateCompletedAt(entry.ID)
+		m.mu.Lock()
+		current = m.watchesByID[watchID]
+		if current == nil || current.terminal {
+			m.mu.Unlock()
+			return true
 		}
-		return true
-	default:
-		current.status = StatusWatching
-		current.workerRunning = true
+		m.finishLocked(current, terminalStatus, nil, now, "")
 		m.mu.Unlock()
-		return false
+		return true
 	}
+
+	current.status = StatusWatching
+	current.workerRunning = true
+	m.mu.Unlock()
+	return false
 }
 
 func (m *Manager) finishFailure(watchID string, now time.Time, reason FailureReason, errText string) {
@@ -488,6 +497,16 @@ func IsRateLimitHTTPError(err error) bool {
 	if errors.As(err, &abuseErr) {
 		return true
 	}
-	var ghErr *github.ErrorResponse
-	return errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusForbidden
+	return false
+}
+
+func watchStatusForReview(status ghclient.ReviewStatus) (Status, bool) {
+	switch status {
+	case ghclient.StatusCompleted:
+		return StatusCompleted, true
+	case ghclient.StatusBlocked:
+		return StatusBlocked, true
+	default:
+		return "", false
+	}
 }

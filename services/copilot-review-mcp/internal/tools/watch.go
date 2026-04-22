@@ -118,7 +118,14 @@ func getWatchStatusHandler(
 
 		switch {
 		case in.WatchID != "":
+			login := middleware.LoginFromContext(ctx)
+			if login == "" {
+				return nil, GetReviewWatchStatusOutput{}, fmt.Errorf("authenticated GitHub login is required")
+			}
 			snapshot, ok = manager.GetByID(in.WatchID)
+			if ok && snapshot.Login != login {
+				ok = false
+			}
 		case in.Owner != "" && in.Repo != "" && in.PR > 0:
 			login := middleware.LoginFromContext(ctx)
 			if login == "" {
