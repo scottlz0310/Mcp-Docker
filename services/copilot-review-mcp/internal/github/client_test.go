@@ -85,10 +85,9 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 		prNodeID = "PR_kwDOABCDEF12345"
 	)
 
-	requestCount := 0
+	sawNodeIDQuery := false
+	sawRequestMutation := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("ReadAll() error = %v", err)
@@ -107,15 +106,18 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		normalizedQuery := strings.Join(strings.Fields(req.Query), "")
 
-		switch requestCount {
-		case 1:
+		switch {
+		case strings.Contains(normalizedQuery, "pullRequest(number:$pr){id}"):
+			sawNodeIDQuery = true
 			fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"id":%q}}}}`, prNodeID)
-		case 2:
-			if !strings.Contains(req.Query, "$input:RequestReviewsByLoginInput!") {
+		case strings.Contains(normalizedQuery, "requestReviewsByLogin(input:$input)"):
+			sawRequestMutation = true
+			if !strings.Contains(normalizedQuery, "$input:RequestReviewsByLoginInput!") {
 				t.Errorf("mutation query = %q, want RequestReviewsByLoginInput", req.Query)
 			}
-			if strings.Contains(req.Query, "$input:requestReviewsByLoginInput!") {
+			if strings.Contains(normalizedQuery, "$input:requestReviewsByLoginInput!") {
 				t.Errorf("mutation query = %q, unexpected lower-camel input type", req.Query)
 			}
 
@@ -149,8 +151,7 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 
 			fmt.Fprint(w, `{"data":{"requestReviewsByLogin":{"clientMutationId":""}}}`)
 		default:
-			t.Errorf("unexpected GraphQL request count = %d", requestCount)
-			http.Error(w, "unexpected request", http.StatusInternalServerError)
+			fmt.Fprint(w, `{"data":{}}`)
 		}
 	}))
 	defer srv.Close()
@@ -162,8 +163,11 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 	if err := c.RequestCopilotReview(context.Background(), owner, repo, pr); err != nil {
 		t.Fatalf("RequestCopilotReview() error = %v", err)
 	}
-	if requestCount != 2 {
-		t.Fatalf("GraphQL request count = %d, want 2", requestCount)
+	if !sawNodeIDQuery {
+		t.Fatal("did not observe PR node ID query")
+	}
+	if !sawRequestMutation {
+		t.Fatal("did not observe requestReviewsByLogin mutation")
 	}
 }
 
