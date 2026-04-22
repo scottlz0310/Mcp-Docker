@@ -2,6 +2,41 @@
 
 未整理だったツール動作の調査を経て特定した改善ISSUEと、推奨消化順をまとめる。
 
+## 長期 redesign
+
+`wait_for_copilot_review` を中心とした現行の blocking wait モデルを、
+LLM 向けの async watch + notification モデルへ置き換える大きめの redesign を別系統で起票した。
+
+- [#63](https://github.com/scottlz0310/Mcp-Docker/issues/63): epic(copilot-review-mcp): async watch + notification ベースへ再設計し blocking wait を主経路から外す
+- [#68](https://github.com/scottlz0310/Mcp-Docker/issues/68): memory-only watch manager を先行導入し active watch を idempotent に扱う
+- [#65](https://github.com/scottlz0310/Mcp-Docker/issues/65): SQLite 永続化で review_watch state を追加する
+- [#67](https://github.com/scottlz0310/Mcp-Docker/issues/67): watch 系ツールを追加し `wait_for_copilot_review` を legacy 化する
+- [#64](https://github.com/scottlz0310/Mcp-Docker/issues/64): Streamable HTTP を stateful session 化し async notification の基盤を作る
+- [#66](https://github.com/scottlz0310/Mcp-Docker/issues/66): watch resource と resources/updated 通知を追加する
+
+設計メモ:
+
+`docs/design/copilot-review-watch-redesign.md`
+
+> この redesign は既存の局所修正（#55, #56, #57, #58）とは別トラックで進める想定。
+> 実装に着手する際は、`wait_for_copilot_review` 周辺の重複改修を避けるため、
+> 先にどちらの路線で進めるかを決める。
+
+review 反映メモ:
+
+- active watch は `(github_login, owner, repo, pr)` 単位で 1 本に制約し、`start_*` は idempotent にする
+- token 失効は `FAILED` + `failure_reason=AUTH_EXPIRED` として扱う
+- worker 喪失や再起動の影響を表す `STALE` 状態を設ける
+- stateful session 化は先行せず、まず memory-only watch manager → SQLite persistence → tool UX の順で進める
+
+推奨順:
+
+1. [#68](https://github.com/scottlz0310/Mcp-Docker/issues/68) memory-only watch manager
+2. [#65](https://github.com/scottlz0310/Mcp-Docker/issues/65) SQLite persistence
+3. [#67](https://github.com/scottlz0310/Mcp-Docker/issues/67) watch tool surface / migration
+4. [#64](https://github.com/scottlz0310/Mcp-Docker/issues/64) stateful session foundation
+5. [#66](https://github.com/scottlz0310/Mcp-Docker/issues/66) resources / notifications
+
 ## 推奨消化順
 
 ### Step 1 — #56: `wait_for_copilot_review` の動作改善
