@@ -152,7 +152,7 @@ curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-aut
 - callback URL は `GITHUB_OAUTH_PROXY_BASE_URL` と一致させてください（末尾 `/callback` を付与）。
 - `copilot-review-mcp` で使っている OAuth App を共有しても問題ありません。
 
-## copilot-review-mcp Async Watch Flow
+## copilot-review-mcp 非同期 Watch フロー
 
 `services/copilot-review-mcp` では、Copilot review の待機を `wait_for_copilot_review` の blocking call ではなく、
 watch 系ツールで進めるのを主経路とします。

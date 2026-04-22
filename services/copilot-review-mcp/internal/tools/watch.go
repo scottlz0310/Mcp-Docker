@@ -70,9 +70,9 @@ type GetReviewWatchStatusInput struct {
 
 // GetReviewWatchStatusOutput is the output schema for get_copilot_review_watch_status.
 type GetReviewWatchStatusOutput struct {
-	Found bool `json:"found"`
-	ReviewWatchView
-	Note string `json:"note"`
+	Found bool             `json:"found"`
+	Watch *ReviewWatchView `json:"watch,omitempty"`
+	Note  string           `json:"note"`
 }
 
 // ListReviewWatchesInput is the input schema for list_copilot_review_watches.
@@ -101,10 +101,10 @@ type CancelReviewWatchInput struct {
 
 // CancelReviewWatchOutput is the output schema for cancel_copilot_review_watch.
 type CancelReviewWatchOutput struct {
-	Found bool `json:"found"`
-	ReviewWatchView
-	Cancelled bool   `json:"cancelled"`
-	Note      string `json:"note"`
+	Found     bool             `json:"found"`
+	Watch     *ReviewWatchView `json:"watch,omitempty"`
+	Cancelled *bool            `json:"cancelled,omitempty"`
+	Note      string           `json:"note"`
 }
 
 var startWatchTool = &mcp.Tool{
@@ -306,19 +306,21 @@ func buildStartWatchOutput(snapshot watch.Snapshot, reused bool, pollInterval ti
 }
 
 func buildGetWatchStatusOutput(snapshot watch.Snapshot, pollInterval time.Duration) GetReviewWatchStatusOutput {
+	view := buildReviewWatchView(snapshot, pollInterval, time.Now().UTC())
 	return GetReviewWatchStatusOutput{
-		Found:           true,
-		ReviewWatchView: buildReviewWatchView(snapshot, pollInterval, time.Now().UTC()),
-		Note:            "watch の現在状態です。",
+		Found: true,
+		Watch: &view,
+		Note:  "watch の現在状態です。",
 	}
 }
 
 func buildCancelWatchOutput(result watch.CancelResult, pollInterval time.Duration) CancelReviewWatchOutput {
+	view := buildReviewWatchView(result.Snapshot, pollInterval, time.Now().UTC())
 	out := CancelReviewWatchOutput{
-		Found:           result.Found,
-		ReviewWatchView: buildReviewWatchView(result.Snapshot, pollInterval, time.Now().UTC()),
-		Cancelled:       result.Cancelled,
+		Found: result.Found,
+		Watch: &view,
 	}
+	out.Cancelled = boolPtr(result.Cancelled)
 	switch {
 	case result.Cancelled:
 		out.Note = "watch を停止しました。"
@@ -407,7 +409,7 @@ func secondsUntilNextPoll(lastPolledAt *time.Time, pollInterval time.Duration, n
 		pollInterval = 90 * time.Second
 	}
 	if lastPolledAt == nil {
-		return durationSecondsCeil(pollInterval)
+		return 1
 	}
 	remaining := lastPolledAt.UTC().Add(pollInterval).Sub(now.UTC())
 	if remaining <= 0 {
@@ -418,7 +420,7 @@ func secondsUntilNextPoll(lastPolledAt *time.Time, pollInterval time.Duration, n
 
 func secondsUntilRateLimitReset(resetAt *time.Time, fallback time.Duration, now time.Time) int {
 	if resetAt == nil {
-		return secondsUntilNextPoll(nil, fallback, now)
+		return durationSecondsCeil(fallback)
 	}
 	remaining := resetAt.UTC().Sub(now.UTC())
 	if remaining <= 0 {
@@ -436,4 +438,8 @@ func durationSecondsCeil(d time.Duration) int {
 		return 1
 	}
 	return seconds
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

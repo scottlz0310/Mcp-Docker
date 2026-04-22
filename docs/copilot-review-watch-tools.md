@@ -1,4 +1,4 @@
-# copilot-review-mcp Watch Tool Flow
+# copilot-review-mcp Watch ツールフロー
 
 `services/copilot-review-mcp` の主経路は、blocking wait ではなく async watch です。
 このドキュメントは #67 時点の推奨フローと各 tool の役割をまとめます。
@@ -12,7 +12,7 @@
 5. `watch_id` を見失ったら `list_copilot_review_watches(...)` で回復する
 6. watch が不要になったら `cancel_copilot_review_watch(...)` を呼ぶ
 
-## Tool Roles
+## 各ツールの役割
 
 - `get_copilot_review_status`
   GitHub API から即時 snapshot を取る。watch を始める前や、watch が `STALE` / `TIMEOUT` / `CANCELLED` になった後の再確認に使う。
@@ -27,7 +27,7 @@
 - `wait_for_copilot_review`
   legacy fallback。host の都合で blocking wait が必要な場合だけ使う。
 
-## LLM Hints
+## LLM 向けヒント
 
 watch 系ツールは `recommended_next_action` と、必要に応じて `next_poll_seconds` を返します。
 
@@ -43,7 +43,7 @@ watch 系ツールは `recommended_next_action` と、必要に応じて `next_p
 - `CHECK_FAILURE`
   `last_error` / `failure_reason` を確認し、原因を解消してから次のアクションを決める。
 
-## Notes
+## 補足
 
 - `resource_uri` は将来の resource 公開フェーズに備えた安定 ID です。#67 時点では read/subscribe は未提供です。
 - watch state は SQLite に保存されますが、worker 自体は memory-only です。プロセス再起動後の active watch は `STALE` になります。

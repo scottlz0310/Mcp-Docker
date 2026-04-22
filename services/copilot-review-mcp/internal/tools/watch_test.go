@@ -80,17 +80,20 @@ func TestGetWatchStatusHandlerReturnsLLMHints(t *testing.T) {
 	if !out.Found {
 		t.Fatal("Found = false, want true")
 	}
-	if out.WatchID != started.WatchID {
-		t.Fatalf("WatchID = %q, want %q", out.WatchID, started.WatchID)
+	if out.Watch == nil {
+		t.Fatal("Watch = nil, want payload")
 	}
-	if out.RecommendedNextAction != nextActionPollAfter {
-		t.Fatalf("RecommendedNextAction = %q, want %q", out.RecommendedNextAction, nextActionPollAfter)
+	if out.Watch.WatchID != started.WatchID {
+		t.Fatalf("Watch.WatchID = %q, want %q", out.Watch.WatchID, started.WatchID)
 	}
-	if out.NextPollSeconds == nil || *out.NextPollSeconds <= 0 {
-		t.Fatalf("NextPollSeconds = %v, want positive poll hint", out.NextPollSeconds)
+	if out.Watch.RecommendedNextAction != nextActionPollAfter {
+		t.Fatalf("Watch.RecommendedNextAction = %q, want %q", out.Watch.RecommendedNextAction, nextActionPollAfter)
 	}
-	if out.ResourceURI == nil || *out.ResourceURI == "" {
-		t.Fatalf("ResourceURI = %v, want populated URI", out.ResourceURI)
+	if out.Watch.NextPollSeconds == nil || *out.Watch.NextPollSeconds != 1 {
+		t.Fatalf("Watch.NextPollSeconds = %v, want initial delay 1s", out.Watch.NextPollSeconds)
+	}
+	if out.Watch.ResourceURI == nil || *out.Watch.ResourceURI == "" {
+		t.Fatalf("Watch.ResourceURI = %v, want populated URI", out.Watch.ResourceURI)
 	}
 }
 
@@ -193,14 +196,60 @@ func TestCancelWatchHandlerCancelsByPRKey(t *testing.T) {
 	if !out.Found {
 		t.Fatal("Found = false, want true")
 	}
-	if !out.Cancelled {
-		t.Fatal("Cancelled = false, want true")
+	if out.Cancelled == nil || !*out.Cancelled {
+		t.Fatalf("Cancelled = %v, want true", out.Cancelled)
 	}
-	if out.WatchStatus != string(watch.StatusCancelled) {
-		t.Fatalf("WatchStatus = %q, want %q", out.WatchStatus, watch.StatusCancelled)
+	if out.Watch == nil {
+		t.Fatal("Watch = nil, want payload")
 	}
-	if out.RecommendedNextAction != nextActionStartNewWatch {
-		t.Fatalf("RecommendedNextAction = %q, want %q", out.RecommendedNextAction, nextActionStartNewWatch)
+	if out.Watch.WatchStatus != string(watch.StatusCancelled) {
+		t.Fatalf("Watch.WatchStatus = %q, want %q", out.Watch.WatchStatus, watch.StatusCancelled)
+	}
+	if out.Watch.RecommendedNextAction != nextActionStartNewWatch {
+		t.Fatalf("Watch.RecommendedNextAction = %q, want %q", out.Watch.RecommendedNextAction, nextActionStartNewWatch)
+	}
+}
+
+func TestGetWatchStatusHandlerNotFoundOmitsWatchPayload(t *testing.T) {
+	db := openWatchToolsTestDB(t)
+	manager := watch.NewManager(db, watch.Options{Threshold: 30 * time.Second})
+	t.Cleanup(manager.Close)
+
+	handler := getWatchStatusHandler(manager)
+	ctx := context.WithValue(context.Background(), middleware.ContextKeyLogin, "owner-user")
+
+	_, out, err := handler(ctx, nil, GetReviewWatchStatusInput{Owner: "scottlz0310", Repo: "Mcp-Docker", PR: 999})
+	if err != nil {
+		t.Fatalf("getWatchStatusHandler() error = %v", err)
+	}
+	if out.Found {
+		t.Fatal("Found = true, want false")
+	}
+	if out.Watch != nil {
+		t.Fatalf("Watch = %+v, want nil", out.Watch)
+	}
+}
+
+func TestCancelWatchHandlerNotFoundOmitsWatchPayload(t *testing.T) {
+	db := openWatchToolsTestDB(t)
+	manager := watch.NewManager(db, watch.Options{Threshold: 30 * time.Second})
+	t.Cleanup(manager.Close)
+
+	handler := cancelWatchHandler(manager)
+	ctx := context.WithValue(context.Background(), middleware.ContextKeyLogin, "owner-user")
+
+	_, out, err := handler(ctx, nil, CancelReviewWatchInput{Owner: "scottlz0310", Repo: "Mcp-Docker", PR: 999})
+	if err != nil {
+		t.Fatalf("cancelWatchHandler() error = %v", err)
+	}
+	if out.Found {
+		t.Fatal("Found = true, want false")
+	}
+	if out.Watch != nil {
+		t.Fatalf("Watch = %+v, want nil", out.Watch)
+	}
+	if out.Cancelled != nil {
+		t.Fatalf("Cancelled = %v, want nil", out.Cancelled)
 	}
 }
 
