@@ -436,11 +436,11 @@ func (m *Manager) List(login string, opts ListOptions) ([]Snapshot, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to list review_watch: %w", err)
 		}
-		for _, entry := range entries {
-			if _, exists := byID[entry.ID]; exists {
+		for i := range entries {
+			if _, exists := byID[entries[i].ID]; exists {
 				continue
 			}
-			snapshot := snapshotFromReviewWatchEntry(&entry)
+			snapshot := snapshotFromReviewWatchEntry(&entries[i])
 			if !matchesListOptions(snapshot, opts) {
 				continue
 			}
