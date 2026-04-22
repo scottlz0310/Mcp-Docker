@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,22 +45,25 @@ const (
 
 // Snapshot is the externally visible state of a watch at a point in time.
 type Snapshot struct {
-	WatchID       string
-	Login         string
-	Owner         string
-	Repo          string
-	PR            int
-	WatchStatus   Status
-	ReviewStatus  *ghclient.ReviewStatus
-	FailureReason *FailureReason
-	Terminal      bool
-	WorkerRunning bool
-	PollsDone     int
-	StartedAt     time.Time
-	UpdatedAt     time.Time
-	CompletedAt   *time.Time
-	LastPolledAt  *time.Time
-	LastError     *string
+	WatchID          string
+	Login            string
+	Owner            string
+	Repo             string
+	PR               int
+	ResourceURI      *string
+	WatchStatus      Status
+	ReviewStatus     *ghclient.ReviewStatus
+	FailureReason    *FailureReason
+	Terminal         bool
+	WorkerRunning    bool
+	PollsDone        int
+	StartedAt        time.Time
+	UpdatedAt        time.Time
+	CompletedAt      *time.Time
+	StaleAt          *time.Time
+	LastPolledAt     *time.Time
+	RateLimitResetAt *time.Time
+	LastError        *string
 }
 
 // StartInput identifies a PR watch owned by one authenticated GitHub user.
@@ -87,11 +91,28 @@ type Options struct {
 	Now              func() time.Time
 }
 
+// CancelResult reports the outcome of a manual watch cancellation request.
+type CancelResult struct {
+	Snapshot  Snapshot
+	Found     bool
+	Cancelled bool
+}
+
+// ListOptions scopes a watch listing query.
+type ListOptions struct {
+	Owner      string
+	Repo       string
+	PR         int
+	ActiveOnly bool
+	Limit      int
+}
+
 type watchStore interface {
 	GetLatest(owner, repo string, pr int) (*store.TriggerEntry, error)
 	UpdateCompletedAt(id int64) error
 	GetReviewWatchByID(id string) (*store.ReviewWatchEntry, error)
 	GetLatestReviewWatch(login, owner, repo string, pr int) (*store.ReviewWatchEntry, error)
+	ListReviewWatches(filter store.ReviewWatchFilter) ([]store.ReviewWatchEntry, error)
 	UpsertReviewWatch(entry store.ReviewWatchEntry) error
 }
 
@@ -288,10 +309,12 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 	now := m.now().UTC()
 	watchCtx, cancel := context.WithCancel(m.ctx)
 	id := m.nextID()
+	resourceURI := resourceURIForWatch(id)
 	state := &watchState{
 		id:            id,
 		key:           key,
 		triggerLogID:  cloneInt64Ptr(triggerLogID),
+		resourceURI:   stringPtr(resourceURI),
 		token:         in.Token,
 		ctx:           watchCtx,
 		cancel:        cancel,
@@ -373,6 +396,175 @@ func (m *Manager) GetLatest(login, owner, repo string, pr int) (Snapshot, bool) 
 		return Snapshot{}, false
 	}
 	return snapshotFromReviewWatchEntry(entry), true
+}
+
+// List returns active and/or recent watch snapshots for one GitHub login.
+func (m *Manager) List(login string, opts ListOptions) ([]Snapshot, error) {
+	if login == "" {
+		return nil, fmt.Errorf("login is required")
+	}
+
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	byID := make(map[string]Snapshot)
+
+	m.mu.RLock()
+	for _, state := range m.watchesByID {
+		if state == nil || state.key.login != login {
+			continue
+		}
+		snapshot := snapshotFromState(state)
+		if !matchesListOptions(snapshot, opts) {
+			continue
+		}
+		byID[snapshot.WatchID] = snapshot
+	}
+	m.mu.RUnlock()
+
+	if m.db != nil {
+		entries, err := m.db.ListReviewWatches(store.ReviewWatchFilter{
+			GitHubLogin: login,
+			Owner:       opts.Owner,
+			Repo:        opts.Repo,
+			PR:          opts.PR,
+			ActiveOnly:  opts.ActiveOnly,
+			Limit:       limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list review_watch: %w", err)
+		}
+		for _, entry := range entries {
+			if _, exists := byID[entry.ID]; exists {
+				continue
+			}
+			snapshot := snapshotFromReviewWatchEntry(&entry)
+			if !matchesListOptions(snapshot, opts) {
+				continue
+			}
+			byID[snapshot.WatchID] = snapshot
+		}
+	}
+
+	snapshots := make([]Snapshot, 0, len(byID))
+	for _, snapshot := range byID {
+		snapshots = append(snapshots, snapshot)
+	}
+	sort.Slice(snapshots, func(i, j int) bool {
+		activeI := !snapshots[i].Terminal
+		activeJ := !snapshots[j].Terminal
+		if activeI != activeJ {
+			return activeI
+		}
+		if !snapshots[i].UpdatedAt.Equal(snapshots[j].UpdatedAt) {
+			return snapshots[i].UpdatedAt.After(snapshots[j].UpdatedAt)
+		}
+		if !snapshots[i].StartedAt.Equal(snapshots[j].StartedAt) {
+			return snapshots[i].StartedAt.After(snapshots[j].StartedAt)
+		}
+		return snapshots[i].WatchID > snapshots[j].WatchID
+	})
+	if len(snapshots) > limit {
+		snapshots = snapshots[:limit]
+	}
+	return snapshots, nil
+}
+
+// CancelByID stops a running watch by watch ID when it belongs to the caller.
+func (m *Manager) CancelByID(login, watchID string) (CancelResult, error) {
+	if login == "" || watchID == "" {
+		return CancelResult{}, fmt.Errorf("login and watch_id are required")
+	}
+
+	m.mu.Lock()
+	if state := m.watchesByID[watchID]; state != nil {
+		if state.key.login != login {
+			m.mu.Unlock()
+			return CancelResult{}, nil
+		}
+		if state.terminal {
+			snapshot := snapshotFromState(state)
+			m.mu.Unlock()
+			return CancelResult{Snapshot: snapshot, Found: true}, nil
+		}
+		now := m.now().UTC()
+		m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
+		snapshot := snapshotFromState(state)
+		m.mu.Unlock()
+		return CancelResult{Snapshot: snapshot, Found: true, Cancelled: true}, nil
+	}
+	m.mu.Unlock()
+
+	if m.db == nil {
+		return CancelResult{}, nil
+	}
+	entry, err := m.db.GetReviewWatchByID(watchID)
+	if err != nil {
+		return CancelResult{}, fmt.Errorf("failed to load review_watch: %w", err)
+	}
+	if entry == nil || entry.GitHubLogin != login {
+		return CancelResult{}, nil
+	}
+	return CancelResult{
+		Snapshot: snapshotFromReviewWatchEntry(entry),
+		Found:    true,
+	}, nil
+}
+
+// CancelLatest stops the active watch for one user/PR key when present.
+func (m *Manager) CancelLatest(login, owner, repo string, pr int) (CancelResult, error) {
+	if login == "" || owner == "" || repo == "" || pr <= 0 {
+		return CancelResult{}, fmt.Errorf("login, owner, repo, and pr are required")
+	}
+
+	key := watchKey{login: login, owner: owner, repo: repo, pr: pr}
+
+	m.mu.Lock()
+	if id, ok := m.activeByKey[key]; ok {
+		if state := m.watchesByID[id]; state != nil {
+			if state.terminal {
+				snapshot := snapshotFromState(state)
+				m.mu.Unlock()
+				return CancelResult{Snapshot: snapshot, Found: true}, nil
+			}
+			now := m.now().UTC()
+			m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
+			snapshot := snapshotFromState(state)
+			m.mu.Unlock()
+			return CancelResult{Snapshot: snapshot, Found: true, Cancelled: true}, nil
+		}
+		delete(m.activeByKey, key)
+	}
+	if id, ok := m.latestByKey[key]; ok {
+		if state := m.watchesByID[id]; state != nil {
+			snapshot := snapshotFromState(state)
+			m.mu.Unlock()
+			return CancelResult{Snapshot: snapshot, Found: true}, nil
+		}
+	}
+	m.mu.Unlock()
+
+	if m.db == nil {
+		return CancelResult{}, nil
+	}
+	entry, err := m.db.GetLatestReviewWatch(login, owner, repo, pr)
+	if err != nil {
+		return CancelResult{}, fmt.Errorf("failed to load latest review_watch: %w", err)
+	}
+	if entry == nil {
+		return CancelResult{}, nil
+	}
+	return CancelResult{
+		Snapshot: snapshotFromReviewWatchEntry(entry),
+		Found:    true,
+	}, nil
+}
+
+// PollInterval returns the manager's configured polling cadence.
+func (m *Manager) PollInterval() time.Duration {
+	return m.pollInterval
 }
 
 func (m *Manager) run(w *watchState) {
@@ -621,22 +813,25 @@ func (m *Manager) nextID() string {
 
 func snapshotFromState(w *watchState) Snapshot {
 	return Snapshot{
-		WatchID:       w.id,
-		Login:         w.key.login,
-		Owner:         w.key.owner,
-		Repo:          w.key.repo,
-		PR:            w.key.pr,
-		WatchStatus:   w.status,
-		ReviewStatus:  cloneReviewStatusPtr(w.reviewStatus),
-		FailureReason: cloneFailureReasonPtr(w.failureReason),
-		Terminal:      w.terminal,
-		WorkerRunning: w.workerRunning,
-		PollsDone:     w.pollsDone,
-		StartedAt:     w.startedAt,
-		UpdatedAt:     w.updatedAt,
-		CompletedAt:   cloneTimePtr(w.completedAt),
-		LastPolledAt:  cloneTimePtr(w.lastPolledAt),
-		LastError:     cloneStringPtr(w.lastError),
+		WatchID:          w.id,
+		Login:            w.key.login,
+		Owner:            w.key.owner,
+		Repo:             w.key.repo,
+		PR:               w.key.pr,
+		ResourceURI:      cloneStringPtr(w.resourceURI),
+		WatchStatus:      w.status,
+		ReviewStatus:     cloneReviewStatusPtr(w.reviewStatus),
+		FailureReason:    cloneFailureReasonPtr(w.failureReason),
+		Terminal:         w.terminal,
+		WorkerRunning:    w.workerRunning,
+		PollsDone:        w.pollsDone,
+		StartedAt:        w.startedAt,
+		UpdatedAt:        w.updatedAt,
+		CompletedAt:      cloneTimePtr(w.completedAt),
+		StaleAt:          cloneTimePtr(w.staleAt),
+		LastPolledAt:     cloneTimePtr(w.lastPolledAt),
+		RateLimitResetAt: cloneTimePtr(w.rateLimitResetAt),
+		LastError:        cloneStringPtr(w.lastError),
 	}
 }
 
@@ -652,22 +847,25 @@ func snapshotFromReviewWatchEntry(entry *store.ReviewWatchEntry) Snapshot {
 		failureReason = &reason
 	}
 	return Snapshot{
-		WatchID:       entry.ID,
-		Login:         entry.GitHubLogin,
-		Owner:         entry.Owner,
-		Repo:          entry.Repo,
-		PR:            entry.PR,
-		WatchStatus:   Status(entry.WatchStatus),
-		ReviewStatus:  reviewStatus,
-		FailureReason: failureReason,
-		Terminal:      !entry.IsActive,
-		WorkerRunning: false,
-		PollsDone:     0,
-		StartedAt:     entry.StartedAt,
-		UpdatedAt:     entry.UpdatedAt,
-		CompletedAt:   cloneTimePtr(entry.CompletedAt),
-		LastPolledAt:  nil,
-		LastError:     cloneStringPtr(entry.LastError),
+		WatchID:          entry.ID,
+		Login:            entry.GitHubLogin,
+		Owner:            entry.Owner,
+		Repo:             entry.Repo,
+		PR:               entry.PR,
+		ResourceURI:      cloneStringPtr(entry.ResourceURI),
+		WatchStatus:      Status(entry.WatchStatus),
+		ReviewStatus:     reviewStatus,
+		FailureReason:    failureReason,
+		Terminal:         !entry.IsActive,
+		WorkerRunning:    false,
+		PollsDone:        0,
+		StartedAt:        entry.StartedAt,
+		UpdatedAt:        entry.UpdatedAt,
+		CompletedAt:      cloneTimePtr(entry.CompletedAt),
+		StaleAt:          cloneTimePtr(entry.StaleAt),
+		LastPolledAt:     nil,
+		RateLimitResetAt: cloneTimePtr(entry.RateLimitResetAt),
+		LastError:        cloneStringPtr(entry.LastError),
 	}
 }
 
@@ -809,6 +1007,10 @@ func timePtr(t time.Time) *time.Time {
 	return &t
 }
 
+func stringPtr(v string) *string {
+	return &v
+}
+
 func formatRateLimitMessage(remaining int, reset time.Time) string {
 	resetText := "unknown"
 	if !reset.IsZero() {
@@ -819,6 +1021,10 @@ func formatRateLimitMessage(remaining int, reset time.Time) string {
 		remaining,
 		resetText,
 	)
+}
+
+func resourceURIForWatch(watchID string) string {
+	return fmt.Sprintf("copilot-review://watch/%s", watchID)
 }
 
 // IsRateLimitHTTPError reports whether err is a GitHub rate-limit HTTP failure.
@@ -843,4 +1049,20 @@ func watchStatusForReview(status ghclient.ReviewStatus) (Status, bool) {
 	default:
 		return "", false
 	}
+}
+
+func matchesListOptions(snapshot Snapshot, opts ListOptions) bool {
+	if opts.Owner != "" && snapshot.Owner != opts.Owner {
+		return false
+	}
+	if opts.Repo != "" && snapshot.Repo != opts.Repo {
+		return false
+	}
+	if opts.PR > 0 && snapshot.PR != opts.PR {
+		return false
+	}
+	if opts.ActiveOnly && snapshot.Terminal {
+		return false
+	}
+	return true
 }
