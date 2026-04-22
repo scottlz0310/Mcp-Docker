@@ -2,10 +2,14 @@ package ghclient
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,29 +49,126 @@ func TestBuildCopilotReviewInput(t *testing.T) {
 	input := buildCopilotReviewInput(testNodeID)
 
 	// Invariant 1: union must be true (additive, not replacing existing reviewers).
-	if !bool(input.Union) {
+	if input.Union == nil || !bool(*input.Union) {
 		t.Error("Union must be true to preserve existing human reviewers; false would remove them")
 	}
 
 	// Invariant 2: exactly one bot login with the correct value.
-	if len(input.BotLogins) != 1 {
-		t.Fatalf("BotLogins length = %d, want 1", len(input.BotLogins))
+	if input.BotLogins == nil {
+		t.Fatal("BotLogins must be set")
 	}
-	if got := string(input.BotLogins[0]); got != copilotBotLogin {
+	if len(*input.BotLogins) != 1 {
+		t.Fatalf("BotLogins length = %d, want 1", len(*input.BotLogins))
+	}
+	if got := string((*input.BotLogins)[0]); got != copilotBotLogin {
 		t.Errorf("BotLogins[0] = %q, want %q", got, copilotBotLogin)
 	}
 
 	// Sanity: userLogins and teamSlugs must be empty — we're only adding Copilot.
-	if len(input.UserLogins) != 0 {
+	if input.UserLogins == nil || len(*input.UserLogins) != 0 {
 		t.Errorf("UserLogins must be empty, got %v", input.UserLogins)
 	}
-	if len(input.TeamSlugs) != 0 {
+	if input.TeamSlugs == nil || len(*input.TeamSlugs) != 0 {
 		t.Errorf("TeamSlugs must be empty, got %v", input.TeamSlugs)
 	}
 
 	// Sanity: PR node ID is passed through unchanged.
 	if input.PullRequestID != testNodeID {
 		t.Errorf("PullRequestID = %v, want %v", input.PullRequestID, testNodeID)
+	}
+}
+
+func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
+	const (
+		owner    = "owner"
+		repo     = "repo"
+		pr       = 123
+		prNodeID = "PR_kwDOABCDEF12345"
+	)
+
+	var sawNodeIDQuery atomic.Bool
+	var sawRequestMutation atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("ReadAll() error = %v", err)
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		var req struct {
+			Query     string                     `json:"query"`
+			Variables map[string]json.RawMessage `json:"variables"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Errorf("json.Unmarshal() error = %v", err)
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		normalizedQuery := strings.Join(strings.Fields(req.Query), "")
+
+		switch {
+		case strings.Contains(normalizedQuery, "pullRequest(number:$pr)") && strings.Contains(normalizedQuery, "id"):
+			sawNodeIDQuery.Store(true)
+			fmt.Fprintf(w, `{"data":{"repository":{"pullRequest":{"id":%q}}}}`, prNodeID)
+		case strings.Contains(normalizedQuery, "requestReviewsByLogin(input:$input)"):
+			sawRequestMutation.Store(true)
+			if !strings.Contains(normalizedQuery, "RequestReviewsByLoginInput") {
+				t.Errorf("mutation query = %q, want RequestReviewsByLoginInput", req.Query)
+			}
+			if strings.Contains(normalizedQuery, "requestReviewsByLoginInput") {
+				t.Errorf("mutation query = %q, unexpected lower-camel input type", req.Query)
+			}
+
+			var input struct {
+				PullRequestID string   `json:"pullRequestId"`
+				BotLogins     []string `json:"botLogins"`
+				UserLogins    []string `json:"userLogins"`
+				TeamSlugs     []string `json:"teamSlugs"`
+				Union         bool     `json:"union"`
+			}
+			if err := json.Unmarshal(req.Variables["input"], &input); err != nil {
+				t.Errorf("json.Unmarshal(input) error = %v", err)
+				http.Error(w, "invalid input payload", http.StatusBadRequest)
+				return
+			}
+			if input.PullRequestID != prNodeID {
+				t.Errorf("input.pullRequestId = %q, want %q", input.PullRequestID, prNodeID)
+			}
+			if len(input.BotLogins) != 1 || input.BotLogins[0] != copilotBotLogin {
+				t.Errorf("input.botLogins = %v, want [%q]", input.BotLogins, copilotBotLogin)
+			}
+			if len(input.UserLogins) != 0 {
+				t.Errorf("input.userLogins = %v, want empty", input.UserLogins)
+			}
+			if len(input.TeamSlugs) != 0 {
+				t.Errorf("input.teamSlugs = %v, want empty", input.TeamSlugs)
+			}
+			if !input.Union {
+				t.Error("input.union = false, want true")
+			}
+
+			fmt.Fprint(w, `{"data":{"requestReviewsByLogin":{"clientMutationId":""}}}`)
+		default:
+			fmt.Fprint(w, `{"data":{}}`)
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		v4: githubv4.NewEnterpriseClient(srv.URL, srv.Client()),
+	}
+
+	if err := c.RequestCopilotReview(context.Background(), owner, repo, pr); err != nil {
+		t.Fatalf("RequestCopilotReview() error = %v", err)
+	}
+	if !sawNodeIDQuery.Load() {
+		t.Fatal("did not observe PR node ID query")
+	}
+	if !sawRequestMutation.Load() {
+		t.Fatal("did not observe requestReviewsByLogin mutation")
 	}
 }
 
@@ -78,7 +179,7 @@ func TestDeriveStatus(t *testing.T) {
 	c := &Client{threshold: 30 * time.Second}
 
 	now := time.Now()
-	recentRequest := now.Add(-time.Second)   // 1s ago — safely within 30s threshold
+	recentRequest := now.Add(-time.Second)      // 1s ago — safely within 30s threshold
 	longAgoRequest := now.Add(-2 * time.Minute) // 2min ago — safely past threshold
 	threeMinAgo := now.Add(-3 * time.Minute)
 	oneMinAgo := now.Add(-1 * time.Minute)
