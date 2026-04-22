@@ -230,25 +230,20 @@ type requestReviewsByLoginMutation struct {
 	} `graphql:"requestReviewsByLogin(input: $input)"`
 }
 
-// requestReviewsByLoginInput is the input type for requestReviewsByLoginMutation.
-// Field names must be PascalCase so shurcooL/githubv4 serialises them correctly.
-type requestReviewsByLoginInput struct {
-	PullRequestID githubv4.ID       `json:"pullRequestId"`
-	BotLogins     []githubv4.String `json:"botLogins"`
-	UserLogins    []githubv4.String `json:"userLogins"`
-	TeamSlugs     []githubv4.String `json:"teamSlugs"`
-	Union         githubv4.Boolean  `json:"union"`
-}
-
 // buildCopilotReviewInput constructs the mutation input for adding Copilot as a reviewer.
 // union: true preserves existing reviewers (additive); false would replace the entire set.
-func buildCopilotReviewInput(prNodeID githubv4.ID) requestReviewsByLoginInput {
-	return requestReviewsByLoginInput{
+func buildCopilotReviewInput(prNodeID githubv4.ID) githubv4.RequestReviewsByLoginInput {
+	botLogins := []githubv4.String{githubv4.String(copilotBotLogin)}
+	userLogins := []githubv4.String{}
+	teamSlugs := []githubv4.String{}
+	union := githubv4.Boolean(true)
+
+	return githubv4.RequestReviewsByLoginInput{
 		PullRequestID: prNodeID,
-		BotLogins:     []githubv4.String{githubv4.String(copilotBotLogin)},
-		UserLogins:    []githubv4.String{},
-		TeamSlugs:     []githubv4.String{},
-		Union:         githubv4.Boolean(true),
+		BotLogins:     &botLogins,
+		UserLogins:    &userLogins,
+		TeamSlugs:     &teamSlugs,
+		Union:         &union,
 	}
 }
 
