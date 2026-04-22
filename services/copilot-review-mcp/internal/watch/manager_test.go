@@ -281,6 +281,56 @@ func TestManagerMaxWatchDurationTransitionsToTimeout(t *testing.T) {
 	}
 }
 
+func TestManagerLowRateLimitIncludesRetryDetail(t *testing.T) {
+	db := openTestDB(t)
+	reset := time.Now().UTC().Add(5 * time.Minute).Truncate(time.Second)
+	manager := NewManager(db, Options{
+		PollInterval: 5 * time.Millisecond,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{
+						data: &ghclient.ReviewData{
+							IsCopilotInReviewers: true,
+							RateLimitRemaining:   5,
+							RateLimitReset:       reset,
+						},
+					},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    202,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	snapshot := waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool {
+		return s.Terminal
+	})
+	if snapshot.WatchStatus != StatusRateLimited {
+		t.Fatalf("WatchStatus = %q, want %q", snapshot.WatchStatus, StatusRateLimited)
+	}
+	if snapshot.LastError == nil {
+		t.Fatal("LastError = nil, want rate-limit detail")
+	}
+	if !strings.Contains(*snapshot.LastError, "remaining=5") {
+		t.Fatalf("LastError = %q, want remaining count", *snapshot.LastError)
+	}
+	if !strings.Contains(*snapshot.LastError, reset.Format(time.RFC3339)) {
+		t.Fatalf("LastError = %q, want reset time %q", *snapshot.LastError, reset.Format(time.RFC3339))
+	}
+}
+
 func TestIsRateLimitHTTPError(t *testing.T) {
 	t.Run("matches typed rate limit errors", func(t *testing.T) {
 		if !IsRateLimitHTTPError(&github.RateLimitError{Rate: github.Rate{Remaining: 0}}) {

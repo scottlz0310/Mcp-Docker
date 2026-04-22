@@ -401,7 +401,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 	current.lastError = nil
 
 	if data.RateLimitRemaining < 10 {
-		m.finishLocked(current, StatusRateLimited, nil, now, "")
+		m.finishLocked(current, StatusRateLimited, nil, now, formatRateLimitMessage(data.RateLimitRemaining, data.RateLimitReset))
 		m.mu.Unlock()
 		return true
 	}
@@ -526,6 +526,18 @@ func reviewStatusPtr(status ghclient.ReviewStatus) *ghclient.ReviewStatus {
 
 func timePtr(t time.Time) *time.Time {
 	return &t
+}
+
+func formatRateLimitMessage(remaining int, reset time.Time) string {
+	resetText := "unknown"
+	if !reset.IsZero() {
+		resetText = reset.UTC().Format(time.RFC3339)
+	}
+	return fmt.Sprintf(
+		"GitHub API rate limit is low (remaining=%d, reset=%s); poll again after the reset time",
+		remaining,
+		resetText,
+	)
 }
 
 // IsRateLimitHTTPError reports whether err is a GitHub rate-limit HTTP failure.
