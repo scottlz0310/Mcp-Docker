@@ -101,6 +101,44 @@ func TestGetLatestReviewWatchReturnsNewestSnapshot(t *testing.T) {
 	}
 }
 
+func TestGetLatestReviewWatchIgnoresLexicographicIDTies(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "review-watch-latest-tie.db"))
+
+	base := time.Now().UTC().Truncate(time.Second)
+	first := ReviewWatchEntry{
+		ID:          "cw_100_2",
+		GitHubLogin: "alice",
+		Owner:       "octo",
+		Repo:        "demo",
+		PR:          8,
+		WatchStatus: "COMPLETED",
+		IsActive:    false,
+		StartedAt:   base,
+		UpdatedAt:   base,
+	}
+	if err := db.UpsertReviewWatch(first); err != nil {
+		t.Fatalf("UpsertReviewWatch(first) error = %v", err)
+	}
+
+	second := first
+	second.ID = "cw_100_10"
+	second.LastError = strPtr("newer insert")
+	if err := db.UpsertReviewWatch(second); err != nil {
+		t.Fatalf("UpsertReviewWatch(second) error = %v", err)
+	}
+
+	got, err := db.GetLatestReviewWatch("alice", "octo", "demo", 8)
+	if err != nil {
+		t.Fatalf("GetLatestReviewWatch() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetLatestReviewWatch() = nil, want entry")
+	}
+	if got.ID != second.ID {
+		t.Fatalf("GetLatestReviewWatch().ID = %q, want %q", got.ID, second.ID)
+	}
+}
+
 func TestOpenMarksActiveReviewWatchesStale(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "review-watch-open.db")
 	db := openTestDB(t, path)
@@ -166,3 +204,5 @@ func openTestDB(t *testing.T, path string) *DB {
 	})
 	return db
 }
+
+func strPtr(s string) *string { return &s }

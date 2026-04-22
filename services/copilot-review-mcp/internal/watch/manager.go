@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,9 +87,17 @@ type Options struct {
 	Now              func() time.Time
 }
 
+type watchStore interface {
+	GetLatest(owner, repo string, pr int) (*store.TriggerEntry, error)
+	UpdateCompletedAt(id int64) error
+	GetReviewWatchByID(id string) (*store.ReviewWatchEntry, error)
+	GetLatestReviewWatch(login, owner, repo string, pr int) (*store.ReviewWatchEntry, error)
+	UpsertReviewWatch(entry store.ReviewWatchEntry) error
+}
+
 // Manager owns background review-watch workers for the current server process.
 type Manager struct {
-	db               *store.DB
+	db               watchStore
 	threshold        time.Duration
 	pollInterval     time.Duration
 	pollTimeout      time.Duration
@@ -138,7 +147,7 @@ type watchState struct {
 }
 
 // NewManager creates a process-local, memory-only watch manager.
-func NewManager(db *store.DB, opts Options) *Manager {
+func NewManager(db watchStore, opts Options) *Manager {
 	pollInterval := opts.PollInterval
 	if pollInterval <= 0 {
 		pollInterval = defaultPollInterval
@@ -206,7 +215,7 @@ func (m *Manager) Close() {
 		w.clientMu.Unlock()
 		errText := "watch manager closed before the watch could finish"
 		w.lastError = &errText
-		_ = m.persistLocked(w)
+		_ = m.persistOrDegradeLocked(w, StatusStale, now)
 		watches = append(watches, w)
 		delete(m.activeByKey, key)
 	}
@@ -504,7 +513,10 @@ func (m *Manager) pollOnce(watchID string) bool {
 	}
 	current.status = StatusWatching
 	current.workerRunning = true
-	_ = m.persistLocked(current)
+	if err := m.persistOrDegradeLocked(current, StatusWatching, now); err != nil {
+		m.mu.Unlock()
+		return true
+	}
 	m.mu.Unlock()
 	return false
 }
@@ -581,7 +593,7 @@ func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReas
 		w.lastError = &errText
 	}
 	delete(m.activeByKey, w.key)
-	_ = m.persistLocked(w)
+	_ = m.persistOrDegradeLocked(w, status, now)
 	w.cancel()
 }
 
@@ -666,6 +678,53 @@ func (m *Manager) persistLocked(w *watchState) error {
 		RateLimitResetAt: cloneTimePtr(w.rateLimitResetAt),
 	}
 	return m.db.UpsertReviewWatch(reviewWatch)
+}
+
+func (m *Manager) persistOrDegradeLocked(w *watchState, intended Status, now time.Time) error {
+	err := m.persistLocked(w)
+	if err == nil {
+		return nil
+	}
+
+	msg := fmt.Sprintf("failed to persist review_watch while recording %s: %v", intended, err)
+	slog.Error(
+		"failed to persist review_watch",
+		"watch_id", w.id,
+		"login", w.key.login,
+		"owner", w.key.owner,
+		"repo", w.key.repo,
+		"pr", w.key.pr,
+		"intended_status", intended,
+		"err", err,
+	)
+
+	w.updatedAt = now
+	if w.completedAt == nil {
+		w.completedAt = timePtr(now)
+	}
+	w.lastError = &msg
+	w.terminal = true
+	w.workerRunning = false
+	w.token = ""
+	w.clientMu.Lock()
+	w.client = nil
+	w.clientMu.Unlock()
+	delete(m.activeByKey, w.key)
+
+	if intended == StatusStale {
+		w.status = StatusStale
+		w.failureReason = nil
+		if w.staleAt == nil {
+			w.staleAt = timePtr(now)
+		}
+	} else {
+		reason := FailureReasonInternal
+		w.status = StatusFailed
+		w.failureReason = &reason
+	}
+
+	w.cancel()
+	return err
 }
 
 func reviewStatusPtr(status ghclient.ReviewStatus) *ghclient.ReviewStatus {

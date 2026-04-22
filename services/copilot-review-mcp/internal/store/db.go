@@ -243,7 +243,7 @@ func (d *DB) GetLatestReviewWatch(login, owner, repo string, pr int) (*ReviewWat
 		        started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
 		   FROM review_watch
 		  WHERE github_login = ? AND owner = ? AND repo = ? AND pr = ?
-		  ORDER BY updated_at DESC, started_at DESC, id DESC
+		  ORDER BY updated_at DESC, started_at DESC, rowid DESC
 		  LIMIT 1`,
 		login, owner, repo, pr,
 	)
