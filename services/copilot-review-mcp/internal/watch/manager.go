@@ -15,6 +15,8 @@ import (
 )
 
 const defaultPollInterval = 90 * time.Second
+const defaultPollTimeout = 30 * time.Second
+const defaultMaxWatchDuration = 2 * time.Hour
 
 // Status is the lifecycle state of a background review watch.
 type Status string
@@ -75,28 +77,32 @@ type ReviewDataFetcher interface {
 
 // Options configures the watch manager.
 type Options struct {
-	PollInterval    time.Duration
-	Threshold       time.Duration
-	InvalidateToken func(string)
-	ClientFactory   func(ctx context.Context, token string) ReviewDataFetcher
-	Now             func() time.Time
+	PollInterval     time.Duration
+	PollTimeout      time.Duration
+	MaxWatchDuration time.Duration
+	Threshold        time.Duration
+	InvalidateToken  func(string)
+	ClientFactory    func(ctx context.Context, token string) ReviewDataFetcher
+	Now              func() time.Time
 }
 
 // Manager owns background review-watch workers for the current server process.
 type Manager struct {
-	db            *store.DB
-	threshold     time.Duration
-	pollInterval  time.Duration
-	clientFactory func(ctx context.Context, token string) ReviewDataFetcher
-	now           func() time.Time
-	ctx           context.Context
-	cancel        context.CancelFunc
-	idSeq         atomic.Uint64
-	mu            sync.RWMutex
-	watchesByID   map[string]*watchState
-	activeByKey   map[watchKey]string
-	latestByKey   map[watchKey]string
-	closed        bool
+	db               *store.DB
+	threshold        time.Duration
+	pollInterval     time.Duration
+	pollTimeout      time.Duration
+	maxWatchDuration time.Duration
+	clientFactory    func(ctx context.Context, token string) ReviewDataFetcher
+	now              func() time.Time
+	ctx              context.Context
+	cancel           context.CancelFunc
+	idSeq            atomic.Uint64
+	mu               sync.RWMutex
+	watchesByID      map[string]*watchState
+	activeByKey      map[watchKey]string
+	latestByKey      map[watchKey]string
+	closed           bool
 }
 
 type watchKey struct {
@@ -133,6 +139,14 @@ func NewManager(db *store.DB, opts Options) *Manager {
 	if pollInterval <= 0 {
 		pollInterval = defaultPollInterval
 	}
+	pollTimeout := opts.PollTimeout
+	if pollTimeout <= 0 {
+		pollTimeout = defaultPollTimeout
+	}
+	maxWatchDuration := opts.MaxWatchDuration
+	if maxWatchDuration <= 0 {
+		maxWatchDuration = defaultMaxWatchDuration
+	}
 	now := opts.Now
 	if now == nil {
 		now = time.Now
@@ -145,16 +159,18 @@ func NewManager(db *store.DB, opts Options) *Manager {
 		}
 	}
 	return &Manager{
-		db:            db,
-		threshold:     opts.Threshold,
-		pollInterval:  pollInterval,
-		clientFactory: clientFactory,
-		now:           now,
-		ctx:           ctx,
-		cancel:        cancel,
-		watchesByID:   make(map[string]*watchState),
-		activeByKey:   make(map[watchKey]string),
-		latestByKey:   make(map[watchKey]string),
+		db:               db,
+		threshold:        opts.Threshold,
+		pollInterval:     pollInterval,
+		pollTimeout:      pollTimeout,
+		maxWatchDuration: maxWatchDuration,
+		clientFactory:    clientFactory,
+		now:              now,
+		ctx:              ctx,
+		cancel:           cancel,
+		watchesByID:      make(map[string]*watchState),
+		activeByKey:      make(map[watchKey]string),
+		latestByKey:      make(map[watchKey]string),
 	}
 }
 
@@ -180,6 +196,9 @@ func (m *Manager) Close() {
 		w.updatedAt = now
 		w.completedAt = timePtr(now)
 		w.token = ""
+		w.clientMu.Lock()
+		w.client = nil
+		w.clientMu.Unlock()
 		errText := "watch manager closed before the watch could finish"
 		w.lastError = &errText
 		watches = append(watches, w)
@@ -313,16 +332,35 @@ func (m *Manager) pollOnce(watchID string) bool {
 	if w == nil {
 		return true
 	}
+	now := m.now().UTC()
+	if now.Sub(w.startedAt) >= m.maxWatchDuration {
+		m.finishStatus(w.id, now, StatusTimeout, nil, fmt.Sprintf("watch exceeded max duration of %s", m.maxWatchDuration))
+		return true
+	}
 
 	w.clientMu.RLock()
 	client := w.client
 	w.clientMu.RUnlock()
+	if client == nil {
+		m.finishFailure(w.id, now, FailureReasonInternal, "watch client is unavailable")
+		return true
+	}
 
-	data, err := client.GetReviewData(w.ctx, w.key.owner, w.key.repo, w.key.pr)
-	now := m.now().UTC()
+	callCtx, cancel := context.WithTimeout(w.ctx, m.pollTimeout)
+	defer cancel()
+
+	data, err := client.GetReviewData(callCtx, w.key.owner, w.key.repo, w.key.pr)
+	now = m.now().UTC()
 
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) && w.ctx.Err() != nil {
+			return true
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			if w.ctx.Err() != nil {
+				return true
+			}
+			m.finishFailure(w.id, now, FailureReasonGitHubError, fmt.Sprintf("github poll timed out after %s", m.pollTimeout))
 			return true
 		}
 		if IsRateLimitHTTPError(err) {
@@ -445,6 +483,9 @@ func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReas
 	w.updatedAt = now
 	w.completedAt = timePtr(now)
 	w.token = ""
+	w.clientMu.Lock()
+	w.client = nil
+	w.clientMu.Unlock()
 	if errText != "" {
 		w.lastError = &errText
 	}

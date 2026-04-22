@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -106,6 +107,12 @@ func TestManagerMarksCompletedAndClearsActiveKey(t *testing.T) {
 	if snapshot.ReviewStatus == nil || *snapshot.ReviewStatus != ghclient.StatusCompleted {
 		t.Fatalf("ReviewStatus = %v, want %q", snapshot.ReviewStatus, ghclient.StatusCompleted)
 	}
+	manager.mu.RLock()
+	client := manager.watchesByID[started.WatchID].client
+	manager.mu.RUnlock()
+	if client != nil {
+		t.Fatal("completed watch retained client, want nil")
+	}
 	if _, ok := manager.GetLatest("alice", "octo", "demo", 7); !ok {
 		t.Fatal("GetLatest() after completion = not found, want last terminal watch")
 	}
@@ -202,6 +209,78 @@ func TestManagerCloseMarksActiveWatchStale(t *testing.T) {
 	}
 }
 
+func TestManagerPollTimeoutFailsWatch(t *testing.T) {
+	db := openTestDB(t)
+	manager := NewManager(db, Options{
+		PollInterval: 5 * time.Millisecond,
+		PollTimeout:  10 * time.Millisecond,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return blockingFetcher{}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    200,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	snapshot := waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool {
+		return s.Terminal
+	})
+	if snapshot.WatchStatus != StatusFailed {
+		t.Fatalf("WatchStatus = %q, want %q", snapshot.WatchStatus, StatusFailed)
+	}
+	if snapshot.FailureReason == nil || *snapshot.FailureReason != FailureReasonGitHubError {
+		t.Fatalf("FailureReason = %v, want %q", snapshot.FailureReason, FailureReasonGitHubError)
+	}
+	if snapshot.LastError == nil || !strings.Contains(*snapshot.LastError, "timed out") {
+		t.Fatalf("LastError = %v, want timeout detail", snapshot.LastError)
+	}
+}
+
+func TestManagerMaxWatchDurationTransitionsToTimeout(t *testing.T) {
+	db := openTestDB(t)
+	manager := NewManager(db, Options{
+		PollInterval:     1 * time.Millisecond,
+		MaxWatchDuration: 1 * time.Millisecond,
+		Threshold:        30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    201,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	snapshot := waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool {
+		return s.Terminal
+	})
+	if snapshot.WatchStatus != StatusTimeout {
+		t.Fatalf("WatchStatus = %q, want %q", snapshot.WatchStatus, StatusTimeout)
+	}
+}
+
 func TestIsRateLimitHTTPError(t *testing.T) {
 	t.Run("matches typed rate limit errors", func(t *testing.T) {
 		if !IsRateLimitHTTPError(&github.RateLimitError{Rate: github.Rate{Remaining: 0}}) {
@@ -231,6 +310,8 @@ type fakeFetcher struct {
 	calls   int
 }
 
+type blockingFetcher struct{}
+
 func (f *fakeFetcher) GetReviewData(_ context.Context, _, _ string, _ int) (*ghclient.ReviewData, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -245,6 +326,11 @@ func (f *fakeFetcher) GetReviewData(_ context.Context, _, _ string, _ int) (*ghc
 	f.calls++
 	result := f.results[index]
 	return result.data, result.err
+}
+
+func (blockingFetcher) GetReviewData(ctx context.Context, _, _ string, _ int) (*ghclient.ReviewData, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
 }
 
 func waitForWatch(t *testing.T, manager *Manager, watchID string, done func(Snapshot) bool) Snapshot {
