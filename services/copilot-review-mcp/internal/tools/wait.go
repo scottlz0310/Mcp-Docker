@@ -31,8 +31,11 @@ type WaitOutput struct {
 
 // waitTool is the MCP tool definition for wait_for_copilot_review.
 var waitTool = &mcp.Tool{
-	Name:        "wait_for_copilot_review",
-	Description: "Copilot のレビューが COMPLETED または BLOCKED になるまで定期的にポーリングして待機する。タイムアウト時は TIMEOUT を返す。レート制限時は RATE_LIMITED を返す。コンテキストキャンセル時は CANCELLED を返す。",
+	Name: "wait_for_copilot_review",
+	Description: "Legacy fallback。" +
+		"Copilot のレビューが COMPLETED または BLOCKED になるまで、この tool call 自体を block しながら定期ポーリングする。" +
+		"通常は get_copilot_review_status と watch 系ツールを優先し、この tool は host が通知や cheap status read を扱いにくい場合だけ使う。" +
+		"タイムアウト時は TIMEOUT、レート制限時は RATE_LIMITED、コンテキストキャンセル時は CANCELLED を返す。",
 }
 
 // waitHandler handles a single wait_for_copilot_review call.

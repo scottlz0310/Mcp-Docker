@@ -120,6 +120,16 @@ type ReviewWatchEntry struct {
 	RateLimitResetAt *time.Time
 }
 
+// ReviewWatchFilter scopes a review_watch listing query.
+type ReviewWatchFilter struct {
+	GitHubLogin string
+	Owner       string
+	Repo        string
+	PR          int
+	ActiveOnly  bool
+	Limit       int
+}
+
 // Insert adds a new trigger_log entry and returns the assigned ID.
 func (d *DB) Insert(owner, repo string, pr int, trigger string) (int64, error) {
 	res, err := d.db.Exec(
@@ -251,6 +261,60 @@ func (d *DB) GetLatestReviewWatch(login, owner, repo string, pr int) (*ReviewWat
 		login, owner, repo, pr,
 	)
 	return scanReviewWatch(row)
+}
+
+// ListReviewWatches returns persisted review_watch snapshots for one GitHub login.
+func (d *DB) ListReviewWatches(filter ReviewWatchFilter) ([]ReviewWatchEntry, error) {
+	query := `SELECT id, github_login, owner, repo, pr, trigger_log_id, resource_uri,
+	                 watch_status, review_status, failure_reason, is_active,
+	                 started_at, updated_at, completed_at, stale_at, last_error, rate_limit_reset_at
+	            FROM review_watch
+	           WHERE github_login = ?`
+	args := []any{filter.GitHubLogin}
+
+	if filter.Owner != "" {
+		query += ` AND owner = ?`
+		args = append(args, filter.Owner)
+	}
+	if filter.Repo != "" {
+		query += ` AND repo = ?`
+		args = append(args, filter.Repo)
+	}
+	if filter.PR > 0 {
+		query += ` AND pr = ?`
+		args = append(args, filter.PR)
+	}
+	if filter.ActiveOnly {
+		query += ` AND is_active = 1`
+	}
+
+	query += ` ORDER BY is_active DESC, updated_at DESC, started_at DESC, rowid DESC`
+
+	if filter.Limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, filter.Limit)
+	}
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []ReviewWatchEntry
+	for rows.Next() {
+		entry, err := scanReviewWatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		if entry != nil {
+			entries = append(entries, *entry)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
 }
 
 // MarkActiveReviewWatchesStale deactivates any persisted active watches.

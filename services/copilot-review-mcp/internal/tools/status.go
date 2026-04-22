@@ -31,8 +31,10 @@ type GetStatusOutput struct {
 
 // statusTool is the MCP tool definition for get_copilot_review_status.
 var statusTool = &mcp.Tool{
-	Name:        "get_copilot_review_status",
-	Description: "Copilot が PR をレビューしているかどうかの現在のステータスを返す。ステータスは NOT_REQUESTED / PENDING / IN_PROGRESS / COMPLETED / BLOCKED のいずれか。",
+	Name: "get_copilot_review_status",
+	Description: "GitHub 上の Copilot review 状態を即時 snapshot として返す。" +
+		"推奨経路では、まずこの tool で現状確認し、未完了なら start_copilot_review_watch を開始する。" +
+		"ステータスは NOT_REQUESTED / PENDING / IN_PROGRESS / COMPLETED / BLOCKED のいずれか。",
 }
 
 // statusHandler handles a single get_copilot_review_status call.

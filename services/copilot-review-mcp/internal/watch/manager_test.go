@@ -544,6 +544,133 @@ func TestManagerGetLatestFallsBackToPersistedWatch(t *testing.T) {
 	}
 }
 
+func TestManagerListReturnsActiveFirstAndIncludesPersistedWatch(t *testing.T) {
+	db := openTestDB(t)
+	base := time.Now().UTC().Truncate(time.Second)
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		Now: func() time.Time {
+			return base
+		},
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    70,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	persisted := store.ReviewWatchEntry{
+		ID:          "cw_persisted_terminal",
+		GitHubLogin: "alice",
+		Owner:       "octo",
+		Repo:        "demo",
+		PR:          71,
+		WatchStatus: "COMPLETED",
+		IsActive:    false,
+		StartedAt:   base.Add(-2 * time.Hour),
+		UpdatedAt:   base.Add(-time.Minute),
+	}
+	if err := db.UpsertReviewWatch(persisted); err != nil {
+		t.Fatalf("UpsertReviewWatch() error = %v", err)
+	}
+
+	snapshots, err := manager.List("alice", ListOptions{Owner: "octo", Repo: "demo", Limit: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(snapshots) != 2 {
+		t.Fatalf("len(List()) = %d, want 2", len(snapshots))
+	}
+	if snapshots[0].WatchID != started.WatchID {
+		t.Fatalf("snapshots[0].WatchID = %q, want active watch %q first", snapshots[0].WatchID, started.WatchID)
+	}
+	if snapshots[1].WatchID != persisted.ID {
+		t.Fatalf("snapshots[1].WatchID = %q, want persisted watch %q", snapshots[1].WatchID, persisted.ID)
+	}
+	if snapshots[0].ResourceURI == nil || *snapshots[0].ResourceURI == "" {
+		t.Fatalf("active snapshot ResourceURI = %v, want populated resource URI", snapshots[0].ResourceURI)
+	}
+}
+
+func TestManagerCancelLatestMarksWatchCancelled(t *testing.T) {
+	db := openTestDB(t)
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    72,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	result, err := manager.CancelLatest("alice", "octo", "demo", 72)
+	if err != nil {
+		t.Fatalf("CancelLatest() error = %v", err)
+	}
+	if !result.Found {
+		t.Fatal("CancelLatest().Found = false, want true")
+	}
+	if !result.Cancelled {
+		t.Fatal("CancelLatest().Cancelled = false, want true")
+	}
+	if result.Snapshot.WatchStatus != StatusCancelled {
+		t.Fatalf("CancelLatest().WatchStatus = %q, want %q", result.Snapshot.WatchStatus, StatusCancelled)
+	}
+	if !result.Snapshot.Terminal {
+		t.Fatal("CancelLatest().Terminal = false, want true")
+	}
+	if result.Snapshot.WorkerRunning {
+		t.Fatal("CancelLatest().WorkerRunning = true, want false")
+	}
+	if result.Snapshot.LastError == nil || !strings.Contains(*result.Snapshot.LastError, "cancelled manually") {
+		t.Fatalf("CancelLatest().LastError = %v, want cancellation detail", result.Snapshot.LastError)
+	}
+
+	persisted, err := db.GetReviewWatchByID(started.WatchID)
+	if err != nil {
+		t.Fatalf("GetReviewWatchByID() error = %v", err)
+	}
+	if persisted == nil {
+		t.Fatal("GetReviewWatchByID() = nil, want row")
+	}
+	if persisted.WatchStatus != string(StatusCancelled) {
+		t.Fatalf("persisted WatchStatus = %q, want %q", persisted.WatchStatus, StatusCancelled)
+	}
+	if persisted.IsActive {
+		t.Fatal("persisted IsActive = true, want false")
+	}
+}
+
 func TestManagerPollTimeoutFailsWatch(t *testing.T) {
 	db := openTestDB(t)
 	manager := NewManager(db, Options{

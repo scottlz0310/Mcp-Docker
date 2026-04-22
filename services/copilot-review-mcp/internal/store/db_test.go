@@ -214,6 +214,98 @@ func TestGetLatestReviewWatchIgnoresLexicographicIDTies(t *testing.T) {
 	}
 }
 
+func TestListReviewWatchesOrdersActiveThenRecentAndFilters(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "review-watch-list.db"))
+
+	base := time.Now().UTC().Truncate(time.Second)
+	entries := []ReviewWatchEntry{
+		{
+			ID:          "cw_terminal_recent",
+			GitHubLogin: "alice",
+			Owner:       "octo",
+			Repo:        "demo",
+			PR:          11,
+			WatchStatus: "COMPLETED",
+			IsActive:    false,
+			StartedAt:   base,
+			UpdatedAt:   base.Add(4 * time.Minute),
+		},
+		{
+			ID:          "cw_active",
+			GitHubLogin: "alice",
+			Owner:       "octo",
+			Repo:        "demo",
+			PR:          10,
+			WatchStatus: "WATCHING",
+			IsActive:    true,
+			StartedAt:   base.Add(time.Minute),
+			UpdatedAt:   base.Add(3 * time.Minute),
+		},
+		{
+			ID:          "cw_terminal_old",
+			GitHubLogin: "alice",
+			Owner:       "octo",
+			Repo:        "demo",
+			PR:          12,
+			WatchStatus: "FAILED",
+			IsActive:    false,
+			StartedAt:   base.Add(2 * time.Minute),
+			UpdatedAt:   base.Add(2 * time.Minute),
+		},
+		{
+			ID:          "cw_other_user",
+			GitHubLogin: "bob",
+			Owner:       "octo",
+			Repo:        "demo",
+			PR:          13,
+			WatchStatus: "WATCHING",
+			IsActive:    true,
+			StartedAt:   base,
+			UpdatedAt:   base.Add(5 * time.Minute),
+		},
+	}
+	for _, entry := range entries {
+		if err := db.UpsertReviewWatch(entry); err != nil {
+			t.Fatalf("UpsertReviewWatch(%q) error = %v", entry.ID, err)
+		}
+	}
+
+	got, err := db.ListReviewWatches(ReviewWatchFilter{
+		GitHubLogin: "alice",
+		Owner:       "octo",
+		Repo:        "demo",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListReviewWatches() error = %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("len(ListReviewWatches()) = %d, want 3", len(got))
+	}
+	if got[0].ID != "cw_active" {
+		t.Fatalf("got[0].ID = %q, want active watch first", got[0].ID)
+	}
+	if got[1].ID != "cw_terminal_recent" {
+		t.Fatalf("got[1].ID = %q, want newest terminal watch second", got[1].ID)
+	}
+	if got[2].ID != "cw_terminal_old" {
+		t.Fatalf("got[2].ID = %q, want oldest terminal watch last", got[2].ID)
+	}
+
+	activeOnly, err := db.ListReviewWatches(ReviewWatchFilter{
+		GitHubLogin: "alice",
+		Owner:       "octo",
+		Repo:        "demo",
+		ActiveOnly:  true,
+	})
+	if err != nil {
+		t.Fatalf("ListReviewWatches(active_only) error = %v", err)
+	}
+	if len(activeOnly) != 1 || activeOnly[0].ID != "cw_active" {
+		t.Fatalf("active_only result = %+v, want only cw_active", activeOnly)
+	}
+}
+
 func TestOpenMarksActiveReviewWatchesStale(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "review-watch-open.db")
 	db := openTestDB(t, path)
