@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -60,6 +61,7 @@ func main() {
 	// MCP endpoints (auth required) — Streamable HTTP transport (stateless, per-request server)
 	threshold := time.Duration(cfg.inProgressThresholdSec) * time.Second
 	mcpHandler := tools.BuildStreamableHandler(db, threshold, oauthHandler)
+	defer mcpHandler.Close()
 	mux.Handle("/mcp", authMiddleware(mcpHandler))
 	mux.Handle("/mcp/", authMiddleware(mcpHandler))
 
@@ -75,7 +77,9 @@ func main() {
 		WriteTimeout:      0,
 		IdleTimeout:       120 * time.Second,
 	}
-	if err := server.ListenAndServe(); err != nil {
+	server.RegisterOnShutdown(mcpHandler.Close)
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		mcpHandler.Close()
 		slog.Error("server error", "err", err)
 		os.Exit(1)
 	}

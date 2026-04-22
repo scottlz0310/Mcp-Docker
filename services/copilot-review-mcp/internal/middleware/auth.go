@@ -79,3 +79,9 @@ func TokenFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(ContextKeyToken).(string)
 	return v
 }
+
+// LoginFromContext retrieves the GitHub login injected by Auth middleware.
+func LoginFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(ContextKeyLogin).(string)
+	return v
+}

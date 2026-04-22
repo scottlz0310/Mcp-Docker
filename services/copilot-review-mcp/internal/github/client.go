@@ -3,6 +3,7 @@ package ghclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -168,6 +169,11 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 // DeriveStatus resolves the ReviewStatus from raw data and optional trigger_log requestedAt.
 // requestedAt is nil when no trigger_log entry exists (AUTO trigger or not yet recorded).
 func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewStatus {
+	return DeriveStatusWithThreshold(c.threshold, data, requestedAt)
+}
+
+// DeriveStatusWithThreshold resolves the ReviewStatus from raw data and an elapsed threshold.
+func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, requestedAt *time.Time) ReviewStatus {
 	if data.LatestCopilotReview != nil {
 		// When requestedAt is known, only treat this review as relevant if it was submitted
 		// at or after the request time. This prevents a stale pre-existing review from being
@@ -190,7 +196,7 @@ func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewSt
 	if data.IsCopilotInReviewers {
 		if requestedAt != nil {
 			elapsed := time.Since(*requestedAt)
-			if elapsed >= c.threshold {
+			if elapsed >= threshold {
 				return StatusInProgress
 			}
 			return StatusPending
@@ -199,6 +205,12 @@ func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewSt
 		return StatusInProgress
 	}
 	return StatusNotRequested
+}
+
+// IsAuthError reports whether err is a GitHub authentication failure.
+func IsAuthError(err error) bool {
+	var ghErr *github.ErrorResponse
+	return errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusUnauthorized
 }
 
 // prNodeIDQuery fetches the GraphQL node ID for a pull request.
@@ -221,11 +233,11 @@ type requestReviewsByLoginMutation struct {
 // requestReviewsByLoginInput is the input type for requestReviewsByLoginMutation.
 // Field names must be PascalCase so shurcooL/githubv4 serialises them correctly.
 type requestReviewsByLoginInput struct {
-	PullRequestID githubv4.ID        `json:"pullRequestId"`
-	BotLogins     []githubv4.String  `json:"botLogins"`
-	UserLogins    []githubv4.String  `json:"userLogins"`
-	TeamSlugs     []githubv4.String  `json:"teamSlugs"`
-	Union         githubv4.Boolean   `json:"union"`
+	PullRequestID githubv4.ID       `json:"pullRequestId"`
+	BotLogins     []githubv4.String `json:"botLogins"`
+	UserLogins    []githubv4.String `json:"userLogins"`
+	TeamSlugs     []githubv4.String `json:"teamSlugs"`
+	Union         githubv4.Boolean  `json:"union"`
 }
 
 // buildCopilotReviewInput constructs the mutation input for adding Copilot as a reviewer.
