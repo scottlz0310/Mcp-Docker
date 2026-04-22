@@ -40,11 +40,15 @@ CREATE TABLE IF NOT EXISTS review_watch (
     last_error          TEXT,
     rate_limit_reset_at INTEGER
 );
-CREATE INDEX IF NOT EXISTS idx_review_watch_lookup
-    ON review_watch(github_login, owner, repo, pr, updated_at DESC, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_review_watch_active_per_pr
     ON review_watch(github_login, owner, repo, pr)
     WHERE is_active = 1;
+`
+
+const reviewWatchLookupIndexSQL = `
+DROP INDEX IF EXISTS idx_review_watch_lookup;
+CREATE INDEX idx_review_watch_lookup
+    ON review_watch(github_login, owner, repo, pr, updated_at DESC, started_at DESC);
 `
 
 const staleOnOpenMessage = "watch became stale because the copilot-review-mcp process restarted"
@@ -69,6 +73,10 @@ func Open(path string) (*DB, error) {
 		return nil, err
 	}
 	if _, err := db.Exec(schema); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if _, err := db.Exec(reviewWatchLookupIndexSQL); err != nil {
 		db.Close()
 		return nil, err
 	}

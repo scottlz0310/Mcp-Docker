@@ -263,12 +263,14 @@ func (m *Manager) Start(in StartInput) (Snapshot, bool, error) {
 		if existing := m.watchesByID[id]; existing != nil && !existing.terminal {
 			tokenChanged := existing.token != in.Token
 			triggerLinked := existing.triggerLogID == nil && triggerLogID != nil
+			if tokenChanged || triggerLinked {
+				existing.updatedAt = m.now().UTC()
+			}
 			if tokenChanged {
 				existing.token = in.Token
 				existing.clientMu.Lock()
 				existing.client = m.clientFactory(existing.ctx, in.Token)
 				existing.clientMu.Unlock()
-				existing.updatedAt = m.now().UTC()
 			}
 			if triggerLinked {
 				existing.triggerLogID = cloneInt64Ptr(triggerLogID)
@@ -327,7 +329,11 @@ func (m *Manager) GetByID(watchID string) (Snapshot, bool) {
 		return Snapshot{}, false
 	}
 	entry, err := m.db.GetReviewWatchByID(watchID)
-	if err != nil || entry == nil {
+	if err != nil {
+		slog.Warn("failed to load persisted review_watch by id", "watch_id", watchID, "err", err)
+		return Snapshot{}, false
+	}
+	if entry == nil {
 		return Snapshot{}, false
 	}
 	return snapshotFromReviewWatchEntry(entry), true
@@ -352,7 +358,18 @@ func (m *Manager) GetLatest(login, owner, repo string, pr int) (Snapshot, bool) 
 		return Snapshot{}, false
 	}
 	entry, err := m.db.GetLatestReviewWatch(login, owner, repo, pr)
-	if err != nil || entry == nil {
+	if err != nil {
+		slog.Warn(
+			"failed to load latest persisted review_watch",
+			"login", login,
+			"owner", owner,
+			"repo", repo,
+			"pr", pr,
+			"err", err,
+		)
+		return Snapshot{}, false
+	}
+	if entry == nil {
 		return Snapshot{}, false
 	}
 	return snapshotFromReviewWatchEntry(entry), true

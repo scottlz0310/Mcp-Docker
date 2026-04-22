@@ -105,6 +105,90 @@ func TestManagerStartPersistsActiveWatch(t *testing.T) {
 	}
 }
 
+func TestManagerReuseWithTriggerLinkUpdatesTimestamp(t *testing.T) {
+	db := openTestDB(t)
+	base := time.Now().UTC().Truncate(time.Second)
+	nowValues := []time.Time{
+		base,
+		base.Add(2 * time.Minute),
+	}
+	var nowMu sync.Mutex
+	nowIndex := 0
+	nowFn := func() time.Time {
+		nowMu.Lock()
+		defer nowMu.Unlock()
+		if nowIndex >= len(nowValues) {
+			return nowValues[len(nowValues)-1]
+		}
+		value := nowValues[nowIndex]
+		nowIndex++
+		return value
+	}
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		Now:          nowFn,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, reused, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    43,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if reused {
+		t.Fatalf("Start() reused = %v, want false", reused)
+	}
+
+	triggerLogID, err := db.Insert("octo", "demo", 43, "MANUAL")
+	if err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	reusedSnapshot, reused, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    43,
+	})
+	if err != nil {
+		t.Fatalf("Start() reuse error = %v", err)
+	}
+	if !reused {
+		t.Fatalf("Start() reused = %v, want true", reused)
+	}
+	if reusedSnapshot.WatchID != started.WatchID {
+		t.Fatalf("WatchID = %q, want %q", reusedSnapshot.WatchID, started.WatchID)
+	}
+
+	persisted, err := db.GetReviewWatchByID(started.WatchID)
+	if err != nil {
+		t.Fatalf("GetReviewWatchByID() error = %v", err)
+	}
+	if persisted == nil {
+		t.Fatal("GetReviewWatchByID() = nil, want persisted watch")
+	}
+	if persisted.TriggerLogID == nil || *persisted.TriggerLogID != triggerLogID {
+		t.Fatalf("TriggerLogID = %v, want %d", persisted.TriggerLogID, triggerLogID)
+	}
+	if !persisted.UpdatedAt.Equal(base.Add(2 * time.Minute)) {
+		t.Fatalf("UpdatedAt = %v, want %v", persisted.UpdatedAt, base.Add(2*time.Minute))
+	}
+}
+
 func TestManagerMarksCompletedAndClearsActiveKey(t *testing.T) {
 	db := openTestDB(t)
 	if _, err := db.Insert("octo", "demo", 7, "MANUAL"); err != nil {

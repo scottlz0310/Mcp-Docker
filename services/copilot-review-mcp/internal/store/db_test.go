@@ -192,6 +192,26 @@ func TestOpenMarksActiveReviewWatchesStale(t *testing.T) {
 	}
 }
 
+func TestOpenRebuildsReviewWatchLookupIndex(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "review-watch-index.db"))
+
+	var sqlText string
+	err := db.db.QueryRow(
+		`SELECT sql
+		   FROM sqlite_master
+		  WHERE type = 'index' AND name = 'idx_review_watch_lookup'`,
+	).Scan(&sqlText)
+	if err != nil {
+		t.Fatalf("index lookup error = %v", err)
+	}
+	if !strings.Contains(sqlText, "updated_at DESC, started_at DESC") {
+		t.Fatalf("index SQL = %q, want updated_at/started_at ordering", sqlText)
+	}
+	if strings.Contains(sqlText, "id DESC") {
+		t.Fatalf("index SQL = %q, want id ordering removed", sqlText)
+	}
+}
+
 func openTestDB(t *testing.T, path string) *DB {
 	t.Helper()
 
