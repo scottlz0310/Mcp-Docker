@@ -10,6 +10,7 @@ import (
 	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
 	"github.com/scottlz0310/copilot-review-mcp/internal/middleware"
 	"github.com/scottlz0310/copilot-review-mcp/internal/store"
+	"github.com/scottlz0310/copilot-review-mcp/internal/watch"
 )
 
 var schemaCache = mcp.NewSchemaCache()
@@ -25,14 +26,19 @@ type TokenInvalidator interface {
 // bound to the caller's GitHub access token.
 // inv is called to invalidate the cached token when GitHub returns HTTP 401.
 func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInvalidator) http.Handler {
+	var invalidate func(string)
+	if inv != nil {
+		invalidate = inv.InvalidateCachedToken
+	}
+	watchManager := watch.NewManager(db, watch.Options{
+		Threshold:       threshold,
+		InvalidateToken: invalidate,
+	})
+
 	getServer := func(r *http.Request) *mcp.Server {
 		token := middleware.TokenFromContext(r.Context())
 		if token == "" {
 			return nil
-		}
-		var invalidate func(string)
-		if inv != nil {
-			invalidate = inv.InvalidateCachedToken
 		}
 		gh := ghclient.NewClient(r.Context(), token, threshold, invalidate)
 		srv := mcp.NewServer(
@@ -40,6 +46,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 			&mcp.ServerOptions{SchemaCache: schemaCache},
 		)
 		RegisterStatusTool(srv, gh, db)
+		RegisterWatchTools(srv, watchManager)
 		RegisterWaitTool(srv, gh, db)
 		RegisterRequestTool(srv, gh, db)
 		RegisterThreadTools(srv, gh)
