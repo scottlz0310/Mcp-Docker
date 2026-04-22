@@ -10,7 +10,9 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_MCP_SERVER_REF: ${{ vars.GITHUB_MCP_SERVER_REF || 'main' }}
+  # Pin to a known-compatible upstream commit until the patch set is updated
+  # for newer github-mcp-server/go-sdk changes.
+  GITHUB_MCP_SERVER_REF: ${{ vars.GITHUB_MCP_SERVER_REF || 'a24c0be254cd72f80aa76b2a90395f2ce155dd94' }}
   GITHUB_MCP_GO_SDK_VERSION: ${{ vars.GITHUB_MCP_GO_SDK_VERSION || 'v1.3.1' }}
   SECURITY_SCAN_IMAGE: github-mcp-server:security-scan
 

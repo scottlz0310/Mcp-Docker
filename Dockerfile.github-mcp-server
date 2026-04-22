@@ -18,7 +18,9 @@ RUN apt-get update && \
 FROM golang:1.26-bookworm AS builder
 
 ARG GITHUB_MCP_SERVER_REPO=https://github.com/github/github-mcp-server.git
-ARG GITHUB_MCP_SERVER_REF=main
+# Pin to a known-compatible upstream commit until the patch set is updated
+# for newer github-mcp-server/go-sdk changes.
+ARG GITHUB_MCP_SERVER_REF=a24c0be254cd72f80aa76b2a90395f2ce155dd94
 ARG GO_SDK_VERSION=v1.3.1
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
