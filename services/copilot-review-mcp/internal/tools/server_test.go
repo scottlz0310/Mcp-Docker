@@ -135,6 +135,19 @@ func TestTokenFromToolRequestPrefersCurrentAuthorizationHeader(t *testing.T) {
 	}
 }
 
+func TestStreamableHandlerPrunesStaleSessionLogins(t *testing.T) {
+	db := openServerTestDB(t)
+	handler := BuildStreamableHandler(db, 30*time.Second, nil)
+	t.Cleanup(handler.Close)
+
+	handler.rememberSession("stale-session", "alice")
+	handler.pruneSessionLogins()
+
+	if got := handlerSessionLoginCount(handler); got != 0 {
+		t.Fatalf("session login count = %d, want stale session pruned", got)
+	}
+}
+
 func openServerTestDB(t *testing.T) *store.DB {
 	t.Helper()
 

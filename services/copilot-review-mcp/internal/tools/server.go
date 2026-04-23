@@ -17,6 +17,7 @@ var schemaCache = mcp.NewSchemaCache()
 
 const (
 	defaultStreamableSessionTimeout = 30 * time.Minute
+	defaultSessionPruneInterval     = 5 * time.Minute
 	mcpSessionIDHeader              = "Mcp-Session-Id"
 )
 
@@ -35,6 +36,8 @@ type StreamableHandler struct {
 	mu sync.Mutex
 
 	sessionLogins map[string]string
+	stopPruner    chan struct{}
+	closeOnce     sync.Once
 }
 
 // ServeHTTP proxies requests to the underlying MCP streamable handler.
@@ -46,20 +49,15 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw := &statusCaptureResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-	h.handler.ServeHTTP(rw, r)
+	h.handler.ServeHTTP(w, r)
 
-	if responseSessionID := rw.Header().Get(mcpSessionIDHeader); responseSessionID != "" &&
-		login != "" &&
-		rw.statusCode < http.StatusBadRequest {
+	if responseSessionID := w.Header().Get(mcpSessionIDHeader); responseSessionID != "" && login != "" {
 		h.rememberSession(responseSessionID, login)
 	}
-	if r.Method == http.MethodDelete &&
-		sessionID != "" &&
-		rw.statusCode >= http.StatusOK &&
-		rw.statusCode < http.StatusMultipleChoices {
+	if r.Method == http.MethodDelete && sessionID != "" {
 		h.forgetSession(sessionID)
 	}
+	h.pruneSessionLogins()
 }
 
 // Close stops background review watches owned by this handler.
@@ -68,19 +66,23 @@ func (h *StreamableHandler) Close() {
 		return
 	}
 
-	h.mu.Lock()
-	server := h.server
-	h.sessionLogins = make(map[string]string)
-	h.mu.Unlock()
+	h.closeOnce.Do(func() {
+		close(h.stopPruner)
 
-	if server != nil {
-		for session := range server.Sessions() {
-			session.Close()
+		h.mu.Lock()
+		server := h.server
+		h.sessionLogins = make(map[string]string)
+		h.mu.Unlock()
+
+		if server != nil {
+			for session := range server.Sessions() {
+				session.Close()
+			}
 		}
-	}
-	if h.watchManager != nil {
-		h.watchManager.Close()
-	}
+		if h.watchManager != nil {
+			h.watchManager.Close()
+		}
+	})
 }
 
 // BuildStreamableHandler returns a handler that serves MCP over Streamable HTTP.
@@ -114,6 +116,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 		watchManager:  watchManager,
 		server:        srv,
 		sessionLogins: make(map[string]string),
+		stopPruner:    make(chan struct{}),
 	}
 
 	getServer := func(r *http.Request) *mcp.Server {
@@ -129,6 +132,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 		// Enable when the server runs behind a reverse proxy or inside a Docker network.
 		DisableLocalhostProtection: os.Getenv("MCP_DISABLE_LOCALHOST_PROTECTION") == "true",
 	})
+	go streamableHandler.pruneSessionLoginsLoop(defaultSessionPruneInterval)
 	return streamableHandler
 }
 
@@ -152,23 +156,41 @@ func (h *StreamableHandler) authorizeSession(sessionID, login string) bool {
 	return !ok || expected == login
 }
 
-type statusCaptureResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (w *statusCaptureResponseWriter) WriteHeader(statusCode int) {
-	w.statusCode = statusCode
-	w.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (w *statusCaptureResponseWriter) Write(p []byte) (int, error) {
-	if w.statusCode == 0 {
-		w.WriteHeader(http.StatusOK)
+func (h *StreamableHandler) pruneSessionLoginsLoop(interval time.Duration) {
+	if interval <= 0 {
+		interval = defaultSessionPruneInterval
 	}
-	return w.ResponseWriter.Write(p)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			h.pruneSessionLogins()
+		case <-h.stopPruner:
+			return
+		}
+	}
 }
 
-func (w *statusCaptureResponseWriter) Unwrap() http.ResponseWriter {
-	return w.ResponseWriter
+func (h *StreamableHandler) pruneSessionLogins() {
+	server := h.server
+	if server == nil {
+		return
+	}
+
+	active := make(map[string]struct{})
+	for session := range server.Sessions() {
+		if id := session.ID(); id != "" {
+			active[id] = struct{}{}
+		}
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for sessionID := range h.sessionLogins {
+		if _, ok := active[sessionID]; !ok {
+			delete(h.sessionLogins, sessionID)
+		}
+	}
 }
