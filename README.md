@@ -185,6 +185,36 @@ curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-aut
 
 詳細は [docs/copilot-review-watch-tools.md](docs/copilot-review-watch-tools.md) を参照してください。
 
+### スキルテンプレートとの一体運用（推奨）
+
+`copilot-review-mcp` は単体でも使えますが、`docs/skills/pr-review-cycle.md` のスキルテンプレートと組み合わせることで、Copilot レビュー依頼から完了待機・スレッド対応・サマリ投稿までを AI エージェントに一括して自律実行させられます。
+
+**自動化できるサイクル:**
+
+```
+Copilot レビュー依頼
+  → async watch で完了待機（notifications/resources/updated 通知対応）
+  → スレッド取得・分類・採否判断
+  → 修正・コミット
+  → 全スレッドへ返信 & resolve
+  → サイクル評価（再レビュー要否判定）
+  → PR サマリコメント投稿
+  → マージ判断はユーザーに委ねる
+```
+
+**セットアップ:**
+
+```bash
+# スキルテンプレートを AI エージェントのスキルディレクトリへコピー
+cp docs/skills/pr-review-cycle.md ~/.claude/skills/
+```
+
+コピー後、IDE のツール名プレフィックス（`{CRM}` / `{GH}`）をお使いの環境に合わせて書き換えてください（詳細はテンプレート内の「プレースホルダーの読み替え」を参照）。
+
+**使い方:**
+
+PR 作成直後または `request_copilot_review` ツール呼び出し直後に `/pr-review-cycle` スキルを起動するだけです。
+
 ## HTTPエンドポイント
 
 - 既定でホストに公開されるURL（OAuthプロキシ経由）: `http://127.0.0.1:8084`
