@@ -497,6 +497,11 @@ func (m *Manager) CancelByID(login, watchID string) (CancelResult, error) {
 			return CancelResult{Snapshot: snapshot, Found: true}, nil
 		}
 		now := m.now().UTC()
+		// Mark the associated trigger_log entry as completed so HasPending returns
+		// false after cancellation, allowing a new review request to be issued.
+		if m.db != nil && state.triggerLogID != nil {
+			_ = m.db.UpdateCompletedAt(*state.triggerLogID)
+		}
 		m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 		snapshot := snapshotFromState(state)
 		m.mu.Unlock()
@@ -537,6 +542,11 @@ func (m *Manager) CancelLatest(login, owner, repo string, pr int) (CancelResult,
 				return CancelResult{Snapshot: snapshot, Found: true}, nil
 			}
 			now := m.now().UTC()
+			// Mark the associated trigger_log entry as completed so HasPending returns
+			// false after cancellation, allowing a new review request to be issued.
+			if m.db != nil && state.triggerLogID != nil {
+				_ = m.db.UpdateCompletedAt(*state.triggerLogID)
+			}
 			m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 			snapshot := snapshotFromState(state)
 			m.mu.Unlock()

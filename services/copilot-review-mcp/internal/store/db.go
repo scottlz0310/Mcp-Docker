@@ -142,6 +142,20 @@ func (d *DB) Insert(owner, repo string, pr int, trigger string) (int64, error) {
 	return res.LastInsertId()
 }
 
+// InsertWithTime adds a new trigger_log entry with an explicit requested_at timestamp
+// and returns the assigned ID. Use this when the logical request time differs from
+// wall-clock now (e.g. to back-date past an existing Copilot review submission).
+func (d *DB) InsertWithTime(owner, repo string, pr int, trigger string, requestedAt time.Time) (int64, error) {
+	res, err := d.db.Exec(
+		`INSERT INTO trigger_log (owner, repo, pr, trigger, requested_at) VALUES (?, ?, ?, ?, ?)`,
+		owner, repo, pr, trigger, requestedAt.UTC().Unix(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
 // GetLatest returns the most recent trigger_log entry for the given PR,
 // or nil if none exists.
 func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {

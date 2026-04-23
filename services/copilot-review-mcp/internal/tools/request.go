@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -79,8 +80,26 @@ func requestHandler(
 
 		// Record the MANUAL trigger. This must succeed so future HasPending
 		// checks can prevent duplicate review requests.
-		if _, err := db.Insert(in.Owner, in.Repo, in.PR, "MANUAL"); err != nil {
-			return nil, RequestOutput{}, fmt.Errorf("copilot review requested successfully, but failed to record MANUAL trigger: %w", err)
+		//
+		// If a Copilot review was already submitted before this call (e.g. due to
+		// GitHub REST API propagation delay causing get_copilot_review_status to
+		// return NOT_REQUESTED for a completed review), set requested_at to just
+		// before the review's SubmittedAt. This prevents the stale-guard in
+		// DeriveStatusWithThreshold from treating the existing review as stale
+		// (relevant = !SubmittedAt.Before(requestedAt) would otherwise be false).
+		var insertErr error
+		if data.LatestCopilotReview != nil {
+			sat := data.LatestCopilotReview.GetSubmittedAt().Time
+			if !sat.IsZero() {
+				_, insertErr = db.InsertWithTime(in.Owner, in.Repo, in.PR, "MANUAL", sat.Add(-time.Nanosecond))
+			} else {
+				_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+			}
+		} else {
+			_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+		}
+		if insertErr != nil {
+			return nil, RequestOutput{}, fmt.Errorf("copilot review requested successfully, but failed to record MANUAL trigger: %w", insertErr)
 		}
 
 		return nil, RequestOutput{
