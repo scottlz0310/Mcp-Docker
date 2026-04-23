@@ -295,7 +295,85 @@ func TestDeriveStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := c.DeriveStatus(tt.data, tt.requestedAt)
+			got := c.DeriveStatus(tt.data, tt.requestedAt, nil)
+			if got != tt.want {
+				t.Errorf("DeriveStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestDeriveStatusIDBasedStaleness verifies the ID-based staleness detection path:
+// when prevReviewID is non-nil, DeriveStatus compares review IDs instead of timestamps.
+func TestDeriveStatusIDBasedStaleness(t *testing.T) {
+	c := &Client{threshold: 30 * time.Second}
+
+	now := time.Now()
+	recentRequest := now.Add(-time.Second) // within threshold
+
+	// Helper to build a review with a specific ID and state.
+	newReviewWithID := func(id int64, state string) *github.PullRequestReview {
+		return &github.PullRequestReview{
+			ID:    github.Ptr(id),
+			State: github.Ptr(state),
+		}
+	}
+
+	oldID := "42"
+
+	tests := []struct {
+		name         string
+		data         *ReviewData
+		requestedAt  *time.Time
+		prevReviewID *string
+		want         ReviewStatus
+	}{
+		{
+			// Same ID as prevReviewID → old review is stale → NOT_REQUESTED.
+			name:         "same ID as prevReviewID, no reviewers → NOT_REQUESTED (stale)",
+			data:         &ReviewData{LatestCopilotReview: newReviewWithID(42, "APPROVED")},
+			requestedAt:  &recentRequest,
+			prevReviewID: &oldID,
+			want:         StatusNotRequested,
+		},
+		{
+			// Same ID but Copilot is in reviewers (pending new review) → PENDING.
+			name:         "same ID as prevReviewID, copilot in reviewers, within threshold → PENDING",
+			data:         &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReviewWithID(42, "APPROVED")},
+			requestedAt:  &recentRequest,
+			prevReviewID: &oldID,
+			want:         StatusPending,
+		},
+		{
+			// Different ID → new review → COMPLETED.
+			name:         "different ID from prevReviewID → COMPLETED",
+			data:         &ReviewData{LatestCopilotReview: newReviewWithID(99, "APPROVED")},
+			requestedAt:  &recentRequest,
+			prevReviewID: &oldID,
+			want:         StatusCompleted,
+		},
+		{
+			// Different ID, CHANGES_REQUESTED → BLOCKED.
+			name:         "different ID, CHANGES_REQUESTED → BLOCKED",
+			data:         &ReviewData{LatestCopilotReview: newReviewWithID(99, "CHANGES_REQUESTED")},
+			requestedAt:  &recentRequest,
+			prevReviewID: &oldID,
+			want:         StatusBlocked,
+		},
+		{
+			// nil prevReviewID with requestedAt → timestamp-based fallback (backward compat).
+			// newReviewWithID does not set SubmittedAt, so sat.IsZero() == true → stale → NOT_REQUESTED.
+			name:         "nil prevReviewID, no SubmittedAt → timestamp fallback → NOT_REQUESTED (stale)",
+			data:         &ReviewData{LatestCopilotReview: newReviewWithID(99, "APPROVED")},
+			requestedAt:  &now,
+			prevReviewID: nil,
+			want:         StatusNotRequested,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := c.DeriveStatus(tt.data, tt.requestedAt, tt.prevReviewID)
 			if got != tt.want {
 				t.Errorf("DeriveStatus() = %q, want %q", got, tt.want)
 			}

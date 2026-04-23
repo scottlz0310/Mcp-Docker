@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -79,8 +80,45 @@ func requestHandler(
 
 		// Record the MANUAL trigger. This must succeed so future HasPending
 		// checks can prevent duplicate review requests.
-		if _, err := db.Insert(in.Owner, in.Repo, in.PR, "MANUAL"); err != nil {
-			return nil, RequestOutput{}, fmt.Errorf("copilot review requested successfully, but failed to record MANUAL trigger: %w", err)
+		//
+		// Bug B fix: If a Copilot review already exists, set requested_at to
+		// sat+1s (one second after the existing review's SubmittedAt) and record
+		// the existing review's ID as prev_review_id so that:
+		//   • the existing review (same ID) is NOT immediately relevant
+		//     (ID-based check: currentID == prevReviewID → stale)
+		//   • any new review Copilot posts (different ID) WILL be relevant
+		//     (ID-based check: currentID != prevReviewID → COMPLETED)
+		// The +1s offset is kept as a timestamp-based fallback for entries
+		// that pre-date this feature (prevReviewID == nil).
+		//
+		// Guard: only use InsertWithPrevReviewID when the candidate (sat+1s) is
+		// newer than every prior trigger_log entry; otherwise fall back to
+		// Insert(now()) so that GetLatest() continues to return the most-recent row.
+		var insertErr error
+		if data.LatestCopilotReview != nil {
+			sat := data.LatestCopilotReview.GetSubmittedAt().Time
+			if !sat.IsZero() {
+				candidate := sat.UTC().Add(time.Second)
+				latest, latestErr := db.GetLatest(in.Owner, in.Repo, in.PR)
+				if latestErr != nil {
+					return nil, RequestOutput{}, fmt.Errorf("failed to read trigger_log: %w", latestErr)
+				}
+				if latest == nil || candidate.After(latest.RequestedAt) {
+					// candidate is the most-recent logical request time: record both
+					// sat+1s and the current review ID for ID-based staleness detection.
+					prevID := fmt.Sprintf("%d", data.LatestCopilotReview.GetID())
+					_, insertErr = db.InsertWithPrevReviewID(in.Owner, in.Repo, in.PR, "MANUAL", candidate, prevID)
+				} else {
+					_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+				}
+			} else {
+				_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+			}
+		} else {
+			_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+		}
+		if insertErr != nil {
+			return nil, RequestOutput{}, fmt.Errorf("copilot review requested successfully, but failed to record MANUAL trigger: %w", insertErr)
 		}
 
 		return nil, RequestOutput{

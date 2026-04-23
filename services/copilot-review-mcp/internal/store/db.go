@@ -4,6 +4,7 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -76,6 +77,40 @@ func Open(path string) (*DB, error) {
 		db.Close()
 		return nil, err
 	}
+	// Migration: add prev_review_id column for ID-based review staleness detection.
+	// Use PRAGMA table_info to check existence first; this avoids relying on SQLite
+	// driver error message text ("duplicate column name") which can vary by version.
+	var colExists bool
+	rows, err := db.Query(`PRAGMA table_info(trigger_log)`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migration check table_info: %w", err)
+	}
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			rows.Close()
+			db.Close()
+			return nil, fmt.Errorf("migration scan table_info: %w", err)
+		}
+		if name == "prev_review_id" {
+			colExists = true
+			break
+		}
+	}
+	if err := rows.Close(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migration close table_info rows: %w", err)
+	}
+	if !colExists {
+		if _, err := db.Exec(`ALTER TABLE trigger_log ADD COLUMN prev_review_id TEXT`); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("migration add prev_review_id: %w", err)
+		}
+	}
 	if _, err := db.Exec(reviewWatchLookupIndexSQL); err != nil {
 		db.Close()
 		return nil, err
@@ -93,10 +128,11 @@ func (d *DB) Close() error { return d.db.Close() }
 
 // TriggerEntry is a row from trigger_log.
 type TriggerEntry struct {
-	ID          int64
-	Trigger     string    // "MANUAL" or "AUTO"
-	RequestedAt time.Time // when the review was requested
-	CompletedAt *time.Time
+	ID           int64
+	Trigger      string    // "MANUAL" or "AUTO"
+	RequestedAt  time.Time // when the review was requested
+	CompletedAt  *time.Time
+	PrevReviewID *string // ID of the Copilot review that existed when the request was made (nil for backward compat)
 }
 
 // ReviewWatchEntry is a persisted watch snapshot in review_watch.
@@ -142,11 +178,45 @@ func (d *DB) Insert(owner, repo string, pr int, trigger string) (int64, error) {
 	return res.LastInsertId()
 }
 
+// InsertWithTime adds a new trigger_log entry with an explicit requested_at timestamp
+// and returns the assigned ID. The timestamp is stored at epoch-second precision;
+// sub-second components are truncated by the conversion to Unix seconds. Use this
+// when the logical request time must align with an existing event timestamp (e.g.
+// a Copilot review's SubmittedAt) so the stale-guard in DeriveStatusWithThreshold
+// passes on the next status check.
+func (d *DB) InsertWithTime(owner, repo string, pr int, trigger string, requestedAt time.Time) (int64, error) {
+	res, err := d.db.Exec(
+		`INSERT INTO trigger_log (owner, repo, pr, trigger, requested_at) VALUES (?, ?, ?, ?, ?)`,
+		owner, repo, pr, trigger, requestedAt.UTC().Unix(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// InsertWithPrevReviewID adds a new trigger_log entry with an explicit requested_at timestamp
+// and the ID of the Copilot review that existed when the request was made.
+// prevReviewID enables ID-based staleness detection in DeriveStatusWithThreshold:
+// if the current review has the same ID, it is the old review (stale);
+// a different ID means Copilot has submitted a new review.
+// The timestamp is stored at epoch-second precision (sub-second components truncated).
+func (d *DB) InsertWithPrevReviewID(owner, repo string, pr int, trigger string, requestedAt time.Time, prevReviewID string) (int64, error) {
+	res, err := d.db.Exec(
+		`INSERT INTO trigger_log (owner, repo, pr, trigger, requested_at, prev_review_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		owner, repo, pr, trigger, requestedAt.UTC().Unix(), prevReviewID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
 // GetLatest returns the most recent trigger_log entry for the given PR,
 // or nil if none exists.
 func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {
 	row := d.db.QueryRow(
-		`SELECT id, trigger, requested_at, completed_at
+		`SELECT id, trigger, requested_at, completed_at, prev_review_id
 		 FROM trigger_log
 		 WHERE owner = ? AND repo = ? AND pr = ?
 		 ORDER BY requested_at DESC, id DESC
@@ -156,7 +226,8 @@ func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {
 	var e TriggerEntry
 	var requestedAtUnix int64
 	var completedAtUnix sql.NullInt64
-	if err := row.Scan(&e.ID, &e.Trigger, &requestedAtUnix, &completedAtUnix); err != nil {
+	var prevReviewID sql.NullString
+	if err := row.Scan(&e.ID, &e.Trigger, &requestedAtUnix, &completedAtUnix, &prevReviewID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -166,6 +237,9 @@ func (d *DB) GetLatest(owner, repo string, pr int) (*TriggerEntry, error) {
 	if completedAtUnix.Valid {
 		t := time.Unix(completedAtUnix.Int64, 0)
 		e.CompletedAt = &t
+	}
+	if prevReviewID.Valid {
+		e.PrevReviewID = &prevReviewID.String
 	}
 	return &e, nil
 }

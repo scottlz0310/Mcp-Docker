@@ -111,6 +111,12 @@ func NewClient(ctx context.Context, token string, threshold time.Duration, inval
 	}
 }
 
+// NewWithClients creates a Client from pre-built REST and GraphQL API clients.
+// Intended for tests that need to inject mock HTTP servers in place of api.github.com.
+func NewWithClients(gh *github.Client, v4 *githubv4.Client, threshold time.Duration) *Client {
+	return &Client{gh: gh, v4: v4, threshold: threshold}
+}
+
 // GetReviewData fetches raw reviewer and review data for a PR from GitHub.
 func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber int) (*ReviewData, error) {
 	data := &ReviewData{}
@@ -168,23 +174,33 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 
 // DeriveStatus resolves the ReviewStatus from raw data and optional trigger_log requestedAt.
 // requestedAt is nil when no trigger_log entry exists (AUTO trigger or not yet recorded).
-func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time) ReviewStatus {
-	return DeriveStatusWithThreshold(c.threshold, data, requestedAt)
+// prevReviewID, when non-nil, enables ID-based staleness detection: the existing review is
+// treated as stale only if its ID matches prevReviewID (same review seen before the request).
+func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
+	return DeriveStatusWithThreshold(c.threshold, data, requestedAt, prevReviewID)
 }
 
 // DeriveStatusWithThreshold resolves the ReviewStatus from raw data and an elapsed threshold.
-func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, requestedAt *time.Time) ReviewStatus {
+// prevReviewID, when non-nil, enables ID-based staleness detection (see DeriveStatus).
+func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
 	if data.LatestCopilotReview != nil {
 		// When requestedAt is known, only treat this review as relevant if it was submitted
-		// at or after the request time. This prevents a stale pre-existing review from being
-		// mistaken for the result of the current request.
-		// - Use !Before (≥) instead of After (>) to include same-second events.
-		// - nil submittedAt means the review has no timestamp → treat as stale.
+		// at or after the request time, or (when prevReviewID is set) if its ID differs from
+		// the review that existed when the request was made.
 		relevant := true
 		if requestedAt != nil {
-			sat := data.LatestCopilotReview.GetSubmittedAt()
-			// IsZero means no timestamp recorded → treat as stale.
-			relevant = !sat.IsZero() && !sat.Before(*requestedAt)
+			if prevReviewID != nil {
+				// ID-based: relevant only if this is a different review from when the
+				// request was made. Same ID means the old review is still present (stale).
+				currentID := strconv.FormatInt(data.LatestCopilotReview.GetID(), 10)
+				relevant = currentID != *prevReviewID
+			} else {
+				// Timestamp-based fallback for entries without prevReviewID (backward compat).
+				// - Use !Before (≥) instead of After (>) to include same-second events.
+				// - nil submittedAt means the review has no timestamp → treat as stale.
+				sat := data.LatestCopilotReview.GetSubmittedAt()
+				relevant = !sat.IsZero() && !sat.Before(*requestedAt)
+			}
 		}
 		if relevant {
 			if data.LatestCopilotReview.GetState() == "CHANGES_REQUESTED" {
