@@ -500,7 +500,13 @@ func (m *Manager) CancelByID(login, watchID string) (CancelResult, error) {
 		// Mark the associated trigger_log entry as completed so HasPending returns
 		// false after cancellation, allowing a new review request to be issued.
 		if m.db != nil && state.triggerLogID != nil {
-			_ = m.db.UpdateCompletedAt(*state.triggerLogID)
+			if err := m.db.UpdateCompletedAt(*state.triggerLogID); err != nil {
+				slog.Warn("CancelByID: failed to update trigger_log completed_at",
+					"watch_id", watchID,
+					"trigger_log_id", *state.triggerLogID,
+					"error", err,
+				)
+			}
 		}
 		m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 		snapshot := snapshotFromState(state)
@@ -545,7 +551,13 @@ func (m *Manager) CancelLatest(login, owner, repo string, pr int) (CancelResult,
 			// Mark the associated trigger_log entry as completed so HasPending returns
 			// false after cancellation, allowing a new review request to be issued.
 			if m.db != nil && state.triggerLogID != nil {
-				_ = m.db.UpdateCompletedAt(*state.triggerLogID)
+				if err := m.db.UpdateCompletedAt(*state.triggerLogID); err != nil {
+					slog.Warn("CancelLatest: failed to update trigger_log completed_at",
+						"owner", owner, "repo", repo, "pr", pr,
+						"trigger_log_id", *state.triggerLogID,
+						"error", err,
+					)
+				}
 			}
 			m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 			snapshot := snapshotFromState(state)

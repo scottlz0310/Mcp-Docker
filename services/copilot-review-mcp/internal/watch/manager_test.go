@@ -1166,3 +1166,116 @@ func newReview(state string, submittedAt *time.Time) *github.PullRequestReview {
 	}
 	return review
 }
+
+// TestManagerCancelLatestClearsTriggerLogPending verifies that CancelLatest updates
+// trigger_log.completed_at so HasPending returns false after cancellation, allowing a
+// subsequent request_copilot_review call to succeed (Bug D regression guard).
+func TestManagerCancelLatestClearsTriggerLogPending(t *testing.T) {
+	db := openTestDB(t)
+
+	// Insert a pending trigger_log entry before starting the watch so manager.Start
+	// links the watch to this entry via db.GetLatest().
+	if _, err := db.Insert("octo", "demo", 80, "MANUAL"); err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	_, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    80,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	// Sanity: HasPending must be true before cancel.
+	pending, err := db.HasPending("octo", "demo", 80)
+	if err != nil {
+		t.Fatalf("HasPending() before cancel error = %v", err)
+	}
+	if !pending {
+		t.Fatal("HasPending() = false before cancel, want true")
+	}
+
+	result, err := manager.CancelLatest("alice", "octo", "demo", 80)
+	if err != nil {
+		t.Fatalf("CancelLatest() error = %v", err)
+	}
+	if !result.Cancelled {
+		t.Fatal("CancelLatest().Cancelled = false, want true")
+	}
+
+	// After cancel, trigger_log.completed_at must be set → HasPending = false.
+	pending, err = db.HasPending("octo", "demo", 80)
+	if err != nil {
+		t.Fatalf("HasPending() after cancel error = %v", err)
+	}
+	if pending {
+		t.Fatal("HasPending() = true after cancel, want false (Bug D regression)")
+	}
+}
+
+// TestManagerCancelByIDClearsTriggerLogPending mirrors the CancelLatest test for
+// the CancelByID path.
+func TestManagerCancelByIDClearsTriggerLogPending(t *testing.T) {
+	db := openTestDB(t)
+
+	if _, err := db.Insert("octo", "demo", 81, "MANUAL"); err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	manager := NewManager(db, Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    81,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	result, err := manager.CancelByID("alice", started.WatchID)
+	if err != nil {
+		t.Fatalf("CancelByID() error = %v", err)
+	}
+	if !result.Cancelled {
+		t.Fatal("CancelByID().Cancelled = false, want true")
+	}
+
+	pending, err := db.HasPending("octo", "demo", 81)
+	if err != nil {
+		t.Fatalf("HasPending() after cancel error = %v", err)
+	}
+	if pending {
+		t.Fatal("HasPending() = true after cancel, want false (Bug D regression)")
+	}
+}

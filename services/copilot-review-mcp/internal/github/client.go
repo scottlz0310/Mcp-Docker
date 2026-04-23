@@ -111,6 +111,12 @@ func NewClient(ctx context.Context, token string, threshold time.Duration, inval
 	}
 }
 
+// NewWithClients creates a Client from pre-built REST and GraphQL API clients.
+// Intended for tests that need to inject mock HTTP servers in place of api.github.com.
+func NewWithClients(gh *github.Client, v4 *githubv4.Client, threshold time.Duration) *Client {
+	return &Client{gh: gh, v4: v4, threshold: threshold}
+}
+
 // GetReviewData fetches raw reviewer and review data for a PR from GitHub.
 func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber int) (*ReviewData, error) {
 	data := &ReviewData{}

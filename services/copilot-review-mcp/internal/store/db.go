@@ -143,8 +143,11 @@ func (d *DB) Insert(owner, repo string, pr int, trigger string) (int64, error) {
 }
 
 // InsertWithTime adds a new trigger_log entry with an explicit requested_at timestamp
-// and returns the assigned ID. Use this when the logical request time differs from
-// wall-clock now (e.g. to back-date past an existing Copilot review submission).
+// and returns the assigned ID. The timestamp is stored at epoch-second precision;
+// sub-second components are truncated by the conversion to Unix seconds. Use this
+// when the logical request time must align with an existing event timestamp (e.g.
+// a Copilot review's SubmittedAt) so the stale-guard in DeriveStatusWithThreshold
+// passes on the next status check.
 func (d *DB) InsertWithTime(owner, repo string, pr int, trigger string, requestedAt time.Time) (int64, error) {
 	res, err := d.db.Exec(
 		`INSERT INTO trigger_log (owner, repo, pr, trigger, requested_at) VALUES (?, ?, ?, ?, ?)`,

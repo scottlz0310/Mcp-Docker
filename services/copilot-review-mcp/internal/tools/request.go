@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -81,17 +80,29 @@ func requestHandler(
 		// Record the MANUAL trigger. This must succeed so future HasPending
 		// checks can prevent duplicate review requests.
 		//
-		// If a Copilot review was already submitted before this call (e.g. due to
-		// GitHub REST API propagation delay causing get_copilot_review_status to
-		// return NOT_REQUESTED for a completed review), set requested_at to just
-		// before the review's SubmittedAt. This prevents the stale-guard in
-		// DeriveStatusWithThreshold from treating the existing review as stale
-		// (relevant = !SubmittedAt.Before(requestedAt) would otherwise be false).
+		// Bug B fix: If a Copilot review already exists (e.g. due to GitHub REST
+		// propagation delay causing get_copilot_review_status to return NOT_REQUESTED
+		// for a completed review), align requested_at with SubmittedAt so the
+		// stale-guard in DeriveStatusWithThreshold passes. Only backdate when the
+		// review post-dates every known trigger_log entry; if the review predates a
+		// prior completed entry the review is genuinely stale and a fresh entry is
+		// correct.
 		var insertErr error
 		if data.LatestCopilotReview != nil {
 			sat := data.LatestCopilotReview.GetSubmittedAt().Time
 			if !sat.IsZero() {
-				_, insertErr = db.InsertWithTime(in.Owner, in.Repo, in.PR, "MANUAL", sat.Add(-time.Nanosecond))
+				latest, latestErr := db.GetLatest(in.Owner, in.Repo, in.PR)
+				if latestErr != nil {
+					return nil, RequestOutput{}, fmt.Errorf("failed to read trigger_log: %w", latestErr)
+				}
+				if latest == nil || sat.After(latest.RequestedAt) {
+					// Review post-dates all known requests: set requested_at = SubmittedAt
+					// (epoch-second precision) so the stale-guard (!sat.Before(requestedAt))
+					// passes without rounding artefacts.
+					_, insertErr = db.InsertWithTime(in.Owner, in.Repo, in.PR, "MANUAL", sat.UTC())
+				} else {
+					_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
+				}
 			} else {
 				_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
 			}

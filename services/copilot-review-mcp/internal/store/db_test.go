@@ -379,6 +379,68 @@ func TestOpenRebuildsReviewWatchLookupIndex(t *testing.T) {
 	}
 }
 
+func TestInsertWithTimePersistsAtEpochSecondPrecision(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "trigger-insert-with-time.db"))
+
+	// Insert with sub-second precision; stored epoch-second should truncate downward.
+	base := time.Now().UTC().Truncate(time.Second)
+	if _, err := db.InsertWithTime("octo", "demo", 1, "MANUAL", base.Add(500*time.Millisecond)); err != nil {
+		t.Fatalf("InsertWithTime() error = %v", err)
+	}
+
+	entry, err := db.GetLatest("octo", "demo", 1)
+	if err != nil {
+		t.Fatalf("GetLatest() error = %v", err)
+	}
+	if entry == nil {
+		t.Fatal("GetLatest() = nil, want entry")
+	}
+	if !entry.RequestedAt.Equal(base) {
+		t.Fatalf("RequestedAt = %v, want %v (epoch-second truncation)", entry.RequestedAt, base)
+	}
+}
+
+func TestInsertWithTimeNewerRowWinsGetLatest(t *testing.T) {
+	db := openTestDB(t, filepath.Join(t.TempDir(), "trigger-insert-ordering.db"))
+
+	base := time.Now().UTC().Truncate(time.Second)
+	older := base.Add(-time.Minute)
+	newer := base
+
+	// Insert the older entry first.
+	if _, err := db.InsertWithTime("octo", "demo", 2, "MANUAL", older); err != nil {
+		t.Fatalf("InsertWithTime(older) error = %v", err)
+	}
+	// Mark it completed so HasPending = false.
+	olderEntry, err := db.GetLatest("octo", "demo", 2)
+	if err != nil || olderEntry == nil {
+		t.Fatalf("GetLatest(older) err = %v, entry = %v", err, olderEntry)
+	}
+	if err := db.UpdateCompletedAt(olderEntry.ID); err != nil {
+		t.Fatalf("UpdateCompletedAt() error = %v", err)
+	}
+
+	// Insert a newer pending entry.
+	if _, err := db.InsertWithTime("octo", "demo", 2, "MANUAL", newer); err != nil {
+		t.Fatalf("InsertWithTime(newer) error = %v", err)
+	}
+
+	// GetLatest must return the newer (pending) row.
+	entry, err := db.GetLatest("octo", "demo", 2)
+	if err != nil {
+		t.Fatalf("GetLatest() error = %v", err)
+	}
+	if entry == nil {
+		t.Fatal("GetLatest() = nil, want newer entry")
+	}
+	if !entry.RequestedAt.Equal(newer) {
+		t.Fatalf("RequestedAt = %v, want %v (newer entry)", entry.RequestedAt, newer)
+	}
+	if entry.CompletedAt != nil {
+		t.Fatal("CompletedAt = non-nil, want nil (newer entry is pending)")
+	}
+}
+
 func openTestDB(t *testing.T, path string) *DB {
 	t.Helper()
 
