@@ -212,10 +212,12 @@ func cycleStatusHandler(
 		}
 
 		var requestedAt *time.Time
+		var prevReviewID *string
 		if entry != nil {
 			requestedAt = &entry.RequestedAt
+			prevReviewID = entry.PrevReviewID
 		}
-		reviewStatus := gh.DeriveStatus(reviewData, requestedAt)
+		reviewStatus := gh.DeriveStatus(reviewData, requestedAt, prevReviewID)
 
 		// ── Elapsed time since last Copilot comment ───────────────────────────
 		elapsedMinutes := 0

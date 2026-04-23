@@ -500,19 +500,19 @@ func (m *Manager) CancelByID(login, watchID string) (CancelResult, error) {
 		// Extract triggerLogID before releasing the lock; DB update happens
 		// outside the lock to avoid blocking the manager mutex during SQLite
 		// write operations.
-		var cancelByIDTriggerLogID *int64
-		if m.db != nil && state.triggerLogID != nil {
-			id := *state.triggerLogID
-			cancelByIDTriggerLogID = &id
+		var cancelByIDTriggerLogID int64
+		hasCancelByIDTriggerLogID := m.db != nil && state.triggerLogID != nil
+		if hasCancelByIDTriggerLogID {
+			cancelByIDTriggerLogID = *state.triggerLogID
 		}
 		m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 		snapshot := snapshotFromState(state)
 		m.mu.Unlock()
-		if cancelByIDTriggerLogID != nil {
-			if err := m.db.UpdateCompletedAt(*cancelByIDTriggerLogID); err != nil {
+		if hasCancelByIDTriggerLogID {
+			if err := m.db.UpdateCompletedAt(cancelByIDTriggerLogID); err != nil {
 				slog.Warn("CancelByID: failed to update trigger_log completed_at",
 					"watch_id", watchID,
-					"trigger_log_id", *cancelByIDTriggerLogID,
+					"trigger_log_id", cancelByIDTriggerLogID,
 					"error", err,
 				)
 			}
@@ -557,19 +557,19 @@ func (m *Manager) CancelLatest(login, owner, repo string, pr int) (CancelResult,
 			// Extract triggerLogID before releasing the lock; DB update happens
 			// outside the lock to avoid blocking the manager mutex during SQLite
 			// write operations.
-			var cancelLatestTriggerLogID *int64
-			if m.db != nil && state.triggerLogID != nil {
-				id := *state.triggerLogID
-				cancelLatestTriggerLogID = &id
+			var cancelLatestTriggerLogID int64
+			hasCancelLatestTriggerLogID := m.db != nil && state.triggerLogID != nil
+			if hasCancelLatestTriggerLogID {
+				cancelLatestTriggerLogID = *state.triggerLogID
 			}
 			m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 			snapshot := snapshotFromState(state)
 			m.mu.Unlock()
-			if cancelLatestTriggerLogID != nil {
-				if err := m.db.UpdateCompletedAt(*cancelLatestTriggerLogID); err != nil {
+			if hasCancelLatestTriggerLogID {
+				if err := m.db.UpdateCompletedAt(cancelLatestTriggerLogID); err != nil {
 					slog.Warn("CancelLatest: failed to update trigger_log completed_at",
 						"owner", owner, "repo", repo, "pr", pr,
-						"trigger_log_id", *cancelLatestTriggerLogID,
+						"trigger_log_id", cancelLatestTriggerLogID,
 						"error", err,
 					)
 				}
@@ -695,10 +695,12 @@ func (m *Manager) pollOnce(watchID string) bool {
 	}
 
 	var requestedAt *time.Time
+	var prevReviewID *string
 	if entry != nil {
 		requestedAt = &entry.RequestedAt
+		prevReviewID = entry.PrevReviewID
 	}
-	reviewStatus := ghclient.DeriveStatusWithThreshold(m.threshold, data, requestedAt)
+	reviewStatus := ghclient.DeriveStatusWithThreshold(m.threshold, data, requestedAt, prevReviewID)
 
 	if data.RateLimitRemaining < 10 {
 		m.mu.Lock()

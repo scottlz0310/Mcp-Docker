@@ -70,9 +70,9 @@ func staticProvider(c *ghclient.Client) githubClientProvider {
 
 // TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries verifies Bug B
 // fix: when LatestCopilotReview.SubmittedAt post-dates every existing trigger_log entry,
-// requestHandler calls InsertWithTime with (SubmittedAt + 1s) so that:
-//   - the existing review is NOT immediately relevant (stale-guard does not fire)
-//   - any new review Copilot posts (SubmittedAt >= requestedAt) WILL be relevant
+// requestHandler calls InsertWithPrevReviewID with (SubmittedAt+1s, prevID) so that:
+//   - the existing review is stale (sat < sat+1s = requestedAt → stale-guard rejects it as irrelevant)
+//   - any new review Copilot posts (different ID, or SubmittedAt ≥ sat+1s) passes the check → COMPLETED
 func TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries(t *testing.T) {
 	submittedAt := time.Now().UTC().Add(-5 * time.Second).Truncate(time.Second)
 	srv := newGitHubAPIMock(t, submittedAt)
@@ -101,15 +101,19 @@ func TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries(t *testin
 		t.Fatal("GetLatest() = nil, want trigger_log entry")
 	}
 
-	// InsertWithTime is called with sat+1s; epoch-second storage truncates sub-seconds.
+	// InsertWithPrevReviewID is called with sat+1s; epoch-second storage truncates sub-seconds.
 	// submittedAt is already truncated so want = submittedAt + 1s exactly.
 	want := submittedAt.Add(time.Second)
 	if !entry.RequestedAt.Equal(want) {
-		t.Fatalf("RequestedAt = %v, want %v (SubmittedAt+1s via InsertWithTime)", entry.RequestedAt, want)
+		t.Fatalf("RequestedAt = %v, want %v (SubmittedAt+1s via InsertWithPrevReviewID)", entry.RequestedAt, want)
 	}
-	// Stale-guard must NOT fire immediately: submittedAt < requestedAt (old review is stale).
+	// Stale-guard must reject the existing review: submittedAt < requestedAt (old review is stale).
 	if !submittedAt.Before(entry.RequestedAt) {
-		t.Fatalf("stale-guard fires immediately: SubmittedAt(%v) >= RequestedAt(%v), old review would be seen as COMPLETED", submittedAt, entry.RequestedAt)
+		t.Fatalf("existing review is NOT stale: SubmittedAt(%v) >= RequestedAt(%v), old review would be immediately relevant (COMPLETED)", submittedAt, entry.RequestedAt)
+	}
+	// PrevReviewID must be recorded for ID-based staleness detection.
+	if entry.PrevReviewID == nil {
+		t.Fatal("PrevReviewID = nil, want non-nil (ID-based staleness detection requires prev_review_id)")
 	}
 }
 

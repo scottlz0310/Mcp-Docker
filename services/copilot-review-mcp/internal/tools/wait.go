@@ -121,10 +121,12 @@ func waitHandler(
 					return nil, WaitOutput{}, fmt.Errorf("failed to get latest entry (RATE_LIMITED): %w", err)
 				}
 				var reqAt *time.Time
+				var prevReviewID *string
 				if entry != nil {
 					reqAt = &entry.RequestedAt
+					prevReviewID = entry.PrevReviewID
 				}
-				partialStatus := ghClient.DeriveStatus(data, reqAt)
+				partialStatus := ghClient.DeriveStatus(data, reqAt, prevReviewID)
 				rs := buildStatusOutput(data, entry, partialStatus)
 				return nil, WaitOutput{
 					Status:        "RATE_LIMITED",
@@ -143,11 +145,13 @@ func waitHandler(
 			}
 
 			var requestedAt *time.Time
+			var prevReviewID *string
 			if entry != nil {
 				requestedAt = &entry.RequestedAt
+				prevReviewID = entry.PrevReviewID
 			}
 
-			status := ghClient.DeriveStatus(data, requestedAt)
+			status := ghClient.DeriveStatus(data, requestedAt, prevReviewID)
 
 			// Auto-update completed_at.
 			if (status == ghclient.StatusCompleted || status == ghclient.StatusBlocked) &&

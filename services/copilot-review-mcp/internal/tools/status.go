@@ -73,11 +73,13 @@ func statusHandler(
 		}
 
 		var requestedAt *time.Time
+		var prevReviewID *string
 		if entry != nil {
 			requestedAt = &entry.RequestedAt
+			prevReviewID = entry.PrevReviewID
 		}
 
-		status := ghClient.DeriveStatus(data, requestedAt)
+		status := ghClient.DeriveStatus(data, requestedAt, prevReviewID)
 
 		// Auto-update completed_at when the review is done.
 		if (status == ghclient.StatusCompleted || status == ghclient.StatusBlocked) &&

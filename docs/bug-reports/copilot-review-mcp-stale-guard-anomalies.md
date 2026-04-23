@@ -200,22 +200,36 @@ WHERE owner = ? AND repo = ? AND pr = ? AND completed_at IS NULL
 こうすることで stale-guard が `!sat.Before(*requestedAt)` = `true` となり、既存のレビューが正しく認識される。
 
 ```go
-// request.go の修正案（requestHandler）
+// request.go の修正案（requestHandler） — 実装済み
 data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
 // ...
-// 直近の完了済み Copilot レビューがある場合は、その SubmittedAt を基準とする
-var triggerTime time.Time
+// 直近の完了済み Copilot レビューがある場合は:
+//   1. requested_at = sat+1s (タイムスタンプ基準の後方互換フォールバック用)
+//   2. prev_review_id = 既存レビューの ID (ID 基準の正確な判定用)
 if data.LatestCopilotReview != nil {
-    triggerTime = data.LatestCopilotReview.GetSubmittedAt().Time.Add(-1)
+    sat := data.LatestCopilotReview.GetSubmittedAt().Time
+    if !sat.IsZero() {
+        candidate := sat.UTC().Add(time.Second)
+        latest, _ := db.GetLatest(owner, repo, pr)
+        if latest == nil || candidate.After(latest.RequestedAt) {
+            prevID := fmt.Sprintf("%d", data.LatestCopilotReview.GetID())
+            _, err = db.InsertWithPrevReviewID(owner, repo, pr, "MANUAL", candidate, prevID)
+        } else {
+            _, err = db.Insert(owner, repo, pr, "MANUAL")
+        }
+    } else {
+        _, err = db.Insert(owner, repo, pr, "MANUAL")
+    }
 } else {
-    triggerTime = time.Now()
-}
-if _, err := db.InsertWithTime(owner, repo, pr, "MANUAL", triggerTime); err != nil {
-    // ...
+    _, err = db.Insert(owner, repo, pr, "MANUAL")
 }
 ```
 
-ただし、`db.Insert` がタイムスタンプを外部から受け取れるよう `InsertWithTime` を追加する必要がある。
+`InsertWithPrevReviewID` は `requested_at`（sat+1s）と `prev_review_id`（既存レビューの ID）を  
+同時に `trigger_log` に記録する。`DeriveStatus` は `prevReviewID` が非 nil のとき ID 比較を優先し、  
+nil のときはタイムスタンプ比較にフォールバックする（後方互換）。
+
+ただし、`db.Insert` がタイムスタンプと prev_review_id を外部から受け取れるよう `InsertWithPrevReviewID` を追加する必要がある。
 
 **Option 2: `get_copilot_review_status` に「直近 N 分以内のレビューを無条件で有効」とするフォールバックを追加する**
 
