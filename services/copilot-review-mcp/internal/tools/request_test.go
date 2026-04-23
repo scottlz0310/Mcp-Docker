@@ -70,8 +70,9 @@ func staticProvider(c *ghclient.Client) githubClientProvider {
 
 // TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries verifies Bug B
 // fix: when LatestCopilotReview.SubmittedAt post-dates every existing trigger_log entry,
-// requestHandler calls InsertWithTime so that GetLatest().RequestedAt == SubmittedAt.
-// The stale-guard condition (!SubmittedAt.Before(RequestedAt)) must therefore be true.
+// requestHandler calls InsertWithTime with (SubmittedAt + 1s) so that:
+//   - the existing review is NOT immediately relevant (stale-guard does not fire)
+//   - any new review Copilot posts (SubmittedAt >= requestedAt) WILL be relevant
 func TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries(t *testing.T) {
 	submittedAt := time.Now().UTC().Add(-5 * time.Second).Truncate(time.Second)
 	srv := newGitHubAPIMock(t, submittedAt)
@@ -100,13 +101,15 @@ func TestRequestHandlerUsesInsertWithTimeWhenReviewPostdatesAllEntries(t *testin
 		t.Fatal("GetLatest() = nil, want trigger_log entry")
 	}
 
-	// InsertWithTime stores at epoch-second precision; submittedAt is already truncated.
-	if !entry.RequestedAt.Equal(submittedAt) {
-		t.Fatalf("RequestedAt = %v, want %v (SubmittedAt via InsertWithTime)", entry.RequestedAt, submittedAt)
+	// InsertWithTime is called with sat+1s; epoch-second storage truncates sub-seconds.
+	// submittedAt is already truncated so want = submittedAt + 1s exactly.
+	want := submittedAt.Add(time.Second)
+	if !entry.RequestedAt.Equal(want) {
+		t.Fatalf("RequestedAt = %v, want %v (SubmittedAt+1s via InsertWithTime)", entry.RequestedAt, want)
 	}
-	// Stale-guard invariant: SubmittedAt >= RequestedAt.
-	if submittedAt.Before(entry.RequestedAt) {
-		t.Fatalf("stale-guard would fire: SubmittedAt(%v) < RequestedAt(%v)", submittedAt, entry.RequestedAt)
+	// Stale-guard must NOT fire immediately: submittedAt < requestedAt (old review is stale).
+	if !submittedAt.Before(entry.RequestedAt) {
+		t.Fatalf("stale-guard fires immediately: SubmittedAt(%v) >= RequestedAt(%v), old review would be seen as COMPLETED", submittedAt, entry.RequestedAt)
 	}
 }
 

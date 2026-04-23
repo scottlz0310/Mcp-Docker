@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -80,26 +81,30 @@ func requestHandler(
 		// Record the MANUAL trigger. This must succeed so future HasPending
 		// checks can prevent duplicate review requests.
 		//
-		// Bug B fix: If a Copilot review already exists (e.g. due to GitHub REST
-		// propagation delay causing get_copilot_review_status to return NOT_REQUESTED
-		// for a completed review), align requested_at with SubmittedAt so the
-		// stale-guard in DeriveStatusWithThreshold passes. Only backdate when the
-		// review post-dates every known trigger_log entry; if the review predates a
-		// prior completed entry the review is genuinely stale and a fresh entry is
-		// correct.
+		// Bug B fix: If a Copilot review already exists, set requested_at to
+		// sat+1s (one second after the existing review's SubmittedAt) so that:
+		//   • the existing review (SubmittedAt = sat) is NOT immediately relevant
+		//     (stale-guard: sat < sat+1s = requestedAt → NOT_REQUESTED/PENDING, not COMPLETED)
+		//   • any new review Copilot posts with SubmittedAt >= sat+1s WILL be relevant
+		//     (stale-guard passes → COMPLETED)
+		// The +1s offset aligns with epoch-second DB storage precision and is safe
+		// because Copilot takes at least several seconds to process a review.
+		//
+		// Guard: only use InsertWithTime when the candidate (sat+1s) is newer than
+		// every prior trigger_log entry; otherwise fall back to Insert(now()) so that
+		// GetLatest() continues to return the most-recent row.
 		var insertErr error
 		if data.LatestCopilotReview != nil {
 			sat := data.LatestCopilotReview.GetSubmittedAt().Time
 			if !sat.IsZero() {
+				candidate := sat.UTC().Add(time.Second)
 				latest, latestErr := db.GetLatest(in.Owner, in.Repo, in.PR)
 				if latestErr != nil {
 					return nil, RequestOutput{}, fmt.Errorf("failed to read trigger_log: %w", latestErr)
 				}
-				if latest == nil || sat.After(latest.RequestedAt) {
-					// Review post-dates all known requests: set requested_at = SubmittedAt
-					// (epoch-second precision) so the stale-guard (!sat.Before(requestedAt))
-					// passes without rounding artefacts.
-					_, insertErr = db.InsertWithTime(in.Owner, in.Repo, in.PR, "MANUAL", sat.UTC())
+				if latest == nil || candidate.After(latest.RequestedAt) {
+					// candidate is the most-recent logical request time: use it.
+					_, insertErr = db.InsertWithTime(in.Owner, in.Repo, in.PR, "MANUAL", candidate)
 				} else {
 					_, insertErr = db.Insert(in.Owner, in.Repo, in.PR, "MANUAL")
 				}
