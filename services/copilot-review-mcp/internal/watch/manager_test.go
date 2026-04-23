@@ -1065,14 +1065,14 @@ func TestManagerNotifyResourceUpdatedCalledOnReviewStatusChange(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if len(notifiedURIs) == 0 {
-		t.Fatal("NotifyResourceUpdated was never called on review_status change, want at least one call")
+		t.Fatal("NotifyResourceUpdated was never called on review_status change, want exactly one call")
 	}
 	wantURI := resourceURIForWatch(started.WatchID)
 	if notifiedURIs[0] != wantURI {
 		t.Errorf("NotifyResourceUpdated[0] = %q, want %q", notifiedURIs[0], wantURI)
 	}
-	if len(notifiedURIs) > 1 {
-		t.Logf("note: NotifyResourceUpdated called %d times (expected 1 for the nil→PENDING transition)", len(notifiedURIs))
+	if len(notifiedURIs) != 1 {
+		t.Fatalf("NotifyResourceUpdated called %d times, want exactly 1 for the nil→PENDING transition", len(notifiedURIs))
 	}
 }
 

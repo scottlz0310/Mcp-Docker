@@ -3,11 +3,13 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
@@ -367,6 +369,13 @@ func TestWatchResourceHandlerScopesWatchIDByLogin(t *testing.T) {
 	_, err = cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
 	if err == nil {
 		t.Fatal("ReadResource() = nil error; want ResourceNotFound for cross-login access")
+	}
+	var rpcErr *jsonrpc.Error
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("ReadResource() error type = %T, want *jsonrpc.Error; err = %v", err, err)
+	}
+	if rpcErr.Code != mcp.CodeResourceNotFound {
+		t.Errorf("ReadResource() error code = %d, want %d (CodeResourceNotFound)", rpcErr.Code, mcp.CodeResourceNotFound)
 	}
 }
 
