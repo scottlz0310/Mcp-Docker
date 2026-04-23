@@ -458,7 +458,13 @@ func RegisterWatchResources(server *mcp.Server, manager *watch.Manager) {
 			"watch_id を URI に埋め込んでアクセスする。状態変化時に resources/updated 通知が届く。",
 		MIMEType: "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		if req == nil || req.Params == nil {
+			return nil, fmt.Errorf("missing read resource request params")
+		}
 		uri := req.Params.URI
+		if uri == "" {
+			return nil, fmt.Errorf("missing resource URI")
+		}
 		watchID, err := parseWatchIDFromURI(uri)
 		if err != nil {
 			return nil, mcp.ResourceNotFoundError(uri)

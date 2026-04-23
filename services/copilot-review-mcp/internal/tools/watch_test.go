@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -347,26 +346,27 @@ func TestWatchResourceHandlerScopesWatchIDByLogin(t *testing.T) {
 	RegisterWatchResources(srv, manager)
 
 	uri := *started.ResourceURI
-	ctx := context.WithValue(context.Background(), middleware.ContextKeyLogin, "bob") // different user
-	req := &mcp.ReadResourceRequest{Params: &mcp.ReadResourceParams{URI: uri}}
-	httpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)
-	_ = httpHandler
 
-	// Call the resource handler directly via the server's internal path.
-	// We use the MCP SDK's test approach: simulate via the HTTP handler endpoint.
-	// Simpler: verify via manager.GetByID that bob cannot see alice's watch.
-	_, ok := manager.GetByID(started.WatchID)
-	if !ok {
-		t.Fatal("GetByID() = false, want true")
+	// Connect server with "bob" as the authenticated login.
+	ct, st := mcp.NewInMemoryTransports()
+	ctxBob := context.WithValue(context.Background(), middleware.ContextKeyLogin, "bob")
+	ss, err := srv.Connect(ctxBob, st, nil)
+	if err != nil {
+		t.Fatalf("srv.Connect() error = %v", err)
 	}
-	_ = ctx
-	_ = req
-	// Cross-login guard is enforced inside the resource handler; tested indirectly
-	// by confirming that a different login would get ResourceNotFound.
-	// The actual guard is: snapshot.Login != login → ResourceNotFoundError.
-	snap, _ := manager.GetByID(started.WatchID)
-	if snap.Login != "alice" {
-		t.Fatalf("Login = %q, want alice", snap.Login)
+	defer ss.Wait()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer cs.Close()
+
+	// Bob should not be able to read Alice's watch resource.
+	_, err = cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	if err == nil {
+		t.Fatal("ReadResource() = nil error; want ResourceNotFound for cross-login access")
 	}
 }
 
@@ -406,18 +406,39 @@ func TestWatchResourceHandlerReturnsJSON(t *testing.T) {
 		t.Fatalf("ResourceURI = %q, want copilot-review://watch/ prefix", uri)
 	}
 
-	// Verify the handler returns valid JSON by calling buildReviewWatchView.
-	snap, ok := manager.GetByID(started.WatchID)
-	if !ok {
-		t.Fatal("GetByID() = false")
-	}
-	view := buildReviewWatchView(snap, manager.PollInterval(), time.Now().UTC())
-	data, err := json.Marshal(view)
+	// Connect server with "alice" as the authenticated login.
+	ct, st := mcp.NewInMemoryTransports()
+	ctxAlice := context.WithValue(context.Background(), middleware.ContextKeyLogin, "alice")
+	ss, err := srv.Connect(ctxAlice, st, nil)
 	if err != nil {
-		t.Fatalf("json.Marshal(view) error = %v", err)
+		t.Fatalf("srv.Connect() error = %v", err)
+	}
+	defer ss.Wait()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer cs.Close()
+
+	// Alice reads her own watch resource.
+	result, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		t.Fatalf("ReadResource() error = %v", err)
+	}
+	if len(result.Contents) != 1 {
+		t.Fatalf("len(Contents) = %d, want 1", len(result.Contents))
+	}
+	c := result.Contents[0]
+	if c.MIMEType != "application/json" {
+		t.Errorf("MIMEType = %q, want application/json", c.MIMEType)
+	}
+	if c.URI != uri {
+		t.Errorf("URI = %q, want %q", c.URI, uri)
 	}
 	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := json.Unmarshal([]byte(c.Text), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 	if decoded["watch_id"] != started.WatchID {

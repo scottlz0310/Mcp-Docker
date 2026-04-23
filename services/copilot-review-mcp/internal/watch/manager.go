@@ -731,7 +731,16 @@ func (m *Manager) pollOnce(watchID string) bool {
 	current.status = StatusWatching
 	current.workerRunning = true
 	if err := m.persistOrDegradeLocked(current, StatusWatching, now); err != nil {
+		// persistOrDegradeLocked transitions the watch to a terminal state on error.
+		// Notify subscribers so they don't miss the terminal transition.
+		var notifyURIOnError string
+		if m.notifyResourceUpdated != nil && current.resourceURI != nil {
+			notifyURIOnError = *current.resourceURI
+		}
 		m.mu.Unlock()
+		if notifyURIOnError != "" {
+			go m.notifyResourceUpdated(notifyURIOnError)
+		}
 		return true
 	}
 	var notifyURI string

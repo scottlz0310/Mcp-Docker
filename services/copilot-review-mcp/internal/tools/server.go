@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -103,11 +104,30 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 	}
 
 	clientProvider := newGitHubClientProvider(threshold, invalidate)
+	// watchManager is declared before srv so the SubscribeHandler closure can reference it
+	// for authorization. At the time any subscribe request arrives the server is already
+	// fully initialized, so watchManager is always non-nil.
+	var watchManager *watch.Manager
 	srv := mcp.NewServer(
 		&mcp.Implementation{Name: "copilot-review-mcp", Version: "1.0.0"},
 		&mcp.ServerOptions{
 			SchemaCache: schemaCache,
-			SubscribeHandler: func(_ context.Context, _ *mcp.SubscribeRequest) error {
+			SubscribeHandler: func(ctx context.Context, req *mcp.SubscribeRequest) error {
+				if watchManager == nil || req == nil || req.Params == nil {
+					return nil
+				}
+				watchID, err := parseWatchIDFromURI(req.Params.URI)
+				if err != nil {
+					return nil // not a watch URI; allow subscription for other resource types
+				}
+				login := middleware.LoginFromContext(ctx)
+				if login == "" {
+					return fmt.Errorf("authenticated GitHub login is required to subscribe")
+				}
+				snap, ok := watchManager.GetByID(watchID)
+				if !ok || snap.Login != login {
+					return mcp.ResourceNotFoundError(req.Params.URI)
+				}
 				return nil
 			},
 			UnsubscribeHandler: func(_ context.Context, _ *mcp.UnsubscribeRequest) error {
@@ -115,7 +135,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 			},
 		},
 	)
-	watchManager := watch.NewManager(db, watch.Options{
+	watchManager = watch.NewManager(db, watch.Options{
 		Threshold:       threshold,
 		InvalidateToken: invalidate,
 		NotifyResourceUpdated: func(uri string) {
