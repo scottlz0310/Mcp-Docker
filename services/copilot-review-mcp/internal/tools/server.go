@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -19,6 +21,7 @@ const (
 	defaultStreamableSessionTimeout = 30 * time.Minute
 	defaultSessionPruneInterval     = 5 * time.Minute
 	mcpSessionIDHeader              = "Mcp-Session-Id"
+	sessionUserMismatchError        = "session_user_mismatch"
 )
 
 // TokenInvalidator is implemented by auth.Handler to clear a token from the
@@ -45,7 +48,7 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	login := middleware.LoginFromContext(r.Context())
 	sessionID := r.Header.Get(mcpSessionIDHeader)
 	if sessionID != "" && login != "" && !h.authorizeSession(sessionID, login) {
-		http.Error(w, "session user mismatch", http.StatusForbidden)
+		writeJSONError(w, http.StatusForbidden, sessionUserMismatchError)
 		return
 	}
 
@@ -57,7 +60,6 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete && sessionID != "" {
 		h.forgetSession(sessionID)
 	}
-	h.pruneSessionLogins()
 }
 
 // Close stops background review watches owned by this handler.
@@ -76,7 +78,10 @@ func (h *StreamableHandler) Close() {
 
 		if server != nil {
 			for session := range server.Sessions() {
-				session.Close()
+				sessionID := session.ID()
+				if err := session.Close(); err != nil {
+					slog.Warn("failed to close MCP session", "session_id", sessionID, "err", err)
+				}
 			}
 		}
 		if h.watchManager != nil {
@@ -154,6 +159,12 @@ func (h *StreamableHandler) authorizeSession(sessionID, login string) bool {
 
 	expected, ok := h.sessionLogins[sessionID]
 	return !ok || expected == login
+}
+
+func writeJSONError(w http.ResponseWriter, status int, code string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
 }
 
 func (h *StreamableHandler) pruneSessionLoginsLoop(interval time.Duration) {

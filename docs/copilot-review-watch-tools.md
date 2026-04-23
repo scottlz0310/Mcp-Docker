@@ -63,6 +63,7 @@ watch 系ツールは `recommended_next_action` と、必要に応じて `next_p
 テスト観点:
 
 - initialize 後の複数 request が同一 stateful session と長寿命 server を再利用すること。
-- 別 GitHub login が既存 `Mcp-Session-Id` を使うと 403 になること。
+- 別 GitHub login が既存 `Mcp-Session-Id` を使うと JSON error body 付きの 403 になること。
+- timeout などで server から消えた session の login binding が periodic pruning で消えること。
 - handler shutdown で active session と background watch manager が停止すること。
 - resource notification 追加時は `resources/subscribe` 済み session に `notifications/resources/updated` が届き、通知不可 host では watch status read fallback が維持されること。

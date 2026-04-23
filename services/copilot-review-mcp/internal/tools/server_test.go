@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -119,6 +120,17 @@ func TestStreamableHandlerRejectsSessionUserMismatch(t *testing.T) {
 	if resp.StatusCode != http.StatusForbidden {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("mismatched session status = %d, want 403; body=%s", resp.StatusCode, string(body))
+	}
+	if contentType := resp.Header.Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf("mismatched session content type = %q, want application/json", contentType)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode mismatched session response error = %v", err)
+	}
+	if got := body["error"]; got != sessionUserMismatchError {
+		t.Fatalf("mismatched session error = %q, want %q", got, sessionUserMismatchError)
 	}
 }
 
