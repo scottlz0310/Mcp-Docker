@@ -506,6 +506,8 @@ Mcp-Docker/
 ├── docker-compose.custom.yml   # カスタムビルドイメージ用 Compose
 ├── Dockerfile.github-mcp-server # カスタムイメージ Dockerfile
 ├── Makefile                    # タスク管理
+├── SECURITY.md                 # セキュリティポリシー
+├── ci-helper.toml.example     # ci-helper 設定例
 ├── .env.template              # 環境変数テンプレート
 ├── .env                       # 環境変数（gitignore）
 ├── renovate.json              # Renovate 依存更新設定
@@ -535,7 +537,6 @@ Mcp-Docker/
 │       └── test_scripts.bats
 ├── docs/
 │   ├── SECURITY_PATCHES.md   # セキュリティ方針
-│   ├── copilot-review-mcp-tasks.md  # copilot-review-mcp タスク一覧
 │   ├── copilot-review-watch-tools.md # Watch ツール仕様
 │   ├── design/               # 設計ドキュメント
 │   ├── skills/               # Claude スキルテンプレート

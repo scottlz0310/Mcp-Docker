@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `POST /repos/{owner}/{repo}/pulls/{pr}/requested_reviewers` は bot actor を黙って無視する（#47 の根本原因）
   - GitHub CLI と同じロジック（`requestReviewsByLogin` mutation + `botLogins`）で実装し直し
   - `union: true` で既存の human reviewer を保持したまま Copilot を追加
+  - PR の GraphQL node ID を取得する際に空チェックを追加（PR 不存在・権限不足の検知）
+  - `copilotBotLogin` 定数と `buildCopilotReviewInput` 関数を分離し、typo ガードのユニットテストを追加
 - `copilot-review-mcp`: GraphQL input type エラーを修正（#73）
   - `requestReviewsByLogin` mutation の input フィールド名ミスを修正
 - `copilot-review-mcp`: `wait_for_copilot_review` の TIMEOUT 後の余分な API コールと CANCEL 時の情報欠落を修正（#60）
@@ -45,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `copilot-review-mcp`: `github.com/modelcontextprotocol/go-sdk` を v1.5.0 へ更新（#49）
 - `copilot-review-mcp`: Go を v1.26.2 へ更新（#48）
 
-### 🔧 その他
+### 📌 その他
 
 - `.claude/` ディレクトリを `.gitignore` へ追加（#54）
 
