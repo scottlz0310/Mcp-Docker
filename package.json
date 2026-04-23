@@ -1,6 +1,6 @@
 {
   "name": "mcp-http-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Minimal stdio-to-HTTP bridge for MCP servers",
   "license": "MIT",
   "bin": {
