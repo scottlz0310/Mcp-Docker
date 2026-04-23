@@ -21,7 +21,7 @@ PR レビュー対応サイクルを自律実行するスキル。
 
 | サーバー | 役割 | 参照 |
 |---------|------|------|
-| `copilot-review-mcp` | Copilot レビュー watch・スレッド操作 | [services/copilot-review-mcp](../services/copilot-review-mcp/) |
+| `copilot-review-mcp` | Copilot レビュー watch・スレッド操作 | [services/copilot-review-mcp](../../services/copilot-review-mcp/) |
 | GitHub MCP サーバー | Issue/PR コメント投稿 | [README.md](../../README.md) |
 
 ### プレースホルダーの読み替え
@@ -71,7 +71,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 ### 1-B: 完了待機
 
 **通知サポートあり（推奨）:**
-- `resource_uri` を MCP resource として subscribe し、`resources/updated` 通知を待つ。
+- `resource_uri` を MCP resource として subscribe し、`notifications/resources/updated` 通知を待つ。
 - 通知受信後: `{CRM}:get_copilot_review_watch_status` で最終ステータスを確認。
 
 **ポーリング fallback:**
