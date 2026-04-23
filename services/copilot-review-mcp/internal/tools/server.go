@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -116,9 +117,15 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 				if watchManager == nil || req == nil || req.Params == nil {
 					return nil
 				}
-				watchID, err := parseWatchIDFromURI(req.Params.URI)
-				if err != nil {
+				uri := req.Params.URI
+				const watchPrefix = "copilot-review://watch/"
+				if !strings.HasPrefix(uri, watchPrefix) {
 					return nil // not a watch URI; allow subscription for other resource types
+				}
+				// URI has the watch prefix — parse it strictly so malformed URIs are rejected.
+				watchID, err := parseWatchIDFromURI(uri)
+				if err != nil {
+					return mcp.ResourceNotFoundError(uri)
 				}
 				login := middleware.LoginFromContext(ctx)
 				if login == "" {
@@ -126,7 +133,7 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 				}
 				snap, ok := watchManager.GetByID(watchID)
 				if !ok || snap.Login != login {
-					return mcp.ResourceNotFoundError(req.Params.URI)
+					return mcp.ResourceNotFoundError(uri)
 				}
 				return nil
 			},
