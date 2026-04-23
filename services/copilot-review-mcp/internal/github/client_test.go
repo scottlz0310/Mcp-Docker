@@ -320,8 +320,6 @@ func TestDeriveStatusIDBasedStaleness(t *testing.T) {
 	}
 
 	oldID := "42"
-	newIDStr := "99"
-	_ = newIDStr
 
 	tests := []struct {
 		name         string
@@ -364,11 +362,12 @@ func TestDeriveStatusIDBasedStaleness(t *testing.T) {
 		},
 		{
 			// nil prevReviewID with requestedAt → timestamp-based fallback (backward compat).
-			name:         "nil prevReviewID → timestamp-based fallback, recent review → COMPLETED",
+			// newReviewWithID does not set SubmittedAt, so sat.IsZero() == true → stale → NOT_REQUESTED.
+			name:         "nil prevReviewID, no SubmittedAt → timestamp fallback → NOT_REQUESTED (stale)",
 			data:         &ReviewData{LatestCopilotReview: newReviewWithID(99, "APPROVED")},
 			requestedAt:  &now,
 			prevReviewID: nil,
-			want:         StatusNotRequested, // review has no SubmittedAt → nil → stale
+			want:         StatusNotRequested,
 		},
 	}
 

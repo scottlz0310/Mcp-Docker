@@ -5,7 +5,6 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -79,9 +78,35 @@ func Open(path string) (*DB, error) {
 		return nil, err
 	}
 	// Migration: add prev_review_id column for ID-based review staleness detection.
-	// Idempotent: SQLite returns "duplicate column name" when already applied.
-	if _, err := db.Exec(`ALTER TABLE trigger_log ADD COLUMN prev_review_id TEXT`); err != nil {
-		if !strings.Contains(err.Error(), "duplicate column name") {
+	// Use PRAGMA table_info to check existence first; this avoids relying on SQLite
+	// driver error message text ("duplicate column name") which can vary by version.
+	var colExists bool
+	rows, err := db.Query(`PRAGMA table_info(trigger_log)`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migration check table_info: %w", err)
+	}
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			rows.Close()
+			db.Close()
+			return nil, fmt.Errorf("migration scan table_info: %w", err)
+		}
+		if name == "prev_review_id" {
+			colExists = true
+			break
+		}
+	}
+	if err := rows.Close(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migration close table_info rows: %w", err)
+	}
+	if !colExists {
+		if _, err := db.Exec(`ALTER TABLE trigger_log ADD COLUMN prev_review_id TEXT`); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("migration add prev_review_id: %w", err)
 		}
@@ -104,10 +129,10 @@ func (d *DB) Close() error { return d.db.Close() }
 // TriggerEntry is a row from trigger_log.
 type TriggerEntry struct {
 	ID           int64
-	Trigger      string     // "MANUAL" or "AUTO"
-	RequestedAt  time.Time  // when the review was requested
+	Trigger      string    // "MANUAL" or "AUTO"
+	RequestedAt  time.Time // when the review was requested
 	CompletedAt  *time.Time
-	PrevReviewID *string    // ID of the Copilot review that existed when the request was made (nil for backward compat)
+	PrevReviewID *string // ID of the Copilot review that existed when the request was made (nil for backward compat)
 }
 
 // ReviewWatchEntry is a persisted watch snapshot in review_watch.
