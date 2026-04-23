@@ -39,12 +39,17 @@ var statusTool = &mcp.Tool{
 
 // statusHandler handles a single get_copilot_review_status call.
 func statusHandler(
-	ghClient *ghclient.Client,
+	clientProvider githubClientProvider,
 	db *store.DB,
 ) func(context.Context, *mcp.CallToolRequest, GetStatusInput) (*mcp.CallToolResult, GetStatusOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in GetStatusInput) (*mcp.CallToolResult, GetStatusOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in GetStatusInput) (*mcp.CallToolResult, GetStatusOutput, error) {
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, GetStatusOutput{}, fmt.Errorf("owner, repo, and pr are required")
+		}
+
+		ghClient, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, GetStatusOutput{}, err
 		}
 
 		data, err := ghClient.GetReviewData(ctx, in.Owner, in.Repo, in.PR)
@@ -110,8 +115,8 @@ func statusHandler(
 }
 
 // RegisterStatusTool adds get_copilot_review_status to the MCP server.
-func RegisterStatusTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
-	mcp.AddTool(server, statusTool, statusHandler(gh, db))
+func RegisterStatusTool(server *mcp.Server, clientProvider githubClientProvider, db *store.DB) {
+	mcp.AddTool(server, statusTool, statusHandler(clientProvider, db))
 }
 
 // fmtDuration formats a duration as a human-readable string.

@@ -40,10 +40,10 @@ var waitTool = &mcp.Tool{
 
 // waitHandler handles a single wait_for_copilot_review call.
 func waitHandler(
-	ghClient *ghclient.Client,
+	clientProvider githubClientProvider,
 	db *store.DB,
 ) func(context.Context, *mcp.CallToolRequest, WaitInput) (*mcp.CallToolResult, WaitOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in WaitInput) (*mcp.CallToolResult, WaitOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in WaitInput) (*mcp.CallToolResult, WaitOutput, error) {
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, WaitOutput{}, fmt.Errorf("owner, repo, and pr are required")
 		}
@@ -75,6 +75,10 @@ func waitHandler(
 
 		pollInterval := time.Duration(in.PollIntervalSeconds) * time.Second
 		start := time.Now()
+		ghClient, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, WaitOutput{}, err
+		}
 
 		// lastData/lastEntry/lastStatus hold the most recent successful poll result.
 		// Reused by TIMEOUT and CANCELLED paths to avoid an extra API call.
@@ -230,6 +234,6 @@ func buildStatusOutput(data *ghclient.ReviewData, entry *store.TriggerEntry, sta
 }
 
 // RegisterWaitTool adds wait_for_copilot_review to the MCP server.
-func RegisterWaitTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
-	mcp.AddTool(server, waitTool, waitHandler(gh, db))
+func RegisterWaitTool(server *mcp.Server, clientProvider githubClientProvider, db *store.DB) {
+	mcp.AddTool(server, waitTool, waitHandler(clientProvider, db))
 }
