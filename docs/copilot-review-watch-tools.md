@@ -48,3 +48,21 @@ watch 系ツールは `recommended_next_action` と、必要に応じて `next_p
 - `resource_uri` は将来の resource 公開フェーズに備えた安定 ID です。#67 時点では read/subscribe は未提供です。
 - watch state は SQLite に保存されますが、worker 自体は memory-only です。プロセス再起動後の active watch は `STALE` になります。
 - 一覧系は同一 `github_login` の watch だけを返します。
+
+## Stateful Session 基盤（#64）
+
+#64 以降、`copilot-review-mcp` の Streamable HTTP は stateless ではなく stateful session として扱います。
+
+- 初回 initialize で発行された `Mcp-Session-Id` を後続 request で再利用します。
+- MCP server は request ごとに作成されず、プロセス内の長寿命 server が複数 stateful session を保持します。
+- GitHub client は長寿命 server へ閉じ込めず、各 tool request の認証済み header から作成します。
+- `Mcp-Session-Id` は GitHub login と対応付け、別 login から同じ session ID が使われた場合は拒否します。
+- idle session は server 側 timeout で閉じられます。
+- `EventStore` は memory store を使い、future resource notification / SSE replay の土台を用意しています。
+
+テスト観点:
+
+- initialize 後の複数 request が同一 stateful session と長寿命 server を再利用すること。
+- 別 GitHub login が既存 `Mcp-Session-Id` を使うと 403 になること。
+- handler shutdown で active session と background watch manager が停止すること。
+- resource notification 追加時は `resources/subscribe` 済み session に `notifications/resources/updated` が届き、通知不可 host では watch status read fallback が維持されること。

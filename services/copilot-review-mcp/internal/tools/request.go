@@ -6,7 +6,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
 	"github.com/scottlz0310/copilot-review-mcp/internal/store"
 )
 
@@ -33,12 +32,16 @@ var requestTool = &mcp.Tool{
 
 // requestHandler handles a single request_copilot_review call.
 func requestHandler(
-	ghClient *ghclient.Client,
+	clientProvider githubClientProvider,
 	db *store.DB,
 ) func(context.Context, *mcp.CallToolRequest, RequestInput) (*mcp.CallToolResult, RequestOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in RequestInput) (*mcp.CallToolResult, RequestOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in RequestInput) (*mcp.CallToolResult, RequestOutput, error) {
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, RequestOutput{}, fmt.Errorf("owner, repo, and pr are required")
+		}
+		ghClient, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, RequestOutput{}, err
 		}
 
 		// Guard: check for an in-progress trigger_log entry.
@@ -89,6 +92,6 @@ func requestHandler(
 }
 
 // RegisterRequestTool adds request_copilot_review to the MCP server.
-func RegisterRequestTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
-	mcp.AddTool(server, requestTool, requestHandler(gh, db))
+func RegisterRequestTool(server *mcp.Server, clientProvider githubClientProvider, db *store.DB) {
+	mcp.AddTool(server, requestTool, requestHandler(clientProvider, db))
 }

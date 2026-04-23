@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
 )
 
 // ─── Tool 4: get_review_threads ───────────────────────────────────────────────
@@ -53,11 +51,15 @@ var getReviewThreadsTool = &mcp.Tool{
 }
 
 func getReviewThreadsHandler(
-	gh *ghclient.Client,
+	clientProvider githubClientProvider,
 ) func(context.Context, *mcp.CallToolRequest, GetReviewThreadsInput) (*mcp.CallToolResult, GetReviewThreadsOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in GetReviewThreadsInput) (*mcp.CallToolResult, GetReviewThreadsOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in GetReviewThreadsInput) (*mcp.CallToolResult, GetReviewThreadsOutput, error) {
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, GetReviewThreadsOutput{}, fmt.Errorf("owner, repo, and pr are required")
+		}
+		gh, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, GetReviewThreadsOutput{}, err
 		}
 
 		rawThreads, err := gh.GetReviewThreads(ctx, in.Owner, in.Repo, in.PR)
@@ -93,8 +95,8 @@ func getReviewThreadsHandler(
 }
 
 // RegisterGetReviewThreadsTool adds get_review_threads to the MCP server.
-func RegisterGetReviewThreadsTool(server *mcp.Server, gh *ghclient.Client) {
-	mcp.AddTool(server, getReviewThreadsTool, getReviewThreadsHandler(gh))
+func RegisterGetReviewThreadsTool(server *mcp.Server, clientProvider githubClientProvider) {
+	mcp.AddTool(server, getReviewThreadsTool, getReviewThreadsHandler(clientProvider))
 }
 
 // ─── Tool 5: reply_to_review_thread ──────────────────────────────────────────
@@ -118,14 +120,18 @@ var replyToThreadTool = &mcp.Tool{
 }
 
 func replyToThreadHandler(
-	gh *ghclient.Client,
+	clientProvider githubClientProvider,
 ) func(context.Context, *mcp.CallToolRequest, ReplyToThreadInput) (*mcp.CallToolResult, ReplyToThreadOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in ReplyToThreadInput) (*mcp.CallToolResult, ReplyToThreadOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in ReplyToThreadInput) (*mcp.CallToolResult, ReplyToThreadOutput, error) {
 		if in.ThreadID == "" {
 			return nil, ReplyToThreadOutput{}, fmt.Errorf("threadId is required")
 		}
 		if strings.TrimSpace(in.Body) == "" {
 			return nil, ReplyToThreadOutput{}, fmt.Errorf("body must not be empty or whitespace-only")
+		}
+		gh, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, ReplyToThreadOutput{}, err
 		}
 
 		alreadyResolved, err := gh.IsThreadResolved(ctx, in.ThreadID)
@@ -151,8 +157,8 @@ func replyToThreadHandler(
 }
 
 // RegisterReplyToThreadTool adds reply_to_review_thread to the MCP server.
-func RegisterReplyToThreadTool(server *mcp.Server, gh *ghclient.Client) {
-	mcp.AddTool(server, replyToThreadTool, replyToThreadHandler(gh))
+func RegisterReplyToThreadTool(server *mcp.Server, clientProvider githubClientProvider) {
+	mcp.AddTool(server, replyToThreadTool, replyToThreadHandler(clientProvider))
 }
 
 // ─── Tool 6: resolve_review_thread ───────────────────────────────────────────
@@ -174,11 +180,15 @@ var resolveThreadTool = &mcp.Tool{
 }
 
 func resolveThreadHandler(
-	gh *ghclient.Client,
+	clientProvider githubClientProvider,
 ) func(context.Context, *mcp.CallToolRequest, ResolveThreadInput) (*mcp.CallToolResult, ResolveThreadOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in ResolveThreadInput) (*mcp.CallToolResult, ResolveThreadOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in ResolveThreadInput) (*mcp.CallToolResult, ResolveThreadOutput, error) {
 		if in.ThreadID == "" {
 			return nil, ResolveThreadOutput{}, fmt.Errorf("threadId is required")
+		}
+		gh, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, ResolveThreadOutput{}, err
 		}
 
 		alreadyResolved, err := gh.ResolveThread(ctx, in.ThreadID)
@@ -193,8 +203,8 @@ func resolveThreadHandler(
 }
 
 // RegisterResolveThreadTool adds resolve_review_thread to the MCP server.
-func RegisterResolveThreadTool(server *mcp.Server, gh *ghclient.Client) {
-	mcp.AddTool(server, resolveThreadTool, resolveThreadHandler(gh))
+func RegisterResolveThreadTool(server *mcp.Server, clientProvider githubClientProvider) {
+	mcp.AddTool(server, resolveThreadTool, resolveThreadHandler(clientProvider))
 }
 
 // ─── Tool 7: reply_and_resolve_review_thread ──────────────────────────────────
@@ -221,14 +231,18 @@ var replyAndResolveTool = &mcp.Tool{
 }
 
 func replyAndResolveHandler(
-	gh *ghclient.Client,
+	clientProvider githubClientProvider,
 ) func(context.Context, *mcp.CallToolRequest, ReplyAndResolveInput) (*mcp.CallToolResult, ReplyAndResolveOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in ReplyAndResolveInput) (*mcp.CallToolResult, ReplyAndResolveOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in ReplyAndResolveInput) (*mcp.CallToolResult, ReplyAndResolveOutput, error) {
 		if in.ThreadID == "" {
 			return nil, ReplyAndResolveOutput{}, fmt.Errorf("threadId is required")
 		}
 		if strings.TrimSpace(in.Body) == "" {
 			return nil, ReplyAndResolveOutput{}, fmt.Errorf("body must not be empty or whitespace-only")
+		}
+		gh, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, ReplyAndResolveOutput{}, err
 		}
 
 		out := ReplyAndResolveOutput{}
@@ -260,14 +274,14 @@ func replyAndResolveHandler(
 }
 
 // RegisterReplyAndResolveTool adds reply_and_resolve_review_thread to the MCP server.
-func RegisterReplyAndResolveTool(server *mcp.Server, gh *ghclient.Client) {
-	mcp.AddTool(server, replyAndResolveTool, replyAndResolveHandler(gh))
+func RegisterReplyAndResolveTool(server *mcp.Server, clientProvider githubClientProvider) {
+	mcp.AddTool(server, replyAndResolveTool, replyAndResolveHandler(clientProvider))
 }
 
 // RegisterThreadTools registers Tools 4–7 (ISSUE#26) on the MCP server.
-func RegisterThreadTools(server *mcp.Server, gh *ghclient.Client) {
-	RegisterGetReviewThreadsTool(server, gh)
-	RegisterReplyToThreadTool(server, gh)
-	RegisterResolveThreadTool(server, gh)
-	RegisterReplyAndResolveTool(server, gh)
+func RegisterThreadTools(server *mcp.Server, clientProvider githubClientProvider) {
+	RegisterGetReviewThreadsTool(server, clientProvider)
+	RegisterReplyToThreadTool(server, clientProvider)
+	RegisterResolveThreadTool(server, clientProvider)
+	RegisterReplyAndResolveTool(server, clientProvider)
 }

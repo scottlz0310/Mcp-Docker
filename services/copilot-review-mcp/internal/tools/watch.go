@@ -7,7 +7,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/scottlz0310/copilot-review-mcp/internal/middleware"
 	"github.com/scottlz0310/copilot-review-mcp/internal/watch"
 )
 
@@ -136,13 +135,13 @@ var cancelWatchTool = &mcp.Tool{
 func startWatchHandler(
 	manager *watch.Manager,
 ) func(context.Context, *mcp.CallToolRequest, StartReviewWatchInput) (*mcp.CallToolResult, StartReviewWatchOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in StartReviewWatchInput) (*mcp.CallToolResult, StartReviewWatchOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in StartReviewWatchInput) (*mcp.CallToolResult, StartReviewWatchOutput, error) {
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, StartReviewWatchOutput{}, fmt.Errorf("owner, repo, and pr are required")
 		}
 
-		login := middleware.LoginFromContext(ctx)
-		token := middleware.TokenFromContext(ctx)
+		login := loginFromToolRequest(ctx, req)
+		token := tokenFromToolRequest(ctx, req)
 		if login == "" || token == "" {
 			return nil, StartReviewWatchOutput{}, fmt.Errorf("authenticated GitHub login and token are required")
 		}
@@ -171,8 +170,8 @@ func startWatchHandler(
 func getWatchStatusHandler(
 	manager *watch.Manager,
 ) func(context.Context, *mcp.CallToolRequest, GetReviewWatchStatusInput) (*mcp.CallToolResult, GetReviewWatchStatusOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in GetReviewWatchStatusInput) (*mcp.CallToolResult, GetReviewWatchStatusOutput, error) {
-		login := middleware.LoginFromContext(ctx)
+	return func(ctx context.Context, req *mcp.CallToolRequest, in GetReviewWatchStatusInput) (*mcp.CallToolResult, GetReviewWatchStatusOutput, error) {
+		login := loginFromToolRequest(ctx, req)
 		if login == "" {
 			return nil, GetReviewWatchStatusOutput{}, fmt.Errorf("authenticated GitHub login is required")
 		}
@@ -208,8 +207,8 @@ func getWatchStatusHandler(
 func listWatchesHandler(
 	manager *watch.Manager,
 ) func(context.Context, *mcp.CallToolRequest, ListReviewWatchesInput) (*mcp.CallToolResult, ListReviewWatchesOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in ListReviewWatchesInput) (*mcp.CallToolResult, ListReviewWatchesOutput, error) {
-		login := middleware.LoginFromContext(ctx)
+	return func(ctx context.Context, req *mcp.CallToolRequest, in ListReviewWatchesInput) (*mcp.CallToolResult, ListReviewWatchesOutput, error) {
+		login := loginFromToolRequest(ctx, req)
 		if login == "" {
 			return nil, ListReviewWatchesOutput{}, fmt.Errorf("authenticated GitHub login is required")
 		}
@@ -258,8 +257,8 @@ func listWatchesHandler(
 func cancelWatchHandler(
 	manager *watch.Manager,
 ) func(context.Context, *mcp.CallToolRequest, CancelReviewWatchInput) (*mcp.CallToolResult, CancelReviewWatchOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in CancelReviewWatchInput) (*mcp.CallToolResult, CancelReviewWatchOutput, error) {
-		login := middleware.LoginFromContext(ctx)
+	return func(ctx context.Context, req *mcp.CallToolRequest, in CancelReviewWatchInput) (*mcp.CallToolResult, CancelReviewWatchOutput, error) {
+		login := loginFromToolRequest(ctx, req)
 		if login == "" {
 			return nil, CancelReviewWatchOutput{}, fmt.Errorf("authenticated GitHub login is required")
 		}

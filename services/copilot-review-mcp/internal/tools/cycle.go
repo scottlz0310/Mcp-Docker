@@ -86,10 +86,10 @@ var cycleTool = &mcp.Tool{
 }
 
 func cycleStatusHandler(
-	gh *ghclient.Client,
+	clientProvider githubClientProvider,
 	db *store.DB,
 ) func(context.Context, *mcp.CallToolRequest, CycleStatusInput) (*mcp.CallToolResult, CycleStatusOutput, error) {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, in CycleStatusInput) (*mcp.CallToolResult, CycleStatusOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in CycleStatusInput) (*mcp.CallToolResult, CycleStatusOutput, error) {
 		// Input validation
 		if in.Owner == "" || in.Repo == "" || in.PR <= 0 {
 			return nil, CycleStatusOutput{}, fmt.Errorf("owner, repo, and pr are required")
@@ -112,6 +112,11 @@ func cycleStatusHandler(
 			return nil, CycleStatusOutput{}, fmt.Errorf(
 				"fix_type must be one of: logic, spec_change, trivial, none (got %q)", in.FixType,
 			)
+		}
+
+		gh, err := clientProvider(ctx, req)
+		if err != nil {
+			return nil, CycleStatusOutput{}, err
 		}
 
 		// Resolve max_cycles (input → env → default)
@@ -346,8 +351,8 @@ func cycleStatusHandler(
 }
 
 // RegisterCycleTool adds get_pr_review_cycle_status to the MCP server.
-func RegisterCycleTool(server *mcp.Server, gh *ghclient.Client, db *store.DB) {
-	mcp.AddTool(server, cycleTool, cycleStatusHandler(gh, db))
+func RegisterCycleTool(server *mcp.Server, clientProvider githubClientProvider, db *store.DB) {
+	mcp.AddTool(server, cycleTool, cycleStatusHandler(clientProvider, db))
 }
 
 // findLatestCommentAt returns the most recent CreatedAt across Copilot-authored

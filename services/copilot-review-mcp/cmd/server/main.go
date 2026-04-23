@@ -58,7 +58,7 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok"}`)
 	})
 
-	// MCP endpoints (auth required) — Streamable HTTP transport (stateless, per-request server)
+	// MCP endpoints (auth required) — Streamable HTTP transport (stateful, shared server)
 	threshold := time.Duration(cfg.inProgressThresholdSec) * time.Second
 	mcpHandler := tools.BuildStreamableHandler(db, threshold, oauthHandler)
 	defer mcpHandler.Close()
