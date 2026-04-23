@@ -7,14 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-04-24
+
+### ✨ 新機能
+
+- `copilot-review-mcp`: Copilot review 非同期 Watch フローを追加
+  - `start_copilot_review_watch` / `get_copilot_review_watch_status` / `list_copilot_review_watches` / `cancel_copilot_review_watch` ツールを追加（#75）
+  - watch state を SQLite で永続化（セッション再起動後も watch を引き継ぎ可能に）（#74）
+  - `get_pr_review_cycle_status` / `get_review_threads` / `reply_to_review_thread` / `reply_and_resolve_review_thread` / `resolve_review_thread` ツールを追加（#75）
+  - MCP Watch resource（`copilot-review://watch/{watch_id}`）と `notifications/resources/updated` 通知を追加（#77）
+  - サーバーを stateful session 管理（セッション単位で watch manager を保持）へリファクタリング（#76）
+
+### 🔧 改善
+
+- `copilot-review-mcp`: スレッド分類ロジックをMCPサーバーから削除し、LLMルールファイルベースへ移行（#55 #58 #62）
+  - MCP が分類を担う設計をやめ、LLM がルールファイルを参照して自律分類する方式に変更
+  - `get_review_threads` はフィルタなし全件返却に変更
+- `docs`: `pr-review-cycle` スキルテンプレートを `docs/skills/pr-review-cycle.md` に追加（#78）
+
 ### 🐛 Fix
 
-- `copilot-review-mcp`: `RequestCopilotReview` を REST API から GraphQL mutation へ移行（ISSUE #52）
+- `copilot-review-mcp`: `RequestCopilotReview` を REST API から GraphQL mutation へ移行（#52 #53）
   - `POST /repos/{owner}/{repo}/pulls/{pr}/requested_reviewers` は bot actor を黙って無視する（#47 の根本原因）
   - GitHub CLI と同じロジック（`requestReviewsByLogin` mutation + `botLogins`）で実装し直し
   - `union: true` で既存の human reviewer を保持したまま Copilot を追加
   - PR の GraphQL node ID を取得する際に空チェックを追加（PR 不存在・権限不足の検知）
   - `copilotBotLogin` 定数と `buildCopilotReviewInput` 関数を分離し、typo ガードのユニットテストを追加
+- `copilot-review-mcp`: GraphQL input type エラーを修正（#73）
+  - `requestReviewsByLogin` mutation の input フィールド名ミスを修正
+- `copilot-review-mcp`: `wait_for_copilot_review` の TIMEOUT 後の余分な API コールと CANCEL 時の情報欠落を修正（#60）
+- `copilot-review-mcp`: CI 環境での自動取得と `last_comment_at` 自動算出を実装（#61）
+- `copilot-review-mcp`: stale-guard の誤発火とキャンセル時 `completed_at` 未更新を修正（#80）
+- `auth`: GitHub トークン認証切れの原因 3 件（`expires_in` 秒計算誤り・レスポンス欠落・キャッシュ即時無効化）を修正（#51）
+- `ci`: Security Scan ワークフローで `github-mcp-server` の ref をピン固定しセキュリティを強化（#70）
+
+### 📦 依存関係更新
+
+- `copilot-review-mcp`: `modernc.org/sqlite` を v1.48.2 へ更新（#50）
+- `copilot-review-mcp`: `github.com/modelcontextprotocol/go-sdk` を v1.5.0 へ更新（#49）
+- `copilot-review-mcp`: Go を v1.26.2 へ更新（#48）
+
+### 📌 その他
+
+- `.claude/` ディレクトリを `.gitignore` へ追加（#54）
 
 ## [2.3.0] - 2026-04-06
 
@@ -198,7 +233,10 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.0.0...v2.0.1
