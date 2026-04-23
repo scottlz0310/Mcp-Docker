@@ -1,10 +1,13 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -100,18 +103,57 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 	if inv != nil {
 		invalidate = inv.InvalidateCachedToken
 	}
-	watchManager := watch.NewManager(db, watch.Options{
-		Threshold:       threshold,
-		InvalidateToken: invalidate,
-	})
 
 	clientProvider := newGitHubClientProvider(threshold, invalidate)
+	// watchManager is declared before srv so the SubscribeHandler closure can reference it
+	// for authorization. At the time any subscribe request arrives the server is already
+	// fully initialized, so watchManager is always non-nil.
+	var watchManager *watch.Manager
 	srv := mcp.NewServer(
 		&mcp.Implementation{Name: "copilot-review-mcp", Version: "1.0.0"},
-		&mcp.ServerOptions{SchemaCache: schemaCache},
+		&mcp.ServerOptions{
+			SchemaCache: schemaCache,
+			SubscribeHandler: func(ctx context.Context, req *mcp.SubscribeRequest) error {
+				if watchManager == nil || req == nil || req.Params == nil {
+					return nil
+				}
+				uri := req.Params.URI
+				const watchPrefix = "copilot-review://watch/"
+				if !strings.HasPrefix(uri, watchPrefix) {
+					return nil // not a watch URI; allow subscription for other resource types
+				}
+				// URI has the watch prefix — parse it strictly so malformed URIs are rejected.
+				watchID, err := parseWatchIDFromURI(uri)
+				if err != nil {
+					return mcp.ResourceNotFoundError(uri)
+				}
+				login := middleware.LoginFromContext(ctx)
+				if login == "" {
+					return fmt.Errorf("authenticated GitHub login is required to subscribe")
+				}
+				snap, ok := watchManager.GetByID(watchID)
+				if !ok || snap.Login != login {
+					return mcp.ResourceNotFoundError(uri)
+				}
+				return nil
+			},
+			UnsubscribeHandler: func(_ context.Context, _ *mcp.UnsubscribeRequest) error {
+				return nil
+			},
+		},
 	)
+	watchManager = watch.NewManager(db, watch.Options{
+		Threshold:       threshold,
+		InvalidateToken: invalidate,
+		NotifyResourceUpdated: func(uri string) {
+			if err := srv.ResourceUpdated(context.Background(), &mcp.ResourceUpdatedNotificationParams{URI: uri}); err != nil {
+				slog.Warn("resource updated notification failed", "uri", uri, "err", err)
+			}
+		},
+	})
 	RegisterStatusTool(srv, clientProvider, db)
 	RegisterWatchTools(srv, watchManager)
+	RegisterWatchResources(srv, watchManager)
 	RegisterWaitTool(srv, clientProvider, db)
 	RegisterRequestTool(srv, clientProvider, db)
 	RegisterThreadTools(srv, clientProvider)

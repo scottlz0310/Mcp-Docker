@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/scottlz0310/copilot-review-mcp/internal/middleware"
 	"github.com/scottlz0310/copilot-review-mcp/internal/watch"
 )
 
@@ -441,4 +444,61 @@ func durationSecondsCeil(d time.Duration) int {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+// RegisterWatchResources registers the watch resource template on the MCP server.
+// Resources are accessible at copilot-review://watch/{watch_id} and return the
+// full ReviewWatchView JSON of the specified watch. Clients may subscribe to
+// receive resources/updated notifications whenever the watch state changes.
+func RegisterWatchResources(server *mcp.Server, manager *watch.Manager) {
+	server.AddResourceTemplate(&mcp.ResourceTemplate{
+		URITemplate: "copilot-review://watch/{watch_id}",
+		Name:        "Copilot Review Watch",
+		Description: "Copilot レビュー watch の現在状態を JSON で返す MCP リソース。" +
+			"watch_id を URI に埋め込んでアクセスする。状態変化時に resources/updated 通知が届く。",
+		MIMEType: "application/json",
+	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		if req == nil || req.Params == nil {
+			return nil, fmt.Errorf("missing read resource request params")
+		}
+		uri := req.Params.URI
+		if uri == "" {
+			return nil, fmt.Errorf("missing resource URI")
+		}
+		watchID, err := parseWatchIDFromURI(uri)
+		if err != nil {
+			return nil, mcp.ResourceNotFoundError(uri)
+		}
+		login := middleware.LoginFromContext(ctx)
+		if login == "" {
+			return nil, fmt.Errorf("authenticated GitHub login is required")
+		}
+		snapshot, ok := manager.GetByID(watchID)
+		if !ok || snapshot.Login != login {
+			return nil, mcp.ResourceNotFoundError(uri)
+		}
+		view := buildReviewWatchView(snapshot, manager.PollInterval(), time.Now().UTC())
+		data, err := json.Marshal(view)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal watch view: %w", err)
+		}
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{
+				{URI: uri, Text: string(data), MIMEType: "application/json"},
+			},
+		}, nil
+	})
+}
+
+// parseWatchIDFromURI extracts the watch ID from a copilot-review://watch/{id} URI.
+func parseWatchIDFromURI(uri string) (string, error) {
+	const prefix = "copilot-review://watch/"
+	if !strings.HasPrefix(uri, prefix) {
+		return "", fmt.Errorf("invalid watch URI: %q", uri)
+	}
+	id := strings.TrimPrefix(uri, prefix)
+	if id == "" || strings.ContainsAny(id, "/?#") {
+		return "", fmt.Errorf("invalid watch ID in URI: %q", uri)
+	}
+	return id, nil
 }

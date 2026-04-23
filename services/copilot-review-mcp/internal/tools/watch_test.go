@@ -2,9 +2,15 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	ghclient "github.com/scottlz0310/copilot-review-mcp/internal/github"
 	"github.com/scottlz0310/copilot-review-mcp/internal/middleware"
@@ -275,4 +281,179 @@ func (testStaticFetcher) GetReviewData(context.Context, string, string, int) (*g
 		IsCopilotInReviewers: true,
 		RateLimitRemaining:   100,
 	}, nil
+}
+
+// --- Resource tests ---
+
+func TestParseWatchIDFromURI(t *testing.T) {
+	tests := []struct {
+		uri     string
+		want    string
+		wantErr bool
+	}{
+		{uri: "copilot-review://watch/cw_123_1", want: "cw_123_1"},
+		{uri: "copilot-review://watch/abc", want: "abc"},
+		{uri: "copilot-review://watch/", wantErr: true},
+		{uri: "copilot-review://watch/a/b", wantErr: true},
+		{uri: "copilot-review://watch/a?x=1", wantErr: true},
+		{uri: "other://watch/abc", wantErr: true},
+	}
+	for _, tc := range tests {
+		got, err := parseWatchIDFromURI(tc.uri)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("parseWatchIDFromURI(%q) = %q, nil; want error", tc.uri, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseWatchIDFromURI(%q) error = %v", tc.uri, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("parseWatchIDFromURI(%q) = %q, want %q", tc.uri, got, tc.want)
+		}
+	}
+}
+
+func TestWatchResourceHandlerScopesWatchIDByLogin(t *testing.T) {
+	db := openWatchToolsTestDB(t)
+	manager := watch.NewManager(db, watch.Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) watch.ReviewDataFetcher {
+			return testStaticFetcher{}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(watch.StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    77,
+	})
+	if err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+
+	srv := mcp.NewServer(
+		&mcp.Implementation{Name: "test", Version: "0"},
+		&mcp.ServerOptions{
+			SubscribeHandler:   func(_ context.Context, _ *mcp.SubscribeRequest) error { return nil },
+			UnsubscribeHandler: func(_ context.Context, _ *mcp.UnsubscribeRequest) error { return nil },
+		},
+	)
+	RegisterWatchResources(srv, manager)
+
+	uri := *started.ResourceURI
+
+	// Connect server with "bob" as the authenticated login.
+	ct, st := mcp.NewInMemoryTransports()
+	ctxBob := context.WithValue(context.Background(), middleware.ContextKeyLogin, "bob")
+	ss, err := srv.Connect(ctxBob, st, nil)
+	if err != nil {
+		t.Fatalf("srv.Connect() error = %v", err)
+	}
+	defer ss.Wait()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer cs.Close()
+
+	// Bob should not be able to read Alice's watch resource.
+	_, err = cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	if err == nil {
+		t.Fatal("ReadResource() = nil error; want ResourceNotFound for cross-login access")
+	}
+	var rpcErr *jsonrpc.Error
+	if !errors.As(err, &rpcErr) {
+		t.Fatalf("ReadResource() error type = %T, want *jsonrpc.Error; err = %v", err, err)
+	}
+	if rpcErr.Code != mcp.CodeResourceNotFound {
+		t.Errorf("ReadResource() error code = %d, want %d (CodeResourceNotFound)", rpcErr.Code, mcp.CodeResourceNotFound)
+	}
+}
+
+func TestWatchResourceHandlerReturnsJSON(t *testing.T) {
+	db := openWatchToolsTestDB(t)
+	manager := watch.NewManager(db, watch.Options{
+		PollInterval: time.Hour,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) watch.ReviewDataFetcher {
+			return testStaticFetcher{}
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(watch.StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    78,
+	})
+	if err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+
+	srv := mcp.NewServer(
+		&mcp.Implementation{Name: "test", Version: "0"},
+		&mcp.ServerOptions{
+			SubscribeHandler:   func(_ context.Context, _ *mcp.SubscribeRequest) error { return nil },
+			UnsubscribeHandler: func(_ context.Context, _ *mcp.UnsubscribeRequest) error { return nil },
+		},
+	)
+	RegisterWatchResources(srv, manager)
+
+	uri := *started.ResourceURI
+	if !strings.HasPrefix(uri, "copilot-review://watch/") {
+		t.Fatalf("ResourceURI = %q, want copilot-review://watch/ prefix", uri)
+	}
+
+	// Connect server with "alice" as the authenticated login.
+	ct, st := mcp.NewInMemoryTransports()
+	ctxAlice := context.WithValue(context.Background(), middleware.ContextKeyLogin, "alice")
+	ss, err := srv.Connect(ctxAlice, st, nil)
+	if err != nil {
+		t.Fatalf("srv.Connect() error = %v", err)
+	}
+	defer ss.Wait()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer cs.Close()
+
+	// Alice reads her own watch resource.
+	result, err := cs.ReadResource(context.Background(), &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		t.Fatalf("ReadResource() error = %v", err)
+	}
+	if len(result.Contents) != 1 {
+		t.Fatalf("len(Contents) = %d, want 1", len(result.Contents))
+	}
+	c := result.Contents[0]
+	if c.MIMEType != "application/json" {
+		t.Errorf("MIMEType = %q, want application/json", c.MIMEType)
+	}
+	if c.URI != uri {
+		t.Errorf("URI = %q, want %q", c.URI, uri)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(c.Text), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded["watch_id"] != started.WatchID {
+		t.Errorf("watch_id = %v, want %q", decoded["watch_id"], started.WatchID)
+	}
+	if decoded["owner"] != "octo" {
+		t.Errorf("owner = %v, want octo", decoded["owner"])
+	}
 }

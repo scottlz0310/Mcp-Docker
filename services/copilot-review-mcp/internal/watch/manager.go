@@ -89,6 +89,11 @@ type Options struct {
 	InvalidateToken  func(string)
 	ClientFactory    func(ctx context.Context, token string) ReviewDataFetcher
 	Now              func() time.Time
+	// NotifyResourceUpdated is called asynchronously whenever a watch transitions
+	// state. The uri argument is the resource URI of the changed watch
+	// (e.g. "copilot-review://watch/{id}"). It is safe to call srv.ResourceUpdated
+	// from this callback.
+	NotifyResourceUpdated func(uri string)
 }
 
 // CancelResult reports the outcome of a manual watch cancellation request.
@@ -118,21 +123,22 @@ type watchStore interface {
 
 // Manager owns background review-watch workers for the current server process.
 type Manager struct {
-	db               watchStore
-	threshold        time.Duration
-	pollInterval     time.Duration
-	pollTimeout      time.Duration
-	maxWatchDuration time.Duration
-	clientFactory    func(ctx context.Context, token string) ReviewDataFetcher
-	now              func() time.Time
-	ctx              context.Context
-	cancel           context.CancelFunc
-	idSeq            atomic.Uint64
-	mu               sync.RWMutex
-	watchesByID      map[string]*watchState
-	activeByKey      map[watchKey]string
-	latestByKey      map[watchKey]string
-	closed           bool
+	db                    watchStore
+	threshold             time.Duration
+	pollInterval          time.Duration
+	pollTimeout           time.Duration
+	maxWatchDuration      time.Duration
+	notifyResourceUpdated func(uri string)
+	clientFactory         func(ctx context.Context, token string) ReviewDataFetcher
+	now                   func() time.Time
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	idSeq                 atomic.Uint64
+	mu                    sync.RWMutex
+	watchesByID           map[string]*watchState
+	activeByKey           map[watchKey]string
+	latestByKey           map[watchKey]string
+	closed                bool
 }
 
 type watchKey struct {
@@ -193,18 +199,19 @@ func NewManager(db watchStore, opts Options) *Manager {
 		}
 	}
 	return &Manager{
-		db:               db,
-		threshold:        opts.Threshold,
-		pollInterval:     pollInterval,
-		pollTimeout:      pollTimeout,
-		maxWatchDuration: maxWatchDuration,
-		clientFactory:    clientFactory,
-		now:              now,
-		ctx:              ctx,
-		cancel:           cancel,
-		watchesByID:      make(map[string]*watchState),
-		activeByKey:      make(map[watchKey]string),
-		latestByKey:      make(map[watchKey]string),
+		db:                    db,
+		threshold:             opts.Threshold,
+		pollInterval:          pollInterval,
+		pollTimeout:           pollTimeout,
+		maxWatchDuration:      maxWatchDuration,
+		notifyResourceUpdated: opts.NotifyResourceUpdated,
+		clientFactory:         clientFactory,
+		now:                   now,
+		ctx:                   ctx,
+		cancel:                cancel,
+		watchesByID:           make(map[string]*watchState),
+		activeByKey:           make(map[watchKey]string),
+		latestByKey:           make(map[watchKey]string),
 	}
 }
 
@@ -712,6 +719,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 		m.mu.Unlock()
 		return true
 	}
+	prevReviewStatus := current.reviewStatus
 	m.markPollLocked(current, now)
 	current.reviewStatus = reviewStatusPtr(reviewStatus)
 	current.lastError = nil
@@ -723,10 +731,26 @@ func (m *Manager) pollOnce(watchID string) bool {
 	current.status = StatusWatching
 	current.workerRunning = true
 	if err := m.persistOrDegradeLocked(current, StatusWatching, now); err != nil {
+		// persistOrDegradeLocked transitions the watch to a terminal state on error.
+		// Notify subscribers so they don't miss the terminal transition.
+		var notifyURIOnError string
+		if m.notifyResourceUpdated != nil && current.resourceURI != nil {
+			notifyURIOnError = *current.resourceURI
+		}
 		m.mu.Unlock()
+		if notifyURIOnError != "" {
+			go m.notifyResourceUpdated(notifyURIOnError)
+		}
 		return true
 	}
+	var notifyURI string
+	if m.notifyResourceUpdated != nil && current.resourceURI != nil && reviewStatusChanged(prevReviewStatus, &reviewStatus) {
+		notifyURI = *current.resourceURI
+	}
 	m.mu.Unlock()
+	if notifyURI != "" {
+		go m.notifyResourceUpdated(notifyURI)
+	}
 	return false
 }
 
@@ -804,6 +828,10 @@ func (m *Manager) finishLocked(w *watchState, status Status, reason *FailureReas
 	delete(m.activeByKey, w.key)
 	_ = m.persistOrDegradeLocked(w, status, now)
 	w.cancel()
+	if m.notifyResourceUpdated != nil && w.resourceURI != nil {
+		uri := *w.resourceURI
+		go m.notifyResourceUpdated(uri)
+	}
 }
 
 func (m *Manager) nextID() string {
@@ -1038,6 +1066,17 @@ func IsRateLimitHTTPError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// reviewStatusChanged reports whether the review status has changed between prev and curr.
+func reviewStatusChanged(prev *ghclient.ReviewStatus, curr *ghclient.ReviewStatus) bool {
+	if prev == nil && curr == nil {
+		return false
+	}
+	if prev == nil || curr == nil {
+		return true
+	}
+	return *prev != *curr
 }
 
 func watchStatusForReview(status ghclient.ReviewStatus) (Status, bool) {

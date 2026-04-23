@@ -939,6 +939,143 @@ func TestFinishFailureWithPollCountsExactlyOnce(t *testing.T) {
 	}
 }
 
+func TestManagerNotifyResourceUpdatedCalledOnTerminal(t *testing.T) {
+	db := openTestDB(t)
+	reviewTime := time.Now().Add(time.Minute)
+
+	var mu sync.Mutex
+	var notifiedURIs []string
+
+	manager := NewManager(db, Options{
+		PollInterval: 5 * time.Millisecond,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					{
+						data: &ghclient.ReviewData{
+							LatestCopilotReview: newReview("APPROVED", &reviewTime),
+							RateLimitRemaining:  100,
+						},
+					},
+				},
+			}
+		},
+		NotifyResourceUpdated: func(uri string) {
+			mu.Lock()
+			notifiedURIs = append(notifiedURIs, uri)
+			mu.Unlock()
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    99,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool { return s.Terminal })
+
+	// Allow the goroutine fired inside finishLocked to deliver the notification.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(notifiedURIs)
+		mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(notifiedURIs) == 0 {
+		t.Fatal("NotifyResourceUpdated was never called, want at least one call")
+	}
+	wantURI := resourceURIForWatch(started.WatchID)
+	for _, uri := range notifiedURIs {
+		if uri != wantURI {
+			t.Errorf("NotifyResourceUpdated called with URI %q, want %q", uri, wantURI)
+		}
+	}
+}
+
+func TestManagerNotifyResourceUpdatedCalledOnReviewStatusChange(t *testing.T) {
+	db := openTestDB(t)
+
+	var mu sync.Mutex
+	var notifiedURIs []string
+
+	manager := NewManager(db, Options{
+		PollInterval: 5 * time.Millisecond,
+		Threshold:    30 * time.Second,
+		ClientFactory: func(_ context.Context, _ string) ReviewDataFetcher {
+			return &fakeFetcher{
+				results: []fetchResult{
+					// First poll: PENDING (no review yet)
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+					// Second poll: still PENDING — no status change expected here, but state persisted
+					{data: &ghclient.ReviewData{IsCopilotInReviewers: true, RateLimitRemaining: 100}},
+				},
+			}
+		},
+		NotifyResourceUpdated: func(uri string) {
+			mu.Lock()
+			notifiedURIs = append(notifiedURIs, uri)
+			mu.Unlock()
+		},
+	})
+	t.Cleanup(manager.Close)
+
+	started, _, err := manager.Start(StartInput{
+		Login: "alice",
+		Token: "token-a",
+		Owner: "octo",
+		Repo:  "demo",
+		PR:    98,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	// Wait for at least 2 polls so the second non-terminal result is processed.
+	waitForWatch(t, manager, started.WatchID, func(s Snapshot) bool { return s.PollsDone >= 2 })
+
+	// The first poll transitions review_status from nil → PENDING → triggers notification.
+	// The second poll keeps PENDING → no additional notification.
+	// Allow delivery.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(notifiedURIs)
+		mu.Unlock()
+		if n >= 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(notifiedURIs) == 0 {
+		t.Fatal("NotifyResourceUpdated was never called on review_status change, want exactly one call")
+	}
+	wantURI := resourceURIForWatch(started.WatchID)
+	if notifiedURIs[0] != wantURI {
+		t.Errorf("NotifyResourceUpdated[0] = %q, want %q", notifiedURIs[0], wantURI)
+	}
+	if len(notifiedURIs) != 1 {
+		t.Fatalf("NotifyResourceUpdated called %d times, want exactly 1 for the nil→PENDING transition", len(notifiedURIs))
+	}
+}
+
 type fetchResult struct {
 	data *ghclient.ReviewData
 	err  error
