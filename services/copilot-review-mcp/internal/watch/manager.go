@@ -497,20 +497,26 @@ func (m *Manager) CancelByID(login, watchID string) (CancelResult, error) {
 			return CancelResult{Snapshot: snapshot, Found: true}, nil
 		}
 		now := m.now().UTC()
-		// Mark the associated trigger_log entry as completed so HasPending returns
-		// false after cancellation, allowing a new review request to be issued.
+		// Extract triggerLogID before releasing the lock; DB update happens
+		// outside the lock to avoid blocking the manager mutex during SQLite
+		// write operations.
+		var cancelByIDTriggerLogID *int64
 		if m.db != nil && state.triggerLogID != nil {
-			if err := m.db.UpdateCompletedAt(*state.triggerLogID); err != nil {
-				slog.Warn("CancelByID: failed to update trigger_log completed_at",
-					"watch_id", watchID,
-					"trigger_log_id", *state.triggerLogID,
-					"error", err,
-				)
-			}
+			id := *state.triggerLogID
+			cancelByIDTriggerLogID = &id
 		}
 		m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 		snapshot := snapshotFromState(state)
 		m.mu.Unlock()
+		if cancelByIDTriggerLogID != nil {
+			if err := m.db.UpdateCompletedAt(*cancelByIDTriggerLogID); err != nil {
+				slog.Warn("CancelByID: failed to update trigger_log completed_at",
+					"watch_id", watchID,
+					"trigger_log_id", *cancelByIDTriggerLogID,
+					"error", err,
+				)
+			}
+		}
 		return CancelResult{Snapshot: snapshot, Found: true, Cancelled: true}, nil
 	}
 	m.mu.Unlock()
@@ -548,20 +554,26 @@ func (m *Manager) CancelLatest(login, owner, repo string, pr int) (CancelResult,
 				return CancelResult{Snapshot: snapshot, Found: true}, nil
 			}
 			now := m.now().UTC()
-			// Mark the associated trigger_log entry as completed so HasPending returns
-			// false after cancellation, allowing a new review request to be issued.
+			// Extract triggerLogID before releasing the lock; DB update happens
+			// outside the lock to avoid blocking the manager mutex during SQLite
+			// write operations.
+			var cancelLatestTriggerLogID *int64
 			if m.db != nil && state.triggerLogID != nil {
-				if err := m.db.UpdateCompletedAt(*state.triggerLogID); err != nil {
-					slog.Warn("CancelLatest: failed to update trigger_log completed_at",
-						"owner", owner, "repo", repo, "pr", pr,
-						"trigger_log_id", *state.triggerLogID,
-						"error", err,
-					)
-				}
+				id := *state.triggerLogID
+				cancelLatestTriggerLogID = &id
 			}
 			m.finishLocked(state, StatusCancelled, nil, now, "watch was cancelled manually")
 			snapshot := snapshotFromState(state)
 			m.mu.Unlock()
+			if cancelLatestTriggerLogID != nil {
+				if err := m.db.UpdateCompletedAt(*cancelLatestTriggerLogID); err != nil {
+					slog.Warn("CancelLatest: failed to update trigger_log completed_at",
+						"owner", owner, "repo", repo, "pr", pr,
+						"trigger_log_id", *cancelLatestTriggerLogID,
+						"error", err,
+					)
+				}
+			}
 			return CancelResult{Snapshot: snapshot, Found: true, Cancelled: true}, nil
 		}
 		delete(m.activeByKey, key)
