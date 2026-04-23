@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -100,18 +101,32 @@ func BuildStreamableHandler(db *store.DB, threshold time.Duration, inv TokenInva
 	if inv != nil {
 		invalidate = inv.InvalidateCachedToken
 	}
-	watchManager := watch.NewManager(db, watch.Options{
-		Threshold:       threshold,
-		InvalidateToken: invalidate,
-	})
 
 	clientProvider := newGitHubClientProvider(threshold, invalidate)
 	srv := mcp.NewServer(
 		&mcp.Implementation{Name: "copilot-review-mcp", Version: "1.0.0"},
-		&mcp.ServerOptions{SchemaCache: schemaCache},
+		&mcp.ServerOptions{
+			SchemaCache: schemaCache,
+			SubscribeHandler: func(_ context.Context, _ *mcp.SubscribeRequest) error {
+				return nil
+			},
+			UnsubscribeHandler: func(_ context.Context, _ *mcp.UnsubscribeRequest) error {
+				return nil
+			},
+		},
 	)
+	watchManager := watch.NewManager(db, watch.Options{
+		Threshold:       threshold,
+		InvalidateToken: invalidate,
+		NotifyResourceUpdated: func(uri string) {
+			if err := srv.ResourceUpdated(context.Background(), &mcp.ResourceUpdatedNotificationParams{URI: uri}); err != nil {
+				slog.Warn("resource updated notification failed", "uri", uri, "err", err)
+			}
+		},
+	})
 	RegisterStatusTool(srv, clientProvider, db)
 	RegisterWatchTools(srv, watchManager)
+	RegisterWatchResources(srv, watchManager)
 	RegisterWaitTool(srv, clientProvider, db)
 	RegisterRequestTool(srv, clientProvider, db)
 	RegisterThreadTools(srv, clientProvider)
