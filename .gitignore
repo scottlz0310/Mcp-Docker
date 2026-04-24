@@ -17,6 +17,7 @@ config/ide-configs/
 # Logs
 *.log
 logs/
+!docs/observations/*.log
 
 # Runtime data
 pids
