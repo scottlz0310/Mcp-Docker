@@ -2,201 +2,168 @@
 
 ISSUE #83 の観測結果をステートごとに記録する。
 
-## 観測済み：PR #81（`release/v2.4.0`、マージ済み）
+---
 
-**条件**: MANUAL trigger、ドキュメント変更のみ、スレッド 0 件
+## 観測済み：PR #84（`feat/83-review-status-observation`、Draft → Ready）
 
-### タイムライン実測（REST timeline + GraphQL）
+**条件**: AUTO trigger（automatic review settings）、ドキュメント変更のみ
 
-| 時刻 (UTC) | イベント | actor | 補足 |
-|---|---|---|---|
-| 23:24:32Z | `review_requested` | scottlz0310-user | `ready_for_review` と同時発火 |
-| 23:25:03Z | `copilot_work_started` | scottlz0310-user | 依頼から **31 秒後** に着手 |
-| 23:26:57Z | `PullRequestReview` (COMMENTED) | copilot-pull-request-reviewer | 着手から **114 秒後** に完了 |
+### タイムライン実測（REST timeline）
 
-### 各 API エンドポイントの返り値
+| 時刻 (UTC) | イベント | actor | `requested_reviewers` | 備考 |
+|---|---|---|---|---|
+| 00:59:02Z | `ready_for_review` | scottlz0310-user | `[Copilot]` | Draft 解除と同時発火 |
+| 00:59:02Z | `review_requested` | scottlz0310-user | `[Copilot]` | AUTO trigger。MANUAL と actor は同じ |
+| 00:59:29Z | `copilot_work_started` | scottlz0310-user | `[Copilot]` | 依頼から **27 秒後** に着手 |
+| 01:01:30Z | `reviewed` (COMMENTED) | — | `[]` | 着手から **121 秒後**。完了と**同時に** reviewer 除外 |
 
-#### REST: requested_reviewers
+### ステート別 API 観測結果
 
-| タイミング | copilot in reviewers? |
+#### NOT_REQUESTED（Draft 状態）
+
+| エンドポイント | 値 |
 |---|---|
-| 観測未実施（PR マージ済みのため取得不可） | — |
+| REST `requested_reviewers` | `[]` |
+| REST `reviews` | `[]` |
+| REST `timeline` | `[]`（review 関連イベントなし） |
+| GraphQL `timelineItems` | `[]` |
+| GraphQL `reviewRequests` | `[]` |
+| MCP `status` | `NOT_REQUESTED` ✅ |
 
-#### REST: reviews
+#### PENDING（`review_requested` あり、`copilot_work_started` なし）
 
-```json
-[{
-  "id": "4166786012",
-  "login": "copilot-pull-request-reviewer[bot]",
-  "state": "COMMENTED",
-  "submitted_at": "2026-04-23T23:26:57Z"
-}]
-```
+観測時刻: `00:59:11Z`（`review_requested` から 9 秒後）
 
-**注**: REST では `login` に `[bot]` サフィックスあり。GraphQL `Bot.login` とは異なる（後述）。
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[{"login":"Copilot","type":"Bot"}]` | login は `"Copilot"`（大文字） |
+| REST `reviews` | `[]` | |
+| REST `timeline` events | `ready_for_review`, `review_requested` | `copilot_work_started` なし |
+| GraphQL `ReviewRequestedEvent` | `createdAt: 00:59:02Z`, `reviewer: copilot-pull-request-reviewer`, `reviewerType: Bot` | login に `[bot]` なし |
+| GraphQL `reviewRequests` | `[{"name":"copilot-pull-request-reviewer","type":"Bot"}]` | |
+| MCP `status` | `NOT_REQUESTED` ⚠ **乖離** | |
 
-#### REST: timeline events（review 関連のみ）
+**MCP 乖離の原因**: `requested_reviewers` の login が `"Copilot"` だが `copilotLogins` に未定義。`IsCopilotInReviewers = false` になるため `PENDING` を検出できない。
 
-```json
-[
-  { "event": "review_requested",     "created_at": "2026-04-23T23:24:32Z", "actor": "scottlz0310-user", "reviewer": "Copilot" },
-  { "event": "copilot_work_started", "created_at": "2026-04-23T23:25:03Z", "actor": "scottlz0310-user" },
-  { "event": "reviewed",             "created_at": null }
-]
-```
+#### IN_PROGRESS（`copilot_work_started` あり、`PullRequestReview` なし）
 
-**注**: `reviewed` の `created_at` は `null`（マージ後取得のため。GraphQL `submittedAt` は非 null）
+観測時刻: `01:00:05Z`（`copilot_work_started` から 36 秒後）
 
-#### GraphQL: timelineItems
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[{"login":"Copilot","type":"Bot"}]` | IN_PROGRESS 中も残存 |
+| REST `reviews` | `[]` | |
+| REST `timeline` events | `review_requested`, `copilot_work_started` | `reviewed` なし |
+| GraphQL `timelineItems` | `ReviewRequestedEvent` のみ | `copilot_work_started` は GraphQL に**存在しない** ⚠ |
+| MCP `status` | `NOT_REQUESTED` ⚠ **乖離** | PENDING と同じ理由 |
 
-```json
-[
-  {
-    "type": "ReviewRequestedEvent",
-    "createdAt": "2026-04-23T23:24:32Z",
-    "actor": "scottlz0310-user",
-    "reviewer": "copilot-pull-request-reviewer",
-    "reviewerType": "Bot"
-  },
-  {
-    "type": "PullRequestReview",
-    "databaseId": "2419270726",
-    "state": "COMMENTED",
-    "createdAt": "2026-04-23T23:26:57Z",
-    "submittedAt": "2026-04-23T23:26:57Z",
-    "author": "copilot-pull-request-reviewer"
-  }
-]
-```
+**新発見**: `copilot_work_started` イベントは **REST timeline 専用**。GraphQL `timelineItems` の対応 `__typename` なし。
 
-**注**: GraphQL `Bot.login` は `"copilot-pull-request-reviewer"`（`[bot]` サフィックスなし）
+#### COMPLETED（`PullRequestReview` あり、reviewer 除外後）
 
-#### MCP: get_copilot_review_status（23:27:xx 時点）
+観測時刻: `01:01:36Z`（`reviewed` から 6 秒後）
 
-```json
-{
-  "status": "NOT_REQUESTED",
-  "trigger": "MANUAL",
-  "requested": false,
-  "lastReviewAt": "2026-04-23T23:26:57Z",
-  "elapsedSinceRequest": "1m59s"
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[]` | 完了と**同時に除外** |
+| REST `reviews` | `[{id:4167147795, login:"copilot-pull-request-reviewer[bot]", state:"COMMENTED"}]` | REST は `[bot]` サフィックスあり |
+| REST `timeline` `reviewed` | `created_at: null` | マージ前でも null ⚠ |
+| GraphQL `PullRequestReview` | `submittedAt: 01:01:30Z`, `author: copilot-pull-request-reviewer` | GraphQL は `[bot]` なし。`submittedAt` は非 null ✅ |
+| GraphQL `reviewDecision` | `null` | COMMENTED のみでは reviewDecision に反映されない |
+| GraphQL `reviewRequests` | `[]` | `requested_reviewers` と一致 |
+| MCP `status` | `COMPLETED` ✅ | `LatestCopilotReview != nil` で正しく検出 |
+| MCP `trigger` | `null` | AUTO trigger は DB に記録なし（仕様） |
+
+---
+
+## 観測済み：PR #81（`release/v2.4.0`、MANUAL trigger、マージ済み）
+
+**条件**: MANUAL trigger（`request_copilot_review` 経由）、ドキュメント変更のみ、スレッド 0 件
+
+### タイムライン実測
+
+| 時刻 (UTC) | イベント | 備考 |
+|---|---|---|
+| 23:24:32Z | `review_requested` | Draft 解除と同時 |
+| 23:25:03Z | `copilot_work_started` | 31 秒後 |
+| 23:26:57Z | `reviewed` (COMMENTED) | 着手から 114 秒後 |
+
+### MCP 乖離（23:27:xx 時点）
+
+| MCP フィールド | 値 | 実態 | 乖離 |
+|---|---|---|---|
+| `status` | `NOT_REQUESTED` | `COMPLETED` | ⚠ |
+| `trigger` | `MANUAL` | — | DB 記録あり |
+| `requestedAt`（内部 DB） | `23:27:xx` | GitHub 側: `23:24:32Z` | ⚠ 2 分以上ずれ |
+
+**乖離の原因**: DB `requested_at` が GitHub 側より後のため stale 判定が誤発動した。
+
+---
+
+## 確定した知見
+
+### 1. `copilotLogins` に `"Copilot"` が抜けている（重大バグ）
+
+REST `requested_reviewers` が返す Bot の login は **`"Copilot"`**（先頭大文字）。
+現在の `copilotLogins` は以下のみを定義しており、`"Copilot"` を含まない：
+
+```go
+var copilotLogins = []string{
+    "github-copilot[bot]",
+    "copilot-pull-request-reviewer[bot]",
+    "github-copilot",
 }
 ```
 
-#### 乖離サマリ
+→ **`IsCopilotInReviewers` が常に `false`** になり、PENDING/IN_PROGRESS を検出できない。  
+→ AUTO trigger の場合、`trigger_log` がないため stale 判定もスキップされ、COMPLETED は `LatestCopilotReview` 経路で偶然に正しく返る。  
+→ MANUAL trigger では `requestedAt` がずれると COMPLETED が `NOT_REQUESTED` になる（PR #81 の乖離）。
 
-| 項目 | GitHub 実態 | MCP 返り値 | 乖離 |
-|---|---|---|---|
-| 状態 | `COMPLETED`（レビュー完了） | `NOT_REQUESTED` | ⚠ |
-| `requested` | `false`（reviewer 除外済み） | `false` | ✅ |
-| `lastReviewAt` | `23:26:57Z` | `23:26:57Z` | ✅ |
-| `requestedAt`（内部） | `23:24:32Z`（GitHub 側） | `23:27:xx`（DB 記録） | ⚠ 2分以上ずれ |
+### 2. `copilot_work_started` は REST timeline 専用
 
-**乖離の原因**:  
-DB の `requested_at`（`23:27:xx`）が GitHub 側の依頼受付時刻（`23:24:32Z`）より後のため、  
-`submittedAt(23:26:57) < requested_at(23:27:xx)` となりレビューが stale 判定されて無視された。
+GraphQL `timelineItems` に対応する `__typename` が存在しない。`PENDING`/`IN_PROGRESS` 境界の検出に GraphQL は使えない。
+
+### 3. `reviewed` イベントの `created_at` は常に null
+
+REST timeline の `reviewed` イベントは `created_at` が null。GraphQL `PullRequestReview.submittedAt` を使うこと。
+
+### 4. `requested_reviewers` からの除外はレビュー完了と同時
+
+`reviewed` イベント発火 ≒ `requested_reviewers` 空になる。数秒以内のラグで除外される。
+
+### 5. AUTO trigger の actor は MANUAL と区別できない（暫定）
+
+`review_requested` の `actor` は `scottlz0310-user`（MANUAL と同じ）。  
+`ready_for_review` と同時発火するのが AUTO trigger の特徴だが、単独で依頼した場合との区別は timeline では困難。→ **DB の `trigger` フィールドを信頼する**のが現実的。
+
+### 6. login 名の形式まとめ
+
+| 取得方法 | login 値 |
+|---|---|
+| REST `requested_reviewers` | `"Copilot"` |
+| REST `reviews` | `"copilot-pull-request-reviewer[bot]"` |
+| GraphQL `Bot { login }` | `"copilot-pull-request-reviewer"` |
+| GraphQL `reviewRequests` | `"copilot-pull-request-reviewer"` |
+
+→ `copilotLogins` に `"Copilot"` の追加が必須。
 
 ---
 
 ## 未観測ステート
 
-以下は実際のPRで観測が必要。観測後にこのシートへ追記すること。
+### `blocked`（CHANGES_REQUESTED）
 
-### `pending`（`review_requested` あり・`copilot_work_started` なし）
-
-**観測方法**: `request_copilot_review` を呼んだ直後（31 秒以内）にスクリプトを実行。
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `review_requested` イベント | あり | — | — |
-| `copilot_work_started` イベント | なし | — | — |
-| `requested_reviewers` に copilot | あり（推測） | — | — |
-| MCP `status` | `PENDING` | — | — |
-
-### `in-progress`（`copilot_work_started` あり・`PullRequestReview` なし）
-
-**観測方法**: `copilot_work_started` 後・レビュー完了前（着手から 2 分以内目安）にスクリプトを実行。
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `copilot_work_started` イベント | あり | — | — |
-| `PullRequestReview` | なし | — | — |
-| `requested_reviewers` に copilot | あり（推測） | — | — |
-| MCP `status` | `IN_PROGRESS` | — | — |
-
-### `completed`（`PullRequestReview` あり・reviewer 除外前）
-
-**観測方法**: `reviewed` イベント発生直後にスクリプトを実行。
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `PullRequestReview` (COMMENTED) | あり | — | — |
-| `requested_reviewers` に copilot | なし（推測・除外済み） | — | — |
-| MCP `status` | `COMPLETED` | — | — |
-
-### `auto-trigger`（automatic review settings による自動依頼）
-
-**観測方法**: PR を push した際に GitHub の automatic review settings が発火するリポジトリで観測。
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `review_requested` の actor | システム or GitHub Actions | — | — |
-| MCP `trigger` | `AUTO` | — | — |
-| `copilot_work_started` イベント | あり | — | — |
+実際の CHANGES_REQUESTED が出た PR で観測が必要。
 
 ### `rereview`（2 サイクル目以降）
 
-**観測方法**: 修正コミット後に `request_copilot_review` を再度呼んだ後に観測。
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `review_requested` イベント | 複数あり | — | — |
-| `copilot_work_started` イベント | 複数あり | — | — |
-| 最新の `ReviewRequestedEvent.createdAt` | 再依頼時刻 | — | — |
-| MCP `prevReviewID` の機能 | 旧レビューを stale 判定 | — | — |
-
-### `blocked`（CHANGES_REQUESTED）
-
-| 項目 | 期待値 | 実測値 | 一致? |
-|---|---|---|---|
-| `PullRequestReview.state` | `CHANGES_REQUESTED` | — | — |
-| `reviewDecision` | `CHANGES_REQUESTED` | — | — |
-| MCP `status` | `BLOCKED` | — | — |
-| MCP `isBlocking` | `true` | — | — |
+修正コミット → 再依頼時の `review_requested` / `copilot_work_started` 多重発火の挙動を確認する必要あり。
 
 ---
 
-## Check Runs 観測結果
+## 次のアクション（本実装向け）
 
-| PR | Copilot 関連 check runs | name | status | conclusion |
-|---|---|---|---|---|
-| #81 | **0 件**（スクリプト実測） | — | — | — |
-
-Copilot レビューは Check Runs として登録されない（少なくともこの PR では）。
-
-## `latestOpinionatedReviews` 観測結果
-
-| PR | 結果 | 備考 |
-|---|---|---|
-| #81 | **空**（`[]`） | Copilot の `COMMENTED` は opinionated でないため含まれない |
-
-Copilot が `APPROVED` / `CHANGES_REQUESTED` を出さない限り `latestOpinionatedReviews` には現れない。
-
-## Bot login サフィックスの違い（実測確認済み）
-
-| エンドポイント | login 値 |
-|---|---|
-| REST `GET /pulls/{pr}/reviews` | `copilot-pull-request-reviewer[bot]`（`[bot]` あり） |
-| GraphQL `Bot { login }` | `copilot-pull-request-reviewer`（`[bot]` なし） |
-
-現在の `copilotLogins` 定数は REST の `[bot]` あり形式に対応している。GraphQL で Bot を検出する場合は `[bot]` なし版での照合が必要。
-
----
-
-## 知見・結論（観測完了後に記載）
-
-- [ ] `copilot_work_started` は `PENDING` / `IN_PROGRESS` 境界として信頼できるか
-- [ ] `threshold`（経過時間）を廃止してイベントベース判定に移行できるか
-- [ ] `ReviewRequestedEvent.createdAt` を `requestedAt` として使えるか
-- [ ] Bot login の `[bot]` サフィックス有無の正式ルール
-- [ ] `reviewed` イベントの `created_at` が null になる条件
+1. **`copilotLogins` に `"Copilot"` を追加**（即時対応可能）
+2. **`PENDING`/`IN_PROGRESS` 境界を `copilot_work_started` イベントベースに変更**（要 REST timeline 呼び出し追加）
+3. **`requestedAt` を `ReviewRequestedEvent.createdAt` から取得**（DB 記録との 2 分ずれ解消）
+4. **`threshold` パラメータを廃止**（イベントベース判定で不要になる）
