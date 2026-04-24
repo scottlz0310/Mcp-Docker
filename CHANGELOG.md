@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🗑️ 削除
+
+- `github-mcp-server(patched)` カスタムビルドを削除（#89）
+  - `copilot-review-mcp` の `get_review_threads` ツールが `PRRT_xxx` node ID 取得を完全に代替するため不要に
+  - `Dockerfile.github-mcp-server`・`docker-compose.custom.yml`・`patches/` ディレクトリを削除
+  - `docs/design/pr-review-thread-list-design.md` を削除
+  - Makefile の `build-custom` / `start-custom` / `start-custom-oauth` ターゲットを削除
+  - Security Scan ワークフローのパッチビルドスキャンジョブを削除
+
 ## [2.4.0] - 2026-04-24
 
 ### ✨ 新機能

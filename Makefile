@@ -84,19 +84,6 @@ pull: ## Dockerイメージを取得
 .PHONY: build
 build: pull ## 互換性のため pull を実行
 
-.PHONY: build-custom
-build-custom: ## カスタムビルド（list_pull_request_review_threads パッチ適用）
-	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose -f docker-compose.yml -f docker-compose.custom.yml build github-mcp
-
-.PHONY: start-custom
-start-custom: build-custom ## カスタムビルド後に起動
-	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose up -d github-mcp
-
-.PHONY: start-custom-oauth
-start-custom-oauth: build-custom ## カスタムビルド + OAuthプロキシ起動（localhost:8084）
-	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
-	GITHUB_MCP_IMAGE=mcp-github-patched:latest docker compose -f docker-compose.yml -f docker-compose.custom.yml up -d github-mcp github-oauth-proxy
-	@echo "Started OAuth proxy endpoint: http://127.0.0.1:$(or $(GITHUB_OAUTH_PROXY_PORT),8084)"
 
 # ----------------------------------------
 # copilot-review-mcp (services/copilot-review-mcp)

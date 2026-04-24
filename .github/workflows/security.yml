@@ -9,9 +9,6 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
-env:
-  GITHUB_MCP_GO_SDK_VERSION: ${{ vars.GITHUB_MCP_GO_SDK_VERSION || 'v1.5.0' }}
-  SECURITY_SCAN_IMAGE: github-mcp-server:security-scan
 
 permissions:
   contents: read
@@ -48,8 +45,8 @@ jobs:
         with:
           sarif_file: trivy-fs-results.sarif
 
-  container-scan:
-    name: Container Scan (Trivy)
+  github-mcp-scan:
+    name: github-mcp Official Image Scan (Trivy)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,41 +54,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Build patched GitHub MCP Server image
-        env:
-          GITHUB_MCP_SERVER_REF: ${{ vars.GITHUB_MCP_SERVER_REF }}
-        run: |
-          build_args=(
-            --build-arg GO_SDK_VERSION=${{ env.GITHUB_MCP_GO_SDK_VERSION }}
-          )
+      - name: Pull official github-mcp-server image
+        run: docker pull ghcr.io/github/github-mcp-server:main
 
-          if [ -n "$GITHUB_MCP_SERVER_REF" ]; then
-            build_args+=(--build-arg GITHUB_MCP_SERVER_REF=$GITHUB_MCP_SERVER_REF)
-          fi
-
-          docker build \
-            "${build_args[@]}" \
-            -f Dockerfile.github-mcp-server \
-            -t ${{ env.SECURITY_SCAN_IMAGE }} \
-            .
-
-      - name: Run Trivy container scan
+      - name: Run Trivy scan on github-mcp-server image
         uses: aquasecurity/trivy-action@0.35.0
         with:
-          image-ref: ${{ env.SECURITY_SCAN_IMAGE }}
+          image-ref: ghcr.io/github/github-mcp-server:main
           format: sarif
-          output: trivy-container-results.sarif
+          output: trivy-github-mcp-results.sarif
           vuln-type: os,library
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
           limit-severities-for-sarif: true
           trivyignores: .trivyignore
 
-      - name: Upload Trivy container results
+      - name: Upload Trivy github-mcp results
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: trivy-container-results.sarif
+          sarif_file: trivy-github-mcp-results.sarif
 
   copilot-review-mcp-scan:
     name: copilot-review-mcp Container Scan (Trivy)
