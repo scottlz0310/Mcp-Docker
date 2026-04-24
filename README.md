@@ -135,12 +135,6 @@ GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 make start-oauth
 ```
 
-カスタムイメージで起動する場合:
-
-```bash
-make start-custom-oauth
-```
-
 5. 起動確認
 
 ```bash
@@ -296,8 +290,6 @@ make start
 
 `-e GITHUB_PERSONAL_ACCESS_TOKEN` は値を埋め込まずに書いてください。
 
-カスタムイメージを使う場合は `GITHUB_MCP_IMAGE` を設定して再生成できます。
-
 ### mcp-http-bridge
 
 `mcp-http-bridge` は MCP stdio フレームを受け取り、HTTP POST で MCP サーバーへそのまま転送する最小CLIです。
@@ -369,9 +361,6 @@ make start
 
 # OAuthプロキシ経由で起動（localhost:8084）
 make start-oauth
-
-# カスタムビルド + OAuthプロキシ起動
-make start-custom-oauth
 
 # 停止
 docker compose down
@@ -533,8 +522,6 @@ docker ps -aq | xargs -r docker rm
 ```
 Mcp-Docker/
 ├── docker-compose.yml          # サービス定義（github-mcp）
-├── docker-compose.custom.yml   # カスタムビルドイメージ用 Compose
-├── Dockerfile.github-mcp-server # カスタムイメージ Dockerfile
 ├── Makefile                    # タスク管理
 ├── SECURITY.md                 # セキュリティポリシー
 ├── ci-helper.toml.example     # ci-helper 設定例
@@ -544,9 +531,6 @@ Mcp-Docker/
 ├── services/
 │   ├── copilot-review-mcp/   # Copilot review 非同期 Watch MCP サーバー（Go）
 │   └── github-oauth-proxy/   # GitHub OAuth プロキシサーバー（Go）
-├── patches/
-│   └── github/               # github-mcp-server ソースパッチ
-│       └── list_pr_review_threads.go  # PR レビュースレッド一覧ツール
 ├── config/
 │   └── github-mcp/           # github-mcp-server 設定
 ├── scripts/
