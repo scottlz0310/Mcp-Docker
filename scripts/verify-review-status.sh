@@ -40,8 +40,7 @@ echo ""
 echo "## REST: reviews (copilot)"
 gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" \
   --paginate \
-  --slurp \
-  --jq '[.[][][]  | select(.user.login | test("copilot|github-copilot"; "i"))
+  | jq -s '[.[][] | select(.user.login | test("copilot|github-copilot"; "i"))
          | {id: (.id | tostring), login: .user.login, state, submitted_at}]' 2>&1 || echo "(error)"
 
 # ─── REST: timeline events (review 関連) ──────────────────────────────────────
@@ -49,8 +48,7 @@ echo ""
 echo "## REST: timeline events"
 gh api "repos/$OWNER/$REPO/issues/$PR/timeline" \
   --paginate \
-  --slurp \
-  --jq '[.[][][]  | select(.event | IN(
+  | jq -s '[.[][] | select(.event | IN(
       "review_requested",
       "review_request_removed",
       "copilot_work_started",
