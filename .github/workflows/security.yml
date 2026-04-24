@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_MCP_GO_SDK_VERSION: ${{ vars.GITHUB_MCP_GO_SDK_VERSION || 'v1.3.1' }}
+  GITHUB_MCP_GO_SDK_VERSION: ${{ vars.GITHUB_MCP_GO_SDK_VERSION || 'v1.5.0' }}
   SECURITY_SCAN_IMAGE: github-mcp-server:security-scan
 
 permissions:
@@ -92,3 +92,37 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-container-results.sarif
+
+  copilot-review-mcp-scan:
+    name: copilot-review-mcp Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build copilot-review-mcp image
+        run: |
+          docker build \
+            -f services/copilot-review-mcp/Dockerfile \
+            -t copilot-review-mcp:security-scan \
+            services/copilot-review-mcp
+
+      - name: Run Trivy scan on copilot-review-mcp image
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: copilot-review-mcp:security-scan
+          format: sarif
+          output: trivy-crm-results.sarif
+          vuln-type: os,library
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          limit-severities-for-sarif: true
+          trivyignores: .trivyignore
+
+      - name: Upload Trivy copilot-review-mcp results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-crm-results.sarif

@@ -110,6 +110,9 @@ services:
     ports:
       - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
 
+    volumes:
+      - copilot-review-data:/data
+
     networks:
       - mcp-network
 
@@ -131,6 +134,8 @@ services:
 
 volumes:
   github-mcp-cache:
+    driver: local
+  copilot-review-data:
     driver: local
 
 networks:
