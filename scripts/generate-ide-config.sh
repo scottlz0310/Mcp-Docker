@@ -154,7 +154,6 @@ resolve_oauth_proxy_url() {
 }
 
 SERVER_URL="$(resolve_server_url)"
-BRIDGE_TIMEOUT_MS="${MCP_HTTP_BRIDGE_TIMEOUT_MS:-30000}"
 COPILOT_REVIEW_URL="$(resolve_copilot_review_url)"
 OAUTH_PROXY_URL="$(resolve_oauth_proxy_url)"
 

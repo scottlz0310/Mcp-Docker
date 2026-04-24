@@ -28,7 +28,6 @@ make logs
 make status
 
 # Testing
-npm test             # Node.js unit tests (tests/node/)
 make test-shell      # BATS shell tests (tests/shell/)
 make lint            # All linting
 make lint-shell      # Shell script lint (shellcheck)
@@ -57,14 +56,12 @@ make clean-all       # Full cleanup including images
 
 | File | Role |
 |------|------|
-| `bin/mcp-http-bridge.js` | stdio↔HTTP bridge utility (検証/互換用途) |
 | `docker-compose.yml` | Primary compose (official image, resource limits, log rotation) |
 | `scripts/setup.sh` | First-run: creates `.env`, validates environment |
 | `scripts/generate-ide-config.sh` | Generates per-IDE MCP JSON/TOML configs |
 
 ## Gotchas
 
-- **Frame size** (`mcp-http-bridge`): bridge を使う場合の既定 max frame は 1 MB。大きいレスポンスでは `--max-frame-size` が必要。
 - **Timeout**: default HTTP timeout is 30 s. Complex operations may need `--timeout` tuning.
 - **Stale config volume**: `./config/github-mcp` persists after `make clean`. Remove manually if reconfiguring from scratch.
 - **v2.1.0 breaking change**: transport changed from stdio to HTTP. Pre-2.1.0 IDE configs will fail.
