@@ -97,6 +97,13 @@ services:
     image: copilot-review-mcp:local
     container_name: copilot-review-mcp
     restart: unless-stopped
+    # distroless:nonroot の UID/GID を明示（UID=65532）。
+    # /data ボリュームの初回マウント時、Docker はイメージの /data ディレクトリ
+    # （Dockerfile で COPY --chown=nonroot:nonroot 済み）の内容をボリュームに
+    # コピーするため、正しいオーナーシップが引き継がれます。
+    # 既存の空ボリュームが root 所有になっている場合は
+    # "docker volume rm copilot-review-data" で削除後に再作成してください。
+    user: "65532:65532"
 
     environment:
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}

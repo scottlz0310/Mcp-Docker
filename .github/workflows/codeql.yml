@@ -59,6 +59,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # Go 解析の場合、go.mod のバージョンで toolchain をセットアップ
+      - name: Goセットアップ（Go解析時のみ）
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/copilot-review-mcp/go.mod
+          cache-dependency-path: services/copilot-review-mcp/go.sum
+
       # Add any setup steps before running the `github/codeql-action/init` action.
       # This includes steps like installing compilers or runtimes (`actions/setup-node`
       # or others). This is typically only required for manual builds.
