@@ -149,15 +149,91 @@ REST timeline の `reviewed` イベントは `created_at` が null。GraphQL `Pu
 
 ---
 
+## 観測済み：PR #84（2 サイクル目、`rereview`、MANUAL trigger）
+
+**条件**: MANUAL trigger（`request_copilot_review` 経由）、スクリプト修正コミット後の再依頼
+
+### タイムライン実測（REST timeline、2 サイクル通し）
+
+| 時刻 (UTC) | イベント | サイクル | 備考 |
+|---|---|---|---|
+| 00:59:02Z | `ready_for_review` | — | Draft 解除 |
+| 00:59:02Z | `review_requested` | 1 | AUTO trigger |
+| 00:59:29Z | `copilot_work_started` | 1 | 27 秒後 |
+| 01:01:30Z | `reviewed` (COMMENTED) | 1 | 121 秒後。`created_at: null` |
+| 01:11:32Z | `review_requested` | 2 | MANUAL trigger |
+| 01:11:59Z | `copilot_work_started` | 2 | 27 秒後（1 サイクル目と同じ間隔） |
+| 01:14:37Z | `reviewed` (COMMENTED) | 2 | 158 秒後。`created_at: null` |
+
+### ステート別 API 観測結果
+
+#### rereview PENDING（`review_requested` あり、`copilot_work_started` なし）
+
+観測時刻: `01:11:51Z`（`review_requested` から 19 秒後）
+
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[{"login":"Copilot","type":"Bot"}]` | PENDING 中は在籍 |
+| REST `reviews` | `[{id:4167147795, state:COMMENTED}]` | 前サイクルのレビューのみ |
+| REST `timeline` | 1 サイクル目全イベント + `review_requested`(2) | `copilot_work_started`(2) なし |
+| GraphQL `timelineItems` | `ReviewRequestedEvent`×2, `PullRequestReview`×1 | `copilot_work_started` は GraphQL に存在しない |
+| GraphQL `reviewRequests` | `[{"name":"copilot-pull-request-reviewer"}]` | |
+| MCP `watch.review_status` | `NOT_REQUESTED` ⚠ **乖離** | copilotLogins バグ（同上） |
+
+#### rereview IN_PROGRESS（`copilot_work_started` あり、`PullRequestReview`(2) なし）
+
+観測時刻: `01:13:05Z`（`copilot_work_started` から 66 秒後）
+
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[{"login":"Copilot","type":"Bot"}]` | IN_PROGRESS 中も在籍 |
+| REST `reviews` | `[{id:4167147795, state:COMMENTED}]` | 前サイクルのみ。新レビュー未着 |
+| REST `timeline` | + `copilot_work_started`(2) | 2 件目が追加 |
+| GraphQL `timelineItems` | `ReviewRequestedEvent`×2, `PullRequestReview`×1 | 変化なし（GraphQL に work_started なし） |
+| MCP `watch.review_status` | `NOT_REQUESTED` ⚠ **乖離** | |
+
+#### rereview COMPLETED（`PullRequestReview`(2) あり、reviewer 除外後）
+
+観測時刻: `01:16:11Z`（`reviewed`(2) から 94 秒後）
+
+| エンドポイント | 値 | 備考 |
+|---|---|---|
+| REST `requested_reviewers` | `[]` | 完了と同時に除外（1 サイクル目と同じ） |
+| REST `reviews` | `[{id:4167147795}, {id:4167198435, submitted_at:01:14:37Z}]` | **累積**（2 件になる） |
+| REST `timeline` `reviewed`(2) | `created_at: null` | 2 サイクル目も null |
+| GraphQL `timelineItems` | `ReviewRequestedEvent`×2, `PullRequestReview`×2 | **累積**。2 件目: `submittedAt: 01:14:37Z` |
+| GraphQL `reviewRequests` | `[]` | 完了後クリア |
+| MCP `watch.review_status` | `COMPLETED` ✅ | `LatestCopilotReview` 経路（id:4167198435）で正しく検出 |
+| MCP `watch.completed_at` | `01:14:38Z` | `submittedAt: 01:14:37Z` から **1 秒後** |
+
+### rereview で確定した知見
+
+#### 7. `review_requested` / `copilot_work_started` / `reviewed` はサイクルごとに累積追加される
+
+REST timeline に同イベントが複数件現れる。最新（末尾）が現在サイクルのもの。  
+→ 実装では「最後の `copilot_work_started` 以降に `reviewed` があるか」で COMPLETED を判定できる。
+
+#### 8. `reviews` エンドポイントもサイクルごとに累積される
+
+2 サイクル目完了後 `reviews` は 2 件になる。`LatestCopilotReview` は `submittedAt` が最新のものを取ること。  
+GraphQL `PullRequestReview` の `submittedAt` で比較するのが安全（REST `submitted_at` は同形式）。
+
+#### 9. rereview の `copilot_work_started` 間隔は 1 サイクル目と同じ
+
+両サイクルとも `review_requested` → `copilot_work_started` は **27 秒**。  
+→ インフラ側の定常ディレイと考えられる。
+
+#### 10. GraphQL `timelineItems` の `PullRequestReview` は両サイクル分が返る
+
+最新レビューを取得するには `submittedAt` でソートして末尾を取るか、`reviews` REST の末尾 id を使う。
+
+---
+
 ## 未観測ステート
 
 ### `blocked`（CHANGES_REQUESTED）
 
 実際の CHANGES_REQUESTED が出た PR で観測が必要。
-
-### `rereview`（2 サイクル目以降）
-
-修正コミット → 再依頼時の `review_requested` / `copilot_work_started` 多重発火の挙動を確認する必要あり。
 
 ---
 
