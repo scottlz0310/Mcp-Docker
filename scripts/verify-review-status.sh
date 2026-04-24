@@ -8,7 +8,7 @@
 #   ./scripts/verify-review-status.sh <owner> <repo> <pr>
 #
 # 出力: 標準出力（tee でファイルに保存することを推奨）
-#   ./scripts/verify-review-status.sh owner repo 42 | tee docs/observations/pr-42-$(date -u +%Y%m%dT%H%M%SZ).log
+#   ./scripts/verify-review-status.sh owner repo 42 | tee docs/observations/<state_label>-pr42-$(date -u +%Y%m%dT%H%M%SZ).log
 #
 # 依存: gh CLI（認証済み）
 

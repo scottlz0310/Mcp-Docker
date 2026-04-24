@@ -59,7 +59,7 @@ ISSUE #83 の観測結果をステートごとに記録する。
 
 **新発見**: `copilot_work_started` イベントは **REST timeline 専用**。GraphQL `timelineItems` の対応 `__typename` なし。
 
-#### COMPLETED（`PullRequestReview` あり、reviewer 除外後）
+#### EJECTED（`PullRequestReview` あり、reviewer 除外後）
 
 観測時刻: `01:01:36Z`（`reviewed` から 6 秒後）
 
