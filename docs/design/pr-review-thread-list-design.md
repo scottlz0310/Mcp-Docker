@@ -61,14 +61,14 @@ Dockerfile.github-mcp-server ビルドフロー (変更後)
 │ Stage 2: builder (golang:1.26-bookworm)                          │
 │                                                                  │
 │  1. git fetch github/github-mcp-server@main              (既存)  │
-│  2. sed パッチ (Capabilities.Extensions → Experimental)   (既存)  │
-│  3. go mod edit -require=go-sdk@v1.3.1                   (既存)  │
+│  2. go mod edit -require=go-sdk@v1.5.0                   (既存)  │
+│     ※ CVE-2026-27896 対応済みリリースに固定                       │
 │  ↓                                                               │
-│  4. COPY patches/github/ → /src/pkg/github/              (追加)  │
+│  3. COPY patches/github/ → /src/pkg/github/              (追加)  │
 │     - list_pr_review_threads.go  ← 新ツール実装                  │
-│  5. RUN patch コマンドで server.go にツール登録を追記    (追加)  │
+│  4. RUN sed コマンドで tools.go にツール登録を追記       (追加)  │
 │  ↓                                                               │
-│  6. go build                                             (既存)  │
+│  5. go build                                             (既存)  │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
          │
@@ -300,10 +300,9 @@ RUN sed -i '/registerTool.*resolve_pull_request_review_thread/a\\t\tregisterTool
 ### 8.1 変更差分（概要）
 
 ```dockerfile
-# [既存] ソース取得・パッチ適用
+# [既存] ソース取得・依存バージョン固定 (CVE-2026-27896 対応: go-sdk@v1.5.0)
 RUN git init . && git remote add origin ... && git fetch ...
-RUN sed -i 's/Capabilities.Extensions/Capabilities.Experimental/g' ...
-RUN go mod edit -require=... && go mod tidy
+RUN go mod edit -require=github.com/modelcontextprotocol/go-sdk@v1.5.0 && go mod tidy
 
 # [追加] ここから
 # 新ツールの Go ファイルをソースツリーに注入

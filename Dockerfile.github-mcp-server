@@ -40,7 +40,10 @@ RUN git init . && \
     git fetch --depth 1 origin ${GITHUB_MCP_SERVER_REF} && \
     git checkout FETCH_HEAD
 
-# Pin go-sdk to the fixed release for CVE-2026-27896.
+# Security pin: keep github.com/modelcontextprotocol/go-sdk at the patched release
+# for CVE-2026-27896. Reference: https://nvd.nist.gov/vuln/detail/CVE-2026-27896
+# If this pin is updated or removed, also record the upstream advisory / issue / PR
+# in the commit message or docs/SECURITY_PATCHES.md so the rationale remains auditable.
 RUN go mod edit -require=github.com/modelcontextprotocol/go-sdk@${GO_SDK_VERSION} && \
     go mod tidy && \
     test "$(go list -m -f '{{.Version}}' github.com/modelcontextprotocol/go-sdk)" = "${GO_SDK_VERSION}"

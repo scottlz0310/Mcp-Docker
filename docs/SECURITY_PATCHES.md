@@ -6,7 +6,7 @@
 
 - 既定: `ghcr.io/github/github-mcp-server:main`
 - 補足: 公式安定リリースの最新は `v1.0.0`（`v0.31.0` 以降 Streamable HTTP / `http` サブコマンドが正式搭載）
-- Security Scan補足: `Dockerfile.github-mcp-server` をベースに、workflow 側で `build-arg` により `go-sdk`（デフォルト: `v1.3.1`、`GITHUB_MCP_GO_SDK_VERSION` で上書き可）を指定してビルドしたイメージを Trivy でスキャン
+- Security Scan補足: `Dockerfile.github-mcp-server` をベースに、workflow 側で `build-arg` により `go-sdk`（デフォルト: `v1.5.0`、`GITHUB_MCP_GO_SDK_VERSION` で上書き可）を指定してビルドしたイメージを Trivy でスキャン（CVE-2026-27896 対応版。詳細: [CVE-2026-27896](https://nvd.nist.gov/vuln/detail/CVE-2026-27896)）
 
 ## 脆弱性管理
 
