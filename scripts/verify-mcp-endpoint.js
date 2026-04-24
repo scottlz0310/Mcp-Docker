@@ -86,7 +86,7 @@ req.on('error', (e) => {
   console.error(`❌ 接続エラー: ${e.message}`);
   if (e.code === 'ECONNREFUSED') {
     console.error('   コンテナが起動していない可能性があります。');
-    console.error('   make start-custom を実行してください。');
+    console.error('   make start を実行してください。');
   }
   process.exit(1);
 });

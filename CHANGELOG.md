@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🗑️ 削除
 
+- `mcp-http-bridge` を削除（#90）
+  - 全 IDE が OAuth プロキシ / HTTP 直接接続に移行済みで bridge は不要に
+  - `bin/mcp-http-bridge.js`・`src/mcp-http-bridge.js`・`tests/node/mcp-http-bridge.test.js`・`scripts/verify-bridge-e2e.js`・`package.json` を削除
+  - `lint-test.yml` の `test-node` ジョブを削除（Node.js テスト消滅のため）
 - `github-mcp-server(patched)` カスタムビルドを削除（#89）
   - `copilot-review-mcp` の `get_review_threads` ツールが `PRRT_xxx` node ID 取得を完全に代替するため不要に
   - `Dockerfile.github-mcp-server`・`docker-compose.custom.yml`・`patches/` ディレクトリを削除

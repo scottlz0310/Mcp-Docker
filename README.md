@@ -31,7 +31,6 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 ### 前提条件
 
 - Docker 20.10+
-- Node.js 18+ / `npx`（`mcp-http-bridge` を使う場合のみ）
 - GitHub Personal Access Token (PAT) または OAuth対応クライアント
 
 ### インストール
@@ -290,27 +289,6 @@ make start
 
 `-e GITHUB_PERSONAL_ACCESS_TOKEN` は値を埋め込まずに書いてください。
 
-### mcp-http-bridge
-
-`mcp-http-bridge` は MCP stdio フレームを受け取り、HTTP POST で MCP サーバーへそのまま転送する最小CLIです。
-
-```bash
-npx -y mcp-http-bridge --url http://127.0.0.1:8084/mcp
-```
-
-```bash
-npx -y mcp-http-bridge \
-  --url http://127.0.0.1:8084/mcp \
-  --header "Authorization: Bearer your_token_here" \
-  --timeout 10000
-```
-
-サポートするオプション:
-
-- `--url`: 転送先の MCP HTTP エンドポイント
-- `--header`: 追加 HTTP ヘッダ。複数回指定可能
-- `--timeout`: HTTP タイムアウト（ミリ秒、既定 `30000`）
-
 ### Kiro
 
 ```bash
@@ -538,15 +516,8 @@ Mcp-Docker/
 │   ├── generate-ide-config.sh # IDE設定生成
 │   ├── health-check.sh       # ヘルスチェック
 │   ├── lint-shell.sh         # シェルスクリプトLint
-│   ├── verify-bridge-e2e.js  # mcp-http-bridge E2E 検証
 │   └── verify-mcp-endpoint.js # MCP エンドポイント疎通確認
-├── bin/
-│   └── mcp-http-bridge.js    # MCP stdio-to-HTTP ブリッジ CLI
-├── src/
-│   └── mcp-http-bridge.js    # mcp-http-bridge ソース
 ├── tests/
-│   ├── node/                 # Node.js テスト
-│   │   └── mcp-http-bridge.test.js
 │   └── shell/                # シェルスクリプトテスト（Bats）
 │       └── test_scripts.bats
 ├── docs/
