@@ -187,51 +187,54 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 		reviewOpts.Page = resp2.NextPage
 	}
 
-	// Timeline is only needed when Copilot is in requested_reviewers (PENDING vs
-	// IN_PROGRESS distinction). Skip the extra API call(s) otherwise.
-	if data.IsCopilotInReviewers {
+	// Timeline is needed when Copilot is currently in requested_reviewers (PENDING vs
+	// IN_PROGRESS distinction) OR when a Copilot review already exists and we need the
+	// most recent review_requested event as the authoritative staleness baseline.
+	needsTimeline := data.IsCopilotInReviewers || data.LatestCopilotReview != nil
+	if needsTimeline {
 		// Short-circuit before timeline fetch if rate limit is too low.
 		if data.RateLimitRemaining < 10 {
 			data.SkippedTimeline = true
 			return data, nil
 		}
 
-		// Fetch REST timeline events for event-based PENDING/IN_PROGRESS detection.
-		// copilot_work_started exists only in the REST timeline (no GraphQL equivalent).
+		// Fetch REST timeline events for event-based PENDING/IN_PROGRESS detection
+		// and review_requested timestamps. copilot_work_started exists only in the
+		// REST timeline (no GraphQL equivalent).
 		timelineOpts := &github.ListOptions{PerPage: 100}
 		for {
-		events, resp3, err := c.gh.Issues.ListIssueTimeline(ctx, owner, repo, prNumber, timelineOpts)
-		if err != nil {
-			// Non-fatal: timeline is best-effort; proceed with what we have.
-			break
-		}
-		if resp3 != nil {
-			data.RateLimitRemaining = resp3.Rate.Remaining
-			data.RateLimitReset = resp3.Rate.Reset.Time
-		}
-		for _, ev := range events {
-			switch ev.GetEvent() {
-			case "review_requested":
-				// Reviewer is json:"requested_reviewer" on the Timeline struct.
-				if r := ev.GetReviewer(); r != nil && isCopilot(r.GetLogin()) {
+			events, resp3, err := c.gh.Issues.ListIssueTimeline(ctx, owner, repo, prNumber, timelineOpts)
+			if err != nil {
+				// Non-fatal: timeline is best-effort; proceed with what we have.
+				break
+			}
+			if resp3 != nil {
+				data.RateLimitRemaining = resp3.Rate.Remaining
+				data.RateLimitReset = resp3.Rate.Reset.Time
+			}
+			for _, ev := range events {
+				switch ev.GetEvent() {
+				case "review_requested":
+					// Reviewer is json:"requested_reviewer" on the Timeline struct.
+					if r := ev.GetReviewer(); r != nil && isCopilot(r.GetLogin()) {
+						t := ev.GetCreatedAt().Time
+						if data.ReviewRequestedAt == nil || t.After(*data.ReviewRequestedAt) {
+							data.ReviewRequestedAt = &t
+						}
+					}
+				case "copilot_work_started":
 					t := ev.GetCreatedAt().Time
-					if data.ReviewRequestedAt == nil || t.After(*data.ReviewRequestedAt) {
-						data.ReviewRequestedAt = &t
+					if data.WorkStartedAt == nil || t.After(*data.WorkStartedAt) {
+						data.WorkStartedAt = &t
 					}
 				}
-			case "copilot_work_started":
-				t := ev.GetCreatedAt().Time
-				if data.WorkStartedAt == nil || t.After(*data.WorkStartedAt) {
-					data.WorkStartedAt = &t
-				}
 			}
-		}
 			if resp3 == nil || resp3.NextPage == 0 {
 				break
 			}
 			timelineOpts.Page = resp3.NextPage
 		}
-	} // end if IsCopilotInReviewers
+	} // end if needsTimeline
 
 	return data, nil
 }
