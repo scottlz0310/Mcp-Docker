@@ -39,7 +39,9 @@ gh api "repos/$OWNER/$REPO/pulls/$PR/requested_reviewers" \
 echo ""
 echo "## REST: reviews (copilot)"
 gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" \
-  --jq '[.[] | select(.user.login | test("copilot|github-copilot"; "i"))
+  --paginate \
+  --slurp \
+  --jq '[.[][][]  | select(.user.login | test("copilot|github-copilot"; "i"))
          | {id: (.id | tostring), login: .user.login, state, submitted_at}]' 2>&1 || echo "(error)"
 
 # ─── REST: timeline events (review 関連) ──────────────────────────────────────
@@ -47,7 +49,8 @@ echo ""
 echo "## REST: timeline events"
 gh api "repos/$OWNER/$REPO/issues/$PR/timeline" \
   --paginate \
-  --jq '[.[] | select(.event | IN(
+  --slurp \
+  --jq '[.[][][]  | select(.event | IN(
       "review_requested",
       "review_request_removed",
       "copilot_work_started",
@@ -64,12 +67,13 @@ gh api "repos/$OWNER/$REPO/issues/$PR/timeline" \
 
 # ─── GraphQL: timelineItems (ReviewRequestedEvent + PullRequestReview) ────────
 echo ""
-echo "## GraphQL: timelineItems"
+echo "## GraphQL: timelineItems (first:100 — results may be truncated for very active PRs)"
+# shellcheck disable=SC2016
 gh api graphql -f query='
   query($owner:String!, $repo:String!, $pr:Int!) {
     repository(owner:$owner, name:$repo) {
       pullRequest(number:$pr) {
-        timelineItems(first:50, itemTypes:[REVIEW_REQUESTED_EVENT,PULL_REQUEST_REVIEW]) {
+        timelineItems(first:100, itemTypes:[REVIEW_REQUESTED_EVENT,PULL_REQUEST_REVIEW]) {
           nodes {
             __typename
             ... on ReviewRequestedEvent {
@@ -121,6 +125,7 @@ gh api graphql -f query='
 # ─── GraphQL: reviewDecision + latestOpinionatedReviews + reviewRequests ──────
 echo ""
 echo "## GraphQL: reviewDecision / latestOpinionatedReviews / reviewRequests"
+# shellcheck disable=SC2016
 gh api graphql -f query='
   query($owner:String!, $repo:String!, $pr:Int!) {
     repository(owner:$owner, name:$repo) {
