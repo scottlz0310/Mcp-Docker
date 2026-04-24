@@ -700,7 +700,7 @@ func (m *Manager) pollOnce(watchID string) bool {
 		requestedAt = &entry.RequestedAt
 		prevReviewID = entry.PrevReviewID
 	}
-	reviewStatus := ghclient.DeriveStatusWithThreshold(m.threshold, data, requestedAt, prevReviewID)
+	reviewStatus := ghclient.DeriveStatus(data, requestedAt, prevReviewID)
 
 	if data.RateLimitRemaining < 10 {
 		m.mu.Lock()

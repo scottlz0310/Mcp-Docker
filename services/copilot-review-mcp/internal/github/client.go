@@ -38,7 +38,12 @@ const copilotBotLogin = "copilot-pull-request-reviewer[bot]"
 
 // copilotLogins lists the known GitHub Copilot reviewer identities used for
 // detection in GetReviewData. Kept separate from copilotBotLogin (request path).
+//
+// "Copilot" (capitalized, no [bot] suffix) is returned by the REST
+// requested_reviewers endpoint and must be included here so PENDING and
+// IN_PROGRESS can be detected via IsCopilotInReviewers.
 var copilotLogins = []string{
+	"Copilot",
 	"github-copilot[bot]",
 	"copilot-pull-request-reviewer[bot]",
 	"github-copilot",
@@ -79,6 +84,15 @@ type ReviewData struct {
 	RateLimitRemaining int
 	// RateLimitReset is when the rate limit window resets.
 	RateLimitReset time.Time
+	// ReviewRequestedAt is the CreatedAt of the most recent "review_requested" timeline
+	// event for Copilot. Used as the primary source for staleness detection and as the
+	// requestedAt baseline when no trigger_log DB entry exists (AUTO trigger).
+	ReviewRequestedAt *time.Time
+	// WorkStartedAt is the CreatedAt of the most recent "copilot_work_started" timeline
+	// event. When WorkStartedAt > ReviewRequestedAt, the review is IN_PROGRESS;
+	// otherwise it is PENDING. This field is REST-timeline-only; GraphQL has no
+	// corresponding __typename for this event.
+	WorkStartedAt *time.Time
 }
 
 // Client wraps the GitHub API for Copilot review operations.
@@ -169,26 +183,81 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 		reviewOpts.Page = resp2.NextPage
 	}
 
+	// Short-circuit before timeline fetch if rate limit is too low.
+	if data.RateLimitRemaining < 10 {
+		return data, nil
+	}
+
+	// Fetch REST timeline events for event-based PENDING/IN_PROGRESS detection.
+	// copilot_work_started exists only in the REST timeline (no GraphQL equivalent).
+	timelineOpts := &github.ListOptions{PerPage: 100}
+	for {
+		events, resp3, err := c.gh.Issues.ListIssueTimeline(ctx, owner, repo, prNumber, timelineOpts)
+		if err != nil {
+			// Non-fatal: timeline is best-effort; proceed with what we have.
+			break
+		}
+		if resp3 != nil {
+			data.RateLimitRemaining = resp3.Rate.Remaining
+			data.RateLimitReset = resp3.Rate.Reset.Time
+		}
+		for _, ev := range events {
+			switch ev.GetEvent() {
+			case "review_requested":
+				// Reviewer is json:"requested_reviewer" on the Timeline struct.
+				if r := ev.GetReviewer(); r != nil && isCopilot(r.GetLogin()) {
+					t := ev.GetCreatedAt().Time
+					if data.ReviewRequestedAt == nil || t.After(*data.ReviewRequestedAt) {
+						data.ReviewRequestedAt = &t
+					}
+				}
+			case "copilot_work_started":
+				t := ev.GetCreatedAt().Time
+				if data.WorkStartedAt == nil || t.After(*data.WorkStartedAt) {
+					data.WorkStartedAt = &t
+				}
+			}
+		}
+		if resp3 == nil || resp3.NextPage == 0 {
+			break
+		}
+		timelineOpts.Page = resp3.NextPage
+	}
+
 	return data, nil
 }
 
 // DeriveStatus resolves the ReviewStatus from raw data and optional trigger_log requestedAt.
-// requestedAt is nil when no trigger_log entry exists (AUTO trigger or not yet recorded).
+// requestedAt is the DB trigger_log entry time (MANUAL trigger); nil for AUTO trigger.
 // prevReviewID, when non-nil, enables ID-based staleness detection: the existing review is
 // treated as stale only if its ID matches prevReviewID (same review seen before the request).
+//
+// PENDING vs IN_PROGRESS is determined by the timeline events in data:
+//   - WorkStartedAt > ReviewRequestedAt → IN_PROGRESS
+//   - otherwise (WorkStartedAt absent, or before the latest request) → PENDING
+//
+// Staleness detection uses data.ReviewRequestedAt (REST timeline) as the primary source,
+// falling back to the requestedAt parameter when timeline data is unavailable.
 func (c *Client) DeriveStatus(data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
-	return DeriveStatusWithThreshold(c.threshold, data, requestedAt, prevReviewID)
+	return DeriveStatus(data, requestedAt, prevReviewID)
 }
 
-// DeriveStatusWithThreshold resolves the ReviewStatus from raw data and an elapsed threshold.
-// prevReviewID, when non-nil, enables ID-based staleness detection (see DeriveStatus).
-func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
+// DeriveStatus resolves the ReviewStatus from raw ReviewData.
+// It is the package-level counterpart of (*Client).DeriveStatus for callers that do
+// not hold a Client reference (e.g. the watch manager).
+func DeriveStatus(data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
+	// Prefer timeline-sourced requestedAt for accurate staleness detection.
+	// Fall back to the DB trigger_log entry only when timeline data is unavailable.
+	effectiveRequestedAt := data.ReviewRequestedAt
+	if effectiveRequestedAt == nil {
+		effectiveRequestedAt = requestedAt
+	}
+
 	if data.LatestCopilotReview != nil {
-		// When requestedAt is known, only treat this review as relevant if it was submitted
-		// at or after the request time, or (when prevReviewID is set) if its ID differs from
-		// the review that existed when the request was made.
+		// Only treat this review as relevant if it was submitted at/after the request time,
+		// or (when prevReviewID is set) if its ID differs from the pre-request review.
 		relevant := true
-		if requestedAt != nil {
+		if effectiveRequestedAt != nil {
 			if prevReviewID != nil {
 				// ID-based: relevant only if this is a different review from when the
 				// request was made. Same ID means the old review is still present (stale).
@@ -197,9 +266,9 @@ func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, reques
 			} else {
 				// Timestamp-based fallback for entries without prevReviewID (backward compat).
 				// - Use !Before (≥) instead of After (>) to include same-second events.
-				// - nil submittedAt means the review has no timestamp → treat as stale.
+				// - Zero submittedAt means the review has no timestamp → treat as stale.
 				sat := data.LatestCopilotReview.GetSubmittedAt()
-				relevant = !sat.IsZero() && !sat.Before(*requestedAt)
+				relevant = !sat.IsZero() && !sat.Before(*effectiveRequestedAt)
 			}
 		}
 		if relevant {
@@ -210,17 +279,21 @@ func DeriveStatusWithThreshold(threshold time.Duration, data *ReviewData, reques
 		}
 	}
 	if data.IsCopilotInReviewers {
-		if requestedAt != nil {
-			elapsed := time.Since(*requestedAt)
-			if elapsed >= threshold {
-				return StatusInProgress
-			}
-			return StatusPending
+		// Event-based PENDING vs IN_PROGRESS: copilot_work_started after review_requested
+		// means work has begun on the current cycle.
+		if data.WorkStartedAt != nil &&
+			(data.ReviewRequestedAt == nil || data.WorkStartedAt.After(*data.ReviewRequestedAt)) {
+			return StatusInProgress
 		}
-		// No trigger_log entry (AUTO trigger or unknown): assume IN_PROGRESS
-		return StatusInProgress
+		return StatusPending
 	}
 	return StatusNotRequested
+}
+
+// DeriveStatusWithThreshold is kept for backward compatibility.
+// The threshold parameter is ignored; use DeriveStatus instead.
+func DeriveStatusWithThreshold(_ time.Duration, data *ReviewData, requestedAt *time.Time, prevReviewID *string) ReviewStatus {
+	return DeriveStatus(data, requestedAt, prevReviewID)
 }
 
 // IsAuthError reports whether err is a GitHub authentication failure.
