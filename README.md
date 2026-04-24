@@ -213,7 +213,7 @@ PR 作成直後または `request_copilot_review` ツール呼び出し直後に
 
 - 既定でホストに公開されるURL（OAuthプロキシ経由）: `http://127.0.0.1:8084`
 - `github-mcp` 本体の `8082` は Docker ネットワーク内向け（`expose`）で、ホスト直公開はしません。
-- OAuth で接続する場合は `make start-oauth`（カスタムイメージは `make start-custom-oauth`）を実行してください。
+- OAuth で接続する場合は `make start-oauth` を実行してください。
 - ポートを変更する場合:
   - `GITHUB_OAUTH_PROXY_PORT`（未設定時は `8084`）
   - `GITHUB_MCP_HTTP_PORT`（コンテナ内向け、未設定時は `8082`）
