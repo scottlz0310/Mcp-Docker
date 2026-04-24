@@ -13,6 +13,31 @@ Claude Desktop だけは HTTP transport 非対応のため、`docker run -i ... 
 - 理由: 公式安定リリースの最新は `v1.0.0`（`v0.31.0` 以降 Streamable HTTP / `http` サブコマンドが正式搭載）。安定性より最新機能を優先する場合は `main` タグを使用
 - セキュリティ: `.github/workflows/security.yml` でTrivyスキャンを継続実行
 
+## 設計思想：GitHub認証の一元化
+
+従来のローカル Docker 環境では、依然として各 MCP ホストへの PAT（Personal Access Token）の注入が必要です。
+GUI ショートカットやスタートメニュー、あるいは環境変数が一貫して継承されない異なるシェルから IDE を起動する場合、
+この仕組みは不安定になりがちです。
+
+本プロジェクトでは、**GitHub 認証を Docker ランタイム内に一元化**することで、この問題を回避しています。
+OAuth プロキシ経由で接続する場合、MCP ホスト（各 IDE）の設定にはシークレット値ではなくローカルエンドポイントの URL のみが含まれます。直接 HTTP 接続する場合も、トークン値をファイルに書かず環境変数参照（`${env:GITHUB_PERSONAL_ACCESS_TOKEN}`）で渡せます。
+
+```
+IDE（VS Code / Cursor / Kiro 等）
+  │  URL のみ（OAuth プロキシ経由）または env var 参照（直接 HTTP 接続）
+  ▼
+github-oauth-proxy  ←── Docker ランタイム内で PAT / OAuth トークンを保持
+  │
+  ▼
+github-mcp-server（Docker ネットワーク内に閉じ込め）
+```
+
+これにより：
+
+- IDE 側の設定ファイルにトークン値を書かなくて済む（`.vscode/settings.json` 等にシークレット値不要）
+- 起動方法（GUI ショートカット・ターミナル・スタートメニュー）に関わらず認証が安定して機能する
+- トークンの差し替えは Docker 側の `.env` または `GITHUB_PERSONAL_ACCESS_TOKEN` 環境変数で完結し、環境変数が `.env` より優先される
+
 ## 概要
 
 GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各IDEから統一的にGitHub機能を利用できます。
