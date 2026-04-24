@@ -93,6 +93,10 @@ type ReviewData struct {
 	// otherwise it is PENDING. This field is REST-timeline-only; GraphQL has no
 	// corresponding __typename for this event.
 	WorkStartedAt *time.Time
+	// SkippedTimeline is true when the timeline fetch was skipped due to low rate-limit
+	// budget. When true, ReviewRequestedAt and WorkStartedAt are nil and callers should
+	// fall back to DB-recorded requestedAt for staleness decisions.
+	SkippedTimeline bool
 }
 
 // Client wraps the GitHub API for Copilot review operations.
@@ -183,15 +187,19 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 		reviewOpts.Page = resp2.NextPage
 	}
 
-	// Short-circuit before timeline fetch if rate limit is too low.
-	if data.RateLimitRemaining < 10 {
-		return data, nil
-	}
+	// Timeline is only needed when Copilot is in requested_reviewers (PENDING vs
+	// IN_PROGRESS distinction). Skip the extra API call(s) otherwise.
+	if data.IsCopilotInReviewers {
+		// Short-circuit before timeline fetch if rate limit is too low.
+		if data.RateLimitRemaining < 10 {
+			data.SkippedTimeline = true
+			return data, nil
+		}
 
-	// Fetch REST timeline events for event-based PENDING/IN_PROGRESS detection.
-	// copilot_work_started exists only in the REST timeline (no GraphQL equivalent).
-	timelineOpts := &github.ListOptions{PerPage: 100}
-	for {
+		// Fetch REST timeline events for event-based PENDING/IN_PROGRESS detection.
+		// copilot_work_started exists only in the REST timeline (no GraphQL equivalent).
+		timelineOpts := &github.ListOptions{PerPage: 100}
+		for {
 		events, resp3, err := c.gh.Issues.ListIssueTimeline(ctx, owner, repo, prNumber, timelineOpts)
 		if err != nil {
 			// Non-fatal: timeline is best-effort; proceed with what we have.
@@ -218,11 +226,12 @@ func (c *Client) GetReviewData(ctx context.Context, owner, repo string, prNumber
 				}
 			}
 		}
-		if resp3 == nil || resp3.NextPage == 0 {
-			break
+			if resp3 == nil || resp3.NextPage == 0 {
+				break
+			}
+			timelineOpts.Page = resp3.NextPage
 		}
-		timelineOpts.Page = resp3.NextPage
-	}
+	} // end if IsCopilotInReviewers
 
 	return data, nil
 }
