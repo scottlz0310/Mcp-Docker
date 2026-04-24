@@ -173,16 +173,13 @@ func TestRequestCopilotReviewUsesRequestReviewsByLoginInput(t *testing.T) {
 }
 
 func TestDeriveStatus(t *testing.T) {
-	// threshold=30s.
-	// recentRequest: 1s elapsed → PENDING (29s slack vs threshold, safe on slow CI).
-	// longAgoRequest: 2min elapsed → IN_PROGRESS.
-	c := &Client{threshold: 30 * time.Second}
+	c := &Client{}
 
 	now := time.Now()
-	recentRequest := now.Add(-time.Second)      // 1s ago — safely within 30s threshold
-	longAgoRequest := now.Add(-2 * time.Minute) // 2min ago — safely past threshold
-	threeMinAgo := now.Add(-3 * time.Minute)
+	oneSecAgo := now.Add(-time.Second)
 	oneMinAgo := now.Add(-1 * time.Minute)
+	twoMinAgo := now.Add(-2 * time.Minute)
+	threeMinAgo := now.Add(-3 * time.Minute)
 	oneMinLater := now.Add(1 * time.Minute)
 
 	tests := []struct {
@@ -198,24 +195,51 @@ func TestDeriveStatus(t *testing.T) {
 			want: StatusNotRequested,
 		},
 		{
-			name:        "no review, copilot in reviewers, within threshold → PENDING",
-			data:        &ReviewData{IsCopilotInReviewers: true},
-			requestedAt: &recentRequest,
-			want:        StatusPending,
-		},
-		{
-			name:        "no review, copilot in reviewers, threshold elapsed → IN_PROGRESS",
-			data:        &ReviewData{IsCopilotInReviewers: true},
-			requestedAt: &longAgoRequest,
-			want:        StatusInProgress,
-		},
-		{
-			name: "no review, copilot in reviewers, no requestedAt → IN_PROGRESS (AUTO)",
+			// No work_started event → PENDING regardless of requestedAt.
+			name: "no review, copilot in reviewers, no work_started → PENDING",
 			data: &ReviewData{IsCopilotInReviewers: true},
+			want: StatusPending,
+		},
+		{
+			// ReviewRequestedAt set but no WorkStartedAt → PENDING.
+			name: "no review, copilot in reviewers, review_requested but no work_started → PENDING",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				ReviewRequestedAt:    &oneSecAgo,
+			},
+			want: StatusPending,
+		},
+		{
+			// WorkStartedAt after ReviewRequestedAt → IN_PROGRESS.
+			name: "no review, copilot in reviewers, work_started after review_requested → IN_PROGRESS",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				ReviewRequestedAt:    &twoMinAgo,
+				WorkStartedAt:        &oneMinAgo,
+			},
 			want: StatusInProgress,
 		},
+		{
+			// WorkStartedAt set but no ReviewRequestedAt → IN_PROGRESS.
+			name: "no review, copilot in reviewers, work_started, no review_requested → IN_PROGRESS",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				WorkStartedAt:        &oneMinAgo,
+			},
+			want: StatusInProgress,
+		},
+		{
+			// Rereview PENDING: new review_requested (oneMinAgo) is after old work_started (twoMinAgo).
+			name: "no review, copilot in reviewers, old work_started before new review_requested → PENDING",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				ReviewRequestedAt:    &oneMinAgo,
+				WorkStartedAt:        &twoMinAgo, // old cycle, before new request
+			},
+			want: StatusPending,
+		},
 
-		// ── review exists, requestedAt nil (backward compat) ─────────────────────
+		// ── review exists, no requestedAt (backward compat) ─────────────────────
 		{
 			name: "APPROVED review, no requestedAt → COMPLETED",
 			data: &ReviewData{LatestCopilotReview: newReview("APPROVED", &oneMinAgo)},
@@ -227,18 +251,31 @@ func TestDeriveStatus(t *testing.T) {
 			want: StatusBlocked,
 		},
 
-		// ── review submitted AFTER requestedAt ───────────────────────────────────
+		// ── review submitted AFTER requestedAt (DB fallback) ─────────────────────
 		{
-			name:        "APPROVED review after requestedAt → COMPLETED",
+			name:        "APPROVED review after DB requestedAt → COMPLETED",
 			data:        &ReviewData{LatestCopilotReview: newReview("APPROVED", &oneMinLater)},
 			requestedAt: &now,
 			want:        StatusCompleted,
 		},
 		{
-			name:        "CHANGES_REQUESTED review after requestedAt → BLOCKED",
+			name:        "CHANGES_REQUESTED review after DB requestedAt → BLOCKED",
 			data:        &ReviewData{LatestCopilotReview: newReview("CHANGES_REQUESTED", &oneMinLater)},
 			requestedAt: &now,
 			want:        StatusBlocked,
+		},
+
+		// ── timeline ReviewRequestedAt takes priority over DB requestedAt ─────────
+		{
+			// Review (1min ago) is AFTER timeline ReviewRequestedAt (2min ago) → COMPLETED.
+			// DB requestedAt (now) would make it stale, but timeline takes priority.
+			name: "APPROVED review after timeline review_requested, DB would mark stale → COMPLETED",
+			data: &ReviewData{
+				LatestCopilotReview: newReview("APPROVED", &oneMinAgo),
+				ReviewRequestedAt:   &twoMinAgo, // timeline: 2min ago
+			},
+			requestedAt: &now, // DB: now (would falsely mark as stale)
+			want:        StatusCompleted,
 		},
 
 		// ── review submitted at EXACTLY requestedAt (same-second inclusive) ───────
@@ -249,34 +286,57 @@ func TestDeriveStatus(t *testing.T) {
 			want:        StatusCompleted,
 		},
 
-		// ── stale review (submitted BEFORE requestedAt) ───────────────────────────
+		// ── stale review (submitted BEFORE review_requested) ─────────────────────
 		{
-			// review (1min ago) is older than recentRequest (1s ago) → stale,
-			// then elapsed since request = 1s < 30s threshold → PENDING.
-			name:        "stale APPROVED review, copilot in reviewers, within threshold → PENDING",
-			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("APPROVED", &oneMinAgo)},
-			requestedAt: &recentRequest,
+			// Review (3min ago) is older than ReviewRequestedAt (1min ago) → stale.
+			// No WorkStartedAt → PENDING.
+			name: "stale APPROVED review, copilot in reviewers, no work_started → PENDING",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				LatestCopilotReview:  newReview("APPROVED", &threeMinAgo),
+				ReviewRequestedAt:    &oneMinAgo, // new request after old review
+			},
+			want: StatusPending,
+		},
+		{
+			name: "stale CHANGES_REQUESTED review, copilot in reviewers, no work_started → PENDING (not BLOCKED)",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				LatestCopilotReview:  newReview("CHANGES_REQUESTED", &threeMinAgo),
+				ReviewRequestedAt:    &oneMinAgo,
+			},
+			want: StatusPending,
+		},
+		{
+			// Stale review but no Copilot in reviewers (request cancelled) → NOT_REQUESTED.
+			name: "stale review, copilot NOT in reviewers → NOT_REQUESTED",
+			data: &ReviewData{
+				LatestCopilotReview: newReview("APPROVED", &threeMinAgo),
+				ReviewRequestedAt:   &oneMinAgo,
+			},
+			want: StatusNotRequested,
+		},
+		{
+			// Stale review + work_started after new review_requested → IN_PROGRESS.
+			name: "stale review, copilot in reviewers, work_started after review_requested → IN_PROGRESS",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				LatestCopilotReview:  newReview("APPROVED", &threeMinAgo),
+				ReviewRequestedAt:    &twoMinAgo,
+				WorkStartedAt:        &oneMinAgo, // after review_requested
+			},
+			want: StatusInProgress,
+		},
+		{
+			// DB-only requestedAt fallback: review stale relative to DB entry.
+			name: "stale review, DB requestedAt fallback, no work_started → PENDING",
+			data: &ReviewData{
+				IsCopilotInReviewers: true,
+				LatestCopilotReview:  newReview("APPROVED", &threeMinAgo),
+				// ReviewRequestedAt not set → fallback to DB requestedAt
+			},
+			requestedAt: &oneMinAgo, // DB: 1min ago
 			want:        StatusPending,
-		},
-		{
-			name:        "stale CHANGES_REQUESTED review, copilot in reviewers, within threshold → PENDING (not BLOCKED)",
-			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("CHANGES_REQUESTED", &oneMinAgo)},
-			requestedAt: &recentRequest,
-			want:        StatusPending,
-		},
-		{
-			name:        "stale review, copilot NOT in reviewers → NOT_REQUESTED",
-			data:        &ReviewData{LatestCopilotReview: newReview("APPROVED", &oneMinAgo)},
-			requestedAt: &recentRequest,
-			want:        StatusNotRequested,
-		},
-		{
-			// review (3min ago) is older than longAgoRequest (2min ago) → stale,
-			// then elapsed since request = 2min > 30s threshold → IN_PROGRESS.
-			name:        "stale review, copilot in reviewers, threshold elapsed → IN_PROGRESS",
-			data:        &ReviewData{IsCopilotInReviewers: true, LatestCopilotReview: newReview("APPROVED", &threeMinAgo)},
-			requestedAt: &longAgoRequest,
-			want:        StatusInProgress,
 		},
 
 		// ── nil submittedAt on review ─────────────────────────────────────────────
@@ -306,10 +366,10 @@ func TestDeriveStatus(t *testing.T) {
 // TestDeriveStatusIDBasedStaleness verifies the ID-based staleness detection path:
 // when prevReviewID is non-nil, DeriveStatus compares review IDs instead of timestamps.
 func TestDeriveStatusIDBasedStaleness(t *testing.T) {
-	c := &Client{threshold: 30 * time.Second}
+	c := &Client{}
 
 	now := time.Now()
-	recentRequest := now.Add(-time.Second) // within threshold
+	recentRequest := now.Add(-time.Second)
 
 	// Helper to build a review with a specific ID and state.
 	newReviewWithID := func(id int64, state string) *github.PullRequestReview {
@@ -566,4 +626,158 @@ func join(ss []string, sep string) string {
 		result += sep + s
 	}
 	return result
+}
+
+// TestGetReviewDataTimeline verifies that GetReviewData populates ReviewRequestedAt
+// and WorkStartedAt from the REST timeline (Issues.ListIssueTimeline).
+func TestGetReviewDataTimeline(t *testing.T) {
+	const (
+		owner = "owner"
+		repo  = "repo"
+		pr    = 5
+	)
+
+	reviewRequestedAt := "2024-01-01T00:59:02Z"
+	workStartedAt := "2024-01-01T00:59:29Z"
+
+	// Minimal timeline JSON with review_requested and copilot_work_started events.
+	timelineJSON := fmt.Sprintf(`[
+		{"event":"review_requested","created_at":%q,"requested_reviewer":{"login":"Copilot","type":"Bot"}},
+		{"event":"copilot_work_started","created_at":%q}
+	]`, reviewRequestedAt, workStartedAt)
+
+	writeJSON := func(w http.ResponseWriter, body string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Remaining", "100")
+		w.Header().Set("X-RateLimit-Reset", "9999999999")
+		fmt.Fprint(w, body)
+	}
+
+	mux := http.NewServeMux()
+
+	// requested reviewers: Copilot is in the list.
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, `{"users":[{"login":"Copilot","type":"Bot"}],"teams":[]}`)
+		})
+
+	// reviews: one completed review from a previous cycle.
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, `[{"id":1,"user":{"login":"copilot-pull-request-reviewer[bot]"},"state":"COMMENTED","submitted_at":"2024-01-01T00:58:00Z"}]`)
+		})
+
+	// timeline events.
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/%d/timeline", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, timelineJSON)
+		})
+
+	c, teardown := newTestGHClient(mux)
+	defer teardown()
+
+	data, err := c.GetReviewData(context.Background(), owner, repo, pr)
+	if err != nil {
+		t.Fatalf("GetReviewData() error = %v", err)
+	}
+
+	if !data.IsCopilotInReviewers {
+		t.Error("IsCopilotInReviewers = false, want true (login \"Copilot\" must be recognized)")
+	}
+
+	if data.ReviewRequestedAt == nil {
+		t.Fatal("ReviewRequestedAt = nil, want non-nil")
+	}
+	wantReviewRequestedAt, _ := time.Parse(time.RFC3339, reviewRequestedAt)
+	if !data.ReviewRequestedAt.Equal(wantReviewRequestedAt) {
+		t.Errorf("ReviewRequestedAt = %v, want %v", data.ReviewRequestedAt, wantReviewRequestedAt)
+	}
+
+	if data.WorkStartedAt == nil {
+		t.Fatal("WorkStartedAt = nil, want non-nil")
+	}
+	wantWorkStartedAt, _ := time.Parse(time.RFC3339, workStartedAt)
+	if !data.WorkStartedAt.Equal(wantWorkStartedAt) {
+		t.Errorf("WorkStartedAt = %v, want %v", data.WorkStartedAt, wantWorkStartedAt)
+	}
+}
+
+// TestGetReviewDataTimelinePicksLatestEvents verifies that when multiple
+// review_requested / copilot_work_started events exist (rereview), only the
+// most recent timestamps are kept.
+func TestGetReviewDataTimelinePicksLatestEvents(t *testing.T) {
+	const (
+		owner = "owner"
+		repo  = "repo"
+		pr    = 6
+	)
+
+	// Two cycles: cycle-1 at 01:00, cycle-2 at 02:00.
+	timelineJSON := `[
+		{"event":"review_requested","created_at":"2024-01-01T01:00:00Z","requested_reviewer":{"login":"Copilot","type":"Bot"}},
+		{"event":"copilot_work_started","created_at":"2024-01-01T01:01:00Z"},
+		{"event":"review_requested","created_at":"2024-01-01T02:00:00Z","requested_reviewer":{"login":"Copilot","type":"Bot"}},
+		{"event":"copilot_work_started","created_at":"2024-01-01T02:01:00Z"}
+	]`
+
+	writeJSON := func(w http.ResponseWriter, body string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-RateLimit-Remaining", "100")
+		w.Header().Set("X-RateLimit-Reset", "9999999999")
+		fmt.Fprint(w, body)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, `{"users":[{"login":"Copilot","type":"Bot"}],"teams":[]}`)
+		})
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, `[]`)
+		})
+	mux.HandleFunc(fmt.Sprintf("/repos/%s/%s/issues/%d/timeline", owner, repo, pr),
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, timelineJSON)
+		})
+
+	c, teardown := newTestGHClient(mux)
+	defer teardown()
+
+	data, err := c.GetReviewData(context.Background(), owner, repo, pr)
+	if err != nil {
+		t.Fatalf("GetReviewData() error = %v", err)
+	}
+
+	wantReviewRequested, _ := time.Parse(time.RFC3339, "2024-01-01T02:00:00Z")
+	wantWorkStarted, _ := time.Parse(time.RFC3339, "2024-01-01T02:01:00Z")
+
+	if data.ReviewRequestedAt == nil || !data.ReviewRequestedAt.Equal(wantReviewRequested) {
+		t.Errorf("ReviewRequestedAt = %v, want %v", data.ReviewRequestedAt, wantReviewRequested)
+	}
+	if data.WorkStartedAt == nil || !data.WorkStartedAt.Equal(wantWorkStarted) {
+		t.Errorf("WorkStartedAt = %v, want %v", data.WorkStartedAt, wantWorkStarted)
+	}
+}
+
+// TestIsCopilotLoginCoversAllKnownIdentities verifies that all known Copilot
+// reviewer identities are recognized, including the REST requested_reviewers form.
+func TestIsCopilotLoginCoversAllKnownIdentities(t *testing.T) {
+	cases := []struct {
+		login string
+		want  bool
+	}{
+		{"Copilot", true}, // REST requested_reviewers (observation #1)
+		{"copilot-pull-request-reviewer[bot]", true}, // REST reviews
+		{"github-copilot[bot]", true},
+		{"github-copilot", true},
+		{"other-user", false},
+		{"copilot", false}, // case-sensitive: lowercase must not match
+	}
+	for _, tc := range cases {
+		got := IsCopilotLogin(tc.login)
+		if got != tc.want {
+			t.Errorf("IsCopilotLogin(%q) = %v, want %v", tc.login, got, tc.want)
+		}
+	}
 }
