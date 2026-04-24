@@ -10,7 +10,7 @@ Claude Desktop だけは HTTP transport 非対応のため、`docker run -i ... 
 
 **イメージ方針（2026-04-24時点）:**
 - 既定イメージ: `ghcr.io/github/github-mcp-server:main`
-- 理由: 公式最新リリース `v0.30.3` には `http` サブコマンドが未搭載で、`http` 対応は現時点で `main` タグに含まれるため
+- 理由: 公式安定リリースの最新は `v1.0.0`（`v0.31.0` 以降 Streamable HTTP / `http` サブコマンドが正式搭載）。安定性より最新機能を優先する場合は `main` タグを使用
 - セキュリティ: `.github/workflows/security.yml` でTrivyスキャンを継続実行
 
 ## 概要
@@ -410,7 +410,7 @@ docker compose logs --tail=100 github-mcp
 - 別のバージョンを使う場合は次のように上書きします:
 
 ```bash
-export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v0.30.3
+export GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.0.0
 docker compose pull github-mcp
 ```
 

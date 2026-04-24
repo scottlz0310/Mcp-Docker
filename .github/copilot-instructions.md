@@ -55,7 +55,7 @@ make clean-all       # Full cleanup including images
 - **Environment-first auth**: `GITHUB_PERSONAL_ACCESS_TOKEN` env var always wins over `.env` file. Set both consistently to avoid confusion.
 - **Port**: Default MCP HTTP port is `8082`. Override with `GITHUB_MCP_HTTP_PORT`.
 - **Image override**: Set `GITHUB_MCP_IMAGE` to swap the default container image.
-- **HTTP transport only in `main` tag**: Using a pinned release (e.g. `v0.30.3`) will silently fall back to stdio-only mode and break.
+- **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.
 - **Claude Desktop exception**: HTTP transport 非対応のため、`docker run -i --rm <image> stdio` で直接起動する。VS Code/Cursor/Kiro/Amazon Q/Codex/Copilot CLI は HTTP (port 8082) に接続する。
 - **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.
 - **Go patches**: Source patches for the custom build live in `patches/github/`. They are copied into the builder stage in `Dockerfile.github-mcp-server`. Add new `.go` files there and reference them in the Dockerfile.
