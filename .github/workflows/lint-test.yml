@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
 jobs:
   test-node:
     name: Nodeテスト
@@ -21,8 +24,16 @@ jobs:
         with:
           node-version: '20.20.2'
 
-      - name: Nodeテスト実行
-        run: npm test
+      - name: Nodeテスト実行（カバレッジ付き）
+        run: npx c8 --reporter=lcov --reporter=text node --test tests/node/*.test.js
+
+      - name: Codecovにアップロード（Node）
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          flags: node
+          fail_ci_if_error: true
 
   lint-shell:
     name: シェルスクリプトLint
@@ -49,3 +60,27 @@ jobs:
       
       - name: シェルスクリプトテスト実行
         run: bats tests/shell/*.bats
+
+  test-go:
+    name: Goテスト（copilot-review-mcp）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Goセットアップ
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/copilot-review-mcp/go.mod
+          cache-dependency-path: services/copilot-review-mcp/go.sum
+
+      - name: Goテスト実行（カバレッジ付き）
+        working-directory: services/copilot-review-mcp
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Codecovにアップロード（Go）
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: services/copilot-review-mcp/coverage.out
+          flags: go
+          fail_ci_if_error: true
