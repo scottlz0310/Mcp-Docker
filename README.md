@@ -32,6 +32,7 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 
 - Docker 20.10+
 - GitHub Personal Access Token (PAT) または OAuth対応クライアント
+- Node.js 18+（`--service github-oauth-proxy --ide claude-desktop` または `verify-mcp-endpoint.js` を使用する場合のみ）
 
 ### インストール
 

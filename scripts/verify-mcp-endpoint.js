@@ -86,7 +86,8 @@ req.on('error', (e) => {
   console.error(`❌ 接続エラー: ${e.message}`);
   if (e.code === 'ECONNREFUSED') {
     console.error('   コンテナが起動していない可能性があります。');
-    console.error('   make start を実行してください。');
+    console.error('   make start-oauth を実行し、OAuth プロキシ経由で接続してください。');
+    console.error('   例: node scripts/verify-mcp-endpoint.js http://127.0.0.1:8084/mcp');
   }
   process.exit(1);
 });

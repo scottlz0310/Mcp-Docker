@@ -28,7 +28,6 @@ make logs
 make status
 
 # Testing
-npm test             # Node.js unit tests (tests/node/)
 make test-shell      # BATS shell tests (tests/shell/)
 make lint            # All linting
 make lint-shell      # Shell script lint (shellcheck)
