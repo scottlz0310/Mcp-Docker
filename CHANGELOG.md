@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-04-24
+
 ### 🗑️ 削除
 
 - `mcp-http-bridge` を削除（#90）
@@ -19,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/design/pr-review-thread-list-design.md` を削除
   - Makefile の `build-custom` / `start-custom` / `start-custom-oauth` ターゲットを削除
   - Security Scan ワークフローのパッチビルドスキャンジョブを削除
+
+### 📝 ドキュメント
+
+- README に設計思想セクションを追加（Docker ランタイムへの GitHub 認証一元化の背景）
 
 ## [2.4.0] - 2026-04-24
 
@@ -246,7 +252,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.1.0...v2.2.0

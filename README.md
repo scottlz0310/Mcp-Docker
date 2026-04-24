@@ -13,6 +13,31 @@ Claude Desktop だけは HTTP transport 非対応のため、`docker run -i ... 
 - 理由: 公式安定リリースの最新は `v1.0.0`（`v0.31.0` 以降 Streamable HTTP / `http` サブコマンドが正式搭載）。安定性より最新機能を優先する場合は `main` タグを使用
 - セキュリティ: `.github/workflows/security.yml` でTrivyスキャンを継続実行
 
+## 設計思想：GitHub認証の一元化
+
+従来のローカル Docker 環境では、依然として各 MCP ホストへの PAT（Personal Access Token）の注入が必要です。
+GUI ショートカットやスタートメニュー、あるいは環境変数が一貫して継承されない異なるシェルから IDE を起動する場合、
+この仕組みは不安定になりがちです。
+
+本プロジェクトでは、**GitHub 認証を Docker ランタイム内に一元化**することで、この問題を回避しています。
+MCP ホスト（各 IDE）の設定には、シークレットではなくローカルエンドポイントの URL のみが含まれます。
+
+```
+IDE（VS Code / Cursor / Kiro 等）
+  │  URL のみ（シークレット不要）
+  ▼
+github-oauth-proxy  ←── Docker ランタイム内で PAT / OAuth トークンを保持
+  │
+  ▼
+github-mcp-server（Docker ネットワーク内に閉じ込め）
+```
+
+これにより：
+
+- IDE 側の設定ファイルにトークンを書かなくて済む（`.vscode/settings.json` 等にシークレット不要）
+- 起動方法（GUI ショートカット・ターミナル・スタートメニュー）に関わらず認証が安定して機能する
+- トークンの差し替えは Docker コンテナ側（`.env`）だけで完結する
+
 ## 概要
 
 GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各IDEから統一的にGitHub機能を利用できます。
