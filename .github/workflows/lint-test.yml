@@ -39,8 +39,6 @@ jobs:
   test-go:
     name: Goテスト（copilot-review-mcp）
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 
@@ -54,11 +52,17 @@ jobs:
         working-directory: services/copilot-review-mcp
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: CODECOVトークン確認
+        id: token_check
+        env:
+          HAS_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
+        run: echo "available=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Codecovにアップロード（Go）
-        if: ${{ env.CODECOV_TOKEN != '' }}
+        if: steps.token_check.outputs.available == 'true'
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ env.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: services/copilot-review-mcp/coverage.out
           flags: go
           fail_ci_if_error: true

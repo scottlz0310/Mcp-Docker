@@ -17,10 +17,5 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Goセットアップ
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
-
       - name: actionlint実行
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        uses: reviewdog/action-actionlint@v1
