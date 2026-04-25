@@ -52,8 +52,14 @@ jobs:
         working-directory: services/copilot-review-mcp
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: CODECOVトークン確認
+        id: token_check
+        env:
+          HAS_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
+        run: echo "available=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Codecovにアップロード（Go）
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        if: steps.token_check.outputs.available == 'true'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
