@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Goセットアップ
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: services/copilot-review-mcp/go.mod
           cache-dependency-path: services/copilot-review-mcp/go.sum
@@ -60,7 +60,7 @@ jobs:
 
       - name: Codecovにアップロード（Go）
         if: steps.token_check.outputs.available == 'true'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: services/copilot-review-mcp/coverage.out
