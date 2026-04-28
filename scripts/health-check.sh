@@ -5,15 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${PROJECT_ROOT}/.env"
 WITH_API_CHECK="auto"
-SERVICE="github-oauth-proxy"
+SERVICE="mcp-gateway"
 
 usage() {
     cat <<EOF
 使用方法: $0 [オプション]
 
 オプション:
-  --service <サービス名>  ヘルスチェック対象サービス (デフォルト: github-oauth-proxy)
-                          github-oauth-proxy : OAuth プロキシ経由のエンドポイントを確認 (port 8084)
+  --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
+                          mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port 8080)
+                          copilot-review-mcp : copilot-review-mcp / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
                           github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
   --with-api              GitHub API接続確認を必ず実行
   --no-api                GitHub API接続確認をスキップ
@@ -49,10 +50,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$SERVICE" in
-    github-mcp|github-oauth-proxy) ;;
+    github-mcp|mcp-gateway|copilot-review-mcp) ;;
     *)
         echo "❌ 未対応のサービス: $SERVICE"
-        echo "対応サービス: github-mcp, github-oauth-proxy"
+        echo "対応サービス: github-mcp, mcp-gateway, copilot-review-mcp"
         exit 1
         ;;
 esac
@@ -105,17 +106,23 @@ extract_api_url_from_env_file() {
     extract_env_value "GITHUB_API_URL"
 }
 
-resolve_oauth_proxy_url() {
-    local url="${GITHUB_OAUTH_PROXY_URL:-}"
+resolve_gateway_url() {
+    local url="${MCP_GATEWAY_URL:-}"
     if [[ -z "${url}" ]]; then
-        url="$(extract_env_value "GITHUB_OAUTH_PROXY_URL")"
+        url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
-        local port="${GITHUB_OAUTH_PROXY_PORT:-}"
+        url="${MCP_GATEWAY_BASE_URL:-}"
+    fi
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "MCP_GATEWAY_BASE_URL")"
+    fi
+    if [[ -z "${url}" ]]; then
+        local port="${MCP_GATEWAY_PORT:-}"
         if [[ -z "${port}" ]]; then
-            port="$(extract_env_value "GITHUB_OAUTH_PROXY_PORT")"
+            port="$(extract_env_value "MCP_GATEWAY_PORT")"
         fi
-        port="${port:-8084}"
+        port="${port:-8080}"
         url="http://127.0.0.1:${port}"
     fi
     echo "${url%/}"
@@ -184,9 +191,9 @@ ensure_docker_ready
 
 if [[ "${SERVICE}" == "github-mcp" ]]; then
     # github-mcp はホスト非公開（Docker ネットワーク内部のみ）のため、
-    # コンテナ状態確認のみ実施。HTTP 疎通は github-oauth-proxy 経由で確認してください。
+    # コンテナ状態確認のみ実施。HTTP 疎通は mcp-gateway 経由で確認してください。
     echo "ℹ️  github-mcp はホスト非公開です。HTTP 疎通確認はスキップします。"
-    echo "   HTTP エンドポイントを確認する場合: $0 --service github-oauth-proxy"
+    echo "   HTTP エンドポイントを確認する場合: $0 --service mcp-gateway"
     echo ""
     check_container_state "github-mcp"
     echo ""
@@ -194,24 +201,48 @@ if [[ "${SERVICE}" == "github-mcp" ]]; then
     exit 0
 fi
 
-# github-oauth-proxy のヘルスチェック
+if [[ "${SERVICE}" == "copilot-review-mcp" ]]; then
+    check_container_state "github-mcp"
+    check_container_state "copilot-review-mcp"
+    check_container_state "mcp-gateway"
+    gateway_url="$(resolve_gateway_url)"
+    if command -v curl > /dev/null 2>&1; then
+        http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${gateway_url}/health" || true)"
+        if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
+            http_status="000"
+        fi
+        if [[ "${http_status}" == "200" ]]; then
+            echo "✅ mcp-gateway ヘルスエンドポイント疎通成功 (${gateway_url}/health, status=${http_status})"
+        else
+            echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
+            exit 1
+        fi
+    else
+        echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
+    fi
+    echo ""
+    echo "🎉 すべてのチェックに合格しました"
+    exit 0
+fi
+
+# mcp-gateway のヘルスチェック
 # github-mcp コンテナ状態も確認
 check_container_state "github-mcp"
-check_container_state "github-oauth-proxy"
+check_container_state "mcp-gateway"
 
-# HTTP エンドポイント確認 (github-oauth-proxy 経由)
-proxy_url="$(resolve_oauth_proxy_url)"
+# HTTP エンドポイント確認 (mcp-gateway 経由)
+gateway_url="$(resolve_gateway_url)"
 if command -v curl > /dev/null 2>&1; then
     # curl failures should not abort the script, so we use || true and check the result
-    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${proxy_url}/health" || true)"
+    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${gateway_url}/health" || true)"
     # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
     if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
         http_status="000"
     fi
     if [[ "${http_status}" == "200" ]]; then
-        echo "✅ github-oauth-proxy ヘルスエンドポイント疎通成功 (${proxy_url}/health, status=${http_status})"
+        echo "✅ mcp-gateway ヘルスエンドポイント疎通成功 (${gateway_url}/health, status=${http_status})"
     else
-        echo "❌ github-oauth-proxy ヘルスエンドポイント疎通失敗 (${proxy_url}/health, status=${http_status})"
+        echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
         exit 1
     fi
 else

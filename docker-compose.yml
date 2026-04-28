@@ -16,7 +16,7 @@ services:
       - github-mcp-cache:/app/cache
 
     # Exposed only within the Docker network. Direct host access is intentionally
-    # removed; use github-oauth-proxy (:8084) for authenticated external access.
+    # removed; use mcp-gateway (:8080) for authenticated external access.
     expose:
       - "${GITHUB_MCP_HTTP_PORT:-8082}"
 
@@ -43,35 +43,33 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  github-oauth-proxy:
-    build:
-      context: ./services/github-oauth-proxy
-      dockerfile: Dockerfile
-    image: github-oauth-proxy:local
-    container_name: github-oauth-proxy
+  mcp-gateway:
+    image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:latest}
+    container_name: mcp-gateway
     restart: unless-stopped
     depends_on:
       - github-mcp
+      - copilot-review-mcp
 
     environment:
       - GITHUB_MCP_CLIENT_ID=${GITHUB_MCP_CLIENT_ID}
       - GITHUB_MCP_CLIENT_SECRET=${GITHUB_MCP_CLIENT_SECRET}
-      - GITHUB_OAUTH_PROXY_BASE_URL=${GITHUB_OAUTH_PROXY_BASE_URL:-http://localhost:8084}
-      - GITHUB_OAUTH_PROXY_PORT=${GITHUB_OAUTH_PROXY_PORT:-8084}
-      - GITHUB_MCP_UPSTREAM_URL=${GITHUB_MCP_UPSTREAM_URL:-http://github-mcp:8082}
+      - MCP_GATEWAY_BASE_URL=${MCP_GATEWAY_BASE_URL:-http://localhost:8080}
+      - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
+      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
+      - ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:${COPILOT_REVIEW_MCP_PORT:-8083}
       - GITHUB_MCP_OAUTH_SCOPES=${GITHUB_MCP_OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
-      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-5}
+      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
       - TOKEN_EXPIRES_IN_SEC=${TOKEN_EXPIRES_IN_SEC:-7776000}
 
     ports:
-      - "127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}:${GITHUB_OAUTH_PROXY_PORT:-8084}"
+      - "127.0.0.1:${MCP_GATEWAY_PORT:-8080}:${MCP_GATEWAY_PORT:-8080}"
 
     networks:
       - mcp-network
 
-    # Note: distroless image has no shell/wget. Health is validated host-side.
     healthcheck:
       disable: true
 
@@ -85,7 +83,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: 256M
+          memory: 128M
 
   copilot-review-mcp:
     build:
@@ -110,9 +108,14 @@ services:
       - MCP_PORT=${COPILOT_REVIEW_MCP_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
-      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-5}
-    ports:
-      - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
+      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
+
+    # mcp-gateway 経由でのみアクセス（http://localhost:8080/mcp/copilot-review）。
+    # ホストから直接アクセスする場合は下記のコメントを解除してください。
+    # ports:
+    #   - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
+    expose:
+      - "${COPILOT_REVIEW_MCP_PORT:-8083}"
 
     volumes:
       - copilot-review-data:/data
