@@ -57,7 +57,7 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 
 - Docker 20.10+
 - GitHub Personal Access Token (PAT) または OAuth対応クライアント
-- Node.js 18+（`verify-mcp-endpoint.js` を使用する場合のみ）
+- Node.js 18+（`verify-mcp-endpoint.js` を使用する場合、または `generate-ide-config.sh --ide claude-desktop --service mcp-gateway` が生成する `npx mcp-remote` 設定で Claude Desktop を利用する場合に必要。Claude Desktop は `mcp-gateway` 経由ではなく `docker run -i --rm <image> stdio` による直接利用を推奨）
 
 ### インストール
 

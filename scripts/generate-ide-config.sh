@@ -43,13 +43,15 @@ IDE名:
   GITHUB_MCP_IMAGE              コンテナイメージのオーバーライド（デフォルト: ghcr.io/github/github-mcp-server:main）
 
 環境変数 (copilot-review-mcp):
-  MCP_GATEWAY_URL               mcp-gateway の接続先 URL（未設定時は MCP_GATEWAY_PORT から生成）
-  MCP_GATEWAY_PORT              mcp-gateway のポート番号（デフォルト: 8080）
+  MCP_GATEWAY_URL               mcp-gateway の接続先 URL（優先）
+  MCP_GATEWAY_BASE_URL          mcp-gateway の接続先 URL（MCP_GATEWAY_URL 未設定時のフォールバック）
+  MCP_GATEWAY_PORT              mcp-gateway のポート番号（デフォルト: 8080、URL 未指定時に使用）
   GITHUB_PERSONAL_ACCESS_TOKEN  Bearer トークン（GitHub PAT, fine-grained 推奨）
 
 環境変数 (mcp-gateway):
-  MCP_GATEWAY_URL               HTTP 接続先 URL（未設定時は MCP_GATEWAY_PORT から生成）
-  MCP_GATEWAY_PORT              HTTP ポート番号（デフォルト: 8080）
+  MCP_GATEWAY_URL               HTTP 接続先 URL（優先）
+  MCP_GATEWAY_BASE_URL          HTTP 接続先 URL（MCP_GATEWAY_URL 未設定時のフォールバック）
+  MCP_GATEWAY_PORT              HTTP ポート番号（デフォルト: 8080、URL 未指定時に使用）
   GITHUB_PERSONAL_ACCESS_TOKEN  Bearer トークン（GitHub PAT または OAuth トークン）
 EOF
     exit 1
