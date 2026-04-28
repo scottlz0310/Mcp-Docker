@@ -47,6 +47,7 @@ start: ## GitHub MCPサーバー起動
 .PHONY: start-gateway
 start-gateway: ## mcp-gateway経由で起動（localhost:8080）
 	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 

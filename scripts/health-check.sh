@@ -112,6 +112,12 @@ resolve_gateway_url() {
         url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
+        url="${MCP_GATEWAY_BASE_URL:-}"
+    fi
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "MCP_GATEWAY_BASE_URL")"
+    fi
+    if [[ -z "${url}" ]]; then
         local port="${MCP_GATEWAY_PORT:-}"
         if [[ -z "${port}" ]]; then
             port="$(extract_env_value "MCP_GATEWAY_PORT")"

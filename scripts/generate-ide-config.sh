@@ -131,6 +131,12 @@ resolve_gateway_url() {
         url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
+        url="${MCP_GATEWAY_BASE_URL:-}"
+    fi
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "MCP_GATEWAY_BASE_URL")"
+    fi
+    if [[ -z "${url}" ]]; then
         local port="${MCP_GATEWAY_PORT:-}"
         if [[ -z "${port}" ]]; then
             port="$(extract_env_value "MCP_GATEWAY_PORT")"
@@ -152,7 +158,9 @@ GATEWAY_URL="$(resolve_gateway_url)"
 if [[ "$SERVICE" == "copilot-review-mcp" ]]; then
     CRM_SERVER_KEY="copilot-review-mcp"
     # copilot-review-mcp は mcp-gateway 経由でアクセス
-    CRM_MCP_URL="${COPILOT_REVIEW_URL}/mcp"
+    # resolve_copilot_review_url は最終 MCP エンドポイント(/mcp/copilot-review)を返すため
+    # 追加の /mcp は付与しない
+    CRM_MCP_URL="${COPILOT_REVIEW_URL}"
 
     # IDE の妥当性を先に検証（mkdir より前）
     case "$IDE" in
@@ -462,8 +470,8 @@ fi
 # になっています。GITHUB_MCP_SERVER_URL を明示的に設定していない場合、生成される設定の接続先
 # (http://127.0.0.1:8082) には接続できません。
 #
-# ホストから github-mcp-server に接続するには github-oauth-proxy 経由を推奨:
-#   $0 --ide ${IDE} --service github-oauth-proxy
+# ホストから github-mcp-server に接続するには mcp-gateway 経由を推奨:
+#   $0 --ide ${IDE} --service mcp-gateway
 #
 if [[ -z "${GITHUB_MCP_SERVER_URL:-}" ]] && [[ -z "$(extract_env_value "GITHUB_MCP_SERVER_URL")" ]]; then
     echo "⚠️  警告: github-mcp はホスト非公開（Docker ネットワーク内部のみ）です。"

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚠️ 破壊的変更
 
-- `github-oauth-proxy` を `mcp-gateway` に置き換え（#N）
+- `github-oauth-proxy` を `mcp-gateway` に置き換え (#107)
   - **ポート変更**: `8084` → `8080`（`MCP_GATEWAY_PORT`）
   - **環境変数変更**:
     - `GITHUB_OAUTH_PROXY_BASE_URL` → `MCP_GATEWAY_BASE_URL`
