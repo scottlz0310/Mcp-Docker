@@ -24,12 +24,12 @@ OAuth プロキシ経由で接続する場合、MCP ホスト（各 IDE）の設
 
 ```
 IDE（VS Code / Cursor / Kiro 等）
-  │  URL のみ（OAuth プロキシ経由）または env var 参照（直接 HTTP 接続）
+  │  URL のみ（mcp-gateway 経由）または env var 参照（直接 HTTP 接続）
   ▼
-github-oauth-proxy  ←── Docker ランタイム内で PAT / OAuth トークンを保持
+mcp-gateway  ←── Docker ランタイム内で OAuth 認証・ルーティングを担当
   │
-  ▼
-github-mcp-server（Docker ネットワーク内に閉じ込め）
+  ├──▶ github-mcp-server（Docker ネットワーク内に閉じ込め）
+  └──▶ copilot-review-mcp（Docker ネットワーク内に閉じ込め）
 ```
 
 これにより：
@@ -57,7 +57,7 @@ GitHub公式のMCPサーバーをDockerコンテナとして常駐させ、各ID
 
 - Docker 20.10+
 - GitHub Personal Access Token (PAT) または OAuth対応クライアント
-- Node.js 18+（`--service github-oauth-proxy --ide claude-desktop` または `verify-mcp-endpoint.js` を使用する場合のみ）
+- Node.js 18+（`verify-mcp-endpoint.js` を使用する場合のみ）
 
 ### インストール
 
@@ -133,13 +133,13 @@ GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
 
 ### OAuthの準備（GitHub OAuth App登録）
 
-OAuthプロキシ経由で接続する場合は、GitHub OAuth App の Client ID / Client Secret が必要です。
+mcp-gateway 経由で接続する場合は、GitHub OAuth App の Client ID / Client Secret が必要です。
 
 1. GitHub OAuth App を作成
   - https://github.com/settings/applications/new にアクセス
-  - Application name: 任意（例: GitHub MCP Proxy）
-  - Homepage URL: http://localhost:8084
-  - Authorization callback URL: http://localhost:8084/callback
+  - Application name: 任意（例: GitHub MCP Gateway）
+  - Homepage URL: http://localhost:8080
+  - Authorization callback URL: http://localhost:8080/callback
 
 2. 作成後に Client ID と Client Secret を取得
 
@@ -149,26 +149,26 @@ OAuthプロキシ経由で接続する場合は、GitHub OAuth App の Client ID
 GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxx
 GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# 必要に応じて変更（未設定時は 8084）
-# GITHUB_OAUTH_PROXY_PORT=8084
-# GITHUB_OAUTH_PROXY_BASE_URL=http://localhost:8084
+# 必要に応じて変更（未設定時は 8080）
+# MCP_GATEWAY_PORT=8080
+# MCP_GATEWAY_BASE_URL=http://localhost:8080
 ```
 
-4. OAuthプロキシを起動
+4. mcp-gateway を起動
 
 ```bash
-make start-oauth
+make start-gateway
 ```
 
 5. 起動確認
 
 ```bash
-make status-oauth
-curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-authorization-server"
+make status-gateway
+curl -i "http://127.0.0.1:${MCP_GATEWAY_PORT:-8080}/health"
 ```
 
 補足:
-- callback URL は `GITHUB_OAUTH_PROXY_BASE_URL` と一致させてください（末尾 `/callback` を付与）。
+- callback URL は `MCP_GATEWAY_BASE_URL` と一致させてください（末尾 `/callback` を付与）。
 - `copilot-review-mcp` で使っている OAuth App を共有しても問題ありません。
 
 ## copilot-review-mcp
@@ -236,24 +236,26 @@ PR 作成直後または `request_copilot_review` ツール呼び出し直後に
 
 ## HTTPエンドポイント
 
-- 既定でホストに公開されるURL（OAuthプロキシ経由）: `http://127.0.0.1:8084`
-- `github-mcp` 本体の `8082` は Docker ネットワーク内向け（`expose`）で、ホスト直公開はしません。
-- OAuth で接続する場合は `make start-oauth` を実行してください。
+- mcp-gateway 経由 URL: `http://127.0.0.1:8080`
+  - GitHub MCP Server: `http://127.0.0.1:8080/mcp/github`
+  - Copilot Review MCP: `http://127.0.0.1:8080/mcp/copilot-review`
+- `github-mcp` と `copilot-review-mcp` は Docker ネットワーク内向け（`expose`）でホスト直公開しません。
+- mcp-gateway で接続するには `make start-gateway` を実行してください。
 - ポートを変更する場合:
-  - `GITHUB_OAUTH_PROXY_PORT`（未設定時は `8084`）
+  - `MCP_GATEWAY_PORT`（未設定時は `8080`）
   - `GITHUB_MCP_HTTP_PORT`（コンテナ内向け、未設定時は `8082`）
 - 直接 HTTP 接続するクライアントでは、必要に応じて `Authorization: Bearer <PAT/OAuth Token>` ヘッダーを送ってください。
 - Claude Desktop は `docker run -i ... stdio` で接続します。`-e GITHUB_PERSONAL_ACCESS_TOKEN`（値なし）を指定すると、ホスト環境変数を安全に受け渡せます。
-- 疎通確認（`200 OK` で discovery ドキュメントが返ることを確認）:
+- 疎通確認（`200 OK` でヘルス情報が返ることを確認）:
 
 ```bash
-curl -i "http://127.0.0.1:${GITHUB_OAUTH_PROXY_PORT:-8084}/.well-known/oauth-authorization-server"
+curl -i "http://127.0.0.1:${MCP_GATEWAY_PORT:-8080}/health"
 ```
 
 ```bash
-# 例: 18084でOAuthプロキシ起動
-export GITHUB_OAUTH_PROXY_PORT=18084
-make start-oauth
+# 例: 18080でmcp-gateway起動
+export MCP_GATEWAY_PORT=18080
+make start-gateway
 ```
 
 ```bash
@@ -363,8 +365,8 @@ make start
 # 起動（github-mcp本体のみ）
 make start
 
-# OAuthプロキシ経由で起動（localhost:8084）
-make start-oauth
+# OAuthプロキシ(mcp-gateway)経由で起動（localhost:8080）
+make start-gateway
 
 # 停止
 docker compose down
@@ -534,7 +536,7 @@ Mcp-Docker/
 ├── renovate.json              # Renovate 依存更新設定
 ├── services/
 │   ├── copilot-review-mcp/   # Copilot review 非同期 Watch MCP サーバー（Go）
-│   └── github-oauth-proxy/   # GitHub OAuth プロキシサーバー（Go）
+│   └── (github-oauth-proxy は削除 → mcp-gateway に移行)
 ├── config/
 │   └── github-mcp/           # github-mcp-server 設定
 ├── scripts/

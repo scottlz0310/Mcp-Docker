@@ -22,16 +22,16 @@ IDE名:
 
 サービス名 (--service):
   github-mcp          GitHub MCP Server（Docker ネットワーク内部のみ port 8082、ホストからは直接アクセス不可）
-                      ※ ホストから接続するには github-oauth-proxy 経由を推奨
-  copilot-review-mcp  Copilot Review MCP Server（OAuth 付き HTTP、port 8083）
-  github-oauth-proxy  GitHub OAuth Proxy（mcp-remote 経由 Claude Desktop 対応、port 8084）
+                      ※ ホストから接続するには mcp-gateway 経由を推奨
+  copilot-review-mcp  Copilot Review MCP Server（mcp-gateway 経由、port 8080）
+  mcp-gateway         MCP Gateway（OAuth 2.0 認証ゲートウェイ、port 8080）
                       ※ Claude Desktop から github-mcp-server に接続する場合はこちらを使用
 
 例:
   $0 --ide vscode
   $0 --ide vscode --service copilot-review-mcp
   $0 --ide claude-desktop
-  $0 --ide claude-desktop --service github-oauth-proxy
+  $0 --ide claude-desktop --service mcp-gateway
   $0 --ide amazonq --service copilot-review-mcp
   $0 --ide codex
   $0 --ide copilot-cli
@@ -43,13 +43,13 @@ IDE名:
   GITHUB_MCP_IMAGE              コンテナイメージのオーバーライド（デフォルト: ghcr.io/github/github-mcp-server:main）
 
 環境変数 (copilot-review-mcp):
-  COPILOT_REVIEW_MCP_URL        HTTP 接続先 URL（未設定時は COPILOT_REVIEW_MCP_PORT から生成）
-  COPILOT_REVIEW_MCP_PORT       HTTP ポート番号（デフォルト: 8083）
+  MCP_GATEWAY_URL               mcp-gateway の接続先 URL（未設定時は MCP_GATEWAY_PORT から生成）
+  MCP_GATEWAY_PORT              mcp-gateway のポート番号（デフォルト: 8080）
   GITHUB_PERSONAL_ACCESS_TOKEN  Bearer トークン（GitHub PAT, fine-grained 推奨）
 
-環境変数 (github-oauth-proxy):
-  GITHUB_OAUTH_PROXY_URL        HTTP 接続先 URL（未設定時は GITHUB_OAUTH_PROXY_PORT から生成）
-  GITHUB_OAUTH_PROXY_PORT       HTTP ポート番号（デフォルト: 8084）
+環境変数 (mcp-gateway):
+  MCP_GATEWAY_URL               HTTP 接続先 URL（未設定時は MCP_GATEWAY_PORT から生成）
+  MCP_GATEWAY_PORT              HTTP ポート番号（デフォルト: 8080）
   GITHUB_PERSONAL_ACCESS_TOKEN  Bearer トークン（GitHub PAT または OAuth トークン）
 EOF
     exit 1
@@ -78,7 +78,7 @@ if [[ -z "$IDE" ]]; then
 fi
 
 case "$SERVICE" in
-    github-mcp|copilot-review-mcp|github-oauth-proxy) ;;
+    github-mcp|copilot-review-mcp|mcp-gateway) ;;
     *) echo "❌ 未対応のサービス: $SERVICE"; usage ;;
 esac
 
@@ -118,34 +118,24 @@ resolve_server_url() {
 # ── URL 解決 ──────────────────────────────────────────────────────────────────
 
 resolve_copilot_review_url() {
-    local url="${COPILOT_REVIEW_MCP_URL:-}"
-    if [[ -z "${url}" ]]; then
-        url="$(extract_env_value "COPILOT_REVIEW_MCP_URL")"
-    fi
-    if [[ -z "${url}" ]]; then
-        local port="${COPILOT_REVIEW_MCP_PORT:-}"
-        if [[ -z "${port}" ]]; then
-            port="$(extract_env_value "COPILOT_REVIEW_MCP_PORT")"
-        fi
-        port="${port:-8083}"
-        url="http://127.0.0.1:${port}"
-    fi
-    url="${url%/}"
-    url="${url%/mcp}"  # ベースURLのみ受け付ける。末尾に /mcp が含まれていれば除去
-    echo "${url}"
+    # copilot-review-mcp は mcp-gateway 経由でアクセスする
+    # URL: <gateway_url>/mcp/copilot-review
+    local gateway_url
+    gateway_url="$(resolve_gateway_url)"
+    echo "${gateway_url}/mcp/copilot-review"
 }
 
-resolve_oauth_proxy_url() {
-    local url="${GITHUB_OAUTH_PROXY_URL:-}"
+resolve_gateway_url() {
+    local url="${MCP_GATEWAY_URL:-}"
     if [[ -z "${url}" ]]; then
-        url="$(extract_env_value "GITHUB_OAUTH_PROXY_URL")"
+        url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
-        local port="${GITHUB_OAUTH_PROXY_PORT:-}"
+        local port="${MCP_GATEWAY_PORT:-}"
         if [[ -z "${port}" ]]; then
-            port="$(extract_env_value "GITHUB_OAUTH_PROXY_PORT")"
+            port="$(extract_env_value "MCP_GATEWAY_PORT")"
         fi
-        port="${port:-8084}"
+        port="${port:-8080}"
         url="http://127.0.0.1:${port}"
     fi
     url="${url%/}"
@@ -155,12 +145,13 @@ resolve_oauth_proxy_url() {
 
 SERVER_URL="$(resolve_server_url)"
 COPILOT_REVIEW_URL="$(resolve_copilot_review_url)"
-OAUTH_PROXY_URL="$(resolve_oauth_proxy_url)"
+GATEWAY_URL="$(resolve_gateway_url)"
 
 # ── 出力先・サービス別ディスパッチ ───────────────────────────────────────────
 
 if [[ "$SERVICE" == "copilot-review-mcp" ]]; then
     CRM_SERVER_KEY="copilot-review-mcp"
+    # copilot-review-mcp は mcp-gateway 経由でアクセス
     CRM_MCP_URL="${COPILOT_REVIEW_URL}/mcp"
 
     # IDE の妥当性を先に検証（mkdir より前）
@@ -320,11 +311,11 @@ EOF
     exit 0
 fi
 
-# ── github-oauth-proxy サービス ──────────────────────────────────────────────
+# ── mcp-gateway サービス ─────────────────────────────────────────────────────
 
-if [[ "$SERVICE" == "github-oauth-proxy" ]]; then
-    GOP_SERVER_KEY="github-mcp-server-docker"
-    GOP_MCP_URL="${OAUTH_PROXY_URL}/mcp"
+if [[ "$SERVICE" == "mcp-gateway" ]]; then
+    GW_SERVER_KEY="github-mcp-server-docker"
+    GW_MCP_URL="${GATEWAY_URL}/mcp/github"
 
     case "$IDE" in
         vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
@@ -336,30 +327,30 @@ if [[ "$SERVICE" == "github-oauth-proxy" ]]; then
             ;;
     esac
 
-    GOP_OUTPUT_DIR="${PROJECT_ROOT}/config/ide-configs/github-oauth-proxy/${IDE}"
-    mkdir -p "${GOP_OUTPUT_DIR}"
+    GW_OUTPUT_DIR="${PROJECT_ROOT}/config/ide-configs/mcp-gateway/${IDE}"
+    mkdir -p "${GW_OUTPUT_DIR}"
 
     case "$IDE" in
         claude-desktop)
-            cat > "${GOP_OUTPUT_DIR}/claude_desktop_config.json" <<EOF
+            cat > "${GW_OUTPUT_DIR}/claude_desktop_config.json" <<EOF
 {
   "mcpServers": {
-    "${GOP_SERVER_KEY}": {
+    "${GW_SERVER_KEY}": {
       "command": "npx",
       "args": [
         "-y",
         "mcp-remote",
-        "${GOP_MCP_URL}"
+        "${GW_MCP_URL}"
       ]
     }
   }
 }
 EOF
-            echo "✅ Claude Desktop設定を生成しました: ${GOP_OUTPUT_DIR}/claude_desktop_config.json"
+            echo "✅ Claude Desktop設定を生成しました: ${GW_OUTPUT_DIR}/claude_desktop_config.json"
             echo ""
             echo "📋 設定方法:"
-            echo "   1. github-oauth-proxy / github-mcp サービスを起動:"
-            echo "      docker compose up -d github-mcp github-oauth-proxy"
+            echo "   1. mcp-gateway / github-mcp サービスを起動:"
+            echo "      make start-gateway"
             echo "   2. 生成された設定を Claude Desktop設定ファイルにマージ:"
             echo "      Windows: %APPDATA%\\Claude\\claude_desktop_config.json"
             echo "      macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json"
@@ -367,16 +358,16 @@ EOF
             echo "   4. ブラウザで GitHub OAuth 認証フロー（初回のみ）"
             echo ""
             echo "ℹ️  mcp-remote が OAuth フローを自動的に処理します（ブラウザが開きます）"
-            echo "   接続先: ${GOP_MCP_URL}"
+            echo "   接続先: ${GW_MCP_URL}"
             ;;
 
         vscode)
-            cat > "${GOP_OUTPUT_DIR}/settings.json" <<EOF
+            cat > "${GW_OUTPUT_DIR}/settings.json" <<EOF
 {
   "mcpServers": {
-    "${GOP_SERVER_KEY}": {
+    "${GW_SERVER_KEY}": {
       "type": "http",
-      "url": "${GOP_MCP_URL}",
+      "url": "${GW_MCP_URL}",
       "headers": {
         "Authorization": "Bearer \${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
@@ -384,25 +375,26 @@ EOF
   }
 }
 EOF
-            echo "✅ VS Code設定を生成しました: ${GOP_OUTPUT_DIR}/settings.json"
+            echo "✅ VS Code設定を生成しました: ${GW_OUTPUT_DIR}/settings.json"
             echo ""
             echo "📋 設定方法:"
-            echo "   1. github-oauth-proxy / github-mcp サービスを起動"
+            echo "   1. mcp-gateway / github-mcp サービスを起動:"
+            echo "      make start-gateway"
             echo "   2. VS Code設定 (.vscode/settings.json) に追加"
-            echo "   3. 接続先URL: ${GOP_MCP_URL}"
+            echo "   3. 接続先URL: ${GW_MCP_URL}"
             echo ""
             echo "💡 Bearer トークンの設定:"
             echo "   export GITHUB_PERSONAL_ACCESS_TOKEN=your_pat_here"
             ;;
 
         kiro)
-            cat > "${GOP_OUTPUT_DIR}/mcp.json" <<EOF
+            cat > "${GW_OUTPUT_DIR}/mcp.json" <<EOF
 {
   "mcp": {
     "servers": {
-      "${GOP_SERVER_KEY}": {
+      "${GW_SERVER_KEY}": {
         "type": "http",
-        "url": "${GOP_MCP_URL}",
+        "url": "${GW_MCP_URL}",
         "headers": {
           "Authorization": "Bearer \${GITHUB_PERSONAL_ACCESS_TOKEN}"
         }
@@ -411,17 +403,17 @@ EOF
   }
 }
 EOF
-            echo "✅ Kiro設定を生成しました: ${GOP_OUTPUT_DIR}/mcp.json"
-            echo "   接続先URL: ${GOP_MCP_URL}"
+            echo "✅ Kiro設定を生成しました: ${GW_OUTPUT_DIR}/mcp.json"
+            echo "   接続先URL: ${GW_MCP_URL}"
             ;;
 
         amazonq)
-            cat > "${GOP_OUTPUT_DIR}/mcp.json" <<EOF
+            cat > "${GW_OUTPUT_DIR}/mcp.json" <<EOF
 {
   "mcpServers": {
-    "${GOP_SERVER_KEY}": {
+    "${GW_SERVER_KEY}": {
       "type": "http",
-      "url": "${GOP_MCP_URL}",
+      "url": "${GW_MCP_URL}",
       "headers": {
         "Authorization": "Bearer \${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
@@ -429,27 +421,27 @@ EOF
   }
 }
 EOF
-            echo "✅ Amazon Q設定を生成しました: ${GOP_OUTPUT_DIR}/mcp.json"
-            echo "   接続先URL: ${GOP_MCP_URL}"
+            echo "✅ Amazon Q設定を生成しました: ${GW_OUTPUT_DIR}/mcp.json"
+            echo "   接続先URL: ${GW_MCP_URL}"
             ;;
 
         codex)
-            cat > "${GOP_OUTPUT_DIR}/config.toml" <<EOF
-[mcp_servers.${GOP_SERVER_KEY}]
-url = "${GOP_MCP_URL}"
+            cat > "${GW_OUTPUT_DIR}/config.toml" <<EOF
+[mcp_servers.${GW_SERVER_KEY}]
+url = "${GW_MCP_URL}"
 bearer_token_env_var = "GITHUB_PERSONAL_ACCESS_TOKEN"
 EOF
-            echo "✅ Codex設定を生成しました: ${GOP_OUTPUT_DIR}/config.toml"
-            echo "   接続先URL: ${GOP_MCP_URL}"
+            echo "✅ Codex設定を生成しました: ${GW_OUTPUT_DIR}/config.toml"
+            echo "   接続先URL: ${GW_MCP_URL}"
             ;;
 
         copilot-cli)
-            cat > "${GOP_OUTPUT_DIR}/mcp-config.json" <<EOF
+            cat > "${GW_OUTPUT_DIR}/mcp-config.json" <<EOF
 {
   "mcpServers": {
-    "${GOP_SERVER_KEY}": {
+    "${GW_SERVER_KEY}": {
       "type": "http",
-      "url": "${GOP_MCP_URL}",
+      "url": "${GW_MCP_URL}",
       "headers": {
         "Authorization": "Bearer \${GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
@@ -457,8 +449,8 @@ EOF
   }
 }
 EOF
-            echo "✅ Copilot CLI設定を生成しました: ${GOP_OUTPUT_DIR}/mcp-config.json"
-            echo "   接続先URL: ${GOP_MCP_URL}"
+            echo "✅ Copilot CLI設定を生成しました: ${GW_OUTPUT_DIR}/mcp-config.json"
+            echo "   接続先URL: ${GW_MCP_URL}"
             ;;
     esac
     exit 0
@@ -476,8 +468,8 @@ fi
 if [[ -z "${GITHUB_MCP_SERVER_URL:-}" ]] && [[ -z "$(extract_env_value "GITHUB_MCP_SERVER_URL")" ]]; then
     echo "⚠️  警告: github-mcp はホスト非公開（Docker ネットワーク内部のみ）です。"
     echo "   生成された設定の接続先 (${SERVER_URL}) には接続できない可能性があります。"
-    echo "   代わりに github-oauth-proxy 経由を使用することを推奨します:"
-    echo "   $0 --ide ${IDE} --service github-oauth-proxy"
+    echo "   代わりに mcp-gateway 経由を使用することを推奨します:"
+    echo "   $0 --ide ${IDE} --service mcp-gateway"
     echo ""
 fi
 

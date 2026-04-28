@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠️ 破壊的変更
+
+- `github-oauth-proxy` を `mcp-gateway` に置き換え（#N）
+  - **ポート変更**: `8084` → `8080`（`MCP_GATEWAY_PORT`）
+  - **環境変数変更**:
+    - `GITHUB_OAUTH_PROXY_BASE_URL` → `MCP_GATEWAY_BASE_URL`
+    - `GITHUB_OAUTH_PROXY_PORT` → `MCP_GATEWAY_PORT`
+    - `GITHUB_MCP_UPSTREAM_URL` を削除（`ROUTE_*` 環境変数に置き換え）
+  - `copilot-review-mcp` のホスト公開ポート（8083）を廃止し、mcp-gateway 経由のみに変更
+  - Makefile: `start-oauth` → `start-gateway`、`logs-oauth` → `logs-gateway`、`status-oauth` → `status-gateway`
+  - IDE設定スクリプト: `--service github-oauth-proxy` → `--service mcp-gateway`
+
+### ✨ 新機能
+
+- `mcp-gateway`（`ghcr.io/scottlz0310/mcp-gateway:latest`）をルーティングゲートウェイとして追加
+  - `ROUTE_GITHUB=/mcp/github|http://github-mcp:8082`
+  - `ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:8083`
+  - `github-mcp` と `copilot-review-mcp` の両サービスを単一ポートから提供
+  - OAuth 2.0 認証フローを gateway に一元化
+
 ## [2.5.0] - 2026-04-24
 
 ### 🗑️ 削除
