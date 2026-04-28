@@ -5,9 +5,9 @@
 ```
 IDEs (VS Code / Cursor / Kiro / Amazon Q / Copilot CLI)
   ↓ HTTP (port 8080)
-Docker: ghcr.io/scottlz0310/mcp-gateway  ← OAuth 2.0 ゲートウェイ
+Docker: ghcr.io/scottlz0310/mcp-gateway:latest  ← OAuth 2.0 ゲートウェイ（compose デフォルト）
   ↓ /mcp/github         ↓ /mcp/copilot-review
-ghcr.io/github/github-mcp-server   copilot-review-mcp
+ghcr.io/github/github-mcp-server:main   copilot-review-mcp
   ↓
 GitHub API (REST v3 + GraphQL v4)
 
@@ -46,8 +46,8 @@ make clean-all       # Full cleanup including images
 ## Conventions
 
 - **Environment-first auth**: `GITHUB_PERSONAL_ACCESS_TOKEN` env var always wins over `.env` file. Set both consistently to avoid confusion.
-- **Port**: IDEs connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host).
-- **Image override**: Set `GITHUB_MCP_IMAGE` to swap the default container image.
+- **Port**: IDEs connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `copilot-review-mcp` runs on internal port `8083` (`COPILOT_REVIEW_MCP_PORT`, also not exposed to host; reachable only via the gateway).
+- **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image, and set `GITHUB_MCP_IMAGE` to swap the default `github-mcp-server` image.
 - **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.
 - **Claude Desktop exception**: HTTP transport 非対応のため、`docker run -i --rm <image> stdio` で直接起動する。VS Code/Cursor/Kiro/Amazon Q/Codex/Copilot CLI は HTTP (port 8080, mcp-gateway 経由) に接続する。
 - **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.
