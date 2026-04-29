@@ -293,6 +293,29 @@ make logs-gateway  # mcp-gateway ログ
 docker volume rm mcp-docker_github-mcp-cache
 ```
 
+### mcp-gateway トークンストアボリューム（`mcp-gateway-data`）
+
+`mcp-gateway` はブラウザ認証後に取得した OAuth トークンを `/data/tokens.db` に永続化します。
+このファイルは **検証済み OAuth トークンのキャッシュ**であり、GitHub 認証情報（PAT）そのものではありません。
+
+ボリュームの内容確認：
+
+```bash
+docker volume inspect mcp-docker_mcp-gateway-data
+```
+
+認証状態のリセット（再認証が必要な場合）：
+
+```bash
+docker compose down
+docker volume rm mcp-docker_mcp-gateway-data
+docker compose up -d
+```
+
+**セキュリティ注意事項**:
+- `mcp-gateway-data` ボリュームは `mcp-gateway` コンテナ専用です。他のサービスには公開しないでください。
+- ボリュームパスやトークンファイルの内容を IDE 設定（`settings.json` 等）に含めないでください。IDE へは `http://127.0.0.1:8080/mcp/github` 等の URL のみを記載します。
+
 ## ディレクトリ構成
 
 ```

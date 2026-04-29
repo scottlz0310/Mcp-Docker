@@ -230,6 +230,11 @@ output/*
 examples/github-release-watcher/config/state.json
 examples/github-release-watcher/config/notifications.json
 
+# mcp-gateway token store (local runs outside Docker)
+tokens.db
+*.db-shm
+*.db-wal
+
 # ci-helper
 .ci-helper/
 .actrc
