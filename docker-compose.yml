@@ -51,6 +51,7 @@ services:
     restart: "no"
     user: root
     command: ["chown", "-R", "65532:65532", "/data"]
+    network_mode: none
     volumes:
       - mcp-gateway-data:/data
 
