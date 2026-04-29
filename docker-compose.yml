@@ -50,6 +50,8 @@ services:
     depends_on:
       - github-mcp
       - copilot-review-mcp
+      # playwright-mcp を有効にした場合はコメントを解除する
+      # - playwright-mcp
 
     environment:
       - GITHUB_MCP_CLIENT_ID=${GITHUB_MCP_CLIENT_ID}
@@ -58,6 +60,8 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
       - ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:${COPILOT_REVIEW_MCP_PORT:-8083}
+      # auth=none ルート例: 認証不要な MCP サーバを追加する場合は下記のようにコメントを解除する
+      # - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - GITHUB_MCP_OAUTH_SCOPES=${GITHUB_MCP_OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
@@ -138,6 +142,32 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
+
+  # =============================================================================
+  # auth=none ルートの例: 認証不要な MCP サーバを追加するパターン
+  # =============================================================================
+  # 手順:
+  #   1. 下記ブロックのコメントを解除してサービスを有効化する
+  #   2. mcp-gateway の ROUTE_PLAYWRIGHT 行のコメントを解除する
+  #   3. mcp-gateway の depends_on に playwright-mcp を追加する（上記コメント参照）
+  #   4. IDE 設定に "playwright": {"url": "http://127.0.0.1:8080/mcp/playwright"} を追加する
+  #   5. make restart で全サービスを再起動する
+  #
+  # playwright-mcp:
+  #   image: ${PLAYWRIGHT_MCP_IMAGE:-ghcr.io/microsoft/playwright-mcp:latest}
+  #   container_name: playwright-mcp
+  #   restart: unless-stopped
+  #   expose:
+  #     - "${PLAYWRIGHT_MCP_PORT:-8931}"
+  #   networks:
+  #     - mcp-network
+  #   healthcheck:
+  #     disable: true
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
 
 volumes:
   github-mcp-cache:

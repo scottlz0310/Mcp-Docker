@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- `auth=none` ルートで認証不要 MCP サーバを設定のみで追加できるパターンを追加（#109）
+  - `docker-compose.yml` に `playwright-mcp` サービスのコメントアウト例を追加
+  - `mcp-gateway` の `environment` に `ROUTE_PLAYWRIGHT=.../auth=none` のコメント例を追加
+  - `.env.template` に `PLAYWRIGHT_MCP_IMAGE` / `PLAYWRIGHT_MCP_PORT` の説明と手順を追加
+  - README に「MCPサーバの追加パターン（auth=none）」セクションを追加
+
 ### ⚠️ 破壊的変更
 
 - `github-oauth-proxy` を `mcp-gateway` に置き換え (#107)

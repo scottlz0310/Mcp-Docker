@@ -234,6 +234,75 @@ cp docs/skills/pr-review-cycle.md ~/.claude/skills/
 
 PR 作成直後または `request_copilot_review` ツール呼び出し直後に `/pr-review-cycle` スキルを起動するだけです。
 
+## MCPサーバの追加パターン（auth=none）
+
+mcp-gateway の `auth=none` オプションを使うと、認証不要な MCP サーバをコード変更なしで設定のみで追加できます。
+
+### ルーティング設計
+
+```
+mcp-gateway(:8080)
+  ├── /mcp/github          → github-mcp          [auth=oauth]  OAuth必須
+  ├── /mcp/copilot-review  → copilot-review-mcp  [auth=oauth]  OAuth必須
+  └── /mcp/playwright      → playwright-mcp      [auth=none]   認証不要
+```
+
+### 追加手順
+
+新しい MCP サーバ（例: playwright-mcp）を追加するには以下の3ファイルを変更します。
+
+#### 1. `docker-compose.yml` — サービスのコメント解除
+
+```yaml
+  playwright-mcp:
+    image: ${PLAYWRIGHT_MCP_IMAGE:-ghcr.io/microsoft/playwright-mcp:latest}
+    container_name: playwright-mcp
+    restart: unless-stopped
+    expose:
+      - "${PLAYWRIGHT_MCP_PORT:-8931}"
+    networks:
+      - mcp-network
+```
+
+`mcp-gateway` の `environment` と `depends_on` のコメントも同時に解除します:
+
+```yaml
+  mcp-gateway:
+    depends_on:
+      - playwright-mcp          # ← コメント解除
+    environment:
+      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:8931|auth=none  # ← コメント解除
+```
+
+#### 2. IDE設定 — パスを追加
+
+ホスト・ポートは `127.0.0.1:8080` のまま、パスだけ追加します。
+
+```json
+{
+  "mcpServers": {
+    "github":     { "url": "http://127.0.0.1:8080/mcp/github" },
+    "playwright": { "url": "http://127.0.0.1:8080/mcp/playwright" }
+  }
+}
+```
+
+#### 3. 再起動
+
+```bash
+make restart
+```
+
+### 汎用手順（任意の MCP サーバ）
+
+任意の認証不要 Streamable HTTP MCP サーバを追加する場合:
+
+1. `docker-compose.yml` にサービス定義を追加
+2. `mcp-gateway` の `environment` に `ROUTE_<NAME>=/<path>|http://<service>:<port>|auth=none` を追加
+3. `mcp-gateway` の `depends_on` に新サービスを追加
+4. IDE 設定に `"url": "http://127.0.0.1:8080/<path>"` を追加
+5. `make restart` で再起動
+
 ## HTTPエンドポイント
 
 - mcp-gateway 経由 URL: `http://127.0.0.1:8080`
