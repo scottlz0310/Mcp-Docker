@@ -102,7 +102,8 @@ mcp-gateway 経由で接続するには GitHub OAuth App が必要です。
 3. Client ID / Secret を取得し `.env` に設定：
 
 ```bash
-GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxxGITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxx
+GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 > `copilot-review-mcp` で使っている OAuth App を共有しても問題ありません。
