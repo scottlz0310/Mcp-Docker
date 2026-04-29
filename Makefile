@@ -2,6 +2,13 @@
 # MCP Gateway スタック - サービス管理
 # ========================================
 
+# Windows では GNU Make のデフォルトシェル (cmd.exe) が Unix コマンド非対応のため
+# Git for Windows の bash を使用する（デフォルトインストール先を想定）
+ifeq ($(OS),Windows_NT)
+  SHELL := C:/PROGRA~1/Git/bin/bash.exe
+  .SHELLFLAGS := -c
+endif
+
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
 # include .env は Makefile として解釈される危険があり、
 # . ./.env (shell source) は .env 内の任意コマンドを実行する危険がある。
@@ -33,7 +40,7 @@ export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLI
 
 .PHONY: help
 help: ## 利用可能なターゲット一覧を表示
-	@echo "Available targets:\n"
+	@printf "Available targets:\n\n"
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':|##' '{printf "  %-20s %s\n", $$1, $$3}'
 
 # ----------------------------------------
