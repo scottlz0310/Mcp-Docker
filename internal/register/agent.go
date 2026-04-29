@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 )
 
 var ErrUnsupported = errors.New("unsupported server for agent")
@@ -45,6 +44,10 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 		if server.Name == "" || server.URL == "" {
 			return fmt.Errorf("invalid MCP server: name and URL are required")
 		}
+		if reason, ok := unsupportedReason(agent, server); ok {
+			fmt.Fprintf(out, "- %s: skipped: %s\n", server.Name, reason)
+			continue
+		}
 		if _, ok := existing[server.Name]; ok {
 			fmt.Fprintf(out, "- %s: removing existing registration\n", server.Name)
 			if err := agent.Remove(ctx, server.Name); err != nil {
@@ -66,18 +69,20 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 func PrintPlan(out io.Writer, agent Agent, servers []Server) {
 	fmt.Fprintf(out, "Plan for %s:\n", agent.Name())
 	for _, server := range servers {
-		if server.TokenEnv != "" {
-			if _, ok := agent.(tokenEnvAgent); !ok {
-				fmt.Fprintf(out, "- skip %s: tokenEnv is not supported by %s without storing a secret header\n", server.Name, agent.Name())
-				continue
-			}
+		if reason, ok := unsupportedReason(agent, server); ok {
+			fmt.Fprintf(out, "- skip %s: %s\n", server.Name, reason)
+			continue
 		}
 		fmt.Fprintf(out, "- %s\n", shellish(agent.AddCommand(server)))
 	}
 }
 
-func containsName(names []string, target string) bool {
-	sort.Strings(names)
-	i := sort.SearchStrings(names, target)
-	return i < len(names) && names[i] == target
+func unsupportedReason(agent Agent, server Server) (string, bool) {
+	if server.TokenEnv == "" {
+		return "", false
+	}
+	if _, ok := agent.(tokenEnvAgent); ok {
+		return "", false
+	}
+	return fmt.Sprintf("tokenEnv %s is not supported by %s without storing a secret header", server.TokenEnv, agent.Name()), true
 }

@@ -74,6 +74,9 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		if err := confirmRouteNames(stdin, stdout, servers); err != nil {
 			return err
 		}
+		if err := validateUniqueServers(servers); err != nil {
+			return err
+		}
 	}
 
 	selected, err := selectAgents(opts.agent)
@@ -112,16 +115,11 @@ func loadServers(composePath, externalPath string) ([]register.Server, error) {
 		return nil, err
 	}
 
-	seen := make(map[string]struct{})
 	var servers []register.Server
 	for _, server := range append(composeServers, externalServers...) {
-		if _, ok := seen[server.Name]; ok {
-			return nil, fmt.Errorf("duplicate MCP server name %q", server.Name)
-		}
-		seen[server.Name] = struct{}{}
 		servers = append(servers, server)
 	}
-	return servers, nil
+	return servers, validateUniqueServers(servers)
 }
 
 func confirmRouteNames(stdin io.Reader, stdout io.Writer, servers []register.Server) error {
@@ -144,6 +142,25 @@ func confirmRouteNames(stdin io.Reader, stdout io.Writer, servers []register.Ser
 		}
 	}
 	return nil
+}
+
+func validateUniqueServers(servers []register.Server) error {
+	seen := make(map[string]string)
+	for _, server := range servers {
+		label := serverLabel(server)
+		if prev, ok := seen[server.Name]; ok {
+			return fmt.Errorf("duplicate MCP server name %q (%s and %s)", server.Name, prev, label)
+		}
+		seen[server.Name] = label
+	}
+	return nil
+}
+
+func serverLabel(server register.Server) string {
+	if server.Source != "" {
+		return server.Source
+	}
+	return server.URL
 }
 
 type agentSpec struct {

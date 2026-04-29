@@ -64,7 +64,7 @@ func TestCodexRegisterOverwritesWithoutList(t *testing.T) {
 }
 
 func TestClaudeSkipsTokenEnvServer(t *testing.T) {
-	runner := &fakeRunner{}
+	runner := &fakeRunner{output: "cloudflare-api: https://old.example (HTTP)\n"}
 	agent := NewClaudeAgent(runner)
 	var out bytes.Buffer
 
@@ -78,5 +78,9 @@ func TestClaudeSkipsTokenEnvServer(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "skipped") {
 		t.Fatalf("output = %q, want skipped message", out.String())
+	}
+	got := strings.Join(runner.calls, "\n")
+	if strings.Contains(got, "remove cloudflare-api") || strings.Contains(got, "add --transport http --scope user cloudflare-api") {
+		t.Fatalf("unsupported server must not be removed or added, calls =\n%s", got)
 	}
 }
