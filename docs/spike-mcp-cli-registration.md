@@ -4,6 +4,8 @@
 
 調査日: 2026-04-29
 
+> **命名方針:** MCP サーバー名 `<name>` は各 CLI で任意だが、このリポジトリの mcp-gateway 経由例では `.mcp.json.example` と同じ `github` / `copilot-review` / `playwright` を推奨名として使う。
+
 ---
 
 ## 1. Claude CLI (`claude mcp add`)
@@ -43,7 +45,7 @@ claude mcp add -e KEY=VALUE <name> -- <command> [args...]
 **`~/.claude.json` の格納形式（HTTP）:**
 ```json
 "mcpServers": {
-  "github-mcp-server": {
+  "github": {
     "type": "http",
     "url": "http://127.0.0.1:8080/mcp/github"
   }
@@ -63,7 +65,7 @@ claude mcp get <name>
 
 - **同スコープ・同名** で `add` を再実行すると **エラー終了**（exit code 1）
   ```
-  MCP server github-mcp-server already exists in user config
+  MCP server github already exists in user config
   ```
 - **異スコープ（例: user に存在 → local で add）** は成功する（スコープが優先順位で重なるだけ）
 - **冪等化の方法**: `remove` してから `add`、または `list` で存在確認してから `add` をスキップ
@@ -71,6 +73,8 @@ claude mcp get <name>
 ---
 
 ## 2. GitHub Copilot CLI (`gh copilot -- mcp add`)
+
+> 本ドキュメントでは GitHub CLI 経由の `gh copilot -- mcp ...` を実行表記として統一する。CLI のエラーメッセージに `copilot mcp ...` と出る場合も、実行時は `gh copilot -- mcp ...` に読み替える。
 
 ### コマンド形式
 
@@ -108,7 +112,7 @@ gh copilot -- mcp add --env KEY=VALUE <name> -- <command> [args...]
 ```json
 {
   "mcpServers": {
-    "github-mcp-server": {
+    "github": {
       "type": "http",
       "url": "http://127.0.0.1:8080/mcp/github",
       "tools": ["*"]
@@ -143,10 +147,10 @@ gh copilot -- mcp get <name>
 
 - 同名で `add` を再実行すると **エラー終了**（exit code 1）
   ```
-  Error: Server "github-mcp-server" already exists. To update it, remove it first:
-    copilot mcp remove github-mcp-server
+  Error: Server "github" already exists. To update it, remove it first:
+    copilot mcp remove github
   ```
-- エラーメッセージ内に `remove` コマンドが明示されており、意図は明確
+- エラーメッセージ内では `copilot mcp remove` と表示されるが、本手順では `gh copilot -- mcp remove <name>` として実行する
 - **冪等化の方法**: `remove` してから `add`（CLI 自身が案内している）
 
 ---
@@ -183,7 +187,7 @@ codex mcp add <name> --env KEY=VALUE -- <command> [args...]
 
 **`~/.codex/config.toml` の格納形式（HTTP）:**
 ```toml
-[mcp_servers.github-mcp-server]
+[mcp_servers.github]
 url = "http://127.0.0.1:8080/mcp/github"
 ```
 
@@ -212,7 +216,7 @@ codex mcp get <name>
 
 - 同名で `add` を再実行しても **エラーにならず上書き**（exit code 0）
   ```
-  Added global MCP server 'github-mcp-server'.
+  Added global MCP server 'github'.
   ```
 - **3 CLI の中で唯一、remove なしで上書き可能**
 - ただし HTTP サーバーの場合、上書き時に OAuth フローが再起動されることがある
@@ -253,11 +257,11 @@ codex mcp get <name>
 
 ```bash
 # Claude / Copilot: --transport フラグ + URL は位置引数
-claude mcp add --transport http github-mcp-server http://127.0.0.1:8080/mcp/github
-gh copilot -- mcp add --transport http github-mcp-server http://127.0.0.1:8080/mcp/github
+claude mcp add --transport http github http://127.0.0.1:8080/mcp/github
+gh copilot -- mcp add --transport http github http://127.0.0.1:8080/mcp/github
 
 # Codex: --url フラグで URL を指定（transport フラグなし）
-codex mcp add github-mcp-server --url http://127.0.0.1:8080/mcp/github
+codex mcp add github --url http://127.0.0.1:8080/mcp/github
 ```
 
 ---
