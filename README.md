@@ -52,8 +52,13 @@ cd Mcp-Docker
 
 # 2. 環境ファイル作成
 cp .env.template .env
-# .env を編集して GITHUB_PERSONAL_ACCESS_TOKEN と
-# GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET を設定
+# .env を編集して以下を設定:
+#   GITHUB_PERSONAL_ACCESS_TOKEN     (github-mcp-server 用 PAT)
+#   GITHUB_MCP_CLIENT_ID             (mcp-gateway OAuth App Client ID)
+#   GITHUB_MCP_CLIENT_SECRET         (mcp-gateway OAuth App Client Secret)
+#   GITHUB_CLIENT_ID                 (copilot-review-mcp OAuth App Client ID)
+#   GITHUB_CLIENT_SECRET             (copilot-review-mcp OAuth App Client Secret)
+# ※ 同一 OAuth App を共有する場合は GITHUB_MCP_CLIENT_* と GITHUB_CLIENT_* に同じ値を設定
 
 # 3. 全サービス起動
 make start-gateway
@@ -128,12 +133,15 @@ make gen-config IDE=claude-desktop  # Claude Desktop（stdio 方式）
 ```json
 {
   "mcpServers": {
-    "github-mcp-server":  { "url": "http://127.0.0.1:8080/mcp/github" },
-    "copilot-review-mcp": { "url": "http://127.0.0.1:8080/mcp/copilot-review" },
-    "playwright-mcp":     { "url": "http://127.0.0.1:8080/mcp/playwright" }
+    "github":         { "type": "http", "url": "http://127.0.0.1:8080/mcp/github" },
+    "copilot-review": { "type": "http", "url": "http://127.0.0.1:8080/mcp/copilot-review" },
+    "playwright":     { "type": "http", "url": "http://127.0.0.1:8080/mcp/playwright" }
   }
 }
 ```
+
+> キー名はユーザーが自由に命名できます。上記は `.mcp.json.example` の例です。
+> IDE によっては `type` フィールドが不要な場合があります（省略可能）。
 
 IDE は mcp-gateway の OAuth フローでブラウザ認証を自動処理します。設定ファイルにトークンを書く必要はありません。
 
@@ -297,6 +305,7 @@ Mcp-Docker/
 ├── scripts/
 │   ├── setup.sh                # 初回セットアップ
 │   ├── health-check.sh         # ヘルスチェック
+│   ├── lint-shell.sh           # シェルスクリプト Lint（make lint-shell）
 │   └── generate-ide-config.sh  # IDE 設定生成
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴

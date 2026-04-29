@@ -11,7 +11,7 @@
 **状態**: 部分実装済み  
 **関連 ISSUE**: [#105](https://github.com/scottlz0310/Mcp-Docker/issues/105)
 
-docker-compose.yml はすべて外部 ghcr.io イメージ参照に移行済み。
+docker-compose.yml はすべて外部イメージ参照に移行済み（ghcr.io・mcr.microsoft.com）。
 Makefile の `crm-*` ターゲットがまだローカルビルド前提の実装のため整理が必要。
 
 #### 残作業
