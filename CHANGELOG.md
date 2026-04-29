@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- `auth=none` ルートで認証不要 MCP サーバを設定のみで追加できるパターンを追加（#109）
+  - `docker-compose.yml` に `playwright-mcp` サービスをデフォルト有効化済みの設定例として追加
+  - `mcp-gateway` の `environment` に `ROUTE_PLAYWRIGHT=.../auth=none` をデフォルト有効化
+  - `playwright-mcp` を使用しない場合は `depends_on`・`ROUTE_PLAYWRIGHT`・サービス定義を削除してください
+  - `.env.template` に `PLAYWRIGHT_MCP_IMAGE` / `PLAYWRIGHT_MCP_PORT` の説明と手順を追加
+  - README に「MCPサーバの追加パターン（auth=none）」セクションを追加
+  - 前提: `mcp-gateway` の `auth=none` サポート（scottlz0310/mcp-gateway#23 でマージ済み）
+- `copilot-review-mcp` のイメージをローカルビルドから公開パッケージ（`ghcr.io/scottlz0310/copilot-review-mcp:latest`）に変更
+  - `COPILOT_REVIEW_MCP_IMAGE` 環境変数でオーバーライド可能
+
 ### ⚠️ 破壊的変更
 
 - `github-oauth-proxy` を `mcp-gateway` に置き換え (#107)
