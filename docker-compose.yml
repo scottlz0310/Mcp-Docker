@@ -43,16 +43,32 @@ services:
           cpus: "0.5"
           memory: 256M
 
+  # mcp-gateway-data ボリュームを nonroot (UID=65532) 所有に初期化する。
+  # 空ボリュームは Docker がルート所有で作成するため、起動前に一度だけ chown する。
+  mcp-gateway-init:
+    image: alpine:3
+    container_name: mcp-gateway-init
+    restart: "no"
+    user: root
+    command: ["chown", "-R", "65532:65532", "/data"]
+    volumes:
+      - mcp-gateway-data:/data
+
   mcp-gateway:
     image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:latest}
     container_name: mcp-gateway
     restart: unless-stopped
     depends_on:
-      - github-mcp
-      - copilot-review-mcp
+      mcp-gateway-init:
+        condition: service_completed_successfully
+      github-mcp:
+        condition: service_started
+      copilot-review-mcp:
+        condition: service_started
       # playwright-mcp はデフォルトで有効化済み。不要な場合はこの行と
       # ROUTE_PLAYWRIGHT 環境変数・playwright-mcp サービス定義を削除してください。
-      - playwright-mcp
+      playwright-mcp:
+        condition: service_started
 
     environment:
       - GITHUB_MCP_CLIENT_ID=${GITHUB_MCP_CLIENT_ID}
