@@ -5,7 +5,7 @@
 | サービス | 実行時イメージ | Security Scan |
 |---|---|---|
 | `github-mcp` | `ghcr.io/github/github-mcp-server:main`（公式イメージ） | 同公式イメージを Trivy でスキャン |
-| `copilot-review-mcp` | リポジトリ内 `services/copilot-review-mcp/Dockerfile` からビルド | ビルドしたイメージを Trivy でスキャン |
+| `copilot-review-mcp` | `ghcr.io/scottlz0310/copilot-review-mcp:latest`（外部イメージ） | 外部リポジトリ側で管理 |
 
 - 公式安定リリースの最新は `v1.0.0`（`v0.31.0` 以降 Streamable HTTP / `http` サブコマンドが正式搭載）
 
@@ -15,9 +15,8 @@
 
 1. Trivy filesystem scan（リポジトリ全体）
 2. Trivy container scan（`ghcr.io/github/github-mcp-server:main` 公式イメージ）
-3. Trivy container scan（`copilot-review-mcp` ローカルビルドイメージ）
 
-これにより、利用イメージを更新しても継続的に脆弱性を検出できます。
+`copilot-review-mcp` はソースコードを外部リポジトリ（`ghcr.io/scottlz0310/copilot-review-mcp`）に移行したため、イメージスキャンは外部リポジトリ側で実施します。
 
 ## バージョン固定の推奨
 

@@ -33,7 +33,7 @@ PR レビュー対応サイクルを自律実行するスキル。
 | `{CRM}` | copilot-review-mcp ツール | `mcp_copilot-review-mcp_*` |
 | `{GH}` | GitHub MCP ツール | `mcp_github-mcp-server-docker_*` |
 
-> IDE ごとのツール名プレフィックスは `make gen-config-crm` で生成した設定ファイルで確認できます。
+> IDE ごとのツール名プレフィックスは `make gen-config` で生成した設定ファイルで確認できます。
 
 ---
 

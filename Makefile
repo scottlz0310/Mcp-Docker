@@ -74,6 +74,15 @@ prepare: ## 環境整備のみ実行（.env作成・事前確認）
 .PHONY: stop
 stop: stop-gateway ## 全サービスを停止（stop-gateway のエイリアス）
 
+.PHONY: restart
+restart: restart-gateway ## 全サービスを再起動（restart-gateway のエイリアス）
+
+.PHONY: logs
+logs: logs-gateway ## mcp-gateway ログ表示（logs-gateway のエイリアス）
+
+.PHONY: pull
+pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gateway のエイリアス）
+
 .PHONY: status
 status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 

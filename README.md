@@ -179,31 +179,17 @@ Claude Desktop は HTTP transport 非対応のため、`docker run -i --rm ... s
 | コマンド | 説明 |
 |---|---|
 | `make start-gateway` | 全サービス起動（推奨） |
-| `make stop` | 全サービス停止 |
-| `make restart` | 再起動（stop → start） |
-| `make status` | 全コンテナ状態一覧 |
-| `make status-gateway` | github-mcp / mcp-gateway / copilot-review-mcp の状態確認 |
-| `make logs` | github-mcp ログ表示 |
-| `make logs-gateway` | mcp-gateway ログ表示 |
-| `make pull` | github-mcp イメージ更新 |
+| `make stop` / `make stop-gateway` | 全サービス停止 |
+| `make restart` / `make restart-gateway` | 再起動（stop → start） |
+| `make status` / `make status-gateway` | 全コンテナ状態一覧 |
+| `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
+| `make pull` / `make pull-gateway` | 全イメージ更新 |
 | `make gen-config` | IDE 設定生成（`IDE=vscode` 等を指定） |
-| `make gen-config-crm` | copilot-review-mcp の IDE 設定生成 |
 | `make lint` | シェルスクリプト Lint |
 | `make test-shell` | シェルスクリプトテスト（BATS） |
 | `make clean` | キャッシュ削除 |
 | `make clean-docker` | Docker リソースクリーンアップ |
 | `make clean-all` | 全クリーンアップ |
-
-### copilot-review-mcp 操作
-
-| コマンド | 説明 |
-|---|---|
-| `make crm-start` | copilot-review-mcp コンテナ起動 |
-| `make crm-stop` | 停止・削除 |
-| `make crm-restart` | 再起動 |
-| `make crm-logs` | ログ表示 |
-| `make crm-status` | 状態確認 |
-| `make crm-health` | ヘルスチェック |
 
 ### HTTP エンドポイント
 
@@ -262,7 +248,6 @@ GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.0.0 make start-gateway
 
 ```bash
 make status        # コンテナ状態確認
-make logs          # github-mcp ログ
 make logs-gateway  # mcp-gateway ログ
 ```
 
