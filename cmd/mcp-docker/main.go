@@ -15,9 +15,9 @@ import (
 	"github.com/scottlz0310/mcp-docker/tools/internal/register"
 )
 
-const usage = `mcp-docker manages MCP Docker helper workflows.
+const usage = `mcp-docker は MCP Docker の補助ワークフローを管理します。
 
-Usage:
+使い方:
   mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
 `
 
@@ -41,7 +41,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.
 		fmt.Fprint(stdout, usage)
 		return nil
 	default:
-		return fmt.Errorf("unknown command %q\n\n%s", args[0], usage)
+		return fmt.Errorf("不明なコマンド %q\n\n%s", args[0], usage)
 	}
 }
 
@@ -50,16 +50,16 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.SetOutput(stderr)
 
 	opts := registerOptions{}
-	fs.StringVar(&opts.agent, "agent", "all", "agent to register: claude, copilot, codex, or all")
-	fs.StringVar(&opts.composePath, "compose", "docker-compose.yml", "docker compose file to inspect")
-	fs.StringVar(&opts.externalPath, "external", "config/mcp-external.yml", "external MCP server definition file")
-	fs.BoolVar(&opts.yes, "yes", false, "accept suggested names without prompting")
-	fs.BoolVar(&opts.dryRun, "dry-run", false, "print planned commands without executing them")
+	fs.StringVar(&opts.agent, "agent", "all", "登録対象エージェント: claude, copilot, codex, all")
+	fs.StringVar(&opts.composePath, "compose", "docker-compose.yml", "読み込む docker compose ファイル")
+	fs.StringVar(&opts.externalPath, "external", "config/mcp-external.yml", "外部 MCP サーバー定義ファイル")
+	fs.BoolVar(&opts.yes, "yes", false, "サジェスト名を確認なしで採用")
+	fs.BoolVar(&opts.dryRun, "dry-run", false, "実行せず、登録時に使うコマンドと条件を表示")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
+		return fmt.Errorf("想定外の引数です: %s", strings.Join(fs.Args(), " "))
 	}
 
 	servers, err := loadServers(opts.composePath, opts.externalPath)
@@ -67,7 +67,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		return err
 	}
 	if len(servers) == 0 {
-		return errors.New("no MCP servers were discovered")
+		return errors.New("MCP サーバーが見つかりませんでした")
 	}
 
 	if !opts.yes {
@@ -149,7 +149,7 @@ func validateUniqueServers(servers []register.Server) error {
 	for _, server := range servers {
 		label := serverLabel(server)
 		if prev, ok := seen[server.Name]; ok {
-			return fmt.Errorf("duplicate MCP server name %q (%s and %s)", server.Name, prev, label)
+			return fmt.Errorf("MCP サーバー名 %q が重複しています（%s と %s）", server.Name, prev, label)
 		}
 		seen[server.Name] = label
 	}
@@ -182,5 +182,5 @@ func selectAgents(name string) ([]agentSpec, error) {
 			return []agentSpec{spec}, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown agent %q", name)
+	return nil, fmt.Errorf("不明なエージェント %q", name)
 }

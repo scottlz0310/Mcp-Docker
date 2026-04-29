@@ -76,11 +76,29 @@ func TestClaudeSkipsTokenEnvServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "skipped") {
-		t.Fatalf("output = %q, want skipped message", out.String())
+	if !strings.Contains(out.String(), "スキップ") {
+		t.Fatalf("output = %q, want skip message", out.String())
 	}
 	got := strings.Join(runner.calls, "\n")
 	if strings.Contains(got, "remove cloudflare-api") || strings.Contains(got, "add --transport http --scope user cloudflare-api") {
 		t.Fatalf("unsupported server must not be removed or added, calls =\n%s", got)
+	}
+}
+
+func TestPrintPlanShowsListAndConditionalRemove(t *testing.T) {
+	agent := NewCopilotAgent(&fakeRunner{})
+	var out bytes.Buffer
+
+	PrintPlan(&out, agent, []Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}})
+
+	got := out.String()
+	for _, want := range []string{
+		"既存登録確認: gh copilot -- mcp list",
+		"既存登録があれば削除: gh copilot -- mcp remove github",
+		"追加: gh copilot -- mcp add --transport http github http://127.0.0.1:8080/mcp/github",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("plan =\n%s\nmissing %q", got, want)
+		}
 	}
 }

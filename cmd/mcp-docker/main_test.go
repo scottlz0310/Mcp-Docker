@@ -16,7 +16,7 @@ func TestValidateUniqueServersReportsCollidingSources(t *testing.T) {
 		t.Fatal("expected duplicate name error")
 	}
 	got := err.Error()
-	for _, want := range []string{`duplicate MCP server name "github"`, "ROUTE_GITHUB", "ROUTE_COPILOT_REVIEW"} {
+	for _, want := range []string{`MCP サーバー名 "github" が重複しています`, "ROUTE_GITHUB", "ROUTE_COPILOT_REVIEW"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("error = %q, missing %q", got, want)
 		}
