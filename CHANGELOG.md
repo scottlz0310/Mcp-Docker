@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `mcp-gateway` の `environment` に `ROUTE_PLAYWRIGHT=.../auth=none` のコメント例を追加
   - `.env.template` に `PLAYWRIGHT_MCP_IMAGE` / `PLAYWRIGHT_MCP_PORT` の説明と手順を追加
   - README に「MCPサーバの追加パターン（auth=none）」セクションを追加
+  - 前提: `mcp-gateway` の `auth=none` サポート（scottlz0310/mcp-gateway#23 でマージ済み）
 
 ### ⚠️ 破壊的変更
 
