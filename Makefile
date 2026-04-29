@@ -2,6 +2,28 @@
 # MCP Gateway スタック - サービス管理
 # ========================================
 
+# Windows では GNU Make のデフォルトシェル (cmd.exe) が Unix コマンド非対応のため
+# Git for Windows の bash を使用する。
+# GIT_BASH にフルパスを設定することで任意のインストール先を使用可能。
+#   例: make GIT_BASH="C:/Tools/Git/bin/bash.exe"
+ifeq ($(OS),Windows_NT)
+  GIT_BASH ?=
+  ifeq ($(strip $(GIT_BASH)),)
+    # 代表的なインストール先を 8.3 短縮パスで検索（パス内スペースを回避）
+    GIT_BASH := $(firstword $(wildcard \
+      C:/PROGRA~1/Git/bin/bash.exe \
+      C:/PROGRA~2/Git/bin/bash.exe \
+      D:/PROGRA~1/Git/bin/bash.exe \
+      D:/PROGRA~2/Git/bin/bash.exe))
+  endif
+  ifeq ($(strip $(GIT_BASH)),)
+    $(error Windows では Git for Windows の bash.exe が必要です。\
+      インストール後に再実行するか GIT_BASH=<bash.exeのフルパス> を指定してください)
+  endif
+  SHELL       := $(GIT_BASH)
+  .SHELLFLAGS := -c
+endif
+
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
 # include .env は Makefile として解釈される危険があり、
 # . ./.env (shell source) は .env 内の任意コマンドを実行する危険がある。
@@ -33,7 +55,7 @@ export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLI
 
 .PHONY: help
 help: ## 利用可能なターゲット一覧を表示
-	@echo "Available targets:\n"
+	@printf "Available targets:\n\n"
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':|##' '{printf "  %-20s %s\n", $$1, $$3}'
 
 # ----------------------------------------
