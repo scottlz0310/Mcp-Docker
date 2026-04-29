@@ -1,5 +1,5 @@
 # ========================================
-# GitHub MCP Server - サービス管理
+# MCP Gateway スタック - サービス管理
 # ========================================
 
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
@@ -11,22 +11,22 @@ ENV_GET = $(strip $(shell awk -v key='$(1)' '/^[[:space:]]*#/{next} $$0 ~ ("^[[:
 ifneq (,$(wildcard .env))
   GITHUB_CLIENT_ID             ?= $(call ENV_GET,GITHUB_CLIENT_ID)
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
-	GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
-	GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
+  GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
+  GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
   GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
   BASE_URL                     ?= $(call ENV_GET,BASE_URL)
   GITHUB_OAUTH_SCOPES          ?= $(call ENV_GET,GITHUB_OAUTH_SCOPES)
-	MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
+  MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
 endif
 
-# mcp-gateway向け変数が空または未設定なら既存OAuth変数をフォールバック利用
+# mcp-gateway 向け変数が空または未設定なら既存 OAuth 変数をフォールバック利用
 ifeq ($(strip $(GITHUB_MCP_CLIENT_ID)),)
-	GITHUB_MCP_CLIENT_ID := $(GITHUB_CLIENT_ID)
+  GITHUB_MCP_CLIENT_ID := $(GITHUB_CLIENT_ID)
 endif
 ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
-	GITHUB_MCP_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
+  GITHUB_MCP_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
 endif
-# 子プロセス（docker compose / docker run）に確実に渡す
+# 子プロセス（docker compose）に確実に渡す
 export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES MCP_GATEWAY_PORT
 
 .DEFAULT_GOAL := help
@@ -40,113 +40,51 @@ help: ## 利用可能なターゲット一覧を表示
 # サービス管理
 # ----------------------------------------
 
-.PHONY: start
-start: ## GitHub MCPサーバー起動
-	docker compose up -d github-mcp
-
 .PHONY: start-gateway
-start-gateway: ## mcp-gateway経由で起動（localhost:8080）
+start-gateway: ## 全サービスを mcp-gateway 経由で起動（localhost:8080）
 	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
 	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
-	docker compose up -d github-mcp copilot-review-mcp mcp-gateway
+	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
+
+.PHONY: stop-gateway
+stop-gateway: ## 全サービスを停止
+	docker compose down
+
+.PHONY: restart-gateway
+restart-gateway: stop-gateway start-gateway ## 全サービスを再起動
+
+.PHONY: logs-gateway
+logs-gateway: ## mcp-gateway のログ表示
+	docker compose logs -f mcp-gateway
+
+.PHONY: status-gateway
+status-gateway: ## 全サービスの状態確認
+	docker compose ps
+
+.PHONY: pull-gateway
+pull-gateway: ## 全サービスの Docker イメージを取得
+	docker compose pull
 
 .PHONY: prepare
 prepare: ## 環境整備のみ実行（.env作成・事前確認）
 	./scripts/setup.sh --prepare-only
 
+# 後方互換エイリアス
 .PHONY: stop
-stop: ## GitHub MCPサーバー停止
-	docker compose down
+stop: stop-gateway ## 全サービスを停止（stop-gateway のエイリアス）
 
 .PHONY: restart
-restart: stop start ## 再起動
+restart: restart-gateway ## 全サービスを再起動（restart-gateway のエイリアス）
 
 .PHONY: logs
-logs: ## ログ表示
-	docker compose logs -f github-mcp
-
-.PHONY: logs-gateway
-logs-gateway: ## mcp-gatewayのログ表示
-	docker compose logs -f mcp-gateway
-
-.PHONY: status
-status: ## 状態確認
-	docker compose ps
-
-.PHONY: status-gateway
-status-gateway: ## github-mcp / mcp-gateway / copilot-review-mcpの状態確認
-	docker compose ps github-mcp mcp-gateway copilot-review-mcp
+logs: logs-gateway ## mcp-gateway ログ表示（logs-gateway のエイリアス）
 
 .PHONY: pull
-pull: ## Dockerイメージを取得
-	docker compose pull github-mcp
+pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gateway のエイリアス）
 
-.PHONY: build
-build: pull ## 互換性のため pull を実行
-
-
-# ----------------------------------------
-# copilot-review-mcp (services/copilot-review-mcp)
-# ----------------------------------------
-
-CRM_IMAGE       ?= copilot-review-mcp:latest
-CRM_CONTAINER   ?= copilot-review-mcp
-CRM_PORT        ?= 8083
-CRM_VOLUME      ?= copilot-review-data
-CRM_SQLITE_PATH ?= /data/copilot-review.db
-CRM_DIR         := services/copilot-review-mcp
-# Null device: NUL on Windows cmd.exe, /dev/null elsewhere
-ifeq ($(OS),Windows_NT)
-  DEV_NULL := NUL
-else
-  DEV_NULL := /dev/null
-endif
-
-.PHONY: crm-build
-crm-build: ## copilot-review-mcp イメージをビルド
-	docker build -t $(CRM_IMAGE) $(CRM_DIR)
-
-.PHONY: crm-start
-crm-start: crm-stop ## copilot-review-mcp コンテナを起動（バックグラウンド、既存コンテナ自動削除）
-	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment))
-	docker run -d \
-		--name $(CRM_CONTAINER) \
-		--restart unless-stopped \
-		-p $(CRM_PORT):8083 \
-		-v $(CRM_VOLUME):/data \
-		-e GITHUB_CLIENT_ID \
-		-e GITHUB_CLIENT_SECRET \
-		-e BASE_URL=$(or $(BASE_URL),http://localhost:$(CRM_PORT)) \
-		-e SQLITE_PATH=$(CRM_SQLITE_PATH) \
-		$(if $(GITHUB_OAUTH_SCOPES),-e GITHUB_OAUTH_SCOPES=$(GITHUB_OAUTH_SCOPES)) \
-		$(CRM_IMAGE)
-	@echo "Started. (port $(CRM_PORT))"
-	@echo "  Health check: curl -s http://localhost:$(CRM_PORT)/health"
-
-.PHONY: crm-stop
-crm-stop: ## copilot-review-mcp コンテナを停止・削除
-	-docker stop $(CRM_CONTAINER) >$(DEV_NULL) 2>&1
-	-docker rm   $(CRM_CONTAINER) >$(DEV_NULL) 2>&1
-	@echo "Stopped."
-
-.PHONY: crm-restart
-crm-restart: crm-stop crm-start ## copilot-review-mcp を再起動
-
-.PHONY: crm-logs
-crm-logs: ## copilot-review-mcp ログを表示
-	docker logs -f $(CRM_CONTAINER)
-
-.PHONY: crm-status
-crm-status: ## copilot-review-mcp コンテナの状態確認
-	@docker inspect --format \
-		'{{.Name}}  status={{.State.Status}}  pid={{.State.Pid}}' \
-		$(CRM_CONTAINER) 2>/dev/null || echo "コンテナが見つかりません: $(CRM_CONTAINER)"
-
-.PHONY: crm-health
-crm-health: ## copilot-review-mcp ヘルスチェック
-	@curl -sf http://localhost:$(CRM_PORT)/health > /dev/null || { echo "❌ ヘルスチェック失敗"; exit 1; }
-	@echo ""
+.PHONY: status
+status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 
 # ----------------------------------------
 # 設定生成
@@ -155,10 +93,6 @@ crm-health: ## copilot-review-mcp ヘルスチェック
 .PHONY: gen-config
 gen-config: ## IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
 	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
-
-.PHONY: gen-config-crm
-gen-config-crm: ## copilot-review-mcp の IDE設定ファイルを生成 (IDE=vscode|kiro|amazonq|codex|copilot-cli)
-	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode) --service copilot-review-mcp
 
 # ----------------------------------------
 # 開発

@@ -23,7 +23,7 @@ docker run -i --rm <image> stdio
 ./scripts/setup.sh
 
 # Service lifecycle
-make start           # Pull + start (official image)
+make start-gateway   # Pull + start (official image)
 make stop
 make restart
 make logs

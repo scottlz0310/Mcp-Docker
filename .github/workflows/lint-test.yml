@@ -36,33 +36,4 @@ jobs:
       - name: シェルスクリプトテスト実行
         run: bats tests/shell/*.bats
 
-  test-go:
-    name: Goテスト（copilot-review-mcp）
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
 
-      - name: Goセットアップ
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: services/copilot-review-mcp/go.mod
-          cache-dependency-path: services/copilot-review-mcp/go.sum
-
-      - name: Goテスト実行（カバレッジ付き）
-        working-directory: services/copilot-review-mcp
-        run: go test -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: CODECOVトークン確認
-        id: token_check
-        env:
-          HAS_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
-        run: echo "available=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
-
-      - name: Codecovにアップロード（Go）
-        if: steps.token_check.outputs.available == 'true'
-        uses: codecov/codecov-action@v6
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: services/copilot-review-mcp/coverage.out
-          flags: go
-          fail_ci_if_error: true

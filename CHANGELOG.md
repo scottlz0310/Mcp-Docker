@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🗑️ 削除（#105 #106 相当クリーンアップ）
+
+- `services/copilot-review-mcp/` を削除（外部リポジトリ `ghcr.io/scottlz0310/copilot-review-mcp` に移行済み）
+- `services/github-oauth-proxy/` を削除（外部リポジトリ `ghcr.io/scottlz0310/mcp-gateway` に移行済み）
+- Makefile: ローカルビルド前提の `crm-*` ターゲット群を削除（`crm-build`, `crm-start`, `crm-stop`, `crm-restart`, `crm-logs`, `crm-status`, `crm-health`）
+- Makefile: `start`（github-mcp 単体）、`restart`（単体）、`build`（pull エイリアス）、`gen-config-crm` を削除
+- `.github/workflows/lint-test.yml`: Go テストジョブ（`test-go`）を削除
+- `.github/workflows/security.yml`: `copilot-review-mcp-scan` ジョブを削除（ローカル Dockerfile 不要に）
+- `.github/workflows/codeql.yml`: `go` 言語マトリックスを削除（Go コード消滅のため）
+- `tasks.md`、`scripts/verify-review-status.sh`、`docs/copilot-review-mcp-tasks.md`、`docs/copilot-review-watch-tools.md`、`docs/design/copilot-review-watch-redesign.md`、`docs/observations/`、`docs/bug-reports/` を削除
+
+### ⚠️ 破壊的変更（#105 #106 相当クリーンアップ）
+
+- Makefile ターゲットを `*-gateway` 命名に統一
+  - `start` / `start-gateway` → **`start-gateway`**（単体起動廃止、gateway スタック起動が唯一の標準）
+  - `stop` → **`stop-gateway`**（`stop` は後方互換エイリアスとして維持）
+  - `restart` → **`restart-gateway`**（`stop-gateway` + `start-gateway`）
+  - `logs-gateway` → 維持
+  - `status-gateway` → 維持（`status` は後方互換エイリアス）
+  - `pull` → **`pull-gateway`**（全サービスイメージを `docker compose pull` で一括取得）
+
 ### ✨ 新機能
 
 - `auth=none` ルートで認証不要 MCP サーバを設定のみで追加できるパターンを追加（#109）
