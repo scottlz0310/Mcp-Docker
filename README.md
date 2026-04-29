@@ -255,9 +255,10 @@ mcp-gateway(:8080)
 
 ```yaml
   playwright-mcp:
-    image: ${PLAYWRIGHT_MCP_IMAGE:-ghcr.io/microsoft/playwright-mcp:latest}
+    image: ${PLAYWRIGHT_MCP_IMAGE:-mcr.microsoft.com/playwright/mcp:latest}
     container_name: playwright-mcp
     restart: unless-stopped
+    command: ["--port", "${PLAYWRIGHT_MCP_PORT:-8931}", "--host", "0.0.0.0"]
     expose:
       - "${PLAYWRIGHT_MCP_PORT:-8931}"
     networks:

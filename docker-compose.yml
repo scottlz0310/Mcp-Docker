@@ -50,8 +50,7 @@ services:
     depends_on:
       - github-mcp
       - copilot-review-mcp
-      # playwright-mcp を有効にした場合はコメントを解除する
-      # - playwright-mcp
+      - playwright-mcp
 
     environment:
       - GITHUB_MCP_CLIENT_ID=${GITHUB_MCP_CLIENT_ID}
@@ -60,8 +59,7 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
       - ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:${COPILOT_REVIEW_MCP_PORT:-8083}
-      # auth=none ルート例: 認証不要な MCP サーバを追加する場合は下記のようにコメントを解除する
-      # - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
+      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - GITHUB_MCP_OAUTH_SCOPES=${GITHUB_MCP_OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
@@ -144,30 +142,32 @@ services:
           memory: 256M
 
   # =============================================================================
-  # auth=none ルートの例: 認証不要な MCP サーバを追加するパターン
+  # auth=none ルートの例: 認証不要な MCP サーバを追加するパターン（上記が有効化済み）
   # =============================================================================
-  # 手順:
-  #   1. 下記ブロックのコメントを解除してサービスを有効化する
-  #   2. mcp-gateway の ROUTE_PLAYWRIGHT 行のコメントを解除する
-  #   3. mcp-gateway の depends_on に playwright-mcp を追加する（上記コメント参照）
-  #   4. IDE 設定に "playwright": {"url": "http://127.0.0.1:8080/mcp/playwright"} を追加する
-  #   5. make restart で全サービスを再起動する
+  # 上記 playwright-mcp サービスが auth=none ルートパターンの実装例です。
+  # 新たな認証不要 MCP サーバを追加する場合は同様の手順で追加してください:
+  #   1. サービス定義を追加（image, command に --port/--host, expose, networks を指定）
+  #   2. mcp-gateway の ROUTE_<NAME>=/<path>|http://<service>:<port>|auth=none を追加
+  #   3. mcp-gateway の depends_on に新サービスを追加
+  #   4. IDE 設定に "url": "http://127.0.0.1:8080/<path>" を追加
+  #   5. make restart
   #
-  # playwright-mcp:
-  #   image: ${PLAYWRIGHT_MCP_IMAGE:-ghcr.io/microsoft/playwright-mcp:latest}
-  #   container_name: playwright-mcp
-  #   restart: unless-stopped
-  #   expose:
-  #     - "${PLAYWRIGHT_MCP_PORT:-8931}"
-  #   networks:
-  #     - mcp-network
-  #   healthcheck:
-  #     disable: true
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
+  playwright-mcp:
+    image: ${PLAYWRIGHT_MCP_IMAGE:-mcr.microsoft.com/playwright/mcp:latest}
+    container_name: playwright-mcp
+    restart: unless-stopped
+    command: ["--port", "${PLAYWRIGHT_MCP_PORT:-8931}", "--host", "0.0.0.0"]
+    expose:
+      - "${PLAYWRIGHT_MCP_PORT:-8931}"
+    networks:
+      - mcp-network
+    healthcheck:
+      disable: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   github-mcp-cache:
