@@ -247,33 +247,38 @@ mcp-gateway(:8080)
   └── /mcp/playwright      → playwright-mcp      [auth=none]   認証不要
 ```
 
-### 追加手順
+### 設定例（playwright-mcp はデフォルトで有効化済み）
 
-新しい MCP サーバ（例: playwright-mcp）を追加するには以下の2箇所を変更します。
+`playwright-mcp` は `docker-compose.yml` にデフォルトで有効化された設定例として含まれています。
+新しい認証不要 MCP サーバを追加する場合は、同様の3箇所を変更してください。
 
-#### 1. `docker-compose.yml` — サービスのコメント解除
+#### 1. `docker-compose.yml` — サービス定義と mcp-gateway 設定
+
+サービス定義を追加します（`docker-compose.yml` の playwright-mcp セクションを参照）:
 
 ```yaml
   playwright-mcp:
     image: ${PLAYWRIGHT_MCP_IMAGE:-mcr.microsoft.com/playwright/mcp:latest}
     container_name: playwright-mcp
     restart: unless-stopped
-    command: ["--port", "${PLAYWRIGHT_MCP_PORT:-8931}", "--host", "0.0.0.0"]
+    command: ["--port", "${PLAYWRIGHT_MCP_PORT:-8931}", "--host", "0.0.0.0", "--allowed-hosts", "*"]
     expose:
       - "${PLAYWRIGHT_MCP_PORT:-8931}"
     networks:
       - mcp-network
 ```
 
-`mcp-gateway` の `environment` と `depends_on` のコメントも同時に解除します:
+`mcp-gateway` の `environment` と `depends_on` にも追加します:
 
 ```yaml
   mcp-gateway:
     depends_on:
-      - playwright-mcp          # ← コメント解除
+      - playwright-mcp
     environment:
-      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none  # ← コメント解除
+      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
 ```
+
+> **Note**: `playwright-mcp` を使用しない場合は、上記の `depends_on` エントリと `ROUTE_PLAYWRIGHT` 行を削除し、`playwright-mcp` サービス定義も削除してください。
 
 #### 2. IDE設定 — パスを追加
 

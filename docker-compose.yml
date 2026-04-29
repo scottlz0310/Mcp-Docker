@@ -50,6 +50,8 @@ services:
     depends_on:
       - github-mcp
       - copilot-review-mcp
+      # playwright-mcp はデフォルトで有効化済み。不要な場合はこの行と
+      # ROUTE_PLAYWRIGHT 環境変数・playwright-mcp サービス定義を削除してください。
       - playwright-mcp
 
     environment:
