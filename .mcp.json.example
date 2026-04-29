@@ -2,10 +2,15 @@
   "mcpServers": {
     "github": {
       "type": "http",
-      "url": "http://127.0.0.1:8082",
-      "headers": {
-        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
-      }
+      "url": "http://127.0.0.1:8080/mcp/github"
+    },
+    "copilot-review": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/copilot-review"
+    },
+    "playwright": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/playwright"
     }
   }
 }
