@@ -88,10 +88,7 @@ services:
           memory: 128M
 
   copilot-review-mcp:
-    build:
-      context: ./services/copilot-review-mcp
-      dockerfile: Dockerfile
-    image: copilot-review-mcp:local
+    image: ${COPILOT_REVIEW_MCP_IMAGE:-ghcr.io/scottlz0310/copilot-review-mcp:latest}
     container_name: copilot-review-mcp
     restart: unless-stopped
     # distroless:nonroot の UID/GID を明示（UID=65532）。
