@@ -298,17 +298,26 @@ docker volume rm mcp-docker_github-mcp-cache
 `mcp-gateway` はブラウザ認証後に取得した OAuth トークンを `/data/tokens.db` に永続化します。
 このファイルは **検証済み OAuth トークンのキャッシュ**であり、GitHub 認証情報（PAT）そのものではありません。
 
-ボリュームの内容確認：
+ボリューム情報確認（Mountpoint 等のメタデータ）：
+
+> ボリューム名のプレフィックスは Compose プロジェクト名（デフォルト: ディレクトリ名）に依存します。
+> まず `docker volume ls | grep mcp-gateway-data` で実際のボリューム名を確認してください。
 
 ```bash
-docker volume inspect mcp-docker_mcp-gateway-data
+# 実際のボリューム名を確認
+docker volume ls | grep mcp-gateway-data
+
+# メタデータを表示（上記で確認した名前を使用）
+docker volume inspect <実際のボリューム名>
 ```
 
 認証状態のリセット（再認証が必要な場合）：
 
 ```bash
+# 実際のボリューム名を確認してから削除
 docker compose down
-docker volume rm mcp-docker_mcp-gateway-data
+docker volume ls | grep mcp-gateway-data
+docker volume rm <実際のボリューム名>
 docker compose up -d
 ```
 
