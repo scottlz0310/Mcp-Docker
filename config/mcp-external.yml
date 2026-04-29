@@ -1,0 +1,13 @@
+# External MCP servers registered in addition to docker-compose ROUTE_* entries.
+#
+# tokenEnv is currently passed through to Codex via --bearer-token-env-var.
+# Claude and Copilot require concrete HTTP header values for token-protected
+# endpoints, so mcp-docker intentionally skips tokenEnv entries for those agents
+# rather than persisting secrets in their config files.
+servers:
+  - name: cloudflare-api
+    url: https://mcp.cloudflare.com/mcp
+    tokenEnv: CLOUDFLARE_API_TOKEN
+
+  - name: supabase
+    url: https://mcp.supabase.com/mcp

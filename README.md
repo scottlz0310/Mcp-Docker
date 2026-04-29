@@ -117,7 +117,26 @@ GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## IDE 統合
 
-設定生成スクリプトで IDE 別の JSON/TOML 設定が得られます：
+CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI）は、`mcp-docker register` で mcp-gateway の HTTP エンドポイントを直接登録できます。
+
+```bash
+# 事前に make start-gateway で mcp-gateway を起動
+make register-claude   REGISTER_FLAGS=--yes
+make register-copilot  REGISTER_FLAGS=--yes
+make register-codex    REGISTER_FLAGS=--yes
+
+# 3 種類まとめて登録
+make register-all      REGISTER_FLAGS=--yes
+```
+
+登録対象は以下から読み取ります：
+
+- `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*`
+- `config/mcp-external.yml` の外部 MCP サーバー定義
+
+`ROUTE_GITHUB` は `github`、`ROUTE_COPILOT_REVIEW` は `copilot-review` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
+
+設定ファイルしか対応していない IDE 向けには、従来どおり設定生成スクリプトで IDE 別の JSON/TOML 設定が得られます：
 
 ```bash
 make gen-config IDE=vscode       # VS Code / Cursor
@@ -185,7 +204,12 @@ Claude Desktop は HTTP transport 非対応のため、`docker run -i --rm ... s
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
 | `make gen-config` | IDE 設定生成（`IDE=vscode` 等を指定） |
+| `make register-claude` | Claude CLI に MCP サーバーを登録 |
+| `make register-copilot` | GitHub Copilot CLI に MCP サーバーを登録 |
+| `make register-codex` | Codex CLI に MCP サーバーを登録 |
+| `make register-all` | Claude / Copilot / Codex CLI に MCP サーバーを登録 |
 | `make lint` | シェルスクリプト Lint |
+| `make test-go` | Go CLI テスト |
 | `make test-shell` | シェルスクリプトテスト（BATS） |
 | `make clean` | キャッシュ削除 |
 | `make clean-docker` | Docker リソースクリーンアップ |
@@ -314,10 +338,16 @@ docker compose up -d
 
 ```
 Mcp-Docker/
+├── cmd/
+│   └── mcp-docker/             # CLI 登録オーケストレータ
+├── internal/
+│   ├── compose/                # docker-compose.yml の ROUTE_* 抽出
+│   ├── external/               # config/mcp-external.yml 読み込み
+│   └── register/               # Claude / Copilot / Codex adapter
 ├── docker-compose.yml          # メインの Compose 定義（4サービス）
 ├── Makefile                    # 操作コマンド集
-├── tasks.md                    # 開発タスク管理
 ├── config/
+│   ├── mcp-external.yml        # 外部 MCP サーバー定義
 │   └── github-mcp/             # github-mcp-server の設定（ボリュームマウント）
 ├── scripts/
 │   ├── setup.sh                # 初回セットアップ
