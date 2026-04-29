@@ -67,6 +67,10 @@ services:
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
       - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
       - TOKEN_EXPIRES_IN_SEC=${TOKEN_EXPIRES_IN_SEC:-7776000}
+      - MCP_GATEWAY_TOKEN_STORE_PATH=${MCP_GATEWAY_TOKEN_STORE_PATH:-/data/tokens.db}
+
+    volumes:
+      - mcp-gateway-data:/data
 
     ports:
       - "127.0.0.1:${MCP_GATEWAY_PORT:-8080}:${MCP_GATEWAY_PORT:-8080}"
@@ -172,6 +176,8 @@ volumes:
   github-mcp-cache:
     driver: local
   copilot-review-data:
+    driver: local
+  mcp-gateway-data:
     driver: local
 
 networks:
