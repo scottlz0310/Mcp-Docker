@@ -249,7 +249,7 @@ mcp-gateway(:8080)
 
 ### 追加手順
 
-新しい MCP サーバ（例: playwright-mcp）を追加するには以下の3ファイルを変更します。
+新しい MCP サーバ（例: playwright-mcp）を追加するには以下の2箇所を変更します。
 
 #### 1. `docker-compose.yml` — サービスのコメント解除
 
@@ -272,7 +272,7 @@ mcp-gateway(:8080)
     depends_on:
       - playwright-mcp          # ← コメント解除
     environment:
-      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:8931|auth=none  # ← コメント解除
+      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none  # ← コメント解除
 ```
 
 #### 2. IDE設定 — パスを追加
