@@ -116,12 +116,45 @@ status: status-gateway ## 全サービスの状態確認（status-gateway のエ
 gen-config: ## IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
 	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
 
+# CLI 登録（Primary）
+BIN_DIR      := bin
+MCP_DOCKER   := $(BIN_DIR)/mcp-docker
+GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null)
+REGISTER_FLAGS ?=
+
+$(MCP_DOCKER): go.mod go.sum $(GO_SOURCES)
+	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
+	go build -o $(MCP_DOCKER) ./cmd/mcp-docker
+
+.PHONY: register-claude
+register-claude: $(MCP_DOCKER) ## Claude CLI に MCP サーバーを登録
+	$(MCP_DOCKER) register --agent claude $(REGISTER_FLAGS)
+
+.PHONY: register-copilot
+register-copilot: $(MCP_DOCKER) ## GitHub Copilot CLI に MCP サーバーを登録
+	$(MCP_DOCKER) register --agent copilot $(REGISTER_FLAGS)
+
+.PHONY: register-codex
+register-codex: $(MCP_DOCKER) ## Codex CLI に MCP サーバーを登録
+	$(MCP_DOCKER) register --agent codex $(REGISTER_FLAGS)
+
+.PHONY: register-all
+register-all: $(MCP_DOCKER) ## Claude / Copilot / Codex CLI に MCP サーバーを登録
+	$(MCP_DOCKER) register --agent all $(REGISTER_FLAGS)
+
 # ----------------------------------------
 # 開発
 # ----------------------------------------
 
 .PHONY: lint
 lint: lint-shell ## すべてのLint実行
+
+.PHONY: test-go
+test-go: ## Go CLI のテスト実行
+	go test ./...
+
+.PHONY: build-go
+build-go: $(MCP_DOCKER) ## Go CLI をビルド
 
 .PHONY: lint-shell
 lint-shell: ## シェルスクリプトのlint実行

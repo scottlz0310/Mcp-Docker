@@ -36,4 +36,21 @@ jobs:
       - name: シェルスクリプトテスト実行
         run: bats tests/shell/*.bats
 
+  test-go:
+    name: Go CLI テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Go セットアップ
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go テスト
+        run: go test ./...
+
+      - name: Go ビルド
+        run: go build ./cmd/mcp-docker
 
