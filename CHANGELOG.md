@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-04-30
+
+### 🐛 バグ修正・改善
+
+- リリース配布物を生バイナリからアーカイブ形式に変更（#124）
+  - Linux / macOS: `.tar.gz`
+  - Windows: `.zip`
+  - `checksums.txt` をアーカイブファイルの SHA256 に統一
+
 ## [2.6.0] - 2026-04-30
 
 ### ✨ 新機能
@@ -308,7 +317,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...HEAD
+[2.6.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.3.0...v2.4.0
