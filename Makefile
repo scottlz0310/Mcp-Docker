@@ -110,7 +110,7 @@ status: status-gateway ## 全サービスの状態確認（status-gateway のエ
 
 # ----------------------------------------
 # 設定生成（フォールバック / Legacy）
-# mcp add 未対応の IDE 向け設定ファイル生成。CLI 登録対応エージェントには register-* を使用する。
+# CLI 登録（mcp-docker register）が推奨だが、設定ファイル方式が必要な場合のフォールバック。
 # ----------------------------------------
 
 .PHONY: gen-config

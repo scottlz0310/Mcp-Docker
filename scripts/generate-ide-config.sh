@@ -1,7 +1,8 @@
 #!/bin/bash
-# Legacy/Fallback: mcp add コマンドに対応していない IDE 向けの設定ファイル生成スクリプト。
-# CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI）は
-# 代わりに `mcp-docker register`（make register-*）を使用してください。
+# Legacy/Fallback: IDE/CLI 向けの MCP 設定ファイル生成スクリプト。
+# CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI）では
+# `mcp-docker register`（make register-*）の利用を推奨しますが、
+# 設定ファイル方式が必要な場合のフォールバックとしてこのスクリプトも利用できます。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
