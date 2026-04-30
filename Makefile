@@ -148,7 +148,7 @@ register-all: $(MCP_DOCKER) ## Claude / Copilot / Codex CLI に MCP サーバー
 # ----------------------------------------
 
 .PHONY: lint
-lint: lint-shell ## すべてのLint実行
+lint: lint-shell lint-go ## すべてのLint実行（シェルスクリプト lint + Go vet）
 
 .PHONY: test-go
 test-go: ## Go CLI のテスト実行
@@ -160,6 +160,10 @@ build-go: $(MCP_DOCKER) ## Go CLI をビルド
 .PHONY: lint-shell
 lint-shell: ## シェルスクリプトのlint実行
 	./scripts/lint-shell.sh
+
+.PHONY: lint-go
+lint-go: ## Go 静的解析（go vet）
+	go vet ./...
 
 .PHONY: test-shell
 test-shell: ## シェルスクリプトのテスト実行
