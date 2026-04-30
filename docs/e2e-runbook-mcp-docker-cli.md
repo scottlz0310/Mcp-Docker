@@ -44,9 +44,15 @@ mcp-docker は MCP Docker の補助ワークフローを管理します。
 ```
 claude の dry-run 計画:
 - 既存登録確認: claude mcp list
+- copilot-review:
+  - 既存登録があれば削除: claude mcp remove --scope user copilot-review
+  - 追加: claude mcp add --transport http --scope user copilot-review http://127.0.0.1:8080/mcp/copilot-review
 - github:
+  - 既存登録があれば削除: claude mcp remove --scope user github
   - 追加: claude mcp add --transport http --scope user github http://127.0.0.1:8080/mcp/github
-...
+- playwright:
+  - 既存登録があれば削除: claude mcp remove --scope user playwright
+  - 追加: claude mcp add --transport http --scope user playwright http://127.0.0.1:8080/mcp/playwright
 copilot の dry-run 計画:
 ...
 codex の dry-run 計画:
@@ -166,7 +172,7 @@ codex mcp list
 
 **確認ポイント:**
 - [ ] claude・copilot・codex すべてにエラーなく登録される
-- [ ] 重複登録しても正常終了する（べき等性）
+- [ ] 重複登録しても正常終了する（冪等性）
 
 ---
 
@@ -207,5 +213,5 @@ servers:
 - [ ] ステップ 2: Claude Code に登録・接続確認
 - [ ] ステップ 3: Copilot CLI に登録確認
 - [ ] ステップ 4: Codex に登録確認（任意）
-- [ ] ステップ 5: 全エージェント一括登録・べき等性確認
+- [ ] ステップ 5: 全エージェント一括登録・冪等性確認
 - [ ] ステップ 6: external サーバー追加確認（任意）
