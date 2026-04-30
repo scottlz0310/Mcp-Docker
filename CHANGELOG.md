@@ -7,29 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🗑️ 削除（#105 #106 相当クリーンアップ）
-
-- `services/copilot-review-mcp/` を削除（外部リポジトリ `ghcr.io/scottlz0310/copilot-review-mcp` に移行済み）
-- `services/github-oauth-proxy/` を削除（外部リポジトリ `ghcr.io/scottlz0310/mcp-gateway` に移行済み）
-- Makefile: ローカルビルド前提の `crm-*` ターゲット群を削除（`crm-build`, `crm-start`, `crm-stop`, `crm-restart`, `crm-logs`, `crm-status`, `crm-health`）
-- Makefile: `start`（github-mcp 単体）、`restart`（単体）、`build`（pull エイリアス）、`gen-config-crm` を削除
-- `.github/workflows/lint-test.yml`: Go テストジョブ（`test-go`）を削除
-- `.github/workflows/security.yml`: `copilot-review-mcp-scan` ジョブを削除（ローカル Dockerfile 不要に）
-- `.github/workflows/codeql.yml`: `go` 言語マトリックスを削除（Go コード消滅のため）
-- `tasks.md`、`scripts/verify-review-status.sh`、`docs/copilot-review-mcp-tasks.md`、`docs/copilot-review-watch-tools.md`、`docs/design/copilot-review-watch-redesign.md`、`docs/observations/`、`docs/bug-reports/` を削除
-
-### ⚠️ 破壊的変更（#105 #106 相当クリーンアップ）
-
-- Makefile ターゲットを `*-gateway` 命名に統一
-  - `start` / `start-gateway` → **`start-gateway`**（単体起動廃止、gateway スタック起動が唯一の標準）
-  - `stop` → **`stop-gateway`**（`stop` は後方互換エイリアスとして維持）
-  - `restart` → **`restart-gateway`**（`stop-gateway` + `start-gateway`）
-  - `logs-gateway` → 維持
-  - `status-gateway` → 維持（`status` は後方互換エイリアス）
-  - `pull` → **`pull-gateway`**（全サービスイメージを `docker compose pull` で一括取得）
+## [2.6.0] - 2026-04-30
 
 ### ✨ 新機能
 
+- `mcp-docker` Go CLI ツールを追加（#117）
+  - `mcp-docker register [--agent claude|copilot|codex|all]` コマンドで MCP サーバーを各 IDE CLI に一括登録
+  - `--dry-run` オプションで実行前に登録コマンドを確認可能
+  - `--compose` / `--external` で `docker-compose.yml` および `config/mcp-external.yml` から自動的にサーバー一覧を取得
+  - バイナリを GitHub Releases で配布（linux/darwin/windows, amd64/arm64）
+- `.github/workflows/release.yml` を追加: タグ push で自動クロスコンパイル＆リリース作成
+- CI に `go vet ./...` を追加し、Makefile に `lint-go` ターゲットを追加（#122）
 - `auth=none` ルートで認証不要 MCP サーバを設定のみで追加できるパターンを追加（#109）
   - `docker-compose.yml` に `playwright-mcp` サービスをデフォルト有効化済みの設定例として追加
   - `mcp-gateway` の `environment` に `ROUTE_PLAYWRIGHT=.../auth=none` をデフォルト有効化
@@ -39,9 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 前提: `mcp-gateway` の `auth=none` サポート（scottlz0310/mcp-gateway#23 でマージ済み）
 - `copilot-review-mcp` のイメージをローカルビルドから公開パッケージ（`ghcr.io/scottlz0310/copilot-review-mcp:latest`）に変更
   - `COPILOT_REVIEW_MCP_IMAGE` 環境変数でオーバーライド可能
+- `mcp-gateway`（`ghcr.io/scottlz0310/mcp-gateway:latest`）をルーティングゲートウェイとして追加
+  - `ROUTE_GITHUB=/mcp/github|http://github-mcp:8082`
+  - `ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:8083`
+  - `github-mcp` と `copilot-review-mcp` の両サービスを単一ポートから提供
+  - OAuth 2.0 認証フローを gateway に一元化
 
 ### ⚠️ 破壊的変更
 
+- Makefile ターゲットを `*-gateway` 命名に統一
+  - `start` / `start-gateway` → **`start-gateway`**（単体起動廃止、gateway スタック起動が唯一の標準）
+  - `stop` → **`stop-gateway`**（`stop` は後方互換エイリアスとして維持）
+  - `restart` → **`restart-gateway`**（`stop-gateway` + `start-gateway`）
+  - `logs-gateway` → 維持
+  - `status-gateway` → 維持（`status` は後方互換エイリアス）
+  - `pull` → **`pull-gateway`**（全サービスイメージを `docker compose pull` で一括取得）
 - `github-oauth-proxy` を `mcp-gateway` に置き換え (#107)
   - **ポート変更**: `8084` → `8080`（`MCP_GATEWAY_PORT`）
   - **環境変数変更**:
@@ -52,13 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Makefile: `start-oauth` → `start-gateway`、`logs-oauth` → `logs-gateway`、`status-oauth` → `status-gateway`
   - IDE設定スクリプト: `--service github-oauth-proxy` → `--service mcp-gateway`
 
-### ✨ 新機能
+### 🗑️ 削除
 
-- `mcp-gateway`（`ghcr.io/scottlz0310/mcp-gateway:latest`）をルーティングゲートウェイとして追加
-  - `ROUTE_GITHUB=/mcp/github|http://github-mcp:8082`
-  - `ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:8083`
-  - `github-mcp` と `copilot-review-mcp` の両サービスを単一ポートから提供
-  - OAuth 2.0 認証フローを gateway に一元化
+- `services/copilot-review-mcp/` を削除（外部リポジトリ `ghcr.io/scottlz0310/copilot-review-mcp` に移行済み）
+- `services/github-oauth-proxy/` を削除（外部リポジトリ `ghcr.io/scottlz0310/mcp-gateway` に移行済み）
+- Makefile: ローカルビルド前提の `crm-*` ターゲット群を削除（`crm-build`, `crm-start`, `crm-stop`, `crm-restart`, `crm-logs`, `crm-status`, `crm-health`）
+- Makefile: `start`（github-mcp 単体）、`restart`（単体）、`build`（pull エイリアス）、`gen-config-crm` を削除
+- `.github/workflows/lint-test.yml`: Go テストジョブ（`test-go`）を削除
+- `.github/workflows/security.yml`: `copilot-review-mcp-scan` ジョブを削除（ローカル Dockerfile 不要に）
+- `.github/workflows/codeql.yml`: `go` 言語マトリックスを削除（Go コード消滅のため）
+- `tasks.md`、`scripts/verify-review-status.sh`、`docs/copilot-review-mcp-tasks.md`、`docs/copilot-review-watch-tools.md`、`docs/design/copilot-review-watch-redesign.md`、`docs/observations/`、`docs/bug-reports/` を削除
 
 ## [2.5.0] - 2026-04-24
 
@@ -305,7 +308,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.2.0...v2.3.0

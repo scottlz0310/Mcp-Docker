@@ -52,7 +52,13 @@ jobs:
         run: go vet ./...
 
       - name: Go テスト
-        run: go test ./...
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Codecov アップロード
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
 
       - name: Go ビルド
         run: go build ./cmd/mcp-docker
