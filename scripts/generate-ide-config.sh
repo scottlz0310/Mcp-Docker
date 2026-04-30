@@ -1,4 +1,7 @@
 #!/bin/bash
+# Legacy/Fallback: mcp add コマンドに対応していない IDE 向けの設定ファイル生成スクリプト。
+# CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI）は
+# 代わりに `mcp-docker register`（make register-*）を使用してください。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
