@@ -117,6 +117,8 @@ GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## IDE 統合
 
+### Primary: CLI 登録（推奨）
+
 CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI）は、`mcp-docker register` で mcp-gateway の HTTP エンドポイントを直接登録できます。
 
 ```bash
@@ -136,7 +138,9 @@ make register-all      REGISTER_FLAGS=--yes
 
 `ROUTE_GITHUB` は `github`、`ROUTE_COPILOT_REVIEW` は `copilot-review` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
 
-設定ファイルしか対応していない IDE 向けには、従来どおり設定生成スクリプトで IDE 別の JSON/TOML 設定が得られます：
+### フォールバック: 設定ファイル生成（Legacy）
+
+`mcp add` コマンドに対応していない IDE（VS Code GUI・Amazon Q・Kiro など）向けには、`generate-ide-config.sh` で IDE 別の JSON/TOML 設定を生成できます：
 
 ```bash
 make gen-config IDE=vscode       # VS Code / Cursor

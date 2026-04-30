@@ -109,11 +109,12 @@ pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gat
 status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 
 # ----------------------------------------
-# 設定生成
+# 設定生成（フォールバック / Legacy）
+# CLI 登録（mcp-docker register）が推奨だが、設定ファイル方式が必要な場合のフォールバック。
 # ----------------------------------------
 
 .PHONY: gen-config
-gen-config: ## IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
+gen-config: ## [Legacy] IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
 	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
 
 # CLI 登録（Primary）
