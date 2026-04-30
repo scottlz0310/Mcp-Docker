@@ -37,7 +37,7 @@ jobs:
         run: bats tests/shell/*.bats
 
   test-go:
-    name: Go CLI テスト
+    name: Go CLI チェック（vet/test/build）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
