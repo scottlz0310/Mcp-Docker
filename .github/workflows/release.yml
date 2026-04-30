@@ -57,22 +57,24 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: バイナリビルド
+      - name: バイナリビルド＆アーカイブ
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: |
-          BIN="mcp-docker-${{ matrix.suffix }}${{ matrix.ext }}"
+          BIN="mcp-docker${{ matrix.ext }}"
           go build -trimpath -ldflags="-s -w" -o "${BIN}" ./cmd/mcp-docker
-          sha256sum "${BIN}" > "${BIN}.sha256"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip "mcp-docker-${{ matrix.suffix }}.zip" "${BIN}"
+          else
+            tar czf "mcp-docker-${{ matrix.suffix }}.tar.gz" "${BIN}"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: bin-${{ matrix.suffix }}
-          path: |
-            mcp-docker-${{ matrix.suffix }}${{ matrix.ext }}
-            mcp-docker-${{ matrix.suffix }}${{ matrix.ext }}.sha256
+          path: mcp-docker-${{ matrix.suffix }}.*
 
   release:
     name: リリース作成
@@ -86,16 +88,18 @@ jobs:
           path: dist/
           merge-multiple: true
 
-      - name: チェックサムファイル統合
+      - name: チェックサムファイル生成
         run: |
-          cat dist/*.sha256 | sort > dist/checksums.txt
+          cd dist
+          sha256sum mcp-docker-*.tar.gz mcp-docker-*.zip 2>/dev/null | sort > checksums.txt
 
       - name: GitHub Release 作成
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          ARCHIVES=$(find dist \( -name "mcp-docker-*.tar.gz" -o -name "mcp-docker-*.zip" \) | sort | tr '\n' ' ')
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            dist/mcp-docker-* \
+            ${ARCHIVES} \
             dist/checksums.txt
