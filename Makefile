@@ -108,6 +108,34 @@ pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gat
 .PHONY: status
 status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 
+# :main イメージ（リリース前の最新開発版）
+# mcp-gateway / copilot-review-mcp は :latest がリリース時のみ更新されるため、
+# 最新の main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
+# ?= により環境変数・make コマンドライン引数での上書きが可能
+# 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
+MCP_GATEWAY_MAIN_IMAGE       ?= ghcr.io/scottlz0310/mcp-gateway:main
+COPILOT_REVIEW_MCP_MAIN_IMAGE ?= ghcr.io/scottlz0310/copilot-review-mcp:main
+
+.PHONY: pull-main
+pull-main: ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
+	docker compose pull github-mcp
+	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
+	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
+	docker compose pull mcp-gateway copilot-review-mcp
+	@echo "✓ :main イメージを取得しました。起動: make start-main"
+
+.PHONY: start-main
+start-main: ## 最新開発版イメージで全サービスを起動
+	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
+	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
+	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
+	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
+	@echo "Started mcp-gateway endpoint (main build): http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
+
+.PHONY: restart-main
+restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動
+
 # ----------------------------------------
 # 設定生成（フォールバック / Legacy）
 # CLI 登録（mcp-docker register）が推奨だが、設定ファイル方式が必要な場合のフォールバック。
