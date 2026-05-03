@@ -111,8 +111,10 @@ status: status-gateway ## 全サービスの状態確認（status-gateway のエ
 # :main イメージ（リリース前の最新開発版）
 # mcp-gateway / copilot-review-mcp は :latest がリリース時のみ更新されるため、
 # 最新の main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
-MCP_GATEWAY_MAIN_IMAGE       := ghcr.io/scottlz0310/mcp-gateway:main
-COPILOT_REVIEW_MCP_MAIN_IMAGE := ghcr.io/scottlz0310/copilot-review-mcp:main
+# ?= により環境変数・make コマンドライン引数での上書きが可能
+# 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
+MCP_GATEWAY_MAIN_IMAGE       ?= ghcr.io/scottlz0310/mcp-gateway:main
+COPILOT_REVIEW_MCP_MAIN_IMAGE ?= ghcr.io/scottlz0310/copilot-review-mcp:main
 
 .PHONY: pull-main
 pull-main: ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
@@ -132,7 +134,7 @@ start-main: ## 最新開発版イメージで全サービスを起動
 	@echo "Started mcp-gateway endpoint (main build): http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
 .PHONY: restart-main
-restart-main: stop start-main ## 最新開発版イメージで全サービスを再起動
+restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動
 
 # ----------------------------------------
 # 設定生成（フォールバック / Legacy）
