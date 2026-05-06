@@ -2,10 +2,12 @@
 /**
  * MCP エンドポイント疎通確認スクリプト
  * Usage: node scripts/verify-mcp-endpoint.js [url]
+ * デフォルト: http://127.0.0.1:8080/mcp/github（mcp-gateway 経由）
+ * 注意: github-mcp の 8082 ポートはホストには公開されていません。
  */
 const http = require('http');
 const https = require('https');
-const url = process.argv[2] || 'http://127.0.0.1:8082';
+const url = process.argv[2] || 'http://127.0.0.1:8080/mcp/github';
 
 const parsed = new URL(url);
 const isHttps = parsed.protocol === 'https:';
