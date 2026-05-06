@@ -131,7 +131,9 @@ resolve_gateway_url() {
         port="${port:-8080}"
         url="http://127.0.0.1:${port}"
     fi
-    echo "${url%/}"
+    url="${url%/}"
+    url="${url%/mcp}"
+    echo "${url}"
 }
 
 is_placeholder_token() {
