@@ -2,10 +2,12 @@
 /**
  * MCP エンドポイント疎通確認スクリプト
  * Usage: node scripts/verify-mcp-endpoint.js [url]
+ * デフォルト: http://127.0.0.1:8080/mcp/github（mcp-gateway 経由）
+ * 注意: github-mcp の 8082 ポートはホストには公開されていません。
  */
 const http = require('http');
 const https = require('https');
-const url = process.argv[2] || 'http://127.0.0.1:8082';
+const url = process.argv[2] || 'http://127.0.0.1:8080/mcp/github';
 
 const parsed = new URL(url);
 const isHttps = parsed.protocol === 'https:';
@@ -86,8 +88,8 @@ req.on('error', (e) => {
   console.error(`❌ 接続エラー: ${e.message}`);
   if (e.code === 'ECONNREFUSED') {
     console.error('   コンテナが起動していない可能性があります。');
-    console.error('   make start-oauth を実行し、OAuth プロキシ経由で接続してください。');
-    console.error('   例: node scripts/verify-mcp-endpoint.js http://127.0.0.1:8084/mcp');
+    console.error('   make start-gateway を実行し、mcp-gateway 経由で接続してください。');
+    console.error('   例: node scripts/verify-mcp-endpoint.js http://127.0.0.1:8080/mcp/github');
   }
   process.exit(1);
 });

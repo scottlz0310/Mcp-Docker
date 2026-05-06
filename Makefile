@@ -63,7 +63,7 @@ help: ## 利用可能なターゲット一覧を表示
 # ----------------------------------------
 
 .PHONY: start-gateway
-start-gateway: ## 全サービスを mcp-gateway 経由で起動（localhost:8080）
+start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
 	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp

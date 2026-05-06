@@ -60,7 +60,7 @@ services:
     environment:
       - GITHUB_MCP_CLIENT_ID=${GITHUB_MCP_CLIENT_ID}
       - GITHUB_MCP_CLIENT_SECRET=${GITHUB_MCP_CLIENT_SECRET}
-      - MCP_GATEWAY_BASE_URL=${MCP_GATEWAY_BASE_URL:-http://localhost:8080}
+      - MCP_GATEWAY_BASE_URL=${MCP_GATEWAY_BASE_URL:-http://127.0.0.1:8080}
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
@@ -114,14 +114,14 @@ services:
       - AUTH_MODE=${COPILOT_REVIEW_AUTH_MODE:-gateway}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - BASE_URL=${BASE_URL:-http://localhost:8083}
+      - BASE_URL=${BASE_URL:-http://127.0.0.1:8083}
       - GITHUB_OAUTH_SCOPES=${GITHUB_OAUTH_SCOPES:-repo,user}
       - MCP_PORT=${COPILOT_REVIEW_MCP_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
       - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
 
-    # mcp-gateway 経由でのみアクセス（http://localhost:8080/mcp/copilot-review）。
+    # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/copilot-review）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
     # ports:
     #   - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
