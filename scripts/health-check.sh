@@ -13,7 +13,7 @@ usage() {
 
 オプション:
   --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
-                          mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port 8080)
+                          mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
                           copilot-review-mcp : copilot-review-mcp / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
                           github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
   --with-api              GitHub API接続確認を必ず実行

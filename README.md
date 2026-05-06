@@ -110,7 +110,7 @@ GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxx
 GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> callback URL は `MCP_GATEWAY_BASE_URL` と一致させてください（末尾に `/callback`）。
+> callback URL は `MCP_GATEWAY_PUBLIC_URL`（未設定時は `MCP_GATEWAY_BASE_URL`）と一致させてください（末尾に `/callback`）。
 
 
 ## IDE 統合
