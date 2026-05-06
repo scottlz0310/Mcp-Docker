@@ -56,9 +56,8 @@ cp .env.template .env
 #   GITHUB_PERSONAL_ACCESS_TOKEN     (github-mcp-server 用 PAT)
 #   GITHUB_MCP_CLIENT_ID             (mcp-gateway OAuth App Client ID)
 #   GITHUB_MCP_CLIENT_SECRET         (mcp-gateway OAuth App Client Secret)
-#   GITHUB_CLIENT_ID                 (copilot-review-mcp OAuth App Client ID)
-#   GITHUB_CLIENT_SECRET             (copilot-review-mcp OAuth App Client Secret)
-# ※ 同一 OAuth App を共有する場合は GITHUB_MCP_CLIENT_* と GITHUB_CLIENT_* に同じ値を設定
+# ※ copilot-review-mcp v3.0.0 以降、OAuth は mcp-gateway が一元管理します。
+# ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 
 # 3. 全サービス起動
 make start-gateway

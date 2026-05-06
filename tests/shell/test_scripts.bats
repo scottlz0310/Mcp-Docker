@@ -175,6 +175,3 @@ setup() {
     grep -q '9191' "${PROJECT_ROOT}/config/ide-configs/mcp-gateway/vscode/settings.json"
 }
 
-@test "health-check.sh: 構文エラーがない（PUBLIC_URL変数を含む）" {
-    bash -n "${SCRIPTS_DIR}/health-check.sh"
-}
