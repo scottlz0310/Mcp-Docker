@@ -162,3 +162,16 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp-gateway" ]]
 }
+
+@test "generate-ide-config.sh: MCP_GATEWAY_PUBLIC_URL が生成設定に反映される" {
+    run env MCP_GATEWAY_PUBLIC_URL=http://127.0.0.1:9090 "${SCRIPTS_DIR}/generate-ide-config.sh" --ide vscode --service mcp-gateway
+    [ "$status" -eq 0 ]
+    grep -q '9090' "${PROJECT_ROOT}/config/ide-configs/mcp-gateway/vscode/settings.json"
+}
+
+@test "generate-ide-config.sh: MCP_GATEWAY_PUBLIC_URL は MCP_GATEWAY_BASE_URL より優先される" {
+    run env MCP_GATEWAY_PUBLIC_URL=http://127.0.0.1:9191 MCP_GATEWAY_BASE_URL=http://127.0.0.1:7070 "${SCRIPTS_DIR}/generate-ide-config.sh" --ide vscode --service mcp-gateway
+    [ "$status" -eq 0 ]
+    grep -q '9191' "${PROJECT_ROOT}/config/ide-configs/mcp-gateway/vscode/settings.json"
+}
+

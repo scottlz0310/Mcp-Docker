@@ -13,7 +13,7 @@ usage() {
 
 オプション:
   --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
-                          mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port 8080)
+                          mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
                           copilot-review-mcp : copilot-review-mcp / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
                           github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
   --with-api              GitHub API接続確認を必ず実行
@@ -112,6 +112,12 @@ resolve_gateway_url() {
         url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
+        url="${MCP_GATEWAY_PUBLIC_URL:-}"
+    fi
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "MCP_GATEWAY_PUBLIC_URL")"
+    fi
+    if [[ -z "${url}" ]]; then
         url="${MCP_GATEWAY_BASE_URL:-}"
     fi
     if [[ -z "${url}" ]]; then
@@ -125,7 +131,9 @@ resolve_gateway_url() {
         port="${port:-8080}"
         url="http://127.0.0.1:${port}"
     fi
-    echo "${url%/}"
+    url="${url%/}"
+    url="${url%/mcp}"
+    echo "${url}"
 }
 
 is_placeholder_token() {
