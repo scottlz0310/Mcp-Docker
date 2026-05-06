@@ -137,6 +137,12 @@ resolve_gateway_url() {
         url="$(extract_env_value "MCP_GATEWAY_URL")"
     fi
     if [[ -z "${url}" ]]; then
+        url="${MCP_GATEWAY_PUBLIC_URL:-}"
+    fi
+    if [[ -z "${url}" ]]; then
+        url="$(extract_env_value "MCP_GATEWAY_PUBLIC_URL")"
+    fi
+    if [[ -z "${url}" ]]; then
         url="${MCP_GATEWAY_BASE_URL:-}"
     fi
     if [[ -z "${url}" ]]; then
