@@ -36,8 +36,6 @@ ifneq (,$(wildcard .env))
   GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
   GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
   GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
-  BASE_URL                     ?= $(call ENV_GET,BASE_URL)
-  GITHUB_OAUTH_SCOPES          ?= $(call ENV_GET,GITHUB_OAUTH_SCOPES)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
 endif
 
@@ -49,7 +47,7 @@ ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
   GITHUB_MCP_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
 endif
 # 子プロセス（docker compose）に確実に渡す
-export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN BASE_URL GITHUB_OAUTH_SCOPES MCP_GATEWAY_PORT
+export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GATEWAY_PORT
 
 .DEFAULT_GOAL := help
 
@@ -65,7 +63,6 @@ help: ## 利用可能なターゲット一覧を表示
 .PHONY: start-gateway
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
-	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
@@ -127,7 +124,6 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 .PHONY: start-main
 start-main: ## 最新開発版イメージで全サービスを起動
 	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
-	$(if $(and $(GITHUB_CLIENT_ID),$(GITHUB_CLIENT_SECRET)),,$(error ERROR: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET must be set in .env or environment (required by copilot-review-mcp)))
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp

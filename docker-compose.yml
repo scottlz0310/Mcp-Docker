@@ -112,15 +112,9 @@ services:
     user: "65532:65532"
 
     environment:
-      - AUTH_MODE=${COPILOT_REVIEW_AUTH_MODE:-gateway}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - BASE_URL=${BASE_URL:-http://127.0.0.1:8083}
-      - GITHUB_OAUTH_SCOPES=${GITHUB_OAUTH_SCOPES:-repo,user}
+      - BIND_ADDR=0.0.0.0
       - MCP_PORT=${COPILOT_REVIEW_MCP_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
-      - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
 
     # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/copilot-review）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
