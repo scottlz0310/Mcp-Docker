@@ -129,6 +129,32 @@ make register-codex    REGISTER_FLAGS=--yes
 make register-all      REGISTER_FLAGS=--yes
 ```
 
+Makefile を使わず Go ツールチェーンから直接ビルド・実行する場合：
+
+```bash
+# ビルド
+go build -trimpath -ldflags="-X main.version=2.7.0" -o ./bin/mcp-docker ./cmd/mcp-docker
+
+# バージョン確認
+./bin/mcp-docker --version
+
+# 登録計画の確認
+./bin/mcp-docker register --dry-run --yes
+
+# 登録実行
+./bin/mcp-docker register --agent all --yes
+```
+
+Windows のネイティブシェルで実行する場合は、出力先を `.\bin\mcp-docker.exe` にしてください。
+
+ビルド済みバイナリを残したくない場合は `go run` でも同じ登録フローを実行できます：
+
+```bash
+go run ./cmd/mcp-docker --version
+go run ./cmd/mcp-docker register --dry-run --yes
+go run ./cmd/mcp-docker register --agent all --yes
+```
+
 登録対象は以下から読み取ります：
 
 - `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*`
@@ -205,6 +231,9 @@ Claude Desktop は HTTP transport 非対応のため、`docker run -i --rm ... s
 | `make status` / `make status-gateway` | 全コンテナ状態一覧 |
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
+| `make pull-main` | mcp-gateway / copilot-review-mcp の `:main` イメージ取得 |
+| `make start-main` | 最新開発版イメージで全サービス起動 |
+| `make restart-main` | 最新開発版イメージで全サービス再起動 |
 | `make gen-config` | IDE 設定生成（`IDE=vscode` 等を指定） |
 | `make register-claude` | Claude CLI に MCP サーバーを登録 |
 | `make register-copilot` | GitHub Copilot CLI に MCP サーバーを登録 |
@@ -358,14 +387,12 @@ Mcp-Docker/
 │   └── generate-ide-config.sh  # IDE 設定生成
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
-│   └── copilot-review-mcp-tasks.md  # copilot-review-mcp 固有タスク
+│   ├── e2e-runbook-mcp-docker-cli.md  # CLI E2E 確認手順
+│   ├── plan-mcp-register-go.md # mcp-docker register 実装計画
+│   └── skills/                 # Codex / LLM 向け運用スキル
 ├── tests/
 │   └── shell/                  # BATS シェルテスト
-└── services/
-    └── copilot-review-mcp/     # ※ 将来削除予定（外部リポジトリへ移行済み）
 ```
-
-`services/copilot-review-mcp/` は外部リポジトリ（`scottlz0310/copilot-review-mcp`）への移行に伴い、将来のリリースで削除される予定です。
 
 ## セキュリティ
 

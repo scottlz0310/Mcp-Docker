@@ -1,11 +1,27 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/scottlz0310/mcp-docker/tools/internal/register"
 )
+
+func TestVersionCommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{"--version"}, &stdout, &stderr, strings.NewReader(""))
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if got, want := stdout.String(), "mcp-docker 2.7.0\n"; got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
 
 func TestValidateUniqueServersReportsCollidingSources(t *testing.T) {
 	err := validateUniqueServers([]register.Server{
