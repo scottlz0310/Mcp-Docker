@@ -21,6 +21,7 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
   mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
   mcp-docker version
   mcp-docker --version
+  mcp-docker -v
 `
 
 var version = "2.7.0"

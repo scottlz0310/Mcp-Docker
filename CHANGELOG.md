@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `pull-main` / `start-main` / `restart-main` ターゲットを追加（#126）
   - `mcp-gateway` / `copilot-review-mcp` の `:main` イメージでリリース前の安定確認が可能
-- `mcp-docker version` / `mcp-docker --version` を追加
+- `mcp-docker version` / `mcp-docker --version` / `mcp-docker -v` を追加
   - リリースバイナリではタグ名から内部バージョンを埋め込み
 
 ### 🔧 改善
