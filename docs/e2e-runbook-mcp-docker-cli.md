@@ -8,7 +8,7 @@
 
 | 項目 | 確認コマンド |
 |------|------------|
-| `mcp-docker` バイナリ（ビルド済み） | `./mcp-docker --help` |
+| `mcp-docker` バイナリ（ビルド済み） | `./bin/mcp-docker --version` |
 | Docker Compose スタック起動済み | `make status` |
 | 確認したい IDE CLI のインストール | 各セクション参照 |
 
@@ -18,18 +18,29 @@
 
 ```bash
 # リポジトリルートで実行
-go build -o mcp-docker ./cmd/mcp-docker
+go build -trimpath -ldflags="-X main.version=2.7.0" -o ./bin/mcp-docker ./cmd/mcp-docker
+
+# バージョン確認
+./bin/mcp-docker --version
 
 # ヘルプ確認
-./mcp-docker --help
+./bin/mcp-docker --help
 ```
 
-**期待出力:**
+**期待出力（バージョン）:**
+```
+mcp-docker 2.7.0
+```
+
+**期待出力（ヘルプ）:**
 ```
 mcp-docker は MCP Docker の補助ワークフローを管理します。
 
 使い方:
   mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
+  mcp-docker version
+  mcp-docker --version
+  mcp-docker -v
 ```
 
 ---
@@ -37,7 +48,7 @@ mcp-docker は MCP Docker の補助ワークフローを管理します。
 ## ステップ 1: dry-run で登録計画を確認
 
 ```bash
-./mcp-docker register --dry-run --yes
+./bin/mcp-docker register --dry-run --yes
 ```
 
 **期待出力例（サーバーが 3 件の場合）:**
@@ -81,7 +92,7 @@ claude mcp list
 ### 2-2. 登録実行
 
 ```bash
-./mcp-docker register --agent claude --yes
+./bin/mcp-docker register --agent claude --yes
 ```
 
 **期待動作:**
@@ -123,7 +134,7 @@ gh copilot -- mcp list
 ### 3-2. 登録実行
 
 ```bash
-./mcp-docker register --agent copilot --yes
+./bin/mcp-docker register --agent copilot --yes
 ```
 
 ### 3-3. 登録後の確認
@@ -150,7 +161,7 @@ codex mcp list
 ### 4-2. 登録実行
 
 ```bash
-./mcp-docker register --agent codex --yes
+./bin/mcp-docker register --agent codex --yes
 ```
 
 ### 4-3. 登録後の確認
@@ -167,7 +178,7 @@ codex mcp list
 ## ステップ 5: 全エージェントまとめて登録
 
 ```bash
-./mcp-docker register --yes
+./bin/mcp-docker register --yes
 ```
 
 **確認ポイント:**
@@ -188,7 +199,7 @@ servers:
 ```
 
 ```bash
-./mcp-docker register --dry-run --yes
+./bin/mcp-docker register --dry-run --yes
 ```
 
 **確認ポイント:**
@@ -200,8 +211,8 @@ servers:
 
 | シナリオ | 実行コマンド | 期待動作 |
 |---------|------------|---------|
-| docker-compose.yml が存在しない | `./mcp-docker register --compose missing.yml --yes` | エラーで終了 |
-| 不明なエージェント | `./mcp-docker register --agent unknown --yes` | エラーで終了 |
+| docker-compose.yml が存在しない | `./bin/mcp-docker register --compose missing.yml --yes` | エラーで終了 |
+| 不明なエージェント | `./bin/mcp-docker register --agent unknown --yes` | エラーで終了 |
 | サーバー名の重複 | docker-compose と external に同名サーバーを設定 | エラーで終了 |
 
 ---

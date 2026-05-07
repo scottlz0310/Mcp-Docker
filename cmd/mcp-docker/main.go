@@ -19,7 +19,12 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
 
 使い方:
   mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
+  mcp-docker version
+  mcp-docker --version
+  mcp-docker -v
 `
+
+var version = "2.7.0"
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr, os.Stdin); err != nil {
@@ -37,6 +42,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.
 	switch args[0] {
 	case "register":
 		return runRegister(ctx, args[1:], stdout, stderr, stdin)
+	case "version", "-v", "--version":
+		fmt.Fprintf(stdout, "mcp-docker %s\n", version)
+		return nil
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return nil

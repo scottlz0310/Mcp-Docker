@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-05-07
+
+### ✨ 新機能
+
+- `pull-main` / `start-main` / `restart-main` ターゲットを追加（#126）
+  - `mcp-gateway` / `copilot-review-mcp` の `:main` イメージでリリース前の安定確認が可能
+- `mcp-docker version` / `mcp-docker --version` / `mcp-docker -v` を追加
+  - リリースバイナリではタグ名から内部バージョンを埋め込み
+
+### 🔧 改善
+
+- `mcp-gateway v0.3.0` / `copilot-review-mcp v3.0.0` の起動・設定変更に対応（#130）
+  - OAuth 管理を `mcp-gateway` 側へ一元化した構成に整理
+  - `MCP_GATEWAY_PUBLIC_URL` / `MCP_GATEWAY_BIND_ADDR` / `MCP_GATEWAY_KEY_PATH` / `MCP_CONFIG_FILE` を compose 設定に追加
+  - `MCP_GATEWAY_BASE_URL` は後方互換エイリアスとして維持
+- `localhost` 表記を `127.0.0.1` に統一し、OAuth callback URL と IDE 設定例の揺れを解消（#128 #129）
+- gateway E2E 確認向けに compose 設定を調整（#127）
+- `generate-ide-config.sh` / `health-check.sh` / README を `MCP_GATEWAY_PUBLIC_URL` 優先の説明に更新
+- README に Makefile を使わず Go ツールチェーンから `mcp-docker` CLI をビルド・実行する手順を追加
+
+### 🗑️ 削除
+
+- `mcp-gateway-init` コンテナを削除（#125）
+  - 現行の `mcp-gateway` イメージでトークンストア用ボリューム初期化を外部 init コンテナに依存しない構成へ移行
+
+### 🧪 テスト
+
+- `MCP_GATEWAY_PUBLIC_URL` が IDE 設定生成に反映され、`MCP_GATEWAY_BASE_URL` より優先されることを BATS で検証
+- `mcp-docker --version` の Go テストを追加
+- `cmd/mcp-docker/main.go` を Codecov 対象に戻し、CLI 実装コードのカバレッジを可視化
+
+### 📦 依存関係更新
+
+- Go module directive を `1.26.2` に更新（#131）
+
 ## [2.6.1] - 2026-04-30
 
 ### 🐛 バグ修正・改善
@@ -317,7 +352,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.4.0...v2.5.0

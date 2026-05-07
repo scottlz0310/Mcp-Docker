@@ -146,10 +146,12 @@ BIN_DIR      := bin
 MCP_DOCKER   := $(BIN_DIR)/mcp-docker
 GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null)
 REGISTER_FLAGS ?=
+VERSION ?= 2.7.0
+GO_LDFLAGS ?= -X main.version=$(VERSION)
 
 $(MCP_DOCKER): go.mod go.sum $(GO_SOURCES)
 	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
-	go build -o $(MCP_DOCKER) ./cmd/mcp-docker
+	go build -ldflags "$(GO_LDFLAGS)" -o $(MCP_DOCKER) ./cmd/mcp-docker
 
 .PHONY: register-claude
 register-claude: $(MCP_DOCKER) ## Claude CLI に MCP サーバーを登録
