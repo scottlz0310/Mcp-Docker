@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `MCP_GATEWAY_PUBLIC_URL` が IDE 設定生成に反映され、`MCP_GATEWAY_BASE_URL` より優先されることを BATS で検証
 - `mcp-docker --version` の Go テストを追加
+- `cmd/mcp-docker/main.go` を Codecov 対象に戻し、CLI 実装コードのカバレッジを可視化
 
 ### 📦 依存関係更新
 
