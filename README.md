@@ -1,26 +1,22 @@
 # Mcp-Docker — MCP Server Docker 統合環境
 
-GitHub MCP Server をはじめとする複数の MCP サーバーを Docker で常駐させ、OAuth 2.0 認証を一元化して各 IDE から統一的に利用する環境。
+GitHub MCP Server をはじめとする複数の MCP サーバーを Docker で常駐させ、OAuth 2.0 認証を一元化して各 CLI から統一的に利用する環境。
 
 ## アーキテクチャ
 
 ```
-IDE（VS Code / Cursor / Kiro / Amazon Q / Copilot CLI）
+CLI（Claude CLI / GitHub Copilot CLI / Codex CLI）
   ↓ HTTP  127.0.0.1:8080
 mcp-gateway  ← OAuth 2.0 認証・ルーティング
   ├── /mcp/github          → github-mcp-server   [OAuth 必須]
   ├── /mcp/copilot-review  → copilot-review-mcp  [OAuth 必須]
   └── /mcp/playwright      → playwright-mcp      [auth=none]
-
-Claude Desktop（stdio のみ）
-  ↓ stdio
-docker run -i --rm ghcr.io/github/github-mcp-server:main stdio
 ```
 
 ### 設計思想：認証の一元化
 
-各 IDE の設定ファイルにはトークン値ではなく `http://127.0.0.1:8080/<path>` という URL のみを書く。
-OAuth フローは mcp-gateway コンテナ内で完結するため、IDE の起動方法（GUI / ターミナル / スタートメニュー）に関わらず認証が安定する。
+各 CLI の MCP 設定にはトークン値ではなく `http://127.0.0.1:8080/<path>` という URL のみを書く。
+OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起動方法に関わらず認証が安定する。
 
 ## サービス構成
 
@@ -61,12 +57,6 @@ cp .env.template .env
 
 # 3. 全サービス起動
 make start-gateway
-```
-
-初回は setup スクリプトも利用できます：
-
-```bash
-./scripts/setup.sh
 ```
 
 ### GitHub Personal Access Token
@@ -113,7 +103,7 @@ GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 > callback URL は `MCP_GATEWAY_PUBLIC_URL`（未設定時は `MCP_GATEWAY_BASE_URL`）と一致させてください（末尾に `/callback`）。
 
 
-## IDE 統合
+## CLI 統合
 
 ### Primary: CLI 登録（推奨）
 
@@ -167,63 +157,6 @@ go run ./cmd/mcp-docker register --agent all --yes
 
 `ROUTE_GITHUB` は `github`、`ROUTE_COPILOT_REVIEW` は `copilot-review` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
 
-### フォールバック: 設定ファイル生成（Legacy）
-
-`mcp add` コマンドに対応していない IDE（VS Code GUI・Amazon Q・Kiro など）向けには、`generate-ide-config.sh` で IDE 別の JSON/TOML 設定を生成できます：
-
-```bash
-make gen-config IDE=vscode       # VS Code / Cursor
-make gen-config IDE=kiro         # Kiro: ~/.kiro/settings/mcp.json
-make gen-config IDE=amazonq      # Amazon Q
-make gen-config IDE=codex        # Codex CLI: ~/.codex/config.toml
-make gen-config IDE=copilot-cli  # Copilot CLI: ~/.copilot/mcp-config.json
-make gen-config IDE=claude-desktop  # Claude Desktop（stdio 方式）
-```
-
-`.mcp.json.example` に設定例があります：
-
-```json
-{
-  "mcpServers": {
-    "github":         { "type": "http", "url": "http://127.0.0.1:8080/mcp/github" },
-    "copilot-review": { "type": "http", "url": "http://127.0.0.1:8080/mcp/copilot-review" },
-    "playwright":     { "type": "http", "url": "http://127.0.0.1:8080/mcp/playwright" }
-  }
-}
-```
-
-> キー名はユーザーが自由に命名できます。上記は `.mcp.json.example` の例です。
-> IDE によっては `type` フィールドが不要な場合があります（省略可能）。
-
-IDE は mcp-gateway の OAuth フローでブラウザ認証を自動処理します。設定ファイルにトークンを書く必要はありません。
-
-### Claude Desktop（例外）
-
-Claude Desktop は HTTP transport 非対応のため、`docker run -i --rm ... stdio` で直接起動します：
-
-```json
-{
-  "mcpServers": {
-    "github-mcp-server-docker": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "-v", "/path/to/Mcp-Docker/config/github-mcp:/app/config:rw",
-        "-v", "github-mcp-cache:/app/cache:rw",
-        "ghcr.io/github/github-mcp-server:main",
-        "stdio"
-      ]
-    }
-  }
-}
-```
-
-- `-i` は必須（省略すると stdio 通信が切断されます）
-- `-e GITHUB_PERSONAL_ACCESS_TOKEN` は値を書かずそのまま記述（ホスト環境変数を転送）
-- パス `/path/to/Mcp-Docker/config/github-mcp` はクローン先の絶対パスに置き換えてください
-
-
 ## サービス操作
 
 ### Makefile コマンド
@@ -239,7 +172,6 @@ Claude Desktop は HTTP transport 非対応のため、`docker run -i --rm ... s
 | `make pull-main` | mcp-gateway / copilot-review-mcp の `:main` イメージ取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
-| `make gen-config` | IDE 設定生成（`IDE=vscode` 等を指定） |
 | `make register-claude` | Claude CLI に MCP サーバーを登録 |
 | `make register-copilot` | GitHub Copilot CLI に MCP サーバーを登録 |
 | `make register-codex` | Codex CLI に MCP サーバーを登録 |
@@ -313,11 +245,11 @@ make logs-gateway  # mcp-gateway ログ
 
 `GITHUB_PERSONAL_ACCESS_TOKEN` が未設定または無効な場合は設定を確認してください。
 
-### IDE から接続できない
+### CLI から接続できない
 
 1. mcp-gateway が起動しているか確認（`make status-gateway`）
 2. ポート確認（デフォルト 8080）
-3. IDE の MCP サーバー設定 URL が `http://127.0.0.1:8080/mcp/github` 等になっているか確認
+3. CLI の MCP サーバー設定 URL が `http://127.0.0.1:8080/mcp/github` 等になっているか確認
 4. OAuth フローが完了しているか確認（ブラウザで `http://127.0.0.1:8080/health` にアクセス可能か）
 
 ### タイムアウト
@@ -368,7 +300,7 @@ docker compose up -d
 
 **セキュリティ注意事項**:
 - `mcp-gateway-data` ボリュームは `mcp-gateway` コンテナ専用です。他のサービスには公開しないでください。
-- ボリュームパスやトークンファイルの内容を IDE 設定（`settings.json` 等）に含めないでください。IDE へは `http://127.0.0.1:8080/mcp/github` 等の URL のみを記載します。
+- ボリュームパスやトークンファイルの内容を CLI 設定に含めないでください。CLI へは `http://127.0.0.1:8080/mcp/github` 等の URL のみを記載します。
 
 ## ディレクトリ構成
 
@@ -383,17 +315,15 @@ Mcp-Docker/
 ├── docker-compose.yml          # メインの Compose 定義（4サービス）
 ├── Makefile                    # 操作コマンド集
 ├── config/
-│   ├── mcp-external.yml        # 外部 MCP サーバー定義
-│   └── github-mcp/             # github-mcp-server の設定（ボリュームマウント）
+│   └── mcp-external.yml        # 外部 MCP サーバー定義
 ├── scripts/
-│   ├── setup.sh                # 初回セットアップ
 │   ├── health-check.sh         # ヘルスチェック
 │   ├── lint-shell.sh           # シェルスクリプト Lint（make lint-shell）
-│   └── generate-ide-config.sh  # IDE 設定生成
+│   └── verify-mcp-endpoint.js  # MCP エンドポイント疎通確認
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
 │   ├── e2e-runbook-mcp-docker-cli.md  # CLI E2E 確認手順
-│   ├── plan-mcp-register-go.md # mcp-docker register 実装計画
+│   ├── archives/               # 旧設計メモ・検証ログ
 │   └── skills/                 # Codex / LLM 向け運用スキル
 ├── tests/
 │   └── shell/                  # BATS シェルテスト

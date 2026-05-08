@@ -85,10 +85,6 @@ status-gateway: ## 全サービスの状態確認
 pull-gateway: ## 全サービスの Docker イメージを取得
 	docker compose pull
 
-.PHONY: prepare
-prepare: ## 環境整備のみ実行（.env作成・事前確認）
-	./scripts/setup.sh --prepare-only
-
 # 後方互換エイリアス
 .PHONY: stop
 stop: stop-gateway ## 全サービスを停止（stop-gateway のエイリアス）
@@ -131,15 +127,6 @@ start-main: ## 最新開発版イメージで全サービスを起動
 
 .PHONY: restart-main
 restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動
-
-# ----------------------------------------
-# 設定生成（フォールバック / Legacy）
-# CLI 登録（mcp-docker register）が推奨だが、設定ファイル方式が必要な場合のフォールバック。
-# ----------------------------------------
-
-.PHONY: gen-config
-gen-config: ## [Legacy] IDE設定ファイルを生成 (IDE=vscode|claude-desktop|kiro|amazonq|codex|copilot-cli)
-	./scripts/generate-ide-config.sh --ide $(or $(IDE),vscode)
 
 # CLI 登録（Primary）
 BIN_DIR      := bin
@@ -212,9 +199,7 @@ test-shell: ## シェルスクリプトのテスト実行
 .PHONY: clean
 clean: ## 一時ファイル削除
 	@echo "キャッシュをクリーンアップ中..."
-	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage test-results
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
+	rm -rf .tmp test-results coverage.out
 	@echo "キャッシュクリーンアップ完了"
 
 .PHONY: clean-docker

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 修正
+
+- Windows では Makefile 経由の `mcp-docker` 成果物を `bin/mcp-docker.exe` として扱うよう修正（#133）
+- `mcp-docker register --dry-run` が `--yes` なしで入力待ちにならないよう修正（#133）
+
+### 🔧 改善
+
+- Codecov upload を OIDC 認証に切り替え、アップロード失敗を CI で検出するよう調整
+
+### 🗑️ 削除
+
+- `mcp-docker register` への一本化に合わせ、Legacy の IDE 設定生成スクリプトと関連テストを削除
+- 古い AI ツール向けルール、旧 issue template、旧単体 compose 例、Python/ci-helper 系の残骸を削除
+- 現行実装から外れた設計メモと検証ログを `docs/archives/` に退避
+
 ## [2.7.0] - 2026-05-07
 
 ### ✨ 新機能

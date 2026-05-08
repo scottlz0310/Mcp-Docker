@@ -15,11 +15,6 @@ examples/
 
 # Cache and logs
 *.log
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-__pycache__/
-*.pyc
 
 # IDE
 .vscode/
@@ -33,24 +28,17 @@ tests/
 *.bats
 
 # Build artifacts
-dist/
-build/
-*.egg-info/
+bin/
+coverage.out
 
 # Temporary files
+.tmp/
 tmp/
 temp/
 *.tmp
 
 # CI/CD
-.actrc*
-ci-helper.toml*
 .trivyignore
-
-# Python virtual environments
-.venv/
-venv/
-env/
 
 # Other
 .DS_Store
