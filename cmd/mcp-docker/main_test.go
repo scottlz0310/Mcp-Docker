@@ -3,11 +3,22 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/scottlz0310/mcp-docker/tools/internal/register"
 )
+
+var errUnexpectedStdinRead = errors.New("unexpected stdin read")
+
+type errorReader struct{}
+
+func (errorReader) Read([]byte) (int, error) {
+	return 0, errUnexpectedStdinRead
+}
 
 func TestVersionCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
@@ -20,6 +31,41 @@ func TestVersionCommand(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRegisterDryRunDoesNotPromptForRouteNames(t *testing.T) {
+	dir := t.TempDir()
+	composePath := filepath.Join(dir, "docker-compose.yml")
+	externalPath := filepath.Join(dir, "mcp-external.yml")
+	if err := os.WriteFile(composePath, []byte(`services:
+  mcp-gateway:
+    environment:
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(externalPath, []byte("servers: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{
+		"register",
+		"--dry-run",
+		"--compose", composePath,
+		"--external", externalPath,
+	}, &stdout, &stderr, errorReader{})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	got := stdout.String()
+	if strings.Contains(got, "[Enter to accept") {
+		t.Fatalf("stdout = %q, dry-run should not prompt for route names", got)
+	}
+	if !strings.Contains(got, "claude の dry-run 計画:") {
+		t.Fatalf("stdout = %q, want dry-run plan", got)
 	}
 }
 

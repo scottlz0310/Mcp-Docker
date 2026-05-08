@@ -78,7 +78,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		return errors.New("MCP サーバーが見つかりませんでした")
 	}
 
-	if !opts.yes {
+	if !opts.yes && !opts.dryRun {
 		if err := confirmRouteNames(stdin, stdout, servers); err != nil {
 			return err
 		}

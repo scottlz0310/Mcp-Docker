@@ -143,7 +143,11 @@ gen-config: ## [Legacy] IDE設定ファイルを生成 (IDE=vscode|claude-deskto
 
 # CLI 登録（Primary）
 BIN_DIR      := bin
-MCP_DOCKER   := $(BIN_DIR)/mcp-docker
+EXE_EXT      :=
+ifeq ($(OS),Windows_NT)
+  EXE_EXT    := .exe
+endif
+MCP_DOCKER   := $(BIN_DIR)/mcp-docker$(EXE_EXT)
 GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null)
 REGISTER_FLAGS ?=
 VERSION ?= 2.7.0
