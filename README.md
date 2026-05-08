@@ -315,7 +315,8 @@ Mcp-Docker/
 ├── docker-compose.yml          # メインの Compose 定義（4サービス）
 ├── Makefile                    # 操作コマンド集
 ├── config/
-│   └── mcp-external.yml        # 外部 MCP サーバー定義
+│   ├── mcp-external.yml        # 外部 MCP サーバー定義
+│   └── github-mcp/             # GitHub MCP のローカル bind mount 用（未作成時は Docker が作成）
 ├── scripts/
 │   ├── health-check.sh         # ヘルスチェック
 │   ├── lint-shell.sh           # シェルスクリプト Lint（make lint-shell）
