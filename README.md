@@ -121,6 +121,8 @@ CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot 
 
 ```bash
 # 事前に make start-gateway で mcp-gateway を起動
+make build-go
+
 make register-claude   REGISTER_FLAGS=--yes
 make register-copilot  REGISTER_FLAGS=--yes
 make register-codex    REGISTER_FLAGS=--yes
@@ -129,29 +131,32 @@ make register-codex    REGISTER_FLAGS=--yes
 make register-all      REGISTER_FLAGS=--yes
 ```
 
+Makefile 経由のビルド成果物は OS に合わせて決まります。Windows (`OS=Windows_NT`) では `bin/mcp-docker.exe` を生成し、`register-*` も `.exe` 付きのバイナリを実行します。Linux/macOS では従来通り `bin/mcp-docker` です。
+
 Makefile を使わず Go ツールチェーンから直接ビルド・実行する場合：
 
 ```bash
-# ビルド
+# Linux/macOS/Git Bash
 go build -trimpath -ldflags="-X main.version=2.7.0" -o ./bin/mcp-docker ./cmd/mcp-docker
-
-# バージョン確認
 ./bin/mcp-docker --version
-
-# 登録計画の確認
-./bin/mcp-docker register --dry-run --yes
-
-# 登録実行
+./bin/mcp-docker register --dry-run
 ./bin/mcp-docker register --agent all --yes
 ```
 
-Windows のネイティブシェルで実行する場合は、出力先を `.\bin\mcp-docker.exe` にしてください。
+Windows のネイティブシェルで実行する場合：
+
+```powershell
+go build -trimpath -ldflags="-X main.version=2.7.0" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
+.\bin\mcp-docker.exe --version
+.\bin\mcp-docker.exe register --dry-run
+.\bin\mcp-docker.exe register --agent all --yes
+```
 
 ビルド済みバイナリを残したくない場合は `go run` でも同じ登録フローを実行できます：
 
 ```bash
 go run ./cmd/mcp-docker --version
-go run ./cmd/mcp-docker register --dry-run --yes
+go run ./cmd/mcp-docker register --dry-run
 go run ./cmd/mcp-docker register --agent all --yes
 ```
 

@@ -8,7 +8,7 @@
 
 | 項目 | 確認コマンド |
 |------|------------|
-| `mcp-docker` バイナリ（ビルド済み） | `./bin/mcp-docker --version` |
+| `mcp-docker` バイナリ（ビルド済み） | Linux/macOS: `./bin/mcp-docker --version`<br>Windows: `.\bin\mcp-docker.exe --version` |
 | Docker Compose スタック起動済み | `make status` |
 | 確認したい IDE CLI のインストール | 各セクション参照 |
 
@@ -18,13 +18,47 @@
 
 ```bash
 # リポジトリルートで実行
+make build-go
+```
+
+Makefile 経由では OS に応じて成果物名が変わる。
+
+- Linux/macOS: `./bin/mcp-docker`
+- Windows (`OS=Windows_NT`): `.\bin\mcp-docker.exe`
+
+Makefile を使わず直接ビルドする場合：
+
+```bash
+# Linux/macOS/Git Bash
 go build -trimpath -ldflags="-X main.version=2.7.0" -o ./bin/mcp-docker ./cmd/mcp-docker
+```
 
-# バージョン確認
+```powershell
+# Windows PowerShell/cmd.exe
+go build -trimpath -ldflags="-X main.version=2.7.0" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
+```
+
+Linux/macOS または Git Bash で確認する場合：
+
+```bash
 ./bin/mcp-docker --version
-
-# ヘルプ確認
 ./bin/mcp-docker --help
+```
+
+Windows のネイティブシェルで確認する場合：
+
+```powershell
+.\bin\mcp-docker.exe --version
+.\bin\mcp-docker.exe --help
+```
+
+以降の `./bin/mcp-docker` は Linux/macOS または Git Bash 向けの表記。Windows の PowerShell/cmd.exe では `.\bin\mcp-docker.exe` に読み替える。
+
+Makefile 経由の登録ターゲットを確認する場合：
+
+```powershell
+make register-all REGISTER_FLAGS=--dry-run
+make register-claude REGISTER_FLAGS=--dry-run
 ```
 
 **期待出力（バージョン）:**
@@ -48,7 +82,7 @@ mcp-docker は MCP Docker の補助ワークフローを管理します。
 ## ステップ 1: dry-run で登録計画を確認
 
 ```bash
-./bin/mcp-docker register --dry-run --yes
+./bin/mcp-docker register --dry-run
 ```
 
 **期待出力例（サーバーが 3 件の場合）:**
@@ -199,7 +233,7 @@ servers:
 ```
 
 ```bash
-./bin/mcp-docker register --dry-run --yes
+./bin/mcp-docker register --dry-run
 ```
 
 **確認ポイント:**
