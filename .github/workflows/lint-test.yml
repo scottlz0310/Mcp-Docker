@@ -39,6 +39,9 @@ jobs:
   test-go:
     name: Go CLI チェック（vet/test/build）
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -54,12 +57,18 @@ jobs:
       - name: Go テスト
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: カバレッジファイル確認
+        run: test -s coverage.out
+
       - name: Codecov アップロード
         uses: codecov/codecov-action@v5
         with:
           files: coverage.out
-          fail_ci_if_error: false
+          flags: go-cli
+          name: go-cli
+          use_oidc: true
+          fail_ci_if_error: true
+          verbose: true
 
       - name: Go ビルド
         run: go build ./cmd/mcp-docker
-

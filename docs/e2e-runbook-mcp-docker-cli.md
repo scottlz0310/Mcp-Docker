@@ -1,6 +1,6 @@
 # mcp-docker CLI E2E テストランブック
 
-`mcp-docker register` コマンドが各 IDE CLI の MCP 設定ファイルに正しく書き込まれることを手動で確認する手順書。
+`mcp-docker register` コマンドが各 CLI の MCP 設定ファイルに正しく書き込まれることを手動で確認する手順書。
 
 ---
 
@@ -10,7 +10,7 @@
 |------|------------|
 | `mcp-docker` バイナリ（ビルド済み） | Linux/macOS: `./bin/mcp-docker --version`<br>Windows: `.\bin\mcp-docker.exe --version` |
 | Docker Compose スタック起動済み | `make status` |
-| 確認したい IDE CLI のインストール | 各セクション参照 |
+| 確認したい CLI のインストール | 各セクション参照 |
 
 ---
 

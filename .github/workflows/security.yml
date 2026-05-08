@@ -35,7 +35,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           scanners: vuln,secret,misconfig
-          skip-dirs: .git,.ci-helper,.venv,dist
+          skip-dirs: .git,bin,.tmp
           limit-severities-for-sarif: true
           trivyignores: .trivyignore
 
@@ -74,5 +74,4 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-github-mcp-results.sarif
-
 

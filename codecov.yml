@@ -1,4 +1,7 @@
 coverage:
+  precision: 2
+  round: down
+  range: 60..90
   status:
     project:
       default:
@@ -13,3 +16,9 @@ comment:
   layout: reach,diff,flags,files
   behavior: default
   require_changes: false
+
+flags:
+  go-cli:
+    paths:
+      - cmd/
+      - internal/
