@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-05-09
+
 ### 🐛 修正
 
 - Windows では Makefile 経由の `mcp-docker` 成果物を `bin/mcp-docker.exe` として扱うよう修正（#133）
 - `mcp-docker register --dry-run` が `--yes` なしで入力待ちにならないよう修正（#133）
+- Go モジュールパスを `github.com/scottlz0310/mcp-docker/v2` に修正し `go install` でのグローバルインストールを可能に（#138）
+  - 旧パスの `/tools` サフィックスが Go プロキシに不正解釈される問題を解消
+  - v2.x.x タグに対応した `/v2` サフィックスを付与し `@latest` が正しく解決されるよう修正
 
 ### 🔧 改善
 
@@ -367,7 +372,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.5.0...v2.6.0
