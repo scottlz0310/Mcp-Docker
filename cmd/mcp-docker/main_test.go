@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scottlz0310/mcp-docker/tools/internal/register"
+	"github.com/scottlz0310/mcp-docker/v2/internal/register"
 )
 
 var errUnexpectedStdinRead = errors.New("unexpected stdin read")

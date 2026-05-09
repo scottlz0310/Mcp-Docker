@@ -1,4 +1,4 @@
-module github.com/scottlz0310/mcp-docker/tools
+module github.com/scottlz0310/mcp-docker/v2
 
 go 1.26.3
 
