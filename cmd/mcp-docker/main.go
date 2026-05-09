@@ -10,9 +10,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/scottlz0310/mcp-docker/tools/internal/compose"
-	"github.com/scottlz0310/mcp-docker/tools/internal/external"
-	"github.com/scottlz0310/mcp-docker/tools/internal/register"
+	"github.com/scottlz0310/mcp-docker/v2/internal/compose"
+	"github.com/scottlz0310/mcp-docker/v2/internal/external"
+	"github.com/scottlz0310/mcp-docker/v2/internal/register"
 )
 
 const usage = `mcp-docker は MCP Docker の補助ワークフローを管理します。

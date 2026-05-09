@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/scottlz0310/mcp-docker/tools/internal/register"
+	"github.com/scottlz0310/mcp-docker/v2/internal/register"
 	"gopkg.in/yaml.v3"
 )
 
