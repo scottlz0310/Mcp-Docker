@@ -201,13 +201,23 @@ func TestSelectAgentsByNamesRejectsUnknown(t *testing.T) {
 	}
 }
 
-func TestFilterServersKeepsOnlySelected(t *testing.T) {
+func TestSelectIndicesAndPickServers(t *testing.T) {
 	servers := []register.Server{
 		{Name: "github"},
 		{Name: "playwright"},
 		{Name: "copilot-review"},
 	}
-	got := filterServers(servers, []string{"playwright", "copilot-review"})
+	indices := selectIndices(servers, []string{"playwright", "copilot-review"})
+	wantIdx := []int{1, 2}
+	if len(indices) != len(wantIdx) {
+		t.Fatalf("indices = %v, want %v", indices, wantIdx)
+	}
+	for i, want := range wantIdx {
+		if indices[i] != want {
+			t.Fatalf("indices[%d] = %d, want %d", i, indices[i], want)
+		}
+	}
+	got := pickServers(servers, indices)
 	wantNames := []string{"playwright", "copilot-review"}
 	gotNames := make([]string, len(got))
 	for i, s := range got {
@@ -215,6 +225,29 @@ func TestFilterServersKeepsOnlySelected(t *testing.T) {
 	}
 	if !equalStringSlices(gotNames, wantNames) {
 		t.Fatalf("got %v, want %v", gotNames, wantNames)
+	}
+}
+
+func TestPickServersReflectsOverridesOnOriginalSlice(t *testing.T) {
+	servers := []register.Server{
+		{Name: "github", URL: "u1"},
+		{Name: "playwright", URL: "u2"},
+	}
+	indices := selectIndices(servers, []string{"github"})
+	servers[indices[0]].Name = "github-prod"
+	got := pickServers(servers, indices)
+	if len(got) != 1 || got[0].Name != "github-prod" {
+		t.Fatalf("got %v, want one server with overridden name", got)
+	}
+}
+
+func TestValidateUniqueServersDetectsCollisionAcrossUnselected(t *testing.T) {
+	servers := []register.Server{
+		{Name: "playwright", URL: "u1", Source: "ROUTE_GITHUB"},
+		{Name: "playwright", URL: "u2", Source: "ROUTE_PLAYWRIGHT"},
+	}
+	if err := validateUniqueServers(servers); err == nil {
+		t.Fatal("expected duplicate detection across full server set")
 	}
 }
 

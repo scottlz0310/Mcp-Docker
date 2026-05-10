@@ -126,19 +126,21 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		}
 	}
 
-	selectedServers := filterServers(servers, selectedServerNames)
-	if len(selectedServers) == 0 {
+	selectedIndices := selectIndices(servers, selectedServerNames)
+	if len(selectedIndices) == 0 {
 		return errors.New("選択された MCP サーバーがありません")
 	}
 
 	if !opts.yes && !opts.dryRun {
-		if err := confirmRouteNames(stdinReader, stdout, selectedServers); err != nil {
+		if err := confirmRouteNames(stdinReader, stdout, servers); err != nil {
 			return err
 		}
-		if err := validateUniqueServers(selectedServers); err != nil {
+		if err := validateUniqueServers(servers); err != nil {
 			return err
 		}
 	}
+
+	selectedServers := pickServers(servers, selectedIndices)
 
 	selected, err := selectAgentsByNames(agentNames)
 	if err != nil {
@@ -241,16 +243,23 @@ func serverNames(servers []register.Server) []string {
 	return names
 }
 
-func filterServers(servers []register.Server, selected []string) []register.Server {
-	want := make(map[string]struct{}, len(selected))
+func selectIndices(servers []register.Server, selected []string) []int {
+	out := make([]int, 0, len(selected))
 	for _, name := range selected {
-		want[name] = struct{}{}
-	}
-	out := make([]register.Server, 0, len(selected))
-	for _, s := range servers {
-		if _, ok := want[s.Name]; ok {
-			out = append(out, s)
+		for i, s := range servers {
+			if s.Name == name {
+				out = append(out, i)
+				break
+			}
 		}
+	}
+	return out
+}
+
+func pickServers(servers []register.Server, indices []int) []register.Server {
+	out := make([]register.Server, 0, len(indices))
+	for _, i := range indices {
+		out = append(out, servers[i])
 	}
 	return out
 }
