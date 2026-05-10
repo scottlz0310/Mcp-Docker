@@ -144,6 +144,10 @@ $(MCP_DOCKER): go.mod go.sum $(GO_SOURCES)
 	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
 	go build -ldflags "$(GO_LDFLAGS)" -o $(MCP_DOCKER) ./cmd/mcp-docker
 
+.PHONY: register
+register: $(MCP_DOCKER) ## 対話的に IDE/CLI と MCP サーバーを選択して登録
+	$(MCP_DOCKER) register $(REGISTER_FLAGS)
+
 .PHONY: register-claude
 register-claude: $(MCP_DOCKER) ## Claude CLI に MCP サーバーを登録
 	$(MCP_DOCKER) register --agent claude $(REGISTER_FLAGS)

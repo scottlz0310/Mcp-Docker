@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- `mcp-docker register` を対話モード対応に拡張（#134）
+  - 引数なしかつ TTY 実行時は番号入力 UI で agent / MCP サーバーを複数選択
+  - `--server <csv>|all` を新規追加し、`--agent claude,codex` のようなカンマ区切り指定にも対応
+  - `--interactive` を明示指定したまま非 TTY 環境で起動した場合はエラーで終了
+  - `make register` ターゲットを追加（`register-*` は後方互換のため維持）
+
 ## [2.8.0] - 2026-05-09
 
 ### 🐛 修正
