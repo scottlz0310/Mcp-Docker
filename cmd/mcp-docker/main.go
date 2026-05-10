@@ -88,7 +88,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	useInteractive := opts.interactive
-	if !explicit["interactive"] && !opts.yes && !opts.dryRun &&
+	if !explicit["interactive"] && !explicit["yes"] && !explicit["dry-run"] &&
 		!explicit["agent"] && !explicit["server"] &&
 		stdinIsTTY && stdoutIsTTY {
 		useInteractive = true
@@ -103,14 +103,15 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	availableServerNames := serverNames(servers)
+	stdinReader := bufio.NewReader(stdin)
 
 	var agentNames, selectedServerNames []string
 	if useInteractive {
-		agentNames, err = promptSelection(stdin, stdout, "登録する IDE/CLI を選択", allAgentNames)
+		agentNames, err = promptSelection(stdinReader, stdout, "登録する IDE/CLI を選択", allAgentNames)
 		if err != nil {
 			return err
 		}
-		selectedServerNames, err = promptSelection(stdin, stdout, "登録する MCP サーバーを選択", availableServerNames)
+		selectedServerNames, err = promptSelection(stdinReader, stdout, "登録する MCP サーバーを選択", availableServerNames)
 		if err != nil {
 			return err
 		}
@@ -131,7 +132,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	if !opts.yes && !opts.dryRun {
-		if err := confirmRouteNames(stdin, stdout, selectedServers); err != nil {
+		if err := confirmRouteNames(stdinReader, stdout, selectedServers); err != nil {
 			return err
 		}
 		if err := validateUniqueServers(selectedServers); err != nil {
@@ -184,8 +185,7 @@ func loadServers(composePath, externalPath string) ([]register.Server, error) {
 	return servers, validateUniqueServers(servers)
 }
 
-func confirmRouteNames(stdin io.Reader, stdout io.Writer, servers []register.Server) error {
-	reader := bufio.NewReader(stdin)
+func confirmRouteNames(reader *bufio.Reader, stdout io.Writer, servers []register.Server) error {
 	for i := range servers {
 		if servers[i].Source == "" {
 			continue

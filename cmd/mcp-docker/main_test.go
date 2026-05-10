@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -298,7 +299,7 @@ func TestRegisterRejectsInteractiveOnNonTTY(t *testing.T) {
 
 func TestPromptSelectionEOFAborts(t *testing.T) {
 	var stdout bytes.Buffer
-	_, err := promptSelection(strings.NewReader(""), &stdout, "select", []string{"a", "b"})
+	_, err := promptSelection(bufio.NewReader(strings.NewReader("")), &stdout, "select", []string{"a", "b"})
 	if !errors.Is(err, errAborted) {
 		t.Fatalf("err = %v, want errAborted on EOF without newline", err)
 	}
@@ -306,12 +307,31 @@ func TestPromptSelectionEOFAborts(t *testing.T) {
 
 func TestPromptSelectionEnterAcceptsAll(t *testing.T) {
 	var stdout bytes.Buffer
-	got, err := promptSelection(strings.NewReader("\n"), &stdout, "select", []string{"a", "b"})
+	got, err := promptSelection(bufio.NewReader(strings.NewReader("\n")), &stdout, "select", []string{"a", "b"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !equalStringSlices(got, []string{"a", "b"}) {
 		t.Fatalf("got %v, want [a b]", got)
+	}
+}
+
+func TestPromptSelectionReusesBufferAcrossCalls(t *testing.T) {
+	var stdout bytes.Buffer
+	reader := bufio.NewReader(strings.NewReader("1,2\nclaude\n"))
+	got, err := promptSelection(reader, &stdout, "first", []string{"a", "b", "c"})
+	if err != nil {
+		t.Fatalf("first call err: %v", err)
+	}
+	if !equalStringSlices(got, []string{"a", "b"}) {
+		t.Fatalf("first got %v, want [a b]", got)
+	}
+	got2, err := promptSelection(reader, &stdout, "second", []string{"claude", "codex"})
+	if err != nil {
+		t.Fatalf("second call err: %v", err)
+	}
+	if !equalStringSlices(got2, []string{"claude"}) {
+		t.Fatalf("second got %v, want [claude]", got2)
 	}
 }
 

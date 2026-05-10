@@ -24,11 +24,10 @@ func isTerminal(v any) bool {
 	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
-func promptSelection(stdin io.Reader, stdout io.Writer, label string, items []string) ([]string, error) {
+func promptSelection(reader *bufio.Reader, stdout io.Writer, label string, items []string) ([]string, error) {
 	if len(items) == 0 {
 		return nil, fmt.Errorf("%s: 選択肢がありません", label)
 	}
-	reader := bufio.NewReader(stdin)
 	fmt.Fprintf(stdout, "%s [all]:\n", label)
 	for i, item := range items {
 		fmt.Fprintf(stdout, "  %d) %s\n", i+1, item)
