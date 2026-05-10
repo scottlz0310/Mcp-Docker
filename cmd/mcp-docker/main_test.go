@@ -296,6 +296,25 @@ func TestRegisterRejectsInteractiveOnNonTTY(t *testing.T) {
 	}
 }
 
+func TestPromptSelectionEOFAborts(t *testing.T) {
+	var stdout bytes.Buffer
+	_, err := promptSelection(strings.NewReader(""), &stdout, "select", []string{"a", "b"})
+	if !errors.Is(err, errAborted) {
+		t.Fatalf("err = %v, want errAborted on EOF without newline", err)
+	}
+}
+
+func TestPromptSelectionEnterAcceptsAll(t *testing.T) {
+	var stdout bytes.Buffer
+	got, err := promptSelection(strings.NewReader("\n"), &stdout, "select", []string{"a", "b"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !equalStringSlices(got, []string{"a", "b"}) {
+		t.Fatalf("got %v, want [a b]", got)
+	}
+}
+
 func TestRegisterUnknownAgentValueErrors(t *testing.T) {
 	dir := t.TempDir()
 	composePath := filepath.Join(dir, "docker-compose.yml")

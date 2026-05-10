@@ -88,7 +88,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	useInteractive := opts.interactive
-	if !useInteractive && !opts.yes && !opts.dryRun &&
+	if !explicit["interactive"] && !opts.yes && !opts.dryRun &&
 		!explicit["agent"] && !explicit["server"] &&
 		stdinIsTTY && stdoutIsTTY {
 		useInteractive = true

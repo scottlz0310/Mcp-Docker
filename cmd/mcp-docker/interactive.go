@@ -38,6 +38,9 @@ func promptSelection(stdin io.Reader, stdout io.Writer, label string, items []st
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+	if errors.Is(err, io.EOF) && !strings.HasSuffix(line, "\n") {
+		return nil, errAborted
+	}
 	return parseSelection(line, items)
 }
 

@@ -124,7 +124,7 @@ make register-codex    REGISTER_FLAGS=--yes
 make register-all      REGISTER_FLAGS=--yes
 ```
 
-`make register` は引数なしで `mcp-docker register` を呼び出し、TTY であれば agent と MCP サーバーを番号入力で複数選択できます。`--agent`, `--server`, `--yes`, `--dry-run` のいずれかを `REGISTER_FLAGS` で渡した場合は対話モードに入らず、従来通り非対話で実行します。
+`make register` は引数なしで `mcp-docker register` を呼び出し、TTY であれば agent と MCP サーバーを番号入力で複数選択できます。`--interactive`, `--agent`, `--server`, `--yes`, `--dry-run` のいずれかを `REGISTER_FLAGS` で渡した場合は **暗黙的な対話モードには入らず**、従来通りフラグの内容に従って実行します（`--interactive` 明示時はそのまま対話モードに入ります）。
 
 ```bash
 # 例: claude と codex に github / playwright だけ登録（非対話）
