@@ -113,12 +113,22 @@ CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot 
 # 事前に make start-gateway で mcp-gateway を起動
 make build-go
 
+# 対話的に agent / MCP サーバーを選択（TTY 環境）
+make register
+
 make register-claude   REGISTER_FLAGS=--yes
 make register-copilot  REGISTER_FLAGS=--yes
 make register-codex    REGISTER_FLAGS=--yes
 
 # 3 種類まとめて登録
 make register-all      REGISTER_FLAGS=--yes
+```
+
+`make register` は引数なしで `mcp-docker register` を呼び出し、TTY であれば agent と MCP サーバーを番号入力で複数選択できます。`--agent`, `--server`, `--yes`, `--dry-run` のいずれかを `REGISTER_FLAGS` で渡した場合は対話モードに入らず、従来通り非対話で実行します。
+
+```bash
+# 例: claude と codex に github / playwright だけ登録（非対話）
+make register REGISTER_FLAGS="--agent claude,codex --server github,playwright --yes"
 ```
 
 Makefile 経由のビルド成果物は OS に合わせて決まります。Windows (`OS=Windows_NT`) では `bin/mcp-docker.exe` を生成し、`register-*` も `.exe` 付きのバイナリを実行します。Linux/macOS では従来通り `bin/mcp-docker` です。
@@ -180,6 +190,7 @@ mcp-docker register --agent all --yes
 | `make pull-main` | mcp-gateway / copilot-review-mcp の `:main` イメージ取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
+| `make register` | 対話的に IDE/CLI と MCP サーバーを選択して登録 |
 | `make register-claude` | Claude CLI に MCP サーバーを登録 |
 | `make register-copilot` | GitHub Copilot CLI に MCP サーバーを登録 |
 | `make register-codex` | Codex CLI に MCP サーバーを登録 |
