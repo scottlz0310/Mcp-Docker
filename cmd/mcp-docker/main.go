@@ -27,7 +27,7 @@ register に何も引数を指定せず TTY から実行した場合は対話モ
 （agent と MCP サーバーを番号入力で複数選択できます）。
 `
 
-var version = "2.9.0"
+var version = "2.9.1"
 
 var allAgentNames = []string{"claude", "copilot", "codex"}
 
