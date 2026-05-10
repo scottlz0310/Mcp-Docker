@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-05-10
+
+### 📝 ドキュメント
+
+- `docs/e2e-runbook-mcp-docker-cli.md` の `mcp-docker --help` 期待出力を v2.9.0 で追加された `--server <csv>|all` / `--interactive` を含む現行 CLI 出力に整合（PR #141 review）
+
 ## [2.9.0] - 2026-05-10
 
 ### ✨ 新機能
@@ -382,7 +388,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.1...HEAD
+[2.9.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...v2.7.0

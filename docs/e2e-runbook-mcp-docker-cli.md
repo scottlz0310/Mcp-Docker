@@ -30,12 +30,12 @@ Makefile を使わず直接ビルドする場合：
 
 ```bash
 # Linux/macOS/Git Bash
-go build -trimpath -ldflags="-X main.version=2.9.0" -o ./bin/mcp-docker ./cmd/mcp-docker
+go build -trimpath -ldflags="-X main.version=2.9.1" -o ./bin/mcp-docker ./cmd/mcp-docker
 ```
 
 ```powershell
 # Windows PowerShell/cmd.exe
-go build -trimpath -ldflags="-X main.version=2.9.0" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
+go build -trimpath -ldflags="-X main.version=2.9.1" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
 ```
 
 Linux/macOS または Git Bash で確認する場合：
@@ -63,7 +63,7 @@ make register-claude REGISTER_FLAGS=--dry-run
 
 **期待出力（バージョン）:**
 ```
-mcp-docker 2.9.0
+mcp-docker 2.9.1
 ```
 
 **期待出力（ヘルプ）:**
@@ -71,10 +71,13 @@ mcp-docker 2.9.0
 mcp-docker は MCP Docker の補助ワークフローを管理します。
 
 使い方:
-  mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
+  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run]
   mcp-docker version
   mcp-docker --version
   mcp-docker -v
+
+register に何も引数を指定せず TTY から実行した場合は対話モードで起動します
+（agent と MCP サーバーを番号入力で複数選択できます）。
 ```
 
 ---
