@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-05-10
+
 ### ✨ 新機能
 
 - `mcp-docker register` を対話モード対応に拡張（#134）
@@ -380,7 +382,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.6.0...v2.6.1

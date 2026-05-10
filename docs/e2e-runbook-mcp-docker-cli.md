@@ -30,12 +30,12 @@ Makefile を使わず直接ビルドする場合：
 
 ```bash
 # Linux/macOS/Git Bash
-go build -trimpath -ldflags="-X main.version=2.7.0" -o ./bin/mcp-docker ./cmd/mcp-docker
+go build -trimpath -ldflags="-X main.version=2.9.0" -o ./bin/mcp-docker ./cmd/mcp-docker
 ```
 
 ```powershell
 # Windows PowerShell/cmd.exe
-go build -trimpath -ldflags="-X main.version=2.7.0" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
+go build -trimpath -ldflags="-X main.version=2.9.0" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
 ```
 
 Linux/macOS または Git Bash で確認する場合：
@@ -63,7 +63,7 @@ make register-claude REGISTER_FLAGS=--dry-run
 
 **期待出力（バージョン）:**
 ```
-mcp-docker 2.7.0
+mcp-docker 2.9.0
 ```
 
 **期待出力（ヘルプ）:**
