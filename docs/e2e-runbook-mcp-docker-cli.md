@@ -71,10 +71,13 @@ mcp-docker 2.9.0
 mcp-docker は MCP Docker の補助ワークフローを管理します。
 
 使い方:
-  mcp-docker register [--agent claude|copilot|codex|all] [--compose path] [--external path] [--yes] [--dry-run]
+  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run]
   mcp-docker version
   mcp-docker --version
   mcp-docker -v
+
+register に何も引数を指定せず TTY から実行した場合は対話モードで起動します
+（agent と MCP サーバーを番号入力で複数選択できます）。
 ```
 
 ---
