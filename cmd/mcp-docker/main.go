@@ -180,10 +180,9 @@ func loadServers(composePath, externalPath string) ([]register.Server, error) {
 		return nil, err
 	}
 
-	var servers []register.Server
-	for _, server := range append(composeServers, externalServers...) {
-		servers = append(servers, server)
-	}
+	servers := make([]register.Server, 0, len(composeServers)+len(externalServers))
+	servers = append(servers, composeServers...)
+	servers = append(servers, externalServers...)
 	return servers, validateUniqueServers(servers)
 }
 

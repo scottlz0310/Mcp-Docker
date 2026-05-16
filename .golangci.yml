@@ -1,0 +1,28 @@
+# golangci-lint v2 設定
+# https://golangci-lint.run/usage/configuration/
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck      # 未チェックのエラー戻り値を検出
+    - govet         # go vet 相当のチェック
+    - staticcheck   # 包括的な静的解析（SA/S/ST/QF チェック群、gosimple を含む）
+    - ineffassign   # 無効な代入を検出
+    - unused        # 未使用コードを検出
+    - misspell      # 英語スペルミスを検出
+
+  settings:
+    errcheck:
+      # fmt.Fprint* への io.Writer 書き込みエラーは慣用的に無視される
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Fprintf
+    govet:
+      disable:
+        - shadow
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
