@@ -11,6 +11,10 @@ EXIT_CODE=0
 
 # コマンドの確認
 if ! command -v shellcheck >/dev/null 2>&1; then
+    if [ "${CI:-}" = "true" ]; then
+        echo "❌ CI 環境で shellcheck が見つかりません（必須）"
+        exit 1
+    fi
     echo "⚠️  shellcheck がインストールされていません（スキップ）"
     echo "   インストール: brew install shellcheck"
     exit 0
