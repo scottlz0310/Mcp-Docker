@@ -36,6 +36,3 @@ disable=SC2231
 # SC2094: Make sure not to read and write the same file
 # 理由: パイプラインの順序を理解した上での使用
 disable=SC2094
-
-# SC2317 は引き続き無効化（コールバック関数の誤検知が多い）
-disable=SC2317

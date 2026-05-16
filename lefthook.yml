@@ -10,11 +10,11 @@ pre-commit:
 
     - name: shellcheck
       glob: "*.sh"
-      run: bash -c "command -v shellcheck >/dev/null 2>&1 && shellcheck {staged_files} || echo '⚠️ shellcheck not found, skipping'"
+      run: bash scripts/pre-commit-shellcheck.sh {staged_files}
 
     - name: yamllint
       glob: "*.{yml,yaml}"
-      run: bash -c "command -v yamllint >/dev/null 2>&1 && yamllint {staged_files} || echo '⚠️ yamllint not found, skipping'"
+      run: bash scripts/pre-commit-yamllint.sh {staged_files}
 
 pre-push:
   jobs:
