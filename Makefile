@@ -184,13 +184,7 @@ lint-shell: ## シェルスクリプトのlint実行
 
 .PHONY: lint-go
 lint-go: ## Go 静的解析（golangci-lint + go vet フォールバック）
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
-	else \
-		echo "⚠️  golangci-lint が見つかりません。go vet で代替します"; \
-		echo "   インストール: https://golangci-lint.run/welcome/install/"; \
-		go vet ./...; \
-	fi
+	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run ./... || (echo 'golangci-lint not found, falling back to go vet'; go vet ./...)
 
 .PHONY: test-shell
 test-shell: ## シェルスクリプトのテスト実行
