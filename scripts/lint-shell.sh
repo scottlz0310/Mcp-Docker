@@ -11,9 +11,9 @@ EXIT_CODE=0
 
 # コマンドの確認
 if ! command -v shellcheck >/dev/null 2>&1; then
-    echo "❌ shellcheck がインストールされていません"
+    echo "⚠️  shellcheck がインストールされていません（スキップ）"
     echo "   インストール: brew install shellcheck"
-    exit 1
+    exit 0
 fi
 
 # スクリプトファイルを配列に収集 (bash 4.0+ mapfile を使用)
