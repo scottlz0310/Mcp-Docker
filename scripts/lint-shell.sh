@@ -11,27 +11,31 @@ EXIT_CODE=0
 
 # コマンドの確認
 if ! command -v shellcheck >/dev/null 2>&1; then
-    echo "❌ shellcheck がインストールされていません"
+    if [ "${CI:-}" = "true" ]; then
+        echo "❌ CI 環境で shellcheck が見つかりません（必須）"
+        exit 1
+    fi
+    echo "⚠️  shellcheck がインストールされていません（スキップ）"
     echo "   インストール: brew install shellcheck"
-    exit 1
+    exit 0
 fi
 
-# スクリプトファイルを検索
-SHELL_FILES=$(find "${PROJECT_ROOT}/scripts" -type f -name "*.sh" 2>/dev/null || true)
+# スクリプトファイルを配列に収集 (bash 4.0+ mapfile を使用)
+mapfile -t SHELL_FILES < <(find "${PROJECT_ROOT}/scripts" -type f -name "*.sh" 2>/dev/null)
 
-if [ -z "$SHELL_FILES" ]; then
+if [ "${#SHELL_FILES[@]}" -eq 0 ]; then
     echo "⚠️  シェルスクリプトが見つかりません"
     exit 0
 fi
 
 echo "📋 検査対象:"
-while IFS= read -r file; do
+for file in "${SHELL_FILES[@]}"; do
     echo "  - $file"
-done <<< "$SHELL_FILES"
+done
 echo ""
 
 # リント実行
-for file in $SHELL_FILES; do
+for file in "${SHELL_FILES[@]}"; do
     echo "🔍 検査中: $(basename "$file")"
     if shellcheck "$file"; then
         echo "✅ $(basename "$file"): OK"

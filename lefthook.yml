@@ -1,0 +1,24 @@
+# lefthook.yml — pre-commit / pre-push フック設定
+# https://lefthook.dev/configuration/
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: go-vet
+      run: go vet ./...
+
+    - name: shellcheck
+      glob: "*.sh"
+      run: bash scripts/pre-commit-shellcheck.sh {staged_files}
+
+    - name: yamllint
+      glob: "*.{yml,yaml}"
+      run: bash scripts/pre-commit-yamllint.sh {staged_files}
+
+pre-push:
+  jobs:
+    - name: lint
+      run: make lint
+
+    - name: test-go
+      run: make test-go
