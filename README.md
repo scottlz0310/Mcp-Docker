@@ -262,7 +262,7 @@ CLOUDFLARE_API_TOKEN=your-token-here
 **3. `docker-compose.yml` の該当行を有効化**
 
 ```yaml
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required for Cloudflare Remote MCP}
       - ROUTE_CLOUDFLARE=/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN
 ```
 
