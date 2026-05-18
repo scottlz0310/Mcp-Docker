@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-05-18
+
+### ✨ 新機能
+
+- Remote MCP プロバイダーサポート追加（Cloudflare 対応・mcp-gateway v0.5.0 連携）— #146
+  - `docker-compose.yml` に Cloudflare Remote MCP プロバイダー設定（コメントアウト済み）を追加
+    - `ROUTE_CLOUDFLARE=/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN`
+  - `.env.template` に `CLOUDFLARE_API_TOKEN` セクションを追加
+  - README に Remote MCP プロバイダー設定ガイドを追加（Cloudflare を第一例として横展開パターンを文書化）
+
+### 📦 依存関係更新
+
+- `mcp-gateway v0.5.0` に対応（`upstream_bearer_token_env` 機能）
+
 ## [2.10.0] - 2026-05-18
 
 ### 🔧 改善
