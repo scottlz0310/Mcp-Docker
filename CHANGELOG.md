@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-05-18
+
+### 🔧 改善
+
+- `mcp-gateway v0.4.0` の `OAUTH_*` 環境変数移行に対応
+  - `GITHUB_MCP_CLIENT_ID` → `OAUTH_CLIENT_ID`（旧変数名は後方互換フォールバックとして維持）
+  - `GITHUB_MCP_CLIENT_SECRET` → `OAUTH_CLIENT_SECRET`（同上）
+  - `GITHUB_MCP_OAUTH_SCOPES` → `OAUTH_SCOPES`（同上）
+  - `docker-compose.yml` を二重フォールバック形式 `${OAUTH_CLIENT_ID:-${GITHUB_MCP_CLIENT_ID}}` に更新し、既存の `.env` を変更せずアップグレード可能に
+- `.env.template` に `OAUTH_*` 変数を推奨変数として追記し、`GITHUB_MCP_*` を非推奨レガシーフォールバックとしてマーク
+
+### ✨ 新機能
+
+- `MCP_GATEWAY_GITHUB_REFRESH_ENABLED`（Phase A）を `docker-compose.yml` に追加（デフォルト `false`）
+  - `true` に設定すると `mcp-gateway` がアクセストークンを透過的にローテーション
+- `.env.template` に Phase B 内部 API 変数（`MCP_GATEWAY_INTERNAL_SECRET` / `MCP_GATEWAY_INTERNAL_PORT`）を追記
+
+### 📦 依存関係更新
+
+- `mcp-gateway v0.4.0` / `copilot-review-mcp v3.2.0` に対応
+
 ## [2.9.1] - 2026-05-10
 
 ### 📝 ドキュメント
@@ -388,7 +409,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.7.0...v2.8.0
