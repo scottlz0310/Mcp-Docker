@@ -423,7 +423,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.10.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.8.0...v2.9.0
