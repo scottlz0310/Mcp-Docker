@@ -80,8 +80,8 @@ services:
       #   2. 下記2行のコメントを解除
       #   3. make restart
       #
-      # - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required for Cloudflare Remote MCP}
-      # - ROUTE_CLOUDFLARE=/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required for Cloudflare Remote MCP}
+      - ROUTE_CLOUDFLARE=/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN
       - OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - GITHUB_MCP_OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - LOG_LEVEL=${LOG_LEVEL:-info}
