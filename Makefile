@@ -151,7 +151,7 @@ endif
 MCP_DOCKER   := $(BIN_DIR)/mcp-docker$(EXE_EXT)
 GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null)
 REGISTER_FLAGS ?=
-VERSION ?= 2.9.1
+VERSION ?= 2.12.0
 GO_LDFLAGS ?= -X main.version=$(VERSION)
 
 $(MCP_DOCKER): go.mod go.sum $(GO_SOURCES)

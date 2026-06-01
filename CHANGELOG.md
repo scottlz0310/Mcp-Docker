@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-06-01
+
+### 🔧 改善
+
+- Cloudflare ルートの環境変数駆動化 — #151
+  - `docker-compose.yml` の Cloudflare 設定を `:?`（必須・未設定でエラー）から `:+`（条件付き展開）に変更
+  - `CLOUDFLARE_API_TOKEN` を `.env` に設定するだけで自動有効化。`docker-compose.yml` の編集不要
+  - mcp-gateway v0.5.1 の空 `ROUTE_*` スキップ対応と対になる変更
+
+### 🐛 バグ修正
+
+- `MCP_GITHUB_PAT` のネスト変数展開バグを修正 — #151
+  - Docker Compose は `${VAR:-${OTHER}}` のネストを解釈しない仕様のため、`MCP_GITHUB_PAT` 未設定時にリテラル文字列がコンテナに渡っていた
+  - Makefile 側でフォールバックを解決し、`docker-compose.yml` を単純なパススルーに変更
+- Makefile が `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を `.env` から読み取らない問題を修正 — #151（#147 フォロー）
+  - 新変数名 `OAUTH_*` / 旧変数名 `GITHUB_MCP_*` の双方向フォールバックを整備
+
+### 📦 依存関係更新
+
+- mcp-gateway v0.5.1 に対応（空 `ROUTE_*` env var スキップ）
+
 ## [2.11.0] - 2026-05-18
 
 ### ✨ 新機能
@@ -444,3 +465,4 @@ v1.x からの移行:
 [1.2.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/scottlz0310/Mcp-Docker/releases/tag/v1.0.1
+## [Unreleased]
