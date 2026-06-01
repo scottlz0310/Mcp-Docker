@@ -31,23 +31,37 @@ endif
 # ?= はシェルの export 済み変数を優先するので、環境変数が設定済みの場合は .env を無視する。
 ENV_GET = $(strip $(shell awk -v key='$(1)' '/^[[:space:]]*#/{next} $$0 ~ ("^[[:space:]]*" key "[[:space:]]*=") {val=substr($$0,index($$0,"=")+1); gsub(/^[[:space:]"'"'"']+|[[:space:]"'"'"']+$$/,"",val); print val; exit}' .env 2>/dev/null))
 ifneq (,$(wildcard .env))
+  OAUTH_CLIENT_ID              ?= $(call ENV_GET,OAUTH_CLIENT_ID)
+  OAUTH_CLIENT_SECRET          ?= $(call ENV_GET,OAUTH_CLIENT_SECRET)
   GITHUB_CLIENT_ID             ?= $(call ENV_GET,GITHUB_CLIENT_ID)
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
   GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
   GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
   GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
+  MCP_GITHUB_PAT               ?= $(call ENV_GET,MCP_GITHUB_PAT)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
 endif
 
-# mcp-gateway 向け変数が空または未設定なら既存 OAuth 変数をフォールバック利用
+# OAUTH_* → GITHUB_MCP_* → GITHUB_* の優先順位でフォールバック解決
+ifeq ($(strip $(OAUTH_CLIENT_ID)),)
+  OAUTH_CLIENT_ID := $(or $(GITHUB_MCP_CLIENT_ID),$(GITHUB_CLIENT_ID))
+endif
+ifeq ($(strip $(OAUTH_CLIENT_SECRET)),)
+  OAUTH_CLIENT_SECRET := $(or $(GITHUB_MCP_CLIENT_SECRET),$(GITHUB_CLIENT_SECRET))
+endif
+# 旧変数名も OAUTH_* から補完（docker-compose.yml 後方互換エイリアス向け）
 ifeq ($(strip $(GITHUB_MCP_CLIENT_ID)),)
-  GITHUB_MCP_CLIENT_ID := $(GITHUB_CLIENT_ID)
+  GITHUB_MCP_CLIENT_ID := $(OAUTH_CLIENT_ID)
 endif
 ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
-  GITHUB_MCP_CLIENT_SECRET := $(GITHUB_CLIENT_SECRET)
+  GITHUB_MCP_CLIENT_SECRET := $(OAUTH_CLIENT_SECRET)
+endif
+# MCP_GITHUB_PAT: docker-compose はネスト変数展開非対応のため Makefile 側で解決する
+ifeq ($(strip $(MCP_GITHUB_PAT)),)
+  MCP_GITHUB_PAT := $(GITHUB_PERSONAL_ACCESS_TOKEN)
 endif
 # 子プロセス（docker compose）に確実に渡す
-export GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GATEWAY_PORT
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GITHUB_PAT MCP_GATEWAY_PORT
 
 .DEFAULT_GOAL := help
 
@@ -62,7 +76,7 @@ help: ## 利用可能なターゲット一覧を表示
 
 .PHONY: start-gateway
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
-	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET (または旧変数 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET) を .env または環境変数に設定してください))
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
@@ -119,7 +133,7 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 
 .PHONY: start-main
 start-main: ## 最新開発版イメージで全サービスを起動
-	$(if $(and $(GITHUB_MCP_CLIENT_ID),$(GITHUB_MCP_CLIENT_SECRET)),,$(error ERROR: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET must be set in .env or environment))
+	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET (または旧変数 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET) を .env または環境変数に設定してください))
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp

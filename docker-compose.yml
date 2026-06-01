@@ -6,7 +6,7 @@ services:
     command: ["http", "--port", "${GITHUB_MCP_HTTP_PORT:-8082}"]
 
     environment:
-      - MCP_GITHUB_PAT=${MCP_GITHUB_PAT:-${GITHUB_PERSONAL_ACCESS_TOKEN}}
+      - MCP_GITHUB_PAT=${MCP_GITHUB_PAT}
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -75,13 +75,13 @@ services:
       # Remote MCP プロバイダー（upstream_bearer_token_env）— mcp-gateway v0.5.0 以降
       # =============================================================================
       # 外部 Remote MCP サービスを mcp-gateway 配下に収容する例（Cloudflare）。
+      # CLOUDFLARE_API_TOKEN が設定されている場合のみ自動的にルートが有効化されます。
       # 有効化手順:
       #   1. .env に CLOUDFLARE_API_TOKEN=<token> を設定
-      #   2. 下記2行のコメントを解除
-      #   3. make restart
+      #   2. make restart
       #
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required for Cloudflare Remote MCP}
-      - ROUTE_CLOUDFLARE=/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
+      - ROUTE_CLOUDFLARE=${CLOUDFLARE_API_TOKEN:+/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN}
       - OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - GITHUB_MCP_OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - LOG_LEVEL=${LOG_LEVEL:-info}
