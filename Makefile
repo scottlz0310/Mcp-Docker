@@ -17,8 +17,8 @@ ifeq ($(OS),Windows_NT)
       D:/PROGRA~2/Git/bin/bash.exe))
   endif
   ifeq ($(strip $(GIT_BASH)),)
-    $(error Windows では Git for Windows の bash.exe が必要です。\
-      インストール後に再実行するか GIT_BASH=<bash.exeのフルパス> を指定してください)
+    $(error Git for Windows bash.exe is required on Windows. \
+      Install Git for Windows and retry, or specify: GIT_BASH=<path/to/bash.exe>)
   endif
   SHELL       := $(GIT_BASH)
   .SHELLFLAGS := -c
@@ -78,7 +78,7 @@ help: ## 利用可能なターゲット一覧を表示
 
 .PHONY: start-gateway
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
-	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET (または旧変数 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET) を .env または環境変数に設定してください))
+	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
@@ -131,11 +131,15 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
 	docker compose pull mcp-gateway copilot-review-mcp
+ifeq ($(OS),Windows_NT)
 	@echo $$'\u2713 :main \u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
+else
+	@echo "✓ :main イメージを取得しました。起動: make start-main"
+endif
 
 .PHONY: start-main
 start-main: ## 最新開発版イメージで全サービスを起動
-	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET (または旧変数 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET) を .env または環境変数に設定してください))
+	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
 	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
@@ -212,8 +216,8 @@ test-shell: ## シェルスクリプトのテスト実行
 	@if command -v bats >/dev/null 2>&1; then \
 		bats tests/shell/*.bats; \
 	else \
-		echo "❌ bats がインストールされていません"; \
-		echo "   インストール: brew install bats-core"; \
+		echo "bats is not installed"; \
+		echo "   Install: brew install bats-core"; \
 		exit 1; \
 	fi
 
@@ -223,17 +227,37 @@ test-shell: ## シェルスクリプトのテスト実行
 
 .PHONY: clean
 clean: ## 一時ファイル削除
+ifeq ($(OS),Windows_NT)
 	@echo $$'\u30ad\u30e3\u30c3\u30b7\u30e5\u3092\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u4e2d...'
+else
+	@echo "キャッシュをクリーンアップ中..."
+endif
 	rm -rf .tmp test-results coverage.out
+ifeq ($(OS),Windows_NT)
 	@echo $$'\u30ad\u30e3\u30c3\u30b7\u30e5\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
+else
+	@echo "キャッシュクリーンアップ完了"
+endif
 
 .PHONY: clean-docker
 clean-docker: ## Dockerリソースクリーンアップ
+ifeq ($(OS),Windows_NT)
 	@echo $$'Docker\u30ea\u30bd\u30fc\u30b9\u3092\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u4e2d...'
+else
+	@echo "Dockerリソースをクリーンアップ中..."
+endif
 	docker compose down -v
 	docker system prune -f
+ifeq ($(OS),Windows_NT)
 	@echo $$'Docker\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
+else
+	@echo "Dockerクリーンアップ完了"
+endif
 
 .PHONY: clean-all
 clean-all: clean clean-docker ## 全てクリーンアップ
+ifeq ($(OS),Windows_NT)
 	@echo $$'\u3059\u3079\u3066\u306e\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
+else
+	@echo "すべてのクリーンアップ完了"
+endif
