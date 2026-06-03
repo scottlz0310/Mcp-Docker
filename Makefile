@@ -22,6 +22,8 @@ ifeq ($(OS),Windows_NT)
   endif
   SHELL       := $(GIT_BASH)
   .SHELLFLAGS := -c
+  export LANG   := C.UTF-8
+  export LC_ALL := C.UTF-8
 endif
 
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
@@ -129,7 +131,7 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
 	docker compose pull mcp-gateway copilot-review-mcp
-	@echo "✓ :main イメージを取得しました。起動: make start-main"
+	@echo $$'\u2713 :main \u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
 
 .PHONY: start-main
 start-main: ## 最新開発版イメージで全サービスを起動
@@ -221,17 +223,17 @@ test-shell: ## シェルスクリプトのテスト実行
 
 .PHONY: clean
 clean: ## 一時ファイル削除
-	@echo "キャッシュをクリーンアップ中..."
+	@echo $$'\u30ad\u30e3\u30c3\u30b7\u30e5\u3092\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u4e2d...'
 	rm -rf .tmp test-results coverage.out
-	@echo "キャッシュクリーンアップ完了"
+	@echo $$'\u30ad\u30e3\u30c3\u30b7\u30e5\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
 
 .PHONY: clean-docker
 clean-docker: ## Dockerリソースクリーンアップ
-	@echo "Dockerリソースをクリーンアップ中..."
+	@echo $$'Docker\u30ea\u30bd\u30fc\u30b9\u3092\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u4e2d...'
 	docker compose down -v
 	docker system prune -f
-	@echo "Dockerクリーンアップ完了"
+	@echo $$'Docker\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
 
 .PHONY: clean-all
 clean-all: clean clean-docker ## 全てクリーンアップ
-	@echo "すべてのクリーンアップ完了"
+	@echo $$'\u3059\u3079\u3066\u306e\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
