@@ -177,6 +177,7 @@ services:
       # volumes に ${THREAD_OWL_PEM_PATH}:/data/github-app.pem:ro を追加してください。
       - GITHUB_APP_PRIVATE_KEY_B64=${THREAD_OWL_GITHUB_APP_PRIVATE_KEY_B64}
       - ALLOWED_REPOS=${THREAD_OWL_ALLOWED_REPOS}
+      - GITHUB_WEBHOOK_SECRET=${THREAD_OWL_GITHUB_WEBHOOK_SECRET}
       - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
       # mcp-gateway がプレフィックスをストリップせず転送するため、gateway 側の route prefix に合わせる。
