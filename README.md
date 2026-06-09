@@ -416,6 +416,7 @@ Mcp-Docker/
 
 ## 関連リソース
 
+- [docs/architecture-review-platform.md](docs/architecture-review-platform.md) — review platform における Mcp-Docker の責務・責務境界
 - [github-mcp-server](https://github.com/github/github-mcp-server) — 本家 GitHub MCP サーバー
 - [mcp-gateway](https://github.com/scottlz0310/mcp-gateway) — OAuth ゲートウェイ
 - [copilot-review-mcp](https://github.com/scottlz0310/copilot-review-mcp) — Copilot レビュー自動化 MCP
