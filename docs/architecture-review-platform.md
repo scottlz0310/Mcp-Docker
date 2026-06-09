@@ -6,6 +6,10 @@
 
 関連: [Issue #158](https://github.com/scottlz0310/Mcp-Docker/issues/158)
 
+> **本ドキュメントの位置づけ**: 本書は `Mcp-Docker` の**目標とする責務モデル（target architecture）**を定義する。
+> 現行実装が目標と異なる箇所は各節に「現状」として注記する。コンポーネント名は移行後の名称（例: `review-raven`）で記述し、
+> 現行 compose / route が使用する旧名 `copilot-review-mcp`（route `/mcp/copilot-review`）からのリネーム移行は #159 で追跡する。
+
 ## 1. Review Platform の全体像
 
 レビュー基盤は、単一のアプリケーションではなく、責務の異なる複数の MCP / CLI コンポーネントの組み合わせで構成される。
@@ -33,6 +37,8 @@ Mcp-Docker
   └─ generated client config
 ```
 
+> **現状**: 上図は目標構成。現行 compose が起動するのは `github-mcp` / `copilot-review-mcp`（目標の `review-raven` の旧名）/ `playwright-mcp` / `thread-owl` / `mcp-gateway`。`copilot-review-mcp` → `review-raven` リネームは #159 で追跡する。
+
 ## 2. Mcp-Docker の定義
 
 `Mcp-Docker` は **MCP container orchestration / configuration automation layer** である。
@@ -53,6 +59,9 @@ Mcp-Docker
 - environment variable / secrets mount policy の整理
 - local development / semi-local operation の bootstrap scripts / docs
 - health check / status aggregation / logs への導線
+
+> **現状**: container lifecycle 管理（`docker-compose.yml` + `Makefile`）、CLI agent config 生成（`mcp-docker register`、対象は Claude Code / GitHub Copilot CLI / Codex CLI）、health check 導線（`scripts/health-check.sh`）は実装済み。
+> 以下は目標で未実装: compose profiles による選択的有効化（現状は optional service も既定起動）、Claude Desktop 向け設定生成、`mcp-gateway` route config の自動生成（現状は `docker-compose.yml` の `ROUTE_*` を手動定義し mcp-gateway が直接参照）。
 
 ### Mcp-Docker が担わないこと（委譲先）
 
@@ -89,23 +98,30 @@ mcp-gateway
 
 ## 5. Configuration automation の方針
 
-### gateway route config 生成
+### route 定義と外部サーバー定義
 
-- route 定義は `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*` を単一の source of truth とする
-- 外部 Remote MCP サーバーは `config/mcp-external.yml` に定義し、route config へ反映する
-- `ROUTE_GITHUB` → `github`、`ROUTE_PLAYWRIGHT` → `playwright` のように route 名を server 名へ変換する
+`Mcp-Docker` は性質の異なる 2 系統の MCP サーバー定義を扱う。
+
+- **gateway route**: `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*` を単一の source of truth とする。
+  現状は手動定義し `mcp-gateway` が直接参照する（route config の自動生成は目標）。
+- **外部直接登録サーバー**: `config/mcp-external.yml` の定義は **gateway route ではなく**、`mcp-docker register` が
+  CLI agent へ**直接登録する外部 MCP サーバー URL**（gateway を経由しない）の入力である。
+- `mcp-docker register` は `ROUTE_GITHUB` → `github`、`ROUTE_PLAYWRIGHT` → `playwright` のように route 名から登録名を導出する。
 
 ### CLI agent config 生成
 
-- CLI agent（Claude Code / Claude Desktop / Codex CLI 等）向けの MCP 設定を生成する
-- 生成される設定には token 値を含めず、`http://127.0.0.1:8080/<path>` の gateway URL のみを記載する
-- agent ごとの設定差分は template / profile として扱い、生成ロジックを共通化する
+- CLI agent（現状は Claude Code / GitHub Copilot CLI / Codex CLI）向けの MCP 設定を生成する。
+- gateway 経由のサーバーは token 値を含めず `http://127.0.0.1:8080/<path>` の gateway URL のみを記載する。
+  例外として `mcp-external.yml` の外部直接登録サーバーは upstream URL を直接記載し、token は agent が対応する場合のみ env 経由で渡す（Codex の `--bearer-token-env-var` 等）。
+- agent ごとの設定差分は template として扱い、生成ロジックを共通化する。
 
 ## 6. Compose profile / optional component 管理
 
 - review platform の中核コンポーネントと optional component を compose profile で分離する
 - optional component（github-mcp / playwright / Remote MCP プロバイダー等）は profile により選択的に有効化する
 - profile 単位で「最小構成」「フル構成」を切り替えられるようにし、運用者が必要なものだけ起動できるようにする
+
+> **現状**: compose profiles は未導入で、optional service（`playwright-mcp` 等）も既定で起動する。profile 化は本節の目標。
 
 ## 7. Bootstrap フロー
 
@@ -127,6 +143,8 @@ mcp-gateway
   ↓ routes
 Thread Owl / review-raven / other MCP servers
 ```
+
+> **現状**: 上図は目標フロー。現行は `make start-gateway` で全サービスを起動し、`mcp-docker register` で CLI agent 設定を生成する。gateway config / agent config の自動生成と profile 起点の bootstrap は目標。
 
 ## 8. 設計原則
 
