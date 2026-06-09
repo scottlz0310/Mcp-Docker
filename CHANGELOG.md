@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📝 ドキュメント
+
+- review platform における Mcp-Docker の責務を明文化 — #158
+  - `docs/architecture-review-platform.md` を新規追加（orchestration / configuration automation layer としての定義・責務境界・bootstrap フロー）
+  - README の関連リソースから新ドキュメントへの導線を追加
+
 ## [2.12.0] - 2026-06-01
 
 ### 🔧 改善
