@@ -187,7 +187,7 @@ mcp-docker register --agent all --yes
 | `make status` / `make status-gateway` | 全コンテナ状態一覧 |
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
-| `make pull-main` | mcp-gateway / review-raven の `:main` イメージ取得 |
+| `make pull-main` | mcp-gateway / review-raven の `:main` と thread-owl の main build（`:latest`）を取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
 | `make register` | 対話的に IDE/CLI と MCP サーバーを選択して登録 |
