@@ -9,7 +9,7 @@ CLI（Claude CLI / GitHub Copilot CLI / Codex CLI）
   ↓ HTTP  127.0.0.1:8080
 mcp-gateway  ← OAuth 2.0 認証・ルーティング
   ├── /mcp/github          → github-mcp-server   [OAuth 必須]
-  ├── /mcp/copilot-review  → copilot-review-mcp  [OAuth 必須]
+  ├── /mcp/review-raven    → review-raven        [OAuth 必須]
   └── /mcp/playwright      → playwright-mcp      [auth=none]
 ```
 
@@ -24,10 +24,10 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 |---|---|---|---|
 | `mcp-gateway` | `ghcr.io/scottlz0310/mcp-gateway:latest` | 8080（ホスト公開） | OAuth ゲートウェイ |
 | `github-mcp` | `ghcr.io/github/github-mcp-server:main` | 8082（内部のみ） | GitHub MCP サーバー |
-| `copilot-review-mcp` | `ghcr.io/scottlz0310/copilot-review-mcp:latest` | 8083（内部のみ） | Copilot レビュー自動化 |
+| `review-raven` | `ghcr.io/scottlz0310/review-raven:latest` | 8083（内部のみ） | レビュー対応自動化（reviewed-side） |
 | `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none） |
 
-`github-mcp`・`copilot-review-mcp`・`playwright-mcp` はホストに直接公開されません。
+`github-mcp`・`review-raven`・`playwright-mcp` はホストに直接公開されません。
 すべて mcp-gateway（ポート 8080）経由でアクセスします。
 
 
@@ -52,7 +52,7 @@ cp .env.template .env
 #   GITHUB_PERSONAL_ACCESS_TOKEN     (github-mcp-server 用 PAT)
 #   GITHUB_MCP_CLIENT_ID             (mcp-gateway OAuth App Client ID)
 #   GITHUB_MCP_CLIENT_SECRET         (mcp-gateway OAuth App Client Secret)
-# ※ copilot-review-mcp v3.0.0 以降、OAuth は mcp-gateway が一元管理します。
+# ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 
 # 3. 全サービス起動
@@ -173,7 +173,7 @@ mcp-docker register --agent all --yes
 - `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*`
 - `config/mcp-external.yml` の外部 MCP サーバー定義
 
-`ROUTE_GITHUB` は `github`、`ROUTE_COPILOT_REVIEW` は `copilot-review` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
+`ROUTE_GITHUB` は `github`、`ROUTE_REVIEW_RAVEN` は `review-raven` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
 
 ## サービス操作
 
@@ -187,7 +187,7 @@ mcp-docker register --agent all --yes
 | `make status` / `make status-gateway` | 全コンテナ状態一覧 |
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
-| `make pull-main` | mcp-gateway / copilot-review-mcp の `:main` イメージ取得 |
+| `make pull-main` | mcp-gateway / review-raven の `:main` イメージ取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
 | `make register` | 対話的に IDE/CLI と MCP サーバーを選択して登録 |
@@ -207,7 +207,7 @@ mcp-docker register --agent all --yes
 | URL | サービス | 認証 |
 |---|---|---|
 | `http://127.0.0.1:8080/mcp/github` | github-mcp-server | OAuth 必須 |
-| `http://127.0.0.1:8080/mcp/copilot-review` | copilot-review-mcp | OAuth 必須 |
+| `http://127.0.0.1:8080/mcp/review-raven` | review-raven | OAuth 必須 |
 | `http://127.0.0.1:8080/mcp/playwright` | playwright-mcp | なし |
 | `http://127.0.0.1:8080/health` | mcp-gateway | なし |
 
@@ -304,7 +304,7 @@ ROUTE_<NAME>=/<prefix>|<upstream_url>|auth=oauth|upstream_bearer_token_env=<ENV_
 |---|---|---|
 | `GITHUB_MCP_GATEWAY_IMAGE` | `ghcr.io/scottlz0310/mcp-gateway:latest` | ゲートウェイイメージ |
 | `GITHUB_MCP_IMAGE` | `ghcr.io/github/github-mcp-server:main` | github-mcp-server イメージ |
-| `COPILOT_REVIEW_MCP_IMAGE` | `ghcr.io/scottlz0310/copilot-review-mcp:latest` | copilot-review-mcp イメージ |
+| `REVIEW_RAVEN_IMAGE` | `ghcr.io/scottlz0310/review-raven:latest` | review-raven イメージ |
 
 ```bash
 GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.0.0 make start-gateway
@@ -419,7 +419,7 @@ Mcp-Docker/
 - [docs/architecture-review-platform.md](docs/architecture-review-platform.md) — review platform における Mcp-Docker の責務・責務境界
 - [github-mcp-server](https://github.com/github/github-mcp-server) — 本家 GitHub MCP サーバー
 - [mcp-gateway](https://github.com/scottlz0310/mcp-gateway) — OAuth ゲートウェイ
-- [copilot-review-mcp](https://github.com/scottlz0310/copilot-review-mcp) — Copilot レビュー自動化 MCP
+- [review-raven](https://github.com/scottlz0310/review-raven) — レビュー対応自動化 MCP（reviewed-side）
 - [CHANGELOG.md](CHANGELOG.md) — リリース履歴・破壊的変更
 
 ## ライセンス

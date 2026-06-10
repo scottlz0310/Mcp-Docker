@@ -50,7 +50,7 @@ services:
     depends_on:
       github-mcp:
         condition: service_started
-      copilot-review-mcp:
+      review-raven:
         condition: service_started
       # playwright-mcp はデフォルトで有効化済み。不要な場合はこの行と
       # ROUTE_PLAYWRIGHT 環境変数・playwright-mcp サービス定義を削除してください。
@@ -71,7 +71,7 @@ services:
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
-      - ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:${COPILOT_REVIEW_MCP_PORT:-8083}
+      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}
       # =============================================================================
@@ -118,32 +118,32 @@ services:
           cpus: "0.5"
           memory: 128M
 
-  copilot-review-mcp:
-    image: ${COPILOT_REVIEW_MCP_IMAGE:-ghcr.io/scottlz0310/copilot-review-mcp:latest}
-    container_name: copilot-review-mcp
+  review-raven:
+    image: ${REVIEW_RAVEN_IMAGE:-ghcr.io/scottlz0310/review-raven:latest}
+    container_name: review-raven
     restart: unless-stopped
     # distroless:nonroot の UID/GID を明示（UID=65532）。
     # /data ボリュームの初回マウント時、Docker はイメージの /data ディレクトリ
     # （Dockerfile で COPY --chown=nonroot:nonroot 済み）の内容をボリュームに
     # コピーするため、正しいオーナーシップが引き継がれます。
     # 既存の空ボリュームが root 所有になっている場合は
-    # "docker volume rm copilot-review-data" で削除後に再作成してください。
+    # "docker volume rm review-raven-data" で削除後に再作成してください。
     user: "65532:65532"
 
     environment:
       - BIND_ADDR=0.0.0.0
-      - MCP_PORT=${COPILOT_REVIEW_MCP_PORT:-8083}
+      - MCP_PORT=${REVIEW_RAVEN_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
 
-    # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/copilot-review）。
+    # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/review-raven）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
     # ports:
-    #   - "127.0.0.1:${COPILOT_REVIEW_MCP_PORT:-8083}:${COPILOT_REVIEW_MCP_PORT:-8083}"
+    #   - "127.0.0.1:${REVIEW_RAVEN_PORT:-8083}:${REVIEW_RAVEN_PORT:-8083}"
     expose:
-      - "${COPILOT_REVIEW_MCP_PORT:-8083}"
+      - "${REVIEW_RAVEN_PORT:-8083}"
 
     volumes:
-      - copilot-review-data:/data
+      - review-raven-data:/data
 
     networks:
       - mcp-network
@@ -236,7 +236,7 @@ services:
 volumes:
   github-mcp-cache:
     driver: local
-  copilot-review-data:
+  review-raven-data:
     driver: local
   mcp-gateway-data:
     driver: local

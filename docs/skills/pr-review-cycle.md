@@ -5,7 +5,7 @@ description: Copilot レビュー完了を async watch で待機してから PR 
 
 # pr-review-cycle スキル
 
-copilot-review-mcp の watch ツール群を使い、Copilot レビュー完了を **async watch** で待機してから
+review-raven の watch ツール群を使い、Copilot レビュー完了を **async watch** で待機してから
 PR レビュー対応サイクルを自律実行するスキル。
 
 > **このファイルについて**  
@@ -21,7 +21,7 @@ PR レビュー対応サイクルを自律実行するスキル。
 
 | サーバー | 役割 | 参照 |
 |---------|------|------|
-| `copilot-review-mcp` | Copilot レビュー watch・スレッド操作 | [copilot-review-mcp](https://github.com/scottlz0310/copilot-review-mcp) |
+| `review-raven` | Copilot レビュー watch・スレッド操作 | [review-raven](https://github.com/scottlz0310/review-raven) |
 | GitHub MCP サーバー | Issue/PR コメント投稿 | [README.md](../../README.md) |
 
 ### プレースホルダーの読み替え
@@ -30,7 +30,7 @@ PR レビュー対応サイクルを自律実行するスキル。
 
 | プレースホルダー | 役割 | 例 |
 |----------------|------|---------------|
-| `{CRM}` | copilot-review-mcp ツール | `mcp_copilot-review-mcp_*` |
+| `{CRM}` | review-raven ツール | `mcp_review-raven_*` |
 | `{GH}` | GitHub MCP ツール | `mcp_github-mcp-server-docker_*` |
 
 > ツール名プレフィックスは利用中の MCP クライアント設定で確認してください。

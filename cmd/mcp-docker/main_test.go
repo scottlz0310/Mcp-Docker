@@ -73,13 +73,13 @@ func TestRegisterDryRunDoesNotPromptForRouteNames(t *testing.T) {
 func TestValidateUniqueServersReportsCollidingSources(t *testing.T) {
 	err := validateUniqueServers([]register.Server{
 		{Name: "github", URL: "http://127.0.0.1:8080/mcp/github", Source: "ROUTE_GITHUB"},
-		{Name: "github", URL: "http://127.0.0.1:8080/mcp/copilot-review", Source: "ROUTE_COPILOT_REVIEW"},
+		{Name: "github", URL: "http://127.0.0.1:8080/mcp/review-raven", Source: "ROUTE_REVIEW_RAVEN"},
 	})
 	if err == nil {
 		t.Fatal("expected duplicate name error")
 	}
 	got := err.Error()
-	for _, want := range []string{`MCP サーバー名 "github" が重複しています`, "ROUTE_GITHUB", "ROUTE_COPILOT_REVIEW"} {
+	for _, want := range []string{`MCP サーバー名 "github" が重複しています`, "ROUTE_GITHUB", "ROUTE_REVIEW_RAVEN"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("error = %q, missing %q", got, want)
 		}
@@ -136,7 +136,7 @@ func TestParseSelection(t *testing.T) {
 }
 
 func TestResolveSelectionRespectsAllAndCSV(t *testing.T) {
-	items := []string{"github", "playwright", "copilot-review"}
+	items := []string{"github", "playwright", "review-raven"}
 	cases := []struct {
 		name    string
 		input   string
@@ -146,7 +146,7 @@ func TestResolveSelectionRespectsAllAndCSV(t *testing.T) {
 		{name: "default all", input: "all", want: items},
 		{name: "single", input: "github", want: []string{"github"}},
 		{name: "csv", input: "github,playwright", want: []string{"github", "playwright"}},
-		{name: "indices", input: "1,3", want: []string{"github", "copilot-review"}},
+		{name: "indices", input: "1,3", want: []string{"github", "review-raven"}},
 		{name: "unknown", input: "nope", wantErr: true},
 		{name: "empty rejected when not all", input: "  ,  ", wantErr: true},
 	}
@@ -205,9 +205,9 @@ func TestSelectIndicesAndPickServers(t *testing.T) {
 	servers := []register.Server{
 		{Name: "github"},
 		{Name: "playwright"},
-		{Name: "copilot-review"},
+		{Name: "review-raven"},
 	}
-	indices := selectIndices(servers, []string{"playwright", "copilot-review"})
+	indices := selectIndices(servers, []string{"playwright", "review-raven"})
 	wantIdx := []int{1, 2}
 	if len(indices) != len(wantIdx) {
 		t.Fatalf("indices = %v, want %v", indices, wantIdx)
@@ -218,7 +218,7 @@ func TestSelectIndicesAndPickServers(t *testing.T) {
 		}
 	}
 	got := pickServers(servers, indices)
-	wantNames := []string{"playwright", "copilot-review"}
+	wantNames := []string{"playwright", "review-raven"}
 	gotNames := make([]string, len(got))
 	for i, s := range got {
 		gotNames[i] = s.Name
@@ -259,7 +259,7 @@ func TestRegisterMultiAgentMultiServerDryRun(t *testing.T) {
   mcp-gateway:
     environment:
       ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
-      ROUTE_COPILOT_REVIEW: /mcp/copilot-review|http://copilot-review-mcp:8084
+      ROUTE_REVIEW_RAVEN: /mcp/review-raven|http://review-raven:8084
       ROUTE_PLAYWRIGHT: /mcp/playwright|http://playwright-mcp:8086
 `), 0o600); err != nil {
 		t.Fatal(err)
@@ -295,8 +295,8 @@ func TestRegisterMultiAgentMultiServerDryRun(t *testing.T) {
 	if strings.Contains(got, "copilot の dry-run 計画:") {
 		t.Fatalf("copilot should not be selected: %s", got)
 	}
-	if strings.Contains(got, "copilot-review") {
-		t.Fatalf("copilot-review server should not be selected: %s", got)
+	if strings.Contains(got, "review-raven") {
+		t.Fatalf("review-raven server should not be selected: %s", got)
 	}
 }
 

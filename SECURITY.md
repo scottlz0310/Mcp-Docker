@@ -13,4 +13,4 @@ Security updates are provided for the latest minor release line.
 
 Please report vulnerabilities privately through GitHub Security Advisories for this repository.
 
-Do not include credentials, tokens, or `.env` contents in public issues. Include the affected version, relevant service image tags, reproduction steps, and whether the issue affects `mcp-gateway`, `copilot-review-mcp`, or this Docker integration repository.
+Do not include credentials, tokens, or `.env` contents in public issues. Include the affected version, relevant service image tags, reproduction steps, and whether the issue affects `mcp-gateway`, `review-raven`, or this Docker integration repository.
