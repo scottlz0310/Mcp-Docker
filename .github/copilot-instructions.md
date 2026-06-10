@@ -6,8 +6,8 @@
 CLI clients (Claude CLI / GitHub Copilot CLI / Codex CLI)
   ↓ HTTP (port 8080)
 Docker: ghcr.io/scottlz0310/mcp-gateway:latest  ← OAuth 2.0 ゲートウェイ（compose デフォルト）
-  ↓ /mcp/github         ↓ /mcp/copilot-review
-ghcr.io/github/github-mcp-server:main   copilot-review-mcp
+  ↓ /mcp/github         ↓ /mcp/review-raven
+ghcr.io/github/github-mcp-server:main   review-raven
   ↓
 GitHub API (REST v3 + GraphQL v4)
 ```
@@ -39,7 +39,7 @@ make clean-all       # Full cleanup including images
 ## Conventions
 
 - **Environment-first auth**: `GITHUB_PERSONAL_ACCESS_TOKEN` env var always wins over `.env` file. Set both consistently to avoid confusion.
-- **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `copilot-review-mcp` runs on internal port `8083` (`COPILOT_REVIEW_MCP_PORT`, also not exposed to host; reachable only via the gateway).
+- **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
 - **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image, and set `GITHUB_MCP_IMAGE` to swap the default `github-mcp-server` image.
 - **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.
 - **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.

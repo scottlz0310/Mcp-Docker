@@ -9,7 +9,7 @@ services:
     environment:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:8082
-      - ROUTE_COPILOT_REVIEW=/mcp/copilot-review|http://copilot-review-mcp:8083
+      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:8083
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:8931|auth=none
 `)
 	servers, err := Parse(data, func(string) (string, bool) { return "", false })
@@ -17,9 +17,9 @@ services:
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		"copilot-review": "http://127.0.0.1:8080/mcp/copilot-review",
-		"github":         "http://127.0.0.1:8080/mcp/github",
-		"playwright":     "http://127.0.0.1:8080/mcp/playwright",
+		"review-raven": "http://127.0.0.1:8080/mcp/review-raven",
+		"github":       "http://127.0.0.1:8080/mcp/github",
+		"playwright":   "http://127.0.0.1:8080/mcp/playwright",
 	}
 	if len(servers) != len(want) {
 		t.Fatalf("got %d servers, want %d", len(servers), len(want))

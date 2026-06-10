@@ -79,7 +79,7 @@ help: ## 利用可能なターゲット一覧を表示
 .PHONY: start-gateway
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
-	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
+	docker compose up -d github-mcp review-raven mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
 .PHONY: stop-gateway
@@ -118,19 +118,19 @@ pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gat
 status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 
 # :main イメージ（リリース前の最新開発版）
-# mcp-gateway / copilot-review-mcp は :latest がリリース時のみ更新されるため、
+# mcp-gateway / review-raven は :latest がリリース時のみ更新されるため、
 # 最新の main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
 # ?= により環境変数・make コマンドライン引数での上書きが可能
 # 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
 MCP_GATEWAY_MAIN_IMAGE       ?= ghcr.io/scottlz0310/mcp-gateway:main
-COPILOT_REVIEW_MCP_MAIN_IMAGE ?= ghcr.io/scottlz0310/copilot-review-mcp:main
+REVIEW_RAVEN_MAIN_IMAGE ?= ghcr.io/scottlz0310/review-raven:main
 
 .PHONY: pull-main
 pull-main: ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
 	docker compose pull github-mcp
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
-	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
-	docker compose pull mcp-gateway copilot-review-mcp
+	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
+	docker compose pull mcp-gateway review-raven
 ifeq ($(OS),Windows_NT)
 	@echo $$'\u2713 :main \u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
 else
@@ -141,8 +141,8 @@ endif
 start-main: ## 最新開発版イメージで全サービスを起動
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
-	COPILOT_REVIEW_MCP_IMAGE=$(COPILOT_REVIEW_MCP_MAIN_IMAGE) \
-	docker compose up -d github-mcp copilot-review-mcp mcp-gateway playwright-mcp
+	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
+	docker compose up -d github-mcp review-raven mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint (main build): http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
 .PHONY: restart-main

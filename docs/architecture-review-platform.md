@@ -7,8 +7,7 @@
 関連: [Issue #158](https://github.com/scottlz0310/Mcp-Docker/issues/158)
 
 > **本ドキュメントの位置づけ**: 本書は `Mcp-Docker` の**目標とする責務モデル（target architecture）**を定義する。
-> 現行実装が目標と異なる箇所は各節に「現状」として注記する。コンポーネント名は移行後の名称（例: `review-raven`）で記述し、
-> 現行 compose / route が使用する旧名 `copilot-review-mcp`（route `/mcp/copilot-review`）からのリネーム移行は #159 で追跡する。
+> 現行実装が目標と異なる箇所は各節に「現状」として注記する。
 
 ## 1. Review Platform の全体像
 
@@ -37,7 +36,7 @@ Mcp-Docker
   └─ generated client config
 ```
 
-> **現状**: 上図は目標構成。現行 compose が起動するのは `github-mcp` / `copilot-review-mcp`（目標の `review-raven` の旧名）/ `playwright-mcp` / `thread-owl` / `mcp-gateway`。`copilot-review-mcp` → `review-raven` リネームは #159 で追跡する。
+> **現状**: 上図は目標構成。現行 compose が起動するのは `github-mcp` / `review-raven` / `playwright-mcp` / `thread-owl` / `mcp-gateway`。`mcp-resource-subscriber` は常駐コンテナではなく CLI bridge として扱う。
 
 ## 2. Mcp-Docker の定義
 

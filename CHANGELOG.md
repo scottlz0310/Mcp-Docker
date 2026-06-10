@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠️ 破壊的変更
+
+- `copilot-review-mcp` を `review-raven` へリネーム — #159
+  - mcp-gateway の route を `/mcp/copilot-review` → `/mcp/review-raven` に変更。**CLI 再登録が必要**（`make register-all REGISTER_FLAGS=--yes` 等）
+  - イメージを `ghcr.io/scottlz0310/copilot-review-mcp` → `ghcr.io/scottlz0310/review-raven` に変更
+  - 環境変数を改名: `ROUTE_COPILOT_REVIEW` → `ROUTE_REVIEW_RAVEN`、`COPILOT_REVIEW_MCP_IMAGE` → `REVIEW_RAVEN_IMAGE`、`COPILOT_REVIEW_MCP_PORT` → `REVIEW_RAVEN_PORT`（旧名フォールバックなし）
+  - コンテナ名 `copilot-review-mcp` → `review-raven`、ボリューム `copilot-review-data` → `review-raven-data`（watch DB は空から再生成）
+  - `scripts/health-check.sh --service` の対象名も `copilot-review-mcp` → `review-raven`
+  - MCP ツール名（`start_copilot_review_watch` 等）は review-raven でも同名のため変更なし
+
 ### 📝 ドキュメント
 
 - review platform における Mcp-Docker の責務を明文化 — #158

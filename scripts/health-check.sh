@@ -14,7 +14,7 @@ usage() {
 オプション:
   --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
                           mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
-                          copilot-review-mcp : copilot-review-mcp / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
+                          review-raven       : review-raven / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
                           github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
   --with-api              GitHub API接続確認を必ず実行
   --no-api                GitHub API接続確認をスキップ
@@ -50,10 +50,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$SERVICE" in
-    github-mcp|mcp-gateway|copilot-review-mcp) ;;
+    github-mcp|mcp-gateway|review-raven) ;;
     *)
         echo "❌ 未対応のサービス: $SERVICE"
-        echo "対応サービス: github-mcp, mcp-gateway, copilot-review-mcp"
+        echo "対応サービス: github-mcp, mcp-gateway, review-raven"
         exit 1
         ;;
 esac
@@ -209,9 +209,9 @@ if [[ "${SERVICE}" == "github-mcp" ]]; then
     exit 0
 fi
 
-if [[ "${SERVICE}" == "copilot-review-mcp" ]]; then
+if [[ "${SERVICE}" == "review-raven" ]]; then
     check_container_state "github-mcp"
-    check_container_state "copilot-review-mcp"
+    check_container_state "review-raven"
     check_container_state "mcp-gateway"
     gateway_url="$(resolve_gateway_url)"
     if command -v curl > /dev/null 2>&1; then
