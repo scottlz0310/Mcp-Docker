@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scripts/health-check.sh --service` の対象名も `copilot-review-mcp` → `review-raven`
   - MCP ツール名（`start_copilot_review_watch` 等）は review-raven でも同名のため変更なし
 
+### 🔧 改善
+
+- `make pull-main` / `make start-main` の開発版対象に thread-owl を追加 — #163
+  - thread-owl のタグ分離（`:main` = 開発ビルド / `:latest` + `:vX.Y.Z` = 安定リリース）に追従
+  - `THREAD_OWL_MAIN_IMAGE ?= ghcr.io/scottlz0310/thread-owl:main` を追加し、`pull-main` / `start-main` が thread-owl も `:main` を取得・起動
+  - `make start-gateway` は従来通り `:latest`（安定版）で起動
+
 ### 📝 ドキュメント
 
 - review platform における Mcp-Docker の責務を明文化 — #158
