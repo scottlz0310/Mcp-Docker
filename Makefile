@@ -79,7 +79,8 @@ help: ## 利用可能なターゲット一覧を表示
 .PHONY: start-gateway
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
-	docker compose up -d github-mcp review-raven mcp-gateway playwright-mcp
+	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
+	docker compose up -d --remove-orphans github-mcp review-raven mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
 .PHONY: stop-gateway
@@ -142,7 +143,7 @@ start-main: ## 最新開発版イメージで全サービスを起動
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
-	docker compose up -d github-mcp review-raven mcp-gateway playwright-mcp
+	docker compose up -d --remove-orphans github-mcp review-raven mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint (main build): http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
 
 .PHONY: restart-main
