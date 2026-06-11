@@ -31,6 +31,7 @@ const options = {
   headers: {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
+    'Accept': 'application/json, text/event-stream',
   },
 };
 
