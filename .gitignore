@@ -11,6 +11,7 @@ mcp.json
 # Build and coverage artifacts
 bin/
 mcp-docker.exe
+coverage
 coverage.out
 .coverage
 .coverage.*

@@ -105,6 +105,8 @@ copilot の dry-run 計画:
 ...
 codex の dry-run 計画:
 ...
+antigravity の dry-run 計画:
+...
 ```
 
 **確認ポイント:**
@@ -212,19 +214,50 @@ codex mcp list
 
 ---
 
-## ステップ 5: 全エージェントまとめて登録
+## ステップ 5: Antigravity CLI への登録確認
+
+> **前提:** `agy` CLI がインストールされていること (`agy --version`)
+
+### 5-1. 登録前の状態確認
+
+```bash
+# グローバル設定ファイルを確認
+cat ~/.gemini/antigravity-cli/mcp_config.json
+```
+
+### 5-2. 登録実行
+
+```bash
+./bin/mcp-docker register --agent antigravity --yes
+```
+
+### 5-3. 登録後の確認
+
+```bash
+# グローバル設定ファイルが更新され、各サーバーが登録されていることを確認
+cat ~/.gemini/antigravity-cli/mcp_config.json
+```
+
+または `agy` 起動後に `/mcp` コマンドで確認する。
+
+**確認ポイント:**
+- [ ] `~/.gemini/antigravity-cli/mcp_config.json` に `github`、`review-raven`、`playwright` が登録されている
+
+---
+
+## ステップ 6: 全エージェントまとめて登録
 
 ```bash
 ./bin/mcp-docker register --yes
 ```
 
 **確認ポイント:**
-- [ ] claude・copilot・codex すべてにエラーなく登録される
+- [ ] claude・copilot・codex・antigravity すべてにエラーなく登録される
 - [ ] 重複登録しても正常終了する（冪等性）
 
 ---
 
-## ステップ 6: external サーバーの追加確認
+## ステップ 7: external サーバーの追加確認
 
 `config/mcp-external.yml` にサーバーを追記して動作確認する。
 
@@ -261,5 +294,6 @@ servers:
 - [ ] ステップ 2: Claude Code に登録・接続確認
 - [ ] ステップ 3: Copilot CLI に登録確認
 - [ ] ステップ 4: Codex に登録確認（任意）
-- [ ] ステップ 5: 全エージェント一括登録・冪等性確認
-- [ ] ステップ 6: external サーバー追加確認（任意）
+- [ ] ステップ 5: Antigravity CLI に登録確認
+- [ ] ステップ 6: 全エージェント一括登録・冪等性確認
+- [ ] ステップ 7: external サーバー追加確認（任意）
