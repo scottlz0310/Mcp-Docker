@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-06-11
+
 ### ⚠️ 破壊的変更
 
 - `copilot-review-mcp` を `review-raven` へリネーム — #159
   - mcp-gateway の route を `/mcp/copilot-review` → `/mcp/review-raven` に変更（**破壊的**）
   - **アップグレード手順**:
-    1. `make start-gateway`（`docker compose up --remove-orphans` により旧 `copilot-review-mcp` コンテナを自動除去）
+    1. `make start-gateway`（`docker compose up --remove-orphans` により旧 `copilot-review-mcp` コンテナを自动除去）
     2. 各 CLI の旧登録キーを削除: `claude mcp remove --scope user copilot-review`（Copilot CLI / Codex CLI も同様に旧 `copilot-review` キーを削除）
     3. `make register-all REGISTER_FLAGS=--yes` で新名 `review-raven` を登録
   - イメージを `ghcr.io/scottlz0310/copilot-review-mcp` → `ghcr.io/scottlz0310/review-raven` に変更
@@ -20,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - コンテナ名 `copilot-review-mcp` → `review-raven`、ボリューム `copilot-review-data` → `review-raven-data`（watch DB は空から再生成）
   - `scripts/health-check.sh --service` の対象名も `copilot-review-mcp` → `review-raven`
   - MCP ツール名（`start_copilot_review_watch` 等）は review-raven でも同名のため変更なし
+
+### ✨ 機能追加
+
+- Antigravity CLI への MCP 登録サポートを追加 — #165
+  - `mcp-docker register` コマンドで `antigravity` を選択し、MCP サーバー定義を Antigravity の `mcp_config.json` に追加可能に
 
 ### 🔧 改善
 
@@ -471,7 +478,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.9.1...v2.10.0
