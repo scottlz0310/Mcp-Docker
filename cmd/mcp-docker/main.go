@@ -29,7 +29,7 @@ register に何も引数を指定せず TTY から実行した場合は対話モ
 
 var version = "2.12.0"
 
-var allAgentNames = []string{"claude", "copilot", "codex"}
+var allAgentNames = []string{"claude", "copilot", "codex", "antigravity"}
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr, os.Stdin); err != nil {
@@ -63,7 +63,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.SetOutput(stderr)
 
 	opts := registerOptions{}
-	fs.StringVar(&opts.agent, "agent", "all", "登録対象エージェント（カンマ区切り可）: claude, copilot, codex, all")
+	fs.StringVar(&opts.agent, "agent", "all", "登録対象エージェント（カンマ区切り可）: claude, copilot, codex, antigravity, all")
 	fs.StringVar(&opts.server, "server", "all", "登録対象 MCP サーバー（カンマ区切り可）: <name>, all")
 	fs.StringVar(&opts.composePath, "compose", "docker-compose.yml", "読み込む docker compose ファイル")
 	fs.StringVar(&opts.externalPath, "external", "config/mcp-external.yml", "外部 MCP サーバー定義ファイル")
@@ -303,6 +303,7 @@ func selectAgentsByNames(names []string) ([]agentSpec, error) {
 		{name: "claude", newAgent: register.NewClaudeAgent},
 		{name: "copilot", newAgent: register.NewCopilotAgent},
 		{name: "codex", newAgent: register.NewCodexAgent},
+		{name: "antigravity", newAgent: register.NewAntigravityAgent},
 	}
 	specsByName := make(map[string]agentSpec, len(all))
 	for _, spec := range all {

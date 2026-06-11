@@ -184,8 +184,12 @@ register-copilot: $(MCP_DOCKER) ## GitHub Copilot CLI に MCP サーバーを登
 register-codex: $(MCP_DOCKER) ## Codex CLI に MCP サーバーを登録
 	$(MCP_DOCKER) register --agent codex $(REGISTER_FLAGS)
 
+.PHONY: register-antigravity
+register-antigravity: $(MCP_DOCKER) ## Antigravity CLI に MCP サーバーを登録
+	$(MCP_DOCKER) register --agent antigravity $(REGISTER_FLAGS)
+
 .PHONY: register-all
-register-all: $(MCP_DOCKER) ## Claude / Copilot / Codex CLI に MCP サーバーを登録
+register-all: $(MCP_DOCKER) ## Claude / Copilot / Codex / Antigravity CLI に MCP サーバーを登録
 	$(MCP_DOCKER) register --agent all $(REGISTER_FLAGS)
 
 # ----------------------------------------

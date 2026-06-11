@@ -2,7 +2,10 @@ package register
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -31,6 +34,10 @@ func NewCopilotAgent(r Runner) Agent {
 
 func NewCodexAgent(r Runner) Agent {
 	return CodexAgent{baseAgent{name: "codex", runner: r}}
+}
+
+func NewAntigravityAgent(r Runner) Agent {
+	return AntigravityAgent{baseAgent: baseAgent{name: "antigravity", runner: r}}
 }
 
 func (a ClaudeAgent) List(ctx context.Context) ([]string, error) {
@@ -152,4 +159,174 @@ func parseListNames(output string) []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+type AntigravityAgent struct {
+	baseAgent
+	configPath string
+}
+
+func (a AntigravityAgent) getConfigPath() (string, error) {
+	if a.configPath != "" {
+		return a.configPath, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"), nil
+}
+
+func (a AntigravityAgent) List(ctx context.Context) ([]string, error) {
+	path, err := a.getConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var config map[string]any
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+	mcpServersAny, exists := config["mcpServers"]
+	if !exists {
+		return nil, nil
+	}
+	mcpServers, ok := mcpServersAny.(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	var names []string
+	for name := range mcpServers {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
+	path, err := a.getConfigPath()
+	if err != nil {
+		return err
+	}
+	
+	var config map[string]any
+	
+	data, err := os.ReadFile(path)
+	if err == nil {
+		if err := json.Unmarshal(data, &config); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	
+	if config == nil {
+		config = make(map[string]any)
+	}
+	
+	mcpServersAny, exists := config["mcpServers"]
+	var mcpServers map[string]any
+	if exists {
+		if m, ok := mcpServersAny.(map[string]any); ok {
+			mcpServers = m
+		}
+	}
+	if mcpServers == nil {
+		mcpServers = make(map[string]any)
+	}
+	
+	mcpServers[s.Name] = map[string]string{
+		"serverUrl": s.URL,
+	}
+	
+	config["mcpServers"] = mcpServers
+	
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	
+	return safeWriteFile(path, newData, 0644)
+}
+
+func (a AntigravityAgent) Remove(ctx context.Context, name string) error {
+	path, err := a.getConfigPath()
+	if err != nil {
+		return err
+	}
+	
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	
+	var config map[string]any
+	if err := json.Unmarshal(data, &config); err != nil {
+		return err
+	}
+	
+	mcpServersAny, exists := config["mcpServers"]
+	if exists {
+		if mcpServers, ok := mcpServersAny.(map[string]any); ok {
+			delete(mcpServers, name)
+			config["mcpServers"] = mcpServers
+		}
+	}
+	
+	newData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	
+	return safeWriteFile(path, newData, 0644)
+}
+
+func (a AntigravityAgent) OverwritesOnAdd() bool { return true }
+
+func (a AntigravityAgent) AddCommand(s Server) []string {
+	path, _ := a.getConfigPath()
+	return []string{"update config:", path, "add", s.Name, "->", s.URL}
+}
+
+func (a AntigravityAgent) RemoveCommand(name string) []string {
+	path, _ := a.getConfigPath()
+	return []string{"update config:", path, "remove", name}
+}
+
+func safeWriteFile(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	tmpFile, err := os.CreateTemp(dir, "mcp_config_tmp_*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}()
+	
+	if err := tmpFile.Chmod(perm); err != nil {
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
