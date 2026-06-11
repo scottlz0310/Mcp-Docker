@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `mcp-docker register` が `ROUTE_*` の Compose 変数展開に未対応で、cloudflare の serverUrl が壊れた値のまま agent に登録される問題を修正 — #167
+  - `ROUTE_*` 値に Compose 互換の変数展開（`${VAR}` / `${VAR:-default}` / `${VAR:+alternative}`）を適用
+  - `${VAR:+...}` の変数未設定などで展開後に空になったルートは登録対象からスキップ（gateway 側の空 `ROUTE_*` スキップと整合）
+
 ## [2.13.0] - 2026-06-11
 
 ### ⚠️ 破壊的変更
