@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `scripts/verify-mcp-endpoint.js` が `Accept` ヘッダー不足で HTTP 406 エラーになる問題を修正 — #168
+  - mcp-gateway が要求する `Accept: application/json, text/event-stream` を送信するように変更
+  - レスポンスが `text/event-stream` (SSE フレーミング) の場合に `data:` 行を抽出して JSON パースするように変更
+
 ## [2.13.0] - 2026-06-11
 
 ### ⚠️ 破壊的変更

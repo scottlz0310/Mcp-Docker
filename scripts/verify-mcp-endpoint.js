@@ -31,6 +31,7 @@ const options = {
   headers: {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
+    'Accept': 'application/json, text/event-stream',
   },
 };
 
@@ -52,7 +53,18 @@ const req = transport.request(options, (res) => {
 
     console.log(`✅ HTTP Status: ${status}`);
     try {
-      const json = JSON.parse(data);
+      let rawData = data;
+      const contentType = res.headers['content-type'] || '';
+      if (contentType.includes('text/event-stream')) {
+        const lines = data.split(/\r?\n/);
+        const dataLine = lines.find(line => line.startsWith('data:'));
+        if (dataLine) {
+          rawData = dataLine.slice(5).trim();
+        } else {
+          throw new Error('SSE レスポンス内に data: 行が見つかりませんでした。');
+        }
+      }
+      const json = JSON.parse(rawData);
       const hasValidResult =
         json &&
         typeof json === 'object' &&
