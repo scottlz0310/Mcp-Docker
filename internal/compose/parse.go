@@ -45,7 +45,13 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 	}
 	port := defaultGatewayPort
 	if raw, ok := env["MCP_GATEWAY_PORT"]; ok {
-		port = resolveEnvExpression(raw, lookup, defaultGatewayPort)
+		expanded := expandComposeVars(raw, lookup)
+		if strings.Contains(expanded, "${") {
+			fmt.Fprintf(os.Stderr, "warning: MCP_GATEWAY_PORT contains unsupported variable expansion syntax: %s\n", expanded)
+		}
+		if expanded = strings.TrimSpace(expanded); expanded != "" {
+			port = expanded
+		}
 	}
 	if val, ok := lookup("MCP_GATEWAY_PORT"); ok && val != "" {
 		port = val
@@ -61,7 +67,17 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 
 	servers := make([]register.Server, 0, len(keys))
 	for _, key := range keys {
-		path, _, _ := strings.Cut(env[key], "|")
+		expanded := expandComposeVars(env[key], lookup)
+		if strings.Contains(expanded, "${") {
+			fmt.Fprintf(os.Stderr, "warning: %s contains unsupported variable expansion syntax: %s\n", key, expanded)
+		}
+		value := strings.TrimSpace(expanded)
+		if value == "" {
+			// ${VAR:+...} の変数未設定などで空になったルートは、
+			// gateway 側（空 ROUTE_* スキップ）と同様に登録対象外とする
+			continue
+		}
+		path, _, _ := strings.Cut(value, "|")
 		path = strings.TrimSpace(path)
 		if path == "" {
 			return nil, fmt.Errorf("%s has empty route path", key)
@@ -109,21 +125,28 @@ func routeName(key string) string {
 	return strings.ReplaceAll(name, "_", "-")
 }
 
-var envExpr = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*)(:-([^}]*))?\}$`)
+var composeVarExpr = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([-+])([^}]*))?\}`)
 
-func resolveEnvExpression(raw string, lookup func(string) (string, bool), fallback string) string {
-	match := envExpr.FindStringSubmatch(raw)
-	if match == nil {
-		if raw == "" {
-			return fallback
+// expandComposeVars は Compose 互換の変数展開
+// （${VAR} / ${VAR:-default} / ${VAR:+alternative}）を raw 全体に適用する。
+func expandComposeVars(raw string, lookup func(string) (string, bool)) string {
+	return composeVarExpr.ReplaceAllStringFunc(raw, func(expr string) string {
+		match := composeVarExpr.FindStringSubmatch(expr)
+		val, ok := lookup(match[1])
+		hasValue := ok && val != ""
+		switch match[2] {
+		case "-":
+			if hasValue {
+				return val
+			}
+			return match[3]
+		case "+":
+			if hasValue {
+				return match[3]
+			}
+			return ""
+		default:
+			return val
 		}
-		return raw
-	}
-	if val, ok := lookup(match[1]); ok && val != "" {
-		return val
-	}
-	if match[3] != "" {
-		return match[3]
-	}
-	return fallback
+	})
 }
