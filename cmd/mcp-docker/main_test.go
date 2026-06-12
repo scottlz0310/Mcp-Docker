@@ -410,3 +410,164 @@ func equalStringSlices(a, b []string) bool {
 	}
 	return true
 }
+
+func TestParsePruneSelection(t *testing.T) {
+	items := []string{"cloudflare", "old-route", "legacy"}
+	cases := []struct {
+		name      string
+		input     string
+		want      []string
+		wantErr   bool
+		wantAbort bool
+	}{
+		{name: "empty means none", input: "", want: nil},
+		{name: "only whitespace means none", input: "   \n", want: nil},
+		{name: "explicit none", input: "none", want: nil},
+		{name: "none uppercase", input: "NONE", want: nil},
+		{name: "all selects everything", input: "all", want: items},
+		{name: "indices", input: "1,3", want: []string{"cloudflare", "legacy"}},
+		{name: "names", input: "old-route", want: []string{"old-route"}},
+		{name: "abort with q", input: "q", wantAbort: true},
+		{name: "out of range", input: "9", wantErr: true},
+		{name: "unknown name", input: "ghost", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parsePruneSelection(tc.input, items)
+			if tc.wantAbort {
+				if !errors.Is(err, errAborted) {
+					t.Fatalf("err = %v, want errAborted", err)
+				}
+				return
+			}
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !equalStringSlices(got, tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+type fakePruneAgent struct {
+	name    string
+	entries []register.Entry
+	removed []string
+}
+
+func (f *fakePruneAgent) Name() string { return f.name }
+
+func (f *fakePruneAgent) ListEntries(context.Context) ([]register.Entry, error) {
+	return f.entries, nil
+}
+
+func (f *fakePruneAgent) Add(context.Context, register.Server) error { return nil }
+
+func (f *fakePruneAgent) Remove(_ context.Context, name string) error {
+	f.removed = append(f.removed, name)
+	return nil
+}
+
+func (f *fakePruneAgent) OverwritesOnAdd() bool { return true }
+
+func (f *fakePruneAgent) AddCommand(s register.Server) []string { return []string{"add", s.Name} }
+
+func (f *fakePruneAgent) RemoveCommand(name string) []string { return []string{"remove", name} }
+
+func TestPruneAgent(t *testing.T) {
+	staleEntries := []register.Entry{
+		{Name: "cloudflare", URL: "http://127.0.0.1:8080/mcp/cloudflare"},
+		{Name: "old-route", URL: "http://127.0.0.1:8080/mcp/old-route"},
+	}
+	available := []register.Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}}
+	const origin = "http://127.0.0.1:8080/"
+
+	cases := []struct {
+		name        string
+		entries     []register.Entry
+		opts        registerOptions
+		interactive bool
+		input       string
+		wantRemoved []string
+		wantOutput  string
+	}{
+		{
+			name:       "stale なしは何もしない",
+			entries:    []register.Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+			opts:       registerOptions{prune: true, yes: true},
+			wantOutput: "削除対象の stale エントリはありません",
+		},
+		{
+			name:       "dry-run は計画のみ表示",
+			entries:    staleEntries,
+			opts:       registerOptions{prune: true, dryRun: true},
+			wantOutput: "stale エントリ削除計画",
+		},
+		{
+			name:        "非対話 --yes は全候補を削除",
+			entries:     staleEntries,
+			opts:        registerOptions{prune: true, yes: true},
+			wantRemoved: []string{"cloudflare", "old-route"},
+		},
+		{
+			name:        "非対話で y 入力なら削除",
+			entries:     staleEntries,
+			opts:        registerOptions{prune: true},
+			input:       "y\n",
+			wantRemoved: []string{"cloudflare", "old-route"},
+		},
+		{
+			name:       "非対話で n 入力なら中止",
+			entries:    staleEntries,
+			opts:       registerOptions{prune: true},
+			input:      "n\n",
+			wantOutput: "削除を中止しました",
+		},
+		{
+			name:        "対話で番号選択した候補だけ削除",
+			entries:     staleEntries,
+			interactive: true,
+			input:       "2\ny\n",
+			wantRemoved: []string{"old-route"},
+		},
+		{
+			name:        "対話で Enter は削除しない",
+			entries:     staleEntries,
+			interactive: true,
+			input:       "\n",
+			wantOutput:  "削除をスキップしました",
+		},
+		{
+			name:        "対話の最終確認で n なら中止",
+			entries:     staleEntries,
+			interactive: true,
+			input:       "all\nn\n",
+			wantOutput:  "削除を中止しました",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			agent := &fakePruneAgent{name: "claude", entries: tc.entries}
+			var stdout bytes.Buffer
+			reader := bufio.NewReader(strings.NewReader(tc.input))
+
+			err := pruneAgent(context.Background(), reader, &stdout, agent, available, origin, tc.opts, tc.interactive)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !equalStringSlices(agent.removed, tc.wantRemoved) {
+				t.Fatalf("removed = %v, want %v", agent.removed, tc.wantRemoved)
+			}
+			if tc.wantOutput != "" && !strings.Contains(stdout.String(), tc.wantOutput) {
+				t.Fatalf("output = %q, missing %q", stdout.String(), tc.wantOutput)
+			}
+		})
+	}
+}

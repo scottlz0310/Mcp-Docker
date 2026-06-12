@@ -20,6 +20,65 @@ func (r *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	return r.output, nil
 }
 
+func listNames(agent Agent) ([]string, error) {
+	entries, err := agent.ListEntries(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name)
+	}
+	return names, nil
+}
+
+func TestParseListEntries(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		want   []Entry
+	}{
+		{
+			name:   "claude 形式は名前と URL を抽出",
+			output: "github: http://127.0.0.1:8080/mcp/github (HTTP) - ✓ Connected\n",
+			want:   []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+		},
+		{
+			name:   "URL のない行は URL 空のエントリになる",
+			output: "  github (http)\n",
+			want:   []Entry{{Name: "github", URL: ""}},
+		},
+		{
+			name:   "codex のテーブルヘッダーはスキップし行から URL を拾う",
+			output: "Name  Transport  Url\ngithub  streamable_http  http://127.0.0.1:8080/mcp/github\n",
+			want:   []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+		},
+		{
+			name:   "未登録メッセージは無視",
+			output: "No MCP servers configured\n",
+			want:   nil,
+		},
+		{
+			name:   "同名の行は重複排除",
+			output: "github: http://127.0.0.1:8080/mcp/github (HTTP)\ngithub: http://127.0.0.1:8080/mcp/github (HTTP)\n",
+			want:   []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseListEntries(tc.output)
+			if len(got) != len(tc.want) {
+				t.Fatalf("entries = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("entries = %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func TestCopilotRegisterRemovesExistingBeforeAdd(t *testing.T) {
 	runner := &fakeRunner{output: "  github (http)\n"}
 	agent := NewCopilotAgent(runner)
@@ -120,7 +179,7 @@ func TestAntigravityRegister(t *testing.T) {
 	}
 
 	// 1. List when file does not exist
-	names, err := agent.List(context.Background())
+	names, err := listNames(agent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +208,7 @@ func TestAntigravityRegister(t *testing.T) {
 	}
 
 	// 4. Verify list contains both servers
-	names, err = agent.List(context.Background())
+	names, err = listNames(agent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +247,7 @@ func TestAntigravityRegister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names, err = agent.List(context.Background())
+	names, err = listNames(agent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +286,7 @@ func TestAntigravityErrorPaths(t *testing.T) {
 	}
 
 	// List should error
-	_, err = agent.List(context.Background())
+	_, err = listNames(agent)
 	if err == nil {
 		t.Error("expected error from List with invalid JSON")
 	}
@@ -275,7 +334,7 @@ func TestNewAntigravityAgentAndRegister(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configPath := filepath.Join(tmpDir, "mcp_config.json")
-	
+
 	testAgent := AntigravityAgent{
 		baseAgent:  baseAgent{name: "antigravity", runner: runner},
 		configPath: configPath,
@@ -292,7 +351,7 @@ func TestNewAntigravityAgentAndRegister(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	names, err := testAgent.List(context.Background())
+	names, err := listNames(testAgent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +380,7 @@ func TestAntigravityMcpServersNotObject(t *testing.T) {
 	}
 
 	// List should return nil, nil (not crash or fail)
-	names, err := agent.List(context.Background())
+	names, err := listNames(agent)
 	if err != nil {
 		t.Fatalf("List returned error when mcpServers is not an object: %v", err)
 	}
@@ -335,7 +394,7 @@ func TestAntigravityMcpServersNotObject(t *testing.T) {
 		t.Fatalf("Add failed when mcpServers is not an object: %v", err)
 	}
 
-	names, err = agent.List(context.Background())
+	names, err = listNames(agent)
 	if err != nil {
 		t.Fatal(err)
 	}

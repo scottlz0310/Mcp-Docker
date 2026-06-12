@@ -18,7 +18,7 @@ import (
 const usage = `mcp-docker は MCP Docker の補助ワークフローを管理します。
 
 使い方:
-  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run]
+  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run] [--prune]
   mcp-docker version
   mcp-docker --version
   mcp-docker -v
@@ -70,6 +70,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.BoolVar(&opts.yes, "yes", false, "サジェスト名を確認なしで採用")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "実行せず、登録時に使うコマンドと条件を表示")
 	fs.BoolVar(&opts.interactive, "interactive", false, "agent/server を対話的に選択")
+	fs.BoolVar(&opts.prune, "prune", false, "計画に含まれない gateway 配下の既存登録を削除（候補確認のため各 agent の list を実行）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -146,18 +147,71 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	if err != nil {
 		return err
 	}
+	pruneEnabled := opts.prune || useInteractive
+	var gatewayOrigin string
+	if pruneEnabled {
+		gatewayOrigin, err = compose.GatewayOrigin(opts.composePath)
+		if err != nil {
+			return err
+		}
+	}
+
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
 		agent := spec.newAgent(execRunner)
 		if opts.dryRun {
 			register.PrintPlan(stdout, agent, selectedServers)
+		} else if err := register.Register(ctx, stdout, agent, selectedServers); err != nil {
+			return err
+		}
+		if !pruneEnabled {
 			continue
 		}
-		if err := register.Register(ctx, stdout, agent, selectedServers); err != nil {
+		if err := pruneAgent(ctx, stdinReader, stdout, agent, servers, gatewayOrigin, opts, useInteractive); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// pruneAgent は agent に登録済みで現在の登録計画に含まれない gateway 配下のエントリを削除する。
+// interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
+// 非対話では --yes 指定時のみ確認を省略する。
+func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
+	stale, err := register.StaleEntries(ctx, agent, available, gatewayOrigin)
+	if err != nil {
+		return err
+	}
+	if len(stale) == 0 {
+		fmt.Fprintf(stdout, "%s: 削除対象の stale エントリはありません\n", agent.Name())
+		return nil
+	}
+	if opts.dryRun {
+		register.PrintPrunePlan(stdout, agent, stale)
+		return nil
+	}
+	targets := stale
+	if interactive {
+		targets, err = promptPruneSelection(reader, stdout, agent.Name(), stale)
+		if err != nil {
+			return err
+		}
+		if len(targets) == 0 {
+			fmt.Fprintf(stdout, "%s: stale エントリの削除をスキップしました\n", agent.Name())
+			return nil
+		}
+	}
+	if interactive || !opts.yes {
+		ok, err := confirmPrune(reader, stdout, agent.Name(), targets)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			fmt.Fprintf(stdout, "%s: stale エントリの削除を中止しました\n", agent.Name())
+			return nil
+		}
+	}
+	return register.Prune(ctx, stdout, agent, targets)
 }
 
 type registerOptions struct {
@@ -168,6 +222,7 @@ type registerOptions struct {
 	yes          bool
 	dryRun       bool
 	interactive  bool
+	prune        bool
 }
 
 func loadServers(composePath, externalPath string) ([]register.Server, error) {

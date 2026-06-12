@@ -132,6 +132,23 @@ make register-all          REGISTER_FLAGS=--yes
 make register REGISTER_FLAGS="--agent claude,antigravity --server github,playwright --yes"
 ```
 
+#### stale エントリの削除（prune）
+
+route の削除や `${VAR:+...}` の変数未設定スキップなどで登録計画から外れたエントリは、登録だけでは agent 設定に残り続けます。`--prune` を指定すると、**gateway 配下（`http://127.0.0.1:<port>/...`）の URL を持ち、かつ現在の計画に含まれない**既存登録を削除候補として提示・削除します。gateway 配下以外の URL や URL を特定できないエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めません。
+
+```bash
+# 候補の確認だけ（削除しない）
+make register REGISTER_FLAGS="--agent claude --dry-run --prune"
+
+# 候補一覧を表示し y/N 確認のうえ削除
+make register REGISTER_FLAGS="--agent claude --prune"
+
+# 確認なしで削除（自動化向け）
+make register REGISTER_FLAGS="--agent all --yes --prune"
+```
+
+対話モード（`make register`）では `--prune` の指定がなくても、登録後に削除候補があれば番号選択で提示します。既定（Enter）は「削除しない」で、削除実行前には必ず対象一覧つきの最終確認が入ります。
+
 Makefile 経由のビルド成果物は OS に合わせて決まります。Windows (`OS=Windows_NT`) では `bin/mcp-docker.exe` を生成し、`register-*` も `.exe` 付きのバイナリを実行します。Linux/macOS では従来通り `bin/mcp-docker` です。
 
 Makefile を使わず Go ツールチェーンから直接ビルド・実行する場合：

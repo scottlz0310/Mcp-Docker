@@ -30,32 +30,16 @@ func Load(path string) ([]register.Server, error) {
 }
 
 func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, error) {
-	var file composeFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
-		return nil, err
-	}
-	gateway, ok := file.Services["mcp-gateway"]
-	if !ok {
-		return nil, fmt.Errorf("services.mcp-gateway not found")
-	}
-
-	env, err := environmentMap(gateway.Environment)
+	env, err := gatewayEnv(data)
 	if err != nil {
 		return nil, err
 	}
-	port := defaultGatewayPort
 	if raw, ok := env["MCP_GATEWAY_PORT"]; ok {
-		expanded := expandComposeVars(raw, lookup)
-		if strings.Contains(expanded, "${") {
+		if expanded := expandComposeVars(raw, lookup); strings.Contains(expanded, "${") {
 			fmt.Fprintf(os.Stderr, "warning: MCP_GATEWAY_PORT contains unsupported variable expansion syntax: %s\n", expanded)
 		}
-		if expanded = strings.TrimSpace(expanded); expanded != "" {
-			port = expanded
-		}
 	}
-	if val, ok := lookup("MCP_GATEWAY_PORT"); ok && val != "" {
-		port = val
-	}
+	port := gatewayPort(env, lookup)
 
 	var keys []string
 	for key := range env {
@@ -93,6 +77,48 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 		})
 	}
 	return servers, nil
+}
+
+// GatewayOrigin は register が生成する URL の接頭辞（http://127.0.0.1:<port>/）を返す。
+func GatewayOrigin(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return gatewayOrigin(data, os.LookupEnv)
+}
+
+func gatewayOrigin(data []byte, lookup func(string) (string, bool)) (string, error) {
+	env, err := gatewayEnv(data)
+	if err != nil {
+		return "", err
+	}
+	return "http://127.0.0.1:" + gatewayPort(env, lookup) + "/", nil
+}
+
+func gatewayEnv(data []byte) (map[string]string, error) {
+	var file composeFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		return nil, err
+	}
+	gateway, ok := file.Services["mcp-gateway"]
+	if !ok {
+		return nil, fmt.Errorf("services.mcp-gateway not found")
+	}
+	return environmentMap(gateway.Environment)
+}
+
+func gatewayPort(env map[string]string, lookup func(string) (string, bool)) string {
+	port := defaultGatewayPort
+	if raw, ok := env["MCP_GATEWAY_PORT"]; ok {
+		if expanded := strings.TrimSpace(expandComposeVars(raw, lookup)); expanded != "" {
+			port = expanded
+		}
+	}
+	if val, ok := lookup("MCP_GATEWAY_PORT"); ok && val != "" {
+		port = val
+	}
+	return port
 }
 
 func environmentMap(node yaml.Node) (map[string]string, error) {

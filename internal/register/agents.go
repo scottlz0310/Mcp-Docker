@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -40,9 +41,9 @@ func NewAntigravityAgent(r Runner) Agent {
 	return AntigravityAgent{baseAgent: baseAgent{name: "antigravity", runner: r}}
 }
 
-func (a ClaudeAgent) List(ctx context.Context) ([]string, error) {
+func (a ClaudeAgent) ListEntries(ctx context.Context) ([]Entry, error) {
 	out, err := a.runner.Run(ctx, "claude", "mcp", "list")
-	return parseListNames(out), err
+	return parseListEntries(out), err
 }
 
 func (a ClaudeAgent) Add(ctx context.Context, s Server) error {
@@ -66,9 +67,9 @@ func (a ClaudeAgent) RemoveCommand(name string) []string {
 	return []string{"claude", "mcp", "remove", "--scope", "user", name}
 }
 
-func (a CopilotAgent) List(ctx context.Context) ([]string, error) {
+func (a CopilotAgent) ListEntries(ctx context.Context) ([]Entry, error) {
 	out, err := a.runner.Run(ctx, "gh", "copilot", "--", "mcp", "list")
-	return parseListNames(out), err
+	return parseListEntries(out), err
 }
 
 func (a CopilotAgent) Add(ctx context.Context, s Server) error {
@@ -92,9 +93,9 @@ func (a CopilotAgent) RemoveCommand(name string) []string {
 	return []string{"gh", "copilot", "--", "mcp", "remove", name}
 }
 
-func (a CodexAgent) List(ctx context.Context) ([]string, error) {
+func (a CodexAgent) ListEntries(ctx context.Context) ([]Entry, error) {
 	out, err := a.runner.Run(ctx, "codex", "mcp", "list")
-	return parseListNames(out), err
+	return parseListEntries(out), err
 }
 
 func (a CodexAgent) Add(ctx context.Context, s Server) error {
@@ -129,10 +130,10 @@ func runCommand(ctx context.Context, runner Runner, command []string) error {
 	return err
 }
 
-func parseListNames(output string) []string {
-	var names []string
+func parseListEntries(output string) []Entry {
+	var entries []Entry
 	seen := make(map[string]struct{})
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -142,12 +143,8 @@ func parseListNames(output string) []string {
 			continue
 		}
 
-		name := line
-		if before, _, ok := strings.Cut(name, ":"); ok {
-			name = before
-		} else {
-			name = strings.Fields(name)[0]
-		}
+		name := strings.Fields(line)[0]
+		name = strings.TrimSuffix(name, ":")
 		name = strings.Trim(name, "`'\"")
 		if name == "" {
 			continue
@@ -156,9 +153,19 @@ func parseListNames(output string) []string {
 			continue
 		}
 		seen[name] = struct{}{}
-		names = append(names, name)
+		entries = append(entries, Entry{Name: name, URL: firstURL(line)})
 	}
-	return names
+	return entries
+}
+
+// firstURL は行内の最初の http(s) URL トークンを返す。見つからなければ空文字。
+func firstURL(line string) string {
+	for field := range strings.FieldsSeq(line) {
+		if strings.HasPrefix(field, "http://") || strings.HasPrefix(field, "https://") {
+			return field
+		}
+	}
+	return ""
 }
 
 type AntigravityAgent struct {
@@ -177,7 +184,7 @@ func (a AntigravityAgent) getConfigPath() (string, error) {
 	return filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"), nil
 }
 
-func (a AntigravityAgent) List(ctx context.Context) ([]string, error) {
+func (a AntigravityAgent) ListEntries(ctx context.Context) ([]Entry, error) {
 	path, err := a.getConfigPath()
 	if err != nil {
 		return nil, err
@@ -201,11 +208,18 @@ func (a AntigravityAgent) List(ctx context.Context) ([]string, error) {
 	if !ok {
 		return nil, nil
 	}
-	var names []string
-	for name := range mcpServers {
-		names = append(names, name)
+	entries := make([]Entry, 0, len(mcpServers))
+	for name, raw := range mcpServers {
+		entry := Entry{Name: name}
+		if obj, ok := raw.(map[string]any); ok {
+			if u, ok := obj["serverUrl"].(string); ok {
+				entry.URL = u
+			}
+		}
+		entries = append(entries, entry)
 	}
-	return names, nil
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
+	return entries, nil
 }
 
 func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
@@ -213,9 +227,9 @@ func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
 	if err != nil {
 		return err
 	}
-	
+
 	var config map[string]any
-	
+
 	data, err := os.ReadFile(path)
 	if err == nil {
 		if err := json.Unmarshal(data, &config); err != nil {
@@ -224,11 +238,11 @@ func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	
+
 	if config == nil {
 		config = make(map[string]any)
 	}
-	
+
 	mcpServersAny, exists := config["mcpServers"]
 	var mcpServers map[string]any
 	if exists {
@@ -239,18 +253,18 @@ func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
 	if mcpServers == nil {
 		mcpServers = make(map[string]any)
 	}
-	
+
 	mcpServers[s.Name] = map[string]string{
 		"serverUrl": s.URL,
 	}
-	
+
 	config["mcpServers"] = mcpServers
-	
+
 	newData, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return safeWriteFile(path, newData, 0644)
 }
 
@@ -259,7 +273,7 @@ func (a AntigravityAgent) Remove(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -267,12 +281,12 @@ func (a AntigravityAgent) Remove(ctx context.Context, name string) error {
 		}
 		return err
 	}
-	
+
 	var config map[string]any
 	if err := json.Unmarshal(data, &config); err != nil {
 		return err
 	}
-	
+
 	mcpServersAny, exists := config["mcpServers"]
 	if exists {
 		if mcpServers, ok := mcpServersAny.(map[string]any); ok {
@@ -280,12 +294,12 @@ func (a AntigravityAgent) Remove(ctx context.Context, name string) error {
 			config["mcpServers"] = mcpServers
 		}
 	}
-	
+
 	newData, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return safeWriteFile(path, newData, 0644)
 }
 
@@ -315,7 +329,7 @@ func safeWriteFile(path string, data []byte, perm os.FileMode) error {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpPath)
 	}()
-	
+
 	if err := tmpFile.Chmod(perm); err != nil {
 		return err
 	}
