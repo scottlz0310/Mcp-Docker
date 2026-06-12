@@ -706,4 +706,167 @@ func TestGetRegisterTimeout(t *testing.T) {
 	}
 }
 
+func TestRegisterTimeoutOnAddCommand(t *testing.T) {
+	dir := t.TempDir()
+	var binName string
+	var binContent []byte
+
+	selfPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if runtime.GOOS == "windows" {
+		binName = "claude.bat"
+		binContent = []byte(fmt.Sprintf(`@echo off
+if "%%1"=="mcp" if "%%2"=="list" (
+    echo.
+    exit /b 0
+)
+set GO_WANT_HELPER_PROCESS=1
+"%s" -test.run=TestHelperProcess -- %%*
+`, selfPath))
+	} else {
+		binName = "claude"
+		binContent = []byte(fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "mcp" ] && [ "$2" = "list" ]; then
+    echo ""
+    exit 0
+fi
+export GO_WANT_HELPER_PROCESS=1
+exec "%s" -test.run=TestHelperProcess -- "$@"
+`, selfPath))
+	}
+	binPath := filepath.Join(dir, binName)
+	if err := os.WriteFile(binPath, binContent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", dir+string(filepath.ListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", oldPath)
+	}()
+
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "100ms")
+
+	composePath := filepath.Join(dir, "docker-compose.yml")
+	externalPath := filepath.Join(dir, "mcp-external.yml")
+	if err := os.WriteFile(composePath, []byte(`services:
+  mcp-gateway:
+    environment:
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(externalPath, []byte("servers: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = run(context.Background(), []string{
+		"register",
+		"--agent", "claude",
+		"--server", "github",
+		"--compose", composePath,
+		"--external", externalPath,
+		"--yes",
+	}, &stdout, &stderr, strings.NewReader(""))
+
+	if err == nil {
+		t.Fatal("expected timeout error on add, but got nil")
+	}
+	if !strings.Contains(err.Error(), "外部コマンドの実行がタイムアウトしました") || !strings.Contains(err.Error(), "register:") {
+		t.Fatalf("expected error message to contain register timeout explanation, but got: %v", err)
+	}
+}
+
+func TestRegisterTimeoutOnPruneCommand(t *testing.T) {
+	dir := t.TempDir()
+	var binName string
+	var binContent []byte
+
+	selfPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if runtime.GOOS == "windows" {
+		binName = "claude.bat"
+		binContent = []byte(fmt.Sprintf(`@echo off
+if "%%1"=="mcp" if "%%2"=="list" (
+    echo old-server: http://127.0.0.1:8080/mcp/old-server
+    exit /b 0
+)
+if "%%1"=="mcp" if "%%2"=="remove" (
+    set GO_WANT_HELPER_PROCESS=1
+    "%s" -test.run=TestHelperProcess -- %%*
+    exit /b 0
+)
+exit /b 0
+`, selfPath))
+	} else {
+		binName = "claude"
+		binContent = []byte(fmt.Sprintf(`#!/bin/sh
+if [ "$1" = "mcp" ] && [ "$2" = "list" ]; then
+    echo "old-server: http://127.0.0.1:8080/mcp/old-server"
+    exit 0
+fi
+if [ "$1" = "mcp" ] && [ "$2" = "remove" ]; then
+    export GO_WANT_HELPER_PROCESS=1
+    exec "%s" -test.run=TestHelperProcess -- "$@"
+fi
+exit 0
+`, selfPath))
+	}
+	binPath := filepath.Join(dir, binName)
+	if err := os.WriteFile(binPath, binContent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", dir+string(filepath.ListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", oldPath)
+	}()
+
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "100ms")
+
+	composePath := filepath.Join(dir, "docker-compose.yml")
+	externalPath := filepath.Join(dir, "mcp-external.yml")
+	if err := os.WriteFile(composePath, []byte(`services:
+  mcp-gateway:
+    environment:
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(externalPath, []byte("servers: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = run(context.Background(), []string{
+		"register",
+		"--agent", "claude",
+		"--server", "github",
+		"--compose", composePath,
+		"--external", externalPath,
+		"--prune",
+		"--yes",
+	}, &stdout, &stderr, strings.NewReader(""))
+
+	if err == nil {
+		t.Fatal("expected timeout error on prune, but got nil")
+	}
+	if !strings.Contains(err.Error(), "外部コマンドの実行がタイムアウトしました") || !strings.Contains(err.Error(), "prune:") {
+		t.Fatalf("expected error message to contain prune timeout explanation, but got: %v", err)
+	}
+}
+
+
 
