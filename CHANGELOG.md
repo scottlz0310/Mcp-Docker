@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-06-12
+
 ### ✨ 機能追加
 
 - `mcp-docker register` に stale エントリ削除（prune）を追加 — #171
