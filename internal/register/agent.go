@@ -33,17 +33,13 @@ type Agent interface {
 	RemoveCommand(string) []string
 }
 
-func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server) error {
+func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server, existing []Entry) error {
 	fmt.Fprintf(out, "%s に %d 件の MCP サーバーを登録します\n", agent.Name(), len(servers))
 
-	existing := make(map[string]struct{})
+	existingMap := make(map[string]struct{})
 	if !agent.OverwritesOnAdd() {
-		entries, err := agent.ListEntries(ctx)
-		if err != nil {
-			return fmt.Errorf("%s list: %w", agent.Name(), err)
-		}
-		for _, entry := range entries {
-			existing[entry.Name] = struct{}{}
+		for _, entry := range existing {
+			existingMap[entry.Name] = struct{}{}
 		}
 	}
 
@@ -55,7 +51,7 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 			fmt.Fprintf(out, "- %s: スキップ: %s\n", server.Name, reason)
 			continue
 		}
-		if _, ok := existing[server.Name]; ok {
+		if _, ok := existingMap[server.Name]; ok {
 			fmt.Fprintf(out, "- %s: 既存登録を削除します\n", server.Name)
 			if err := agent.Remove(ctx, server.Name); err != nil {
 				return fmt.Errorf("%s remove %q: %w", agent.Name(), server.Name, err)
@@ -76,11 +72,7 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 // StaleEntries は agent に登録済みのエントリのうち、gateway 配下の URL を持ち、
 // かつ定義ファイル（available）に含まれないものを返す。
 // URL が特定できないエントリは mcp-docker 管理外の可能性があるため候補にしない。
-func StaleEntries(ctx context.Context, agent Agent, available []Server, gatewayOrigin string) ([]Entry, error) {
-	entries, err := agent.ListEntries(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%s list: %w", agent.Name(), err)
-	}
+func StaleEntries(agent Agent, entries []Entry, available []Server, gatewayOrigin string) []Entry {
 	availableNames := make(map[string]struct{}, len(available))
 	for _, server := range available {
 		availableNames[server.Name] = struct{}{}
@@ -95,7 +87,7 @@ func StaleEntries(ctx context.Context, agent Agent, available []Server, gatewayO
 		}
 		stale = append(stale, entry)
 	}
-	return stale, nil
+	return stale
 }
 
 func Prune(ctx context.Context, out io.Writer, agent Agent, entries []Entry) error {
@@ -157,24 +149,4 @@ func unsupportedReason(agent Agent, server Server) (string, bool) {
 		return "", false
 	}
 	return fmt.Sprintf("tokenEnv %s は secret header を保存せずに %s へ登録できません", server.TokenEnv, agent.Name()), true
-}
-
-// CachedAgent は Agent の ListEntries 呼び出し結果をキャッシュするデコレータ。
-type CachedAgent struct {
-	Agent
-	entries []Entry
-	err     error
-	fetched bool
-}
-
-func NewCachedAgent(agent Agent) Agent {
-	return &CachedAgent{Agent: agent}
-}
-
-func (c *CachedAgent) ListEntries(ctx context.Context) ([]Entry, error) {
-	if !c.fetched {
-		c.entries, c.err = c.Agent.ListEntries(ctx)
-		c.fetched = true
-	}
-	return c.entries, c.err
 }

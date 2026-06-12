@@ -84,14 +84,13 @@ func TestCopilotRegisterRemovesExistingBeforeAdd(t *testing.T) {
 	agent := NewCopilotAgent(runner)
 	var out bytes.Buffer
 
-	err := Register(context.Background(), &out, agent, []Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}})
+	err := Register(context.Background(), &out, agent, []Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}}, []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	got := strings.Join(runner.calls, "\n")
 	for _, want := range []string{
-		"gh copilot -- mcp list",
 		"gh copilot -- mcp remove github",
 		"gh copilot -- mcp add --transport http github http://127.0.0.1:8080/mcp/github",
 	} {
@@ -110,7 +109,7 @@ func TestCodexRegisterOverwritesWithoutList(t *testing.T) {
 		Name:     "cloudflare-api",
 		URL:      "https://mcp.cloudflare.com/mcp",
 		TokenEnv: "CLOUDFLARE_API_TOKEN",
-	}})
+	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +133,7 @@ func TestClaudeSkipsTokenEnvServer(t *testing.T) {
 		Name:     "cloudflare-api",
 		URL:      "https://mcp.cloudflare.com/mcp",
 		TokenEnv: "CLOUDFLARE_API_TOKEN",
-	}})
+	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +345,7 @@ func TestNewAntigravityAgentAndRegister(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err = Register(context.Background(), &out, testAgent, servers)
+	err = Register(context.Background(), &out, testAgent, servers, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

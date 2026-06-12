@@ -158,16 +158,25 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
-		agent := register.NewCachedAgent(spec.newAgent(execRunner))
+		agent := spec.newAgent(execRunner)
+		var existing []register.Entry
+		if !opts.dryRun || pruneEnabled {
+			var err error
+			existing, err = agent.ListEntries(ctx)
+			if err != nil {
+				return err
+			}
+		}
+
 		if opts.dryRun {
 			register.PrintPlan(stdout, agent, selectedServers)
-		} else if err := register.Register(ctx, stdout, agent, selectedServers); err != nil {
+		} else if err := register.Register(ctx, stdout, agent, selectedServers, existing); err != nil {
 			return err
 		}
 		if !pruneEnabled {
 			continue
 		}
-		if err := pruneAgent(ctx, stdinReader, stdout, agent, servers, gatewayOrigin, opts, useInteractive); err != nil {
+		if err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive); err != nil {
 			return err
 		}
 	}
@@ -177,11 +186,8 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 // pruneAgent は agent に登録済みで定義ファイルに含まれない gateway 配下のエントリを削除する。
 // interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
 // 非対話では --yes 指定時のみ確認を省略する。
-func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
-	stale, err := register.StaleEntries(ctx, agent, available, gatewayOrigin)
-	if err != nil {
-		return err
-	}
+func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, existing []register.Entry, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
+	stale := register.StaleEntries(agent, existing, available, gatewayOrigin)
 	if len(stale) == 0 {
 		fmt.Fprintf(stdout, "%s: 削除対象の stale エントリはありません\n", agent.Name())
 		return nil
@@ -191,6 +197,7 @@ func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, age
 		return nil
 	}
 	targets := stale
+	var err error
 	if interactive {
 		targets, err = promptPruneSelection(reader, stdout, agent.Name(), stale)
 		if err != nil {

@@ -72,10 +72,7 @@ func TestStaleEntries(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			agent := &fakeAgent{name: "claude", entries: tc.entries}
-			stale, err := StaleEntries(context.Background(), agent, available, origin)
-			if err != nil {
-				t.Fatal(err)
-			}
+			stale := StaleEntries(agent, tc.entries, available, origin)
 			got := make([]string, 0, len(stale))
 			for _, entry := range stale {
 				got = append(got, entry.Name)
