@@ -119,3 +119,25 @@ func TestParseExpandsRouteVariables(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHandlesUnsupportedVariables(t *testing.T) {
+	data := []byte(`
+services:
+  mcp-gateway:
+    environment:
+      - ROUTE_GITHUB=${UNSUPPORTED-default}|http://github-mcp:8082
+`)
+	servers, err := Parse(data, func(key string) (string, bool) {
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 1 {
+		t.Fatalf("got %d servers, want 1", len(servers))
+	}
+	if got, want := servers[0].URL, "http://127.0.0.1:8080/${UNSUPPORTED-default}"; got != want {
+		t.Fatalf("URL = %q, want %q", got, want)
+	}
+}
+

@@ -45,7 +45,11 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 	}
 	port := defaultGatewayPort
 	if raw, ok := env["MCP_GATEWAY_PORT"]; ok {
-		if expanded := strings.TrimSpace(expandComposeVars(raw, lookup)); expanded != "" {
+		expanded := expandComposeVars(raw, lookup)
+		if strings.Contains(expanded, "${") {
+			fmt.Fprintf(os.Stderr, "warning: MCP_GATEWAY_PORT contains unsupported variable expansion syntax: %s\n", expanded)
+		}
+		if expanded = strings.TrimSpace(expanded); expanded != "" {
 			port = expanded
 		}
 	}
@@ -63,7 +67,11 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 
 	servers := make([]register.Server, 0, len(keys))
 	for _, key := range keys {
-		value := strings.TrimSpace(expandComposeVars(env[key], lookup))
+		expanded := expandComposeVars(env[key], lookup)
+		if strings.Contains(expanded, "${") {
+			fmt.Fprintf(os.Stderr, "warning: %s contains unsupported variable expansion syntax: %s\n", key, expanded)
+		}
+		value := strings.TrimSpace(expanded)
 		if value == "" {
 			// ${VAR:+...} の変数未設定などで空になったルートは、
 			// gateway 側（空 ROUTE_* スキップ）と同様に登録対象外とする
