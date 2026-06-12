@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 機能追加
+
+- `mcp-docker register` に stale エントリ削除（prune）を追加 — #171
+  - `--prune` で、登録計画に含まれなくなった gateway 配下（`http://127.0.0.1:<port>/...`）の既存登録を削除候補として提示・削除
+  - gateway 配下以外の URL・URL 不明のエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めない
+  - 対話モードでは削除候補を番号選択（既定は削除しない）し、削除実行前に対象一覧つきの最終確認を表示
+  - 非対話モードでは候補一覧と y/N 確認を表示し、`--yes` 指定時のみ確認を省略
+  - 選択プロンプトに複数選択の入力例（`1,3 / all / none`）を表示
+
 ### 🐛 バグ修正
 
 - `mcp-docker register` が `ROUTE_*` の Compose 変数展開に未対応で、cloudflare の serverUrl が壊れた値のまま agent に登録される問題を修正 — #167

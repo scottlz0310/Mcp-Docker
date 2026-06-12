@@ -120,6 +120,52 @@ func TestParseExpandsRouteVariables(t *testing.T) {
 	}
 }
 
+func TestGatewayOrigin(t *testing.T) {
+	const portYAML = `
+services:
+  mcp-gateway:
+    environment:
+      - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-9090}
+`
+	cases := []struct {
+		name string
+		yaml string
+		env  map[string]string
+		want string
+	}{
+		{
+			name: "environment 未定義ならデフォルトポート",
+			yaml: "services:\n  mcp-gateway: {}\n",
+			want: "http://127.0.0.1:8080/",
+		},
+		{
+			name: "compose の既定値を展開",
+			yaml: portYAML,
+			want: "http://127.0.0.1:9090/",
+		},
+		{
+			name: "実環境変数が優先される",
+			yaml: portYAML,
+			env:  map[string]string{"MCP_GATEWAY_PORT": "7000"},
+			want: "http://127.0.0.1:7000/",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := gatewayOrigin([]byte(tc.yaml), func(key string) (string, bool) {
+				val, ok := tc.env[key]
+				return val, ok
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("origin = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseHandlesUnsupportedVariables(t *testing.T) {
 	data := []byte(`
 services:
@@ -140,4 +186,3 @@ services:
 		t.Fatalf("URL = %q, want %q", got, want)
 	}
 }
-

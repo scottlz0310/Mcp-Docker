@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 var ErrUnsupported = errors.New("unsupported server for agent")
@@ -16,9 +17,15 @@ type Server struct {
 	Source   string
 }
 
+// Entry は agent に登録済みの MCP サーバー。URL が特定できない場合は空文字。
+type Entry struct {
+	Name string
+	URL  string
+}
+
 type Agent interface {
 	Name() string
-	List(context.Context) ([]string, error)
+	ListEntries(context.Context) ([]Entry, error)
 	Add(context.Context, Server) error
 	Remove(context.Context, string) error
 	OverwritesOnAdd() bool
@@ -31,12 +38,12 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 
 	existing := make(map[string]struct{})
 	if !agent.OverwritesOnAdd() {
-		names, err := agent.List(ctx)
+		entries, err := agent.ListEntries(ctx)
 		if err != nil {
 			return fmt.Errorf("%s list: %w", agent.Name(), err)
 		}
-		for _, name := range names {
-			existing[name] = struct{}{}
+		for _, entry := range entries {
+			existing[entry.Name] = struct{}{}
 		}
 	}
 
@@ -64,6 +71,49 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 		}
 	}
 	return nil
+}
+
+// StaleEntries は agent に登録済みのエントリのうち、gateway 配下の URL を持ち、
+// かつ現在の登録計画（available）に含まれないものを返す。
+// URL が特定できないエントリは mcp-docker 管理外の可能性があるため候補にしない。
+func StaleEntries(ctx context.Context, agent Agent, available []Server, gatewayOrigin string) ([]Entry, error) {
+	entries, err := agent.ListEntries(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s list: %w", agent.Name(), err)
+	}
+	availableNames := make(map[string]struct{}, len(available))
+	for _, server := range available {
+		availableNames[server.Name] = struct{}{}
+	}
+	var stale []Entry
+	for _, entry := range entries {
+		if _, ok := availableNames[entry.Name]; ok {
+			continue
+		}
+		if entry.URL == "" || !strings.HasPrefix(entry.URL, gatewayOrigin) {
+			continue
+		}
+		stale = append(stale, entry)
+	}
+	return stale, nil
+}
+
+func Prune(ctx context.Context, out io.Writer, agent Agent, entries []Entry) error {
+	for _, entry := range entries {
+		fmt.Fprintf(out, "- %s: %s を削除します\n", entry.Name, entry.URL)
+		if err := agent.Remove(ctx, entry.Name); err != nil {
+			return fmt.Errorf("%s remove %q: %w", agent.Name(), entry.Name, err)
+		}
+	}
+	return nil
+}
+
+func PrintPrunePlan(out io.Writer, agent Agent, entries []Entry) {
+	fmt.Fprintf(out, "%s の stale エントリ削除計画:\n", agent.Name())
+	for _, entry := range entries {
+		fmt.Fprintf(out, "- %s (%s):\n", entry.Name, entry.URL)
+		fmt.Fprintf(out, "  - 削除: %s\n", shellish(agent.RemoveCommand(entry.Name)))
+	}
 }
 
 func PrintPlan(out io.Writer, agent Agent, servers []Server) {
