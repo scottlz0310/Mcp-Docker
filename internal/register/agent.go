@@ -74,7 +74,7 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server)
 }
 
 // StaleEntries は agent に登録済みのエントリのうち、gateway 配下の URL を持ち、
-// かつ現在の登録計画（available）に含まれないものを返す。
+// かつ定義ファイル（available）に含まれないものを返す。
 // URL が特定できないエントリは mcp-docker 管理外の可能性があるため候補にしない。
 func StaleEntries(ctx context.Context, agent Agent, available []Server, gatewayOrigin string) ([]Entry, error) {
 	entries, err := agent.ListEntries(ctx)

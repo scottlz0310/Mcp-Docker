@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ 機能追加
 
 - `mcp-docker register` に stale エントリ削除（prune）を追加 — #171
-  - `--prune` で、登録計画に含まれなくなった gateway 配下（`http://127.0.0.1:<port>/...`）の既存登録を削除候補として提示・削除
+  - `--prune` で、定義ファイルに含まれなくなった gateway 配下（`http://127.0.0.1:<port>/...`）の既存登録を削除候補として提示・削除
   - gateway 配下以外の URL・URL 不明のエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めない
   - 対話モードでは削除候補を番号選択（既定は削除しない）し、削除実行前に対象一覧つきの最終確認を表示
   - 非対話モードでは候補一覧と y/N 確認を表示し、`--yes` 指定時のみ確認を省略
@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/verify-mcp-endpoint.js` が `Accept` ヘッダー不足で HTTP 406 エラーになる問題を修正 — #168
   - mcp-gateway が要求する `Accept: application/json, text/event-stream` を送信するように変更
   - レスポンスが `text/event-stream` (SSE フレーミング) の場合に `data:` 行を抽出して JSON パースするように変更
+
+### 📝 ドキュメント
+
+- `mcp-docker register` の stale エントリ削除（prune）における「登録計画」という表現を「定義ファイル」に修正し、`--server` で絞り込んだ際の安全側の挙動を明確化
 
 ## [2.13.0] - 2026-06-11
 
@@ -498,7 +502,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.14.0...HEAD
+[2.14.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.10.0...v2.11.0

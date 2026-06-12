@@ -70,7 +70,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.BoolVar(&opts.yes, "yes", false, "サジェスト名を確認なしで採用")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "実行せず、登録時に使うコマンドと条件を表示")
 	fs.BoolVar(&opts.interactive, "interactive", false, "agent/server を対話的に選択")
-	fs.BoolVar(&opts.prune, "prune", false, "計画に含まれない gateway 配下の既存登録を削除（候補確認のため各 agent の list を実行）")
+	fs.BoolVar(&opts.prune, "prune", false, "定義ファイルに含まれない gateway 配下の既存登録を削除（候補確認のため各 agent の list を実行）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	return nil
 }
 
-// pruneAgent は agent に登録済みで現在の登録計画に含まれない gateway 配下のエントリを削除する。
+// pruneAgent は agent に登録済みで定義ファイルに含まれない gateway 配下のエントリを削除する。
 // interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
 // 非対話では --yes 指定時のみ確認を省略する。
 func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
