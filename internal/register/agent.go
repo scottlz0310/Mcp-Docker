@@ -158,3 +158,23 @@ func unsupportedReason(agent Agent, server Server) (string, bool) {
 	}
 	return fmt.Sprintf("tokenEnv %s は secret header を保存せずに %s へ登録できません", server.TokenEnv, agent.Name()), true
 }
+
+// CachedAgent は Agent の ListEntries 呼び出し結果をキャッシュするデコレータ。
+type CachedAgent struct {
+	Agent
+	entries []Entry
+	err     error
+	fetched bool
+}
+
+func NewCachedAgent(agent Agent) Agent {
+	return &CachedAgent{Agent: agent}
+}
+
+func (c *CachedAgent) ListEntries(ctx context.Context) ([]Entry, error) {
+	if !c.fetched {
+		c.entries, c.err = c.Agent.ListEntries(ctx)
+		c.fetched = true
+	}
+	return c.entries, c.err
+}

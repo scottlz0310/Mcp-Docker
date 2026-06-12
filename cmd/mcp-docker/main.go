@@ -158,7 +158,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
-		agent := spec.newAgent(execRunner)
+		agent := register.NewCachedAgent(spec.newAgent(execRunner))
 		if opts.dryRun {
 			register.PrintPlan(stdout, agent, selectedServers)
 		} else if err := register.Register(ctx, stdout, agent, selectedServers); err != nil {

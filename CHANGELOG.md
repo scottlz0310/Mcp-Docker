@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - mcp-gateway が要求する `Accept: application/json, text/event-stream` を送信するように変更
   - レスポンスが `text/event-stream` (SSE フレーミング) の場合に `data:` 行を抽出して JSON パースするように変更
 
+### 🔧 改善
+
+- `mcp-docker register` 実行時、既存登録確認と stale 検出（prune）で重複していた `list` コマンド実行（`ListEntries`）をキャッシュ化し体感遅延を低減 — #173
+
 ### 📝 ドキュメント
 
 - `mcp-docker register` の stale エントリ削除（prune）における「登録計画」という表現を「定義ファイル」に修正し、`--server` で絞り込んだ際の安全側の挙動を明確化
