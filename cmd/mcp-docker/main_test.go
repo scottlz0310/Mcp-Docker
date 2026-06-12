@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -615,16 +616,31 @@ func TestRunRegisterListEntriesError(t *testing.T) {
 	}
 }
 
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	// タイムアウトするまで待機
+	time.Sleep(10 * time.Second)
+	os.Exit(0)
+}
+
 func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
 	dir := t.TempDir()
 	var binName string
 	var binContent []byte
+
+	selfPath, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if runtime.GOOS == "windows" {
 		binName = "claude.bat"
-		binContent = []byte("@echo off\r\necho ok\r\n")
+		binContent = []byte(fmt.Sprintf("@echo off\r\nset GO_WANT_HELPER_PROCESS=1\r\n\"%s\" -test.run=TestHelperProcess -- %%*\r\n", selfPath))
 	} else {
 		binName = "claude"
-		binContent = []byte("#!/bin/sh\necho ok\n")
+		binContent = []byte(fmt.Sprintf("#!/bin/sh\nexport GO_WANT_HELPER_PROCESS=1\nexec \"%s\" -test.run=TestHelperProcess -- \"$@\"\n", selfPath))
 	}
 	binPath := filepath.Join(dir, binName)
 	if err := os.WriteFile(binPath, binContent, 0o755); err != nil {
@@ -639,10 +655,8 @@ func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
 		_ = os.Setenv("PATH", oldPath)
 	}()
 
-	// すでに期限切れの context を渡して即座にタイムアウトエラーを誘発させる
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
-	time.Sleep(2 * time.Millisecond)
-	defer cancel()
+	// タイムアウトを 100ms に設定
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "100ms")
 
 	composePath := filepath.Join(dir, "docker-compose.yml")
 	externalPath := filepath.Join(dir, "mcp-external.yml")
@@ -658,7 +672,7 @@ func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := run(ctx, []string{
+	err = run(context.Background(), []string{
 		"register",
 		"--agent", "claude",
 		"--server", "github",

@@ -193,13 +193,8 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		if !pruneEnabled {
 			continue
 		}
-		pruneCtx, cancel := context.WithTimeout(ctx, timeout)
-		err := pruneAgent(pruneCtx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive)
-		cancel()
+		err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive)
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return fmt.Errorf("%s prune: 外部コマンドの実行がタイムアウトしました。OAuth認証フローがキャンセルされたか、接続に失敗した可能性があります (%s)", agent.Name(), timeout)
-			}
 			return err
 		}
 	}
@@ -241,7 +236,16 @@ func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, age
 			return nil
 		}
 	}
-	return register.Prune(ctx, stdout, agent, targets)
+	timeout := getRegisterTimeout()
+	pruneCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := register.Prune(pruneCtx, stdout, agent, targets); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%s prune: 外部コマンドの実行がタイムアウトしました。OAuth認証フローがキャンセルされたか、接続に失敗した可能性があります (%s)", agent.Name(), timeout)
+		}
+		return err
+	}
+	return nil
 }
 
 type registerOptions struct {
