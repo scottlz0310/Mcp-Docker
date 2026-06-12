@@ -134,7 +134,7 @@ make register REGISTER_FLAGS="--agent claude,antigravity --server github,playwri
 
 #### stale エントリの削除（prune）
 
-route の削除や `${VAR:+...}` の変数未設定スキップなどで登録計画から外れたエントリは、登録だけでは agent 設定に残り続けます。`--prune` を指定すると、**gateway 配下（`http://127.0.0.1:<port>/...`）の URL を持ち、かつ現在の計画に含まれない**既存登録を削除候補として提示・削除します。gateway 配下以外の URL や URL を特定できないエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めません。
+route の削除や `${VAR:+...}` の変数未設定スキップなどで定義ファイル（compose/external）から外れたエントリは、登録だけでは agent 設定に残り続けます。`--prune` を指定すると、**gateway 配下（`http://127.0.0.1:<port>/...`）の URL を持ち、かつ定義ファイル（compose/external）に含まれない**既存登録を削除候補として提示・削除します。なお、`--server` で特定のサーバーのみに絞り込んで登録を実行した場合でも、定義ファイルに存在するサーバーであれば削除候補にはなりません（誤削除を防ぐための安全側の設計です）。gateway 配下以外の URL や URL を特定できないエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めません。
 
 ```bash
 # 候補の確認だけ（削除しない）

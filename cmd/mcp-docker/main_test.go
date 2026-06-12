@@ -558,7 +558,7 @@ func TestPruneAgent(t *testing.T) {
 			var stdout bytes.Buffer
 			reader := bufio.NewReader(strings.NewReader(tc.input))
 
-			err := pruneAgent(context.Background(), reader, &stdout, agent, available, origin, tc.opts, tc.interactive)
+			err := pruneAgent(context.Background(), reader, &stdout, agent, tc.entries, available, origin, tc.opts, tc.interactive)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -569,5 +569,46 @@ func TestPruneAgent(t *testing.T) {
 				t.Fatalf("output = %q, missing %q", stdout.String(), tc.wantOutput)
 			}
 		})
+	}
+}
+
+func TestRunRegisterListEntriesError(t *testing.T) {
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", ""); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", oldPath)
+	}()
+
+	dir := t.TempDir()
+	composePath := filepath.Join(dir, "docker-compose.yml")
+	externalPath := filepath.Join(dir, "mcp-external.yml")
+	if err := os.WriteFile(composePath, []byte(`services:
+  mcp-gateway:
+    environment:
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(externalPath, []byte("servers: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{
+		"register",
+		"--agent", "claude",
+		"--server", "github",
+		"--compose", composePath,
+		"--external", externalPath,
+		"--yes",
+	}, &stdout, &stderr, strings.NewReader(""))
+
+	if err == nil {
+		t.Fatal("expected error due to missing claude executable during list, but got nil")
+	}
+	if !strings.Contains(err.Error(), "list:") {
+		t.Fatalf("expected error message to contain 'list:', but got: %v", err)
 	}
 }

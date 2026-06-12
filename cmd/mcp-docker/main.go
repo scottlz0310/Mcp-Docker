@@ -27,7 +27,7 @@ register に何も引数を指定せず TTY から実行した場合は対話モ
 （agent と MCP サーバーを番号入力で複数選択できます）。
 `
 
-var version = "2.13.0"
+var version = "2.14.0"
 
 var allAgentNames = []string{"claude", "copilot", "codex", "antigravity"}
 
@@ -70,7 +70,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.BoolVar(&opts.yes, "yes", false, "サジェスト名を確認なしで採用")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "実行せず、登録時に使うコマンドと条件を表示")
 	fs.BoolVar(&opts.interactive, "interactive", false, "agent/server を対話的に選択")
-	fs.BoolVar(&opts.prune, "prune", false, "計画に含まれない gateway 配下の既存登録を削除（候補確認のため各 agent の list を実行）")
+	fs.BoolVar(&opts.prune, "prune", false, "定義ファイルに含まれない gateway 配下の既存登録を削除（候補確認のため各 agent の list を実行）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -159,29 +159,35 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
 		agent := spec.newAgent(execRunner)
+		var existing []register.Entry
+		if pruneEnabled || (!opts.dryRun && !agent.OverwritesOnAdd()) {
+			var err error
+			existing, err = agent.ListEntries(ctx)
+			if err != nil {
+				return fmt.Errorf("%s list: %w", agent.Name(), err)
+			}
+		}
+
 		if opts.dryRun {
 			register.PrintPlan(stdout, agent, selectedServers)
-		} else if err := register.Register(ctx, stdout, agent, selectedServers); err != nil {
+		} else if err := register.Register(ctx, stdout, agent, selectedServers, existing); err != nil {
 			return err
 		}
 		if !pruneEnabled {
 			continue
 		}
-		if err := pruneAgent(ctx, stdinReader, stdout, agent, servers, gatewayOrigin, opts, useInteractive); err != nil {
+		if err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// pruneAgent は agent に登録済みで現在の登録計画に含まれない gateway 配下のエントリを削除する。
+// pruneAgent は agent に登録済みで定義ファイルに含まれない gateway 配下のエントリを削除する。
 // interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
 // 非対話では --yes 指定時のみ確認を省略する。
-func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
-	stale, err := register.StaleEntries(ctx, agent, available, gatewayOrigin)
-	if err != nil {
-		return err
-	}
+func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, existing []register.Entry, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
+	stale := register.StaleEntries(existing, available, gatewayOrigin)
 	if len(stale) == 0 {
 		fmt.Fprintf(stdout, "%s: 削除対象の stale エントリはありません\n", agent.Name())
 		return nil
@@ -191,6 +197,7 @@ func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, age
 		return nil
 	}
 	targets := stale
+	var err error
 	if interactive {
 		targets, err = promptPruneSelection(reader, stdout, agent.Name(), stale)
 		if err != nil {
