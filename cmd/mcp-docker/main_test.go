@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/scottlz0310/mcp-docker/v2/internal/register"
 )
@@ -612,3 +613,55 @@ func TestRunRegisterListEntriesError(t *testing.T) {
 		t.Fatalf("expected error message to contain 'list:', but got: %v", err)
 	}
 }
+
+func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
+	dir := t.TempDir()
+	batPath := filepath.Join(dir, "claude.bat")
+	if err := os.WriteFile(batPath, []byte("@echo off\r\necho ok\r\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", dir+string(filepath.ListSeparator)+oldPath); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Setenv("PATH", oldPath)
+	}()
+
+	// すでに期限切れの context を渡して即座にタイムアウトエラーを誘発させる
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
+	time.Sleep(2 * time.Millisecond)
+	defer cancel()
+
+	composePath := filepath.Join(dir, "docker-compose.yml")
+	externalPath := filepath.Join(dir, "mcp-external.yml")
+	if err := os.WriteFile(composePath, []byte(`services:
+  mcp-gateway:
+    environment:
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(externalPath, []byte("servers: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := run(ctx, []string{
+		"register",
+		"--agent", "claude",
+		"--server", "github",
+		"--compose", composePath,
+		"--external", externalPath,
+		"--yes",
+	}, &stdout, &stderr, strings.NewReader(""))
+
+	if err == nil {
+		t.Fatal("expected timeout error, but got nil")
+	}
+	if !strings.Contains(err.Error(), "外部コマンドの実行がタイムアウトしました") {
+		t.Fatalf("expected error message to contain timeout explanation, but got: %v", err)
+	}
+}
+

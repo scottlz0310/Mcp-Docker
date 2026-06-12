@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `mcp-docker register` コマンドでエージェント（特に Codex CLI など）の登録・登録確認を行う際、OAuth 認証のキャンセルや失敗によって外部コマンドが応答なしのままハングアップする問題を修正 — #175
+  - 各エージェントに対する外部コマンド実行（登録確認 `ListEntries`、登録 `Register`、削除 `pruneAgent`）にデフォルト 3 分のタイムアウトを設定
+  - タイムアウト発生時は安全にエラー終了させるとともに、OAuth認証フローの失敗やキャンセルが発生した可能性を示す親切なエラーメッセージを出力
+  - タイムアウト時間は環境変数 `MCP_DOCKER_REGISTER_TIMEOUT` からカスタマイズ可能に
+
+
 ## [2.14.0] - 2026-06-12
 
 ### ✨ 機能追加
