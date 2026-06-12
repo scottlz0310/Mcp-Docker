@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"time"
+
 	"github.com/scottlz0310/mcp-docker/v2/internal/compose"
 	"github.com/scottlz0310/mcp-docker/v2/internal/external"
 	"github.com/scottlz0310/mcp-docker/v2/internal/register"
@@ -156,27 +158,43 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		}
 	}
 
+	timeout := getRegisterTimeout()
+
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
 		agent := spec.newAgent(execRunner)
 		var existing []register.Entry
 		if pruneEnabled || (!opts.dryRun && !agent.OverwritesOnAdd()) {
 			var err error
-			existing, err = agent.ListEntries(ctx)
+			listCtx, cancel := context.WithTimeout(ctx, timeout)
+			existing, err = agent.ListEntries(listCtx)
+			cancel()
 			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("%s list: 外部コマンドの実行がタイムアウトしました。OAuth認証フローがキャンセルされたか、接続に失敗した可能性があります (%s)", agent.Name(), timeout)
+				}
 				return fmt.Errorf("%s list: %w", agent.Name(), err)
 			}
 		}
 
 		if opts.dryRun {
 			register.PrintPlan(stdout, agent, selectedServers)
-		} else if err := register.Register(ctx, stdout, agent, selectedServers, existing); err != nil {
-			return err
+		} else {
+			regCtx, cancel := context.WithTimeout(ctx, timeout)
+			err := register.Register(regCtx, stdout, agent, selectedServers, existing)
+			cancel()
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("%s register: 外部コマンドの実行がタイムアウトしました。OAuth認証フローがキャンセルされたか、接続に失敗した可能性があります (%s)", agent.Name(), timeout)
+				}
+				return err
+			}
 		}
 		if !pruneEnabled {
 			continue
 		}
-		if err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive); err != nil {
+		err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigin, opts, useInteractive)
+		if err != nil {
 			return err
 		}
 	}
@@ -218,7 +236,16 @@ func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, age
 			return nil
 		}
 	}
-	return register.Prune(ctx, stdout, agent, targets)
+	timeout := getRegisterTimeout()
+	pruneCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := register.Prune(pruneCtx, stdout, agent, targets); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("%s prune: 外部コマンドの実行がタイムアウトしました。OAuth認証フローがキャンセルされたか、接続に失敗した可能性があります (%s)", agent.Name(), timeout)
+		}
+		return err
+	}
+	return nil
 }
 
 type registerOptions struct {
@@ -389,3 +416,15 @@ func selectAgentsByNames(names []string) ([]agentSpec, error) {
 	}
 	return out, nil
 }
+
+const defaultRegisterTimeout = 3 * time.Minute
+
+func getRegisterTimeout() time.Duration {
+	if val := os.Getenv("MCP_DOCKER_REGISTER_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
+	return defaultRegisterTimeout
+}
+

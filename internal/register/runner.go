@@ -16,6 +16,9 @@ type ExecRunner struct{}
 func (ExecRunner) Run(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return string(out), ctx.Err()
+	}
 	if err != nil {
 		return string(out), fmt.Errorf("%s: %w\n%s", shellish(append([]string{name}, args...)), err, strings.TrimSpace(string(out)))
 	}
