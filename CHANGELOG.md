@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 改善
 
-- `mcp-docker register` 実行時、既存登録確認と stale 検出（prune）で重複していた `list` コマンド実行（`ListEntries`）をキャッシュ化し体感遅延を低減 — #173
+- `mcp-docker register` 実行時、既存登録確認と stale 検出（prune）で重複していた `list` コマンド実行（`ListEntries`）を排除し体感遅延を低減 — #173
 
 ### 📝 ドキュメント
 

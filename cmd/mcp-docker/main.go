@@ -160,11 +160,11 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	for _, spec := range selected {
 		agent := spec.newAgent(execRunner)
 		var existing []register.Entry
-		if !opts.dryRun || pruneEnabled {
+		if pruneEnabled || (!opts.dryRun && !agent.OverwritesOnAdd()) {
 			var err error
 			existing, err = agent.ListEntries(ctx)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s list: %w", agent.Name(), err)
 			}
 		}
 
@@ -187,7 +187,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 // interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
 // 非対話では --yes 指定時のみ確認を省略する。
 func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, existing []register.Entry, available []register.Server, gatewayOrigin string, opts registerOptions, interactive bool) error {
-	stale := register.StaleEntries(agent, existing, available, gatewayOrigin)
+	stale := register.StaleEntries(existing, available, gatewayOrigin)
 	if len(stale) == 0 {
 		fmt.Fprintf(stdout, "%s: 削除対象の stale エントリはありません\n", agent.Name())
 		return nil
