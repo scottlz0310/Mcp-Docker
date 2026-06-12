@@ -675,3 +675,21 @@ func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
 	}
 }
 
+func TestGetRegisterTimeout(t *testing.T) {
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "")
+	if got := getRegisterTimeout(); got != defaultRegisterTimeout {
+		t.Fatalf("getRegisterTimeout() = %v, want default %v", got, defaultRegisterTimeout)
+	}
+
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "10s")
+	if got := getRegisterTimeout(); got != 10*time.Second {
+		t.Fatalf("getRegisterTimeout() = %v, want 10s", got)
+	}
+
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "invalid-duration")
+	if got := getRegisterTimeout(); got != defaultRegisterTimeout {
+		t.Fatalf("getRegisterTimeout() = %v, want default %v on invalid input", got, defaultRegisterTimeout)
+	}
+}
+
+
