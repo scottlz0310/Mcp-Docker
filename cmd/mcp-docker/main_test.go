@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -616,8 +617,17 @@ func TestRunRegisterListEntriesError(t *testing.T) {
 
 func TestRegisterTimeoutOnExternalCommand(t *testing.T) {
 	dir := t.TempDir()
-	batPath := filepath.Join(dir, "claude.bat")
-	if err := os.WriteFile(batPath, []byte("@echo off\r\necho ok\r\n"), 0o755); err != nil {
+	var binName string
+	var binContent []byte
+	if runtime.GOOS == "windows" {
+		binName = "claude.bat"
+		binContent = []byte("@echo off\r\necho ok\r\n")
+	} else {
+		binName = "claude"
+		binContent = []byte("#!/bin/sh\necho ok\n")
+	}
+	binPath := filepath.Join(dir, binName)
+	if err := os.WriteFile(binPath, binContent, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
