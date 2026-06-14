@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 機能追加
+
+- MCP ゲートウェイの GitHub トークン自動ローテーションをデフォルトで有効化（`MCP_GATEWAY_GITHUB_REFRESH_ENABLED=true`） — #178
+  - `docker-compose.yml` でのデフォルト値を `true` に設定
+  - `.env.template` に `MCP_GATEWAY_GITHUB_REFRESH_ENABLED=true` を明記し、自動ローテーション機能の利用を推奨するドキュメントを追加
+
 ### 🐛 バグ修正
 
 - `mcp-docker register` コマンドでエージェント（特に Codex CLI など）の登録・登録確認を行う際、OAuth 認証のキャンセルや失敗によって外部コマンドが応答なしのままハングアップする問題を修正 — #175
