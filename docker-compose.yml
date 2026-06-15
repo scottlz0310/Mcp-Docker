@@ -71,9 +71,9 @@ services:
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
-      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}
+      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
-      - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}
+      - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
       # =============================================================================
       # Remote MCP プロバイダー（upstream_bearer_token_env）— mcp-gateway v0.5.0 以降
       # =============================================================================
@@ -180,8 +180,6 @@ services:
       - GITHUB_WEBHOOK_SECRET=${THREAD_OWL_GITHUB_WEBHOOK_SECRET}
       - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
-      # mcp-gateway がプレフィックスをストリップせず転送するため、gateway 側の route prefix に合わせる。
-      - MCP_HTTP_PATH=/mcp/thread-owl
       - LOG_LEVEL=${LOG_LEVEL:-info}
 
     expose:
