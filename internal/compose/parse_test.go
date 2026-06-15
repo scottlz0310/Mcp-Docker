@@ -1,8 +1,12 @@
 package compose
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseRoutesFromComposeEnvironment(t *testing.T) {
@@ -34,6 +38,58 @@ services:
 		if server.Source == "" {
 			t.Fatalf("%s Source is empty", server.Name)
 		}
+	}
+}
+
+func TestRepositoryComposeMCPRouteContract(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gateway, err := gatewayEnv(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{
+			name: "review-raven の upstream endpoint",
+			key:  "ROUTE_REVIEW_RAVEN",
+			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp",
+		},
+		{
+			name: "thread-owl の upstream endpoint",
+			key:  "ROUTE_THREAD_OWL",
+			want: "/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := gateway[tt.key]; got != tt.want {
+				t.Fatalf("%s = %q, want %q", tt.key, got, tt.want)
+			}
+		})
+	}
+
+	var file composeFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	threadOwl, ok := file.Services["thread-owl"]
+	if !ok {
+		t.Fatal("services.thread-owl not found")
+	}
+	threadOwlEnv, err := environmentMap(threadOwl.Environment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := threadOwlEnv["MCP_HTTP_PATH"]; ok {
+		t.Fatal("thread-owl must use its default /mcp endpoint")
 	}
 }
 

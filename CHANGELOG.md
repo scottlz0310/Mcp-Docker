@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 バグ修正
 
+- mcp-gateway の route prefix strip 後に `review-raven` / `thread-owl` の root へ転送され、MCP initialize が 404 になる問題を修正 — #180
+  - 各 route の upstream URL に内部 MCP endpoint `/mcp` を明記
+  - `thread-owl` の `MCP_HTTP_PATH=/mcp/thread-owl` を削除し、外部 route prefix と内部 endpoint の責務を分離
 - `mcp-docker register` コマンドでエージェント（特に Codex CLI など）の登録・登録確認を行う際、OAuth 認証のキャンセルや失敗によって外部コマンドが応答なしのままハングアップする問題を修正 — #175
   - 各エージェントに対する外部コマンド実行（登録確認 `ListEntries`、登録 `Register`、削除 `pruneAgent`）にデフォルト 3 分のタイムアウトを設定
   - タイムアウト発生時は安全にエラー終了させるとともに、OAuth認証フローの失敗やキャンセルが発生した可能性を示す親切なエラーメッセージを出力
