@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 機能追加
 
+- review-raven の `auth=none` フォールバック対応として、gateway / review-raven コンテナに必要な環境変数を注入 — #182
+  - gateway: `GITHUB_PERSONAL_ACCESS_TOKEN` を環境変数として追加し、`ROUTE_GITHUB` に `upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN` を設定
+  - `ROUTE_REVIEW_RAVEN` / `ROUTE_THREAD_OWL` に `auth=none` を追加
+  - review-raven: `GITHUB_PERSONAL_ACCESS_TOKEN` と `REVIEW_RAVEN_DEFAULT_USER` を注入
+
 - MCP ゲートウェイの GitHub トークン自動ローテーションをデフォルトで有効化（`MCP_GATEWAY_GITHUB_REFRESH_ENABLED=true`） — #178
   - `docker-compose.yml` でのデフォルト値を `true` に設定
   - `.env.template` に `MCP_GATEWAY_GITHUB_REFRESH_ENABLED=true` を明記し、自動ローテーション機能の利用を推奨するドキュメントを追加
