@@ -70,10 +70,11 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
-      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}
-      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|auth=none|upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN
+      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|auth=none
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
-      - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
+      - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp|auth=none
       # =============================================================================
       # Remote MCP プロバイダー（upstream_bearer_token_env）— mcp-gateway v0.5.0 以降
       # =============================================================================
@@ -134,6 +135,8 @@ services:
       - BIND_ADDR=0.0.0.0
       - MCP_PORT=${REVIEW_RAVEN_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - REVIEW_RAVEN_DEFAULT_USER=${REVIEW_RAVEN_DEFAULT_USER:-}
 
     # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/review-raven）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。

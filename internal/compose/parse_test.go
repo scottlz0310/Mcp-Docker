@@ -60,12 +60,12 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		{
 			name: "review-raven の upstream endpoint",
 			key:  "ROUTE_REVIEW_RAVEN",
-			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp",
+			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|auth=none",
 		},
 		{
 			name: "thread-owl の upstream endpoint",
 			key:  "ROUTE_THREAD_OWL",
-			want: "/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp",
+			want: "/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp|auth=none",
 		},
 	}
 	for _, tt := range tests {
