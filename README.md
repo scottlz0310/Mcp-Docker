@@ -37,7 +37,7 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 
 - Docker 20.10+
 - GitHub Personal Access Token（PAT）
-- GitHub OAuth App の Client ID / Secret（mcp-gateway 経由接続に必要）
+- GitHub App の Client ID / Secret（mcp-gateway 経由接続に必要）
 
 ### セットアップ
 
@@ -50,10 +50,11 @@ cd Mcp-Docker
 cp .env.template .env
 # .env を編集して以下を設定:
 #   GITHUB_PERSONAL_ACCESS_TOKEN     (github-mcp-server 用 PAT)
-#   GITHUB_MCP_CLIENT_ID             (mcp-gateway OAuth App Client ID)
-#   GITHUB_MCP_CLIENT_SECRET         (mcp-gateway OAuth App Client Secret)
+#   OAUTH_CLIENT_ID                  (mcp-gateway GitHub App Client ID)
+#   OAUTH_CLIENT_SECRET              (mcp-gateway GitHub App Client Secret)
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
+# ※ 旧 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET も互換目的で受け付けます。
 
 # 3. 全サービス起動
 make start-gateway
@@ -85,22 +86,35 @@ make start-gateway
 
 **Classic token（非推奨）**: スコープ `repo, workflow, read:org, read:user`
 
-### GitHub OAuth App 登録
+### GitHub App 登録
 
-mcp-gateway 経由で接続するには GitHub OAuth App が必要です。
+mcp-gateway 経由で接続するには GitHub App が必要です。
 
-1. [https://github.com/settings/applications/new](https://github.com/settings/applications/new) にアクセス
+1. GitHub の **Settings > Developer settings > GitHub Apps > New GitHub App** を開く
 2. 設定：
    - Homepage URL: `http://127.0.0.1:8080`
-   - Authorization callback URL: `http://127.0.0.1:8080/callback`
-3. Client ID / Secret を取得し `.env` に設定：
+   - Authorization callback URLs:
+     - `http://127.0.0.1:8080/callback`
+     - `http://127.0.0.1:8080/device_callback`
+   - Repository permissions:
+     - Metadata: Read-only（自動選択）
+     - Contents: Read-only
+     - Issues: Read and write
+     - Pull requests: Read and write
+   - Account permissions:
+     - Email addresses: Read-only
+   - Webhook: disabled
+   - Where can this GitHub App be installed?: 個人利用なら `Only on this account`
+3. 作成後、Client secret を生成し、Client ID / Secret を `.env` に設定：
 
 ```bash
-GITHUB_MCP_CLIENT_ID=Ov23xxxxxxxxxxxxxxxx
-GITHUB_MCP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OAUTH_CLIENT_ID=Iv23xxxxxxxxxxxxxxxx
+OAUTH_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-> callback URL は `MCP_GATEWAY_PUBLIC_URL`（未設定時は `MCP_GATEWAY_BASE_URL`）と一致させてください（末尾に `/callback`）。
+> callback URL のベース URL は `MCP_GATEWAY_PUBLIC_URL`（未設定時は `MCP_GATEWAY_BASE_URL`）と一致させてください。`/callback` と `/device_callback` の 2 本を登録します。
+>
+> GitHub OAuth App から移行する場合は、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます。旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` も互換目的で読み取りますが、新規設定では `OAUTH_*` を使ってください。
 
 
 ## CLI 統合
@@ -365,9 +379,11 @@ make logs-gateway  # mcp-gateway ログ
 docker volume rm mcp-docker_github-mcp-cache
 ```
 
-### mcp-gateway トークンストアボリューム（`mcp-gateway-data`）
+### mcp-gateway トークンストア / 監査ログボリューム（`mcp-gateway-data`）
 
 `mcp-gateway` はブラウザ認証後に取得した OAuth トークンを `/data/tokens.db` に永続化します。
+OAuth 監査ログは `/data/logs/auth-audit.jsonl` に JSON Lines 形式で保存します。
+どちらも `mcp-gateway-data` volume 配下に置かれるため、コンテナ再作成後も保持されます。
 このファイルは **検証済み OAuth トークンのキャッシュ**であり、GitHub 認証情報（PAT）そのものではありません。
 
 ボリューム情報確認（Mountpoint 等のメタデータ）：
