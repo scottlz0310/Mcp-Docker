@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - タイムアウト発生時は安全にエラー終了させるとともに、OAuth認証フローの失敗やキャンセルが発生した可能性を示す親切なエラーメッセージを出力
   - タイムアウト時間は環境変数 `MCP_DOCKER_REGISTER_TIMEOUT` からカスタマイズ可能に
 
+### 📝 ドキュメント
+
+- mcp-gateway の GitHub App 移行に合わせ、`.env.template` / `README.md` の作成手順・callback URL・permission 設定を更新 — #183
+  - `OAUTH_CLIENT_ID` の例を GitHub App Client ID の `Iv23...` 形式に更新
+  - `docker-compose.yml` で OAuth 監査ログを `/data/logs/auth-audit.jsonl` に永続化
+
 
 ## [2.14.0] - 2026-06-12
 

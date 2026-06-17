@@ -60,6 +60,9 @@ services:
         condition: service_started
 
     environment:
+      # GitHub App の Client ID / Secret を指定します（Client ID は Iv23... 形式）。
+      # GitHub App には <MCP_GATEWAY_PUBLIC_URL>/callback と
+      # <MCP_GATEWAY_PUBLIC_URL>/device_callback の両方を登録してください。
       - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-${GITHUB_MCP_CLIENT_ID}}
       - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-${GITHUB_MCP_CLIENT_SECRET}}
       # v0.4.0 未満のゲートウェイとの後方互換エイリアス
@@ -93,6 +96,7 @@ services:
       - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}
       - TOKEN_EXPIRES_IN_SEC=${TOKEN_EXPIRES_IN_SEC:-7776000}
       - MCP_GATEWAY_TOKEN_STORE_PATH=${MCP_GATEWAY_TOKEN_STORE_PATH:-/data/tokens.db}
+      - MCP_GATEWAY_AUTH_AUDIT_LOG_PATH=${MCP_GATEWAY_AUTH_AUDIT_LOG_PATH:-/data/logs/auth-audit.jsonl}
       - MCP_GATEWAY_GITHUB_REFRESH_ENABLED=${MCP_GATEWAY_GITHUB_REFRESH_ENABLED:-true}
 
     volumes:
