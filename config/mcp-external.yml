@@ -9,11 +9,24 @@
 # mcp-gateway routes unless the user opts into additional external services.
 servers: []
 
-# Example:
-# servers:
-#   - name: cloudflare-api
-#     url: https://mcp.cloudflare.com/mcp
-#     tokenEnv: CLOUDFLARE_API_TOKEN
+# Cloudflare Remote MCP（直接接続）
+# Cloudflare MCP は自身で OAuth AS を持つ公開エンドポイントです。
+# gateway 経由にせず MCP クライアントが直接 OAuth 認可を行います。
 #
+# 有効化手順:
+#   1. 下記コメントを解除
+#   2. make register-antigravity（または make register-all）を実行
+#
+# ⚠ tokenEnv を含むエントリは Claude / Copilot / Antigravity CLI では登録がスキップされます
+#   （シークレットをヘッダーとして保存しない設計のため）。
+#   これらのクライアントは tokenEnv なしの URL のみ登録し、OAuth フローで直接認証します。
+#   Codex CLI で静的 API トークンを使う場合のみ tokenEnv 行を有効化してください。
+#
+# servers:
+#   - name: cloudflare
+#     url: https://mcp.cloudflare.com/mcp
+#     # tokenEnv: CLOUDFLARE_API_TOKEN  # Codex のみ: 静的 API トークンを使う場合に有効化
+
+# Example (other external servers):
 #   - name: supabase
 #     url: https://mcp.supabase.com/mcp

@@ -9,13 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 機能追加
 
-- mcp-gateway の upstream OAuth 委任（upstream_oauth）および OIDC AS（builtin）を Compose に統合 — #185
-  - `GITHUB_MCP_GATEWAY_IMAGE` デフォルトを `:main` に変更（upstream OAuth 実装を含む main ブランチを使用）
+- mcp-gateway の OIDC AS（builtin）を Compose に統合 — #185
+  - `GITHUB_MCP_GATEWAY_IMAGE` デフォルトを `:main` に変更（builtin AS 実装を含む main ブランチを使用）
   - `OAUTH_PROVIDER` デフォルトを `builtin` に変更（gateway 自身が OIDC AS として動作。GitHub OAuth App は social login のみに使用）
-  - `ROUTE_CLOUDFLARE` を `upstream_bearer_token_env=CLOUDFLARE_API_TOKEN` から `upstream_oauth=auto|upstream_oauth_scope=account:read offline_access` に変更
-    - ユーザーごとの Cloudflare OAuth 認可フロー（authorization_code + PKCE）を gateway が仲介
-    - `CLOUDFLARE_API_TOKEN` はルート on/off スイッチとして引き続き使用（値はコンテナに渡さない）
-    - DCR 登録（`upstream_clients.json`）とユーザートークン（`upstream_tokens.json`）は `mcp-gateway-data` ボリューム内の `/data/mcp-gateway/` 以下に自動永続化
+
+### 🔄 変更
+
+- Cloudflare MCP を gateway 経由（`upstream_oauth=auto`）から直接接続方式に変更
+  - `ROUTE_CLOUDFLARE`（upstream_oauth 委任）を docker-compose.yml から削除
+  - `config/mcp-external.yml` に Cloudflare 直接接続エントリを例示（コメントアウト）
+  - MCP クライアントが `https://mcp.cloudflare.com/mcp` へ直接 OAuth 認可を行う構成に統一
+  - **背景**: agy（Antigravity CLI）の既知バグ [#25](https://github.com/google-antigravity/antigravity-cli/issues/25)・[#348](https://github.com/google-antigravity/antigravity-cli/issues/348) により、HTTP MCP + upstream OAuth 委任フローが動作しないため
 
 - review-raven の `auth=none` フォールバック対応として、gateway / review-raven コンテナに必要な環境変数を注入 — #182
   - gateway: `GITHUB_PERSONAL_ACCESS_TOKEN` を環境変数として追加し、`ROUTE_GITHUB` に `upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN` を設定
