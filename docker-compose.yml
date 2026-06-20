@@ -44,7 +44,7 @@ services:
           memory: 256M
 
   mcp-gateway:
-    image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:latest}
+    image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:main}
     container_name: mcp-gateway
     restart: unless-stopped
     depends_on:
@@ -68,6 +68,10 @@ services:
       # v0.4.0 未満のゲートウェイとの後方互換エイリアス
       - GITHUB_MCP_CLIENT_ID=${OAUTH_CLIENT_ID:-${GITHUB_MCP_CLIENT_ID}}
       - GITHUB_MCP_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-${GITHUB_MCP_CLIENT_SECRET}}
+      # mcp-gateway v0.6.0+: builtin にすることで gateway 自身が OIDC AS として動作し
+      # GitHub OAuth App は social login（identity 取得）のみに使用する（mcp-gateway#126）。
+      # 従来の github モードに戻す場合は .env に OAUTH_PROVIDER=github を設定してください。
+      - OAUTH_PROVIDER=${OAUTH_PROVIDER:-builtin}
       - MCP_GATEWAY_PUBLIC_URL=${MCP_GATEWAY_PUBLIC_URL:-${MCP_GATEWAY_BASE_URL:-http://127.0.0.1:${MCP_GATEWAY_PORT:-8080}}}
       - MCP_GATEWAY_BIND_ADDR=${MCP_GATEWAY_BIND_ADDR:-0.0.0.0:${MCP_GATEWAY_PORT:-8080}}
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
@@ -79,16 +83,23 @@ services:
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp|auth=none
       # =============================================================================
-      # Remote MCP プロバイダー（upstream_bearer_token_env）— mcp-gateway v0.5.0 以降
+      # upstream OAuth 委任（upstream_oauth）— mcp-gateway main ブランチ以降 (#84)
       # =============================================================================
-      # 外部 Remote MCP サービスを mcp-gateway 配下に収容する例（Cloudflare）。
-      # CLOUDFLARE_API_TOKEN が設定されている場合のみ自動的にルートが有効化されます。
+      # Cloudflare MCP を upstream OAuth 委任モードで収容する例。
+      # gateway が RFC 9728/RFC 8414 で Cloudflare の AS を自動検出し、
+      # ユーザーごとに authorization_code + PKCE で OAuth 認可を取得します。
+      # 初回アクセス時にブラウザで Cloudflare の同意画面が表示されます。
+      #
+      # CLOUDFLARE_API_TOKEN はルートの on/off スイッチとしてのみ使用します。
+      # 値はコンテナに渡しません（静的トークン注入には使用しない）。
       # 有効化手順:
-      #   1. .env に CLOUDFLARE_API_TOKEN=<token> を設定
+      #   1. シェル環境変数または .env に CLOUDFLARE_API_TOKEN=<any-non-empty-value> を設定
       #   2. make restart
       #
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
-      - ROUTE_CLOUDFLARE=${CLOUDFLARE_API_TOKEN:+/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_bearer_token_env=CLOUDFLARE_API_TOKEN}
+      # upstream_clients.json（DCR 登録キャッシュ）と upstream_tokens.json（ユーザートークン）は
+      # mcp-gateway-data ボリューム内の /data/mcp-gateway/ 以下に mode 0600 で自動作成・永続化されます。
+      #
+      - ROUTE_CLOUDFLARE=${CLOUDFLARE_API_TOKEN:+/mcp/cloudflare|https://mcp.cloudflare.com/mcp|auth=oauth|upstream_oauth=auto|upstream_oauth_scope=account:read offline_access}
       - OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - GITHUB_MCP_OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
       - LOG_LEVEL=${LOG_LEVEL:-info}
