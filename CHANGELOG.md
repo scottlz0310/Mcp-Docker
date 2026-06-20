@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-06-21
+
 ### ✨ 機能追加
 
 - mcp-gateway の OIDC AS（builtin）を Compose に統合 — #185
@@ -546,7 +548,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.14.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.11.0...v2.12.0
