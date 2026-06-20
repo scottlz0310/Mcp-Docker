@@ -93,7 +93,7 @@ services:
       # CLOUDFLARE_API_TOKEN はルートの on/off スイッチとしてのみ使用します。
       # 値はコンテナに渡しません（静的トークン注入には使用しない）。
       # 有効化手順:
-      #   1. シェル環境変数に CLOUDFLARE_API_TOKEN=<any-non-empty-value> を設定
+      #   1. シェル環境変数または .env に CLOUDFLARE_API_TOKEN=<any-non-empty-value> を設定
       #   2. make restart
       #
       # upstream_clients.json（DCR 登録キャッシュ）と upstream_tokens.json（ユーザートークン）は

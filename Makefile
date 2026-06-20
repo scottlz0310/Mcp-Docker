@@ -118,8 +118,9 @@ pull: pull-gateway ## 全サービスの Docker イメージを取得（pull-gat
 .PHONY: status
 status: status-gateway ## 全サービスの状態確認（status-gateway のエイリアス）
 
-# :main イメージ（リリース前の最新開発版）
-# mcp-gateway / review-raven / thread-owl は :latest がリリース時のみ更新されるため、
+# :main イメージ
+# mcp-gateway は upstream OAuth 委任（#84）実装を含む main ブランチビルドを Compose デフォルトとして使用。
+# review-raven / thread-owl は :latest がリリース時のみ更新されるため、
 # 最新の main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
 # ?= により環境変数・make コマンドライン引数での上書きが可能
 # 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
