@@ -17,13 +17,15 @@ servers: []
 #   1. 下記コメントを解除
 #   2. make register-antigravity（または make register-all）を実行
 #
-# tokenEnv: Codex CLI のみ使用（CLOUDFLARE_API_TOKEN を Bearer ヘッダーとして注入）
-# Claude / Copilot / Antigravity CLI はクライアント側の OAuth フローで認証します。
+# ⚠ tokenEnv を含むエントリは Claude / Copilot / Antigravity CLI では登録がスキップされます
+#   （シークレットをヘッダーとして保存しない設計のため）。
+#   これらのクライアントは tokenEnv なしの URL のみ登録し、OAuth フローで直接認証します。
+#   Codex CLI で静的 API トークンを使う場合のみ tokenEnv 行を有効化してください。
 #
 # servers:
 #   - name: cloudflare
 #     url: https://mcp.cloudflare.com/mcp
-#     tokenEnv: CLOUDFLARE_API_TOKEN
+#     # tokenEnv: CLOUDFLARE_API_TOKEN  # Codex のみ: 静的 API トークンを使う場合に有効化
 
 # Example (other external servers):
 #   - name: supabase
