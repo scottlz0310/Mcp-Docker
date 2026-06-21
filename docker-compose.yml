@@ -168,7 +168,7 @@ services:
     image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
     container_name: thread-owl
     restart: unless-stopped
-    command: ["--mcp-http"]
+    command: ["--webhook-mcp-http"]
 
     environment:
       - GITHUB_APP_ID=${THREAD_OWL_GITHUB_APP_ID}
