@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔐 セキュリティ
+
+- `ROUTE_GITHUB` / `ROUTE_REVIEW_RAVEN` / `ROUTE_THREAD_OWL` の `auth=none` を削除し、gateway OAuth 認証を必須化 — mcp-gateway#184
+  - `ROUTE_GITHUB`: オーナーの PAT を注入する `upstream_bearer_token_env` は引き続き機能する。認証なしで 44 ツールが公開されていたリスクを解消
+  - `ROUTE_REVIEW_RAVEN`: `auth=none` は review-raven が `X-Authenticated-User` ヘッダーを期待する設計と不整合であり、MCP 認証が機能しない状態だった
+  - `ROUTE_THREAD_OWL`: GitHub App トークンによる高権限操作（Issue / PR / レビュー書き込み）が認証なしで露出していたリスクを解消
+  - `ROUTE_PLAYWRIGHT` は認証不要な設計のまま維持（ローカルブラウザ制御専用）
+
 ## [2.15.0] - 2026-06-21
 
 ### ✨ 機能追加

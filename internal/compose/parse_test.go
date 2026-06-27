@@ -58,14 +58,19 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		want string
 	}{
 		{
+			name: "github の upstream endpoint（PAT 注入・auth=none なし）",
+			key:  "ROUTE_GITHUB",
+			want: "/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN",
+		},
+		{
 			name: "review-raven の upstream endpoint",
 			key:  "ROUTE_REVIEW_RAVEN",
-			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|auth=none",
+			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp",
 		},
 		{
 			name: "thread-owl の upstream endpoint",
 			key:  "ROUTE_THREAD_OWL",
-			want: "/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp|auth=none",
+			want: "/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp",
 		},
 	}
 	for _, tt := range tests {
