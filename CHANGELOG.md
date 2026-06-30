@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 機能追加
+
+- `ROUTE_REVIEW_RAVEN` に `upstream_provider_token=true` を追加 — #197
+  - `OAUTH_PROVIDER=builtin` モードで gateway JWT の代わりに GitHub provider token が review-raven upstream に注入されるようになる
+  - gateway が独自 JWT を発行して provider token を破棄することで発生していた GitHub API 401 / `REAUTH_REQUIRED` を解消（mcp-gateway#186 の根本修正）
+
 ### 🐛 バグ修正
 
 - Windows 版 GNU Make からシェルスクリプトを実行した際、`/bin/bash` が WSL の `bash.exe` に誤解決される問題を修正
