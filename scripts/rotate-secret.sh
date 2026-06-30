@@ -25,6 +25,9 @@ elif [ "$COUNT" -gt 1 ]; then
 fi
 
 # Git Bash によるコンテナ内パスの Windows パス変換を無効化する。
-MSYS_NO_PATHCONV=1 "$DOCKER_BIN" run --rm -v "$VOLUME:/data" alpine \
-  sh -c 'rm -f /data/config.yaml && test ! -e /data/config.yaml'
+if ! MSYS_NO_PATHCONV=1 "$DOCKER_BIN" run --rm -v "$VOLUME:/data" alpine \
+  sh -c 'rm -f /data/config.yaml && test ! -e /data/config.yaml'; then
+  echo "エラー: /data/config.yaml の削除を確認できませんでした ($VOLUME)" >&2
+  exit 1
+fi
 echo "config.yaml を削除しました ($VOLUME)"

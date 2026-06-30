@@ -90,7 +90,7 @@ EOF
     grep -Fx 'MSYS_NO_PATHCONV=1' "$mock_log"
     grep -Fx 'arg=test-volume:/data' "$mock_log"
     grep -Fx "arg=rm -f /data/config.yaml && test ! -e /data/config.yaml" "$mock_log"
-    [[ "$output" =~ "config.yaml を削除しました (test-volume)" ]]
+    [ "$output" = "config.yaml を削除しました (test-volume)" ]
 }
 
 @test "rotate-secret.sh: config削除の検証失敗を伝播する" {
@@ -105,5 +105,6 @@ EOF
         "${SCRIPTS_DIR}/rotate-secret.sh"
 
     [ "$status" -eq 1 ]
+    [[ "$output" == *"エラー: /data/config.yaml の削除を確認できませんでした (test-volume)"* ]]
     [[ ! "$output" =~ "config.yaml を削除しました" ]]
 }
