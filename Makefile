@@ -233,6 +233,16 @@ test-shell: ## シェルスクリプトのテスト実行
 	fi
 
 # ----------------------------------------
+# クレデンシャル管理
+# ----------------------------------------
+
+.PHONY: rotate-secret
+rotate-secret: ## credential ローテーション後に永続 config を消去して再起動（tokens.db は保持）
+	docker compose down
+	./scripts/rotate-secret.sh
+	$(MAKE) start-gateway
+
+# ----------------------------------------
 # クリーンアップ
 # ----------------------------------------
 
