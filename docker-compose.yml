@@ -79,7 +79,7 @@ services:
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN
-      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp
+      - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
       - OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
