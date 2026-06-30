@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- Windows 版 GNU Make からシェルスクリプトを実行した際、`/bin/bash` が WSL の `bash.exe` に誤解決される問題を修正
+  - Windows では検出済みの Git for Windows Bash を明示し、`make lint-shell` と `make rotate-secret` を安定して実行可能に変更
+  - `rotate-secret.sh` では Git Bash のパス変換を無効化し、永続 `config.yaml` の削除結果を検証
+
 ### 🔐 セキュリティ
 
 - `ROUTE_GITHUB` / `ROUTE_REVIEW_RAVEN` / `ROUTE_THREAD_OWL` の `auth=none` を削除し、gateway OAuth 認証を必須化 — mcp-gateway#184
