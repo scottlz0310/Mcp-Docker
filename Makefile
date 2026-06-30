@@ -22,8 +22,11 @@ ifeq ($(OS),Windows_NT)
   endif
   SHELL       := $(GIT_BASH)
   .SHELLFLAGS := -c
+  BASH_CMD    := $(GIT_BASH)
   export LANG   := C.UTF-8
   export LC_ALL := C.UTF-8
+else
+  BASH_CMD    := bash
 endif
 
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
@@ -211,7 +214,7 @@ build-go: $(MCP_DOCKER) ## Go CLI をビルド
 
 .PHONY: lint-shell
 lint-shell: ## シェルスクリプトのlint実行
-	./scripts/lint-shell.sh
+	"$(BASH_CMD)" ./scripts/lint-shell.sh
 
 .PHONY: lint-go
 lint-go: ## Go 静的解析（golangci-lint + go vet フォールバック）
@@ -239,7 +242,7 @@ test-shell: ## シェルスクリプトのテスト実行
 .PHONY: rotate-secret
 rotate-secret: ## credential ローテーション後に永続 config を消去して再起動（tokens.db は保持）
 	docker compose down
-	./scripts/rotate-secret.sh
+	"$(BASH_CMD)" ./scripts/rotate-secret.sh
 	$(MAKE) start-gateway
 
 # ----------------------------------------
