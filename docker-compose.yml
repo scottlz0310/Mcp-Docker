@@ -168,7 +168,7 @@ services:
     image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
     container_name: thread-owl
     restart: unless-stopped
-    command: ["--webhook-mcp-http"]
+    command: ["--mcp-http"]
 
     environment:
       - GITHUB_APP_ID=${THREAD_OWL_GITHUB_APP_ID}
@@ -177,7 +177,6 @@ services:
       # volumes に ${THREAD_OWL_PEM_PATH}:/data/github-app.pem:ro を追加してください。
       - GITHUB_APP_PRIVATE_KEY_B64=${THREAD_OWL_GITHUB_APP_PRIVATE_KEY_B64}
       - ALLOWED_REPOS=${THREAD_OWL_ALLOWED_REPOS}
-      - GITHUB_WEBHOOK_SECRET=${THREAD_OWL_GITHUB_WEBHOOK_SECRET}
       - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}

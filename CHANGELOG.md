@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 バグ修正
 
+- `thread-owl` サービスの起動モードを実体に合わせて修正 — #199
+  - `command` を `--webhook-mcp-http` から `--mcp-http` に変更（Webhook 受信経路が存在しないため）
+  - 未使用の `GITHUB_WEBHOOK_SECRET` 環境変数を削除（Webhook 受信を再導入する際に thread-owl#112 / Mcp-Docker#195 側で改めて追加）
 - Windows 版 GNU Make からシェルスクリプトを実行した際、`/bin/bash` が WSL の `bash.exe` に誤解決される問題を修正
   - Windows では検出済みの Git for Windows Bash を明示し、`make lint-shell` と `make rotate-secret` を安定して実行可能に変更
   - `rotate-secret.sh` では Git Bash のパス変換を無効化し、永続 `config.yaml` の削除結果を検証
