@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔄 変更
+
+- `GITHUB_MCP_GATEWAY_IMAGE` のデフォルトを `:main` から `:latest` に復帰
+  - mcp-gateway v0.9.0 リリースにより、builtin AS（v0.8.0 収録）と TLS 終端（v0.9.0 収録、mcp-gateway#201）の両方が `:latest` に揃ったため
+  - リリース前の main ブランチビルドが必要な場合は従来どおり `make pull-main` / `make start-main` を使用
+
 ### ✨ 機能追加
 
 - ローカル HTTPS (TLS) 接続のための自動セットアップ機能を追加 — #202

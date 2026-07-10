@@ -44,7 +44,7 @@ services:
           memory: 256M
 
   mcp-gateway:
-    image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:main}
+    image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:latest}
     container_name: mcp-gateway
     restart: unless-stopped
     depends_on:
