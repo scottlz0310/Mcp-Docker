@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-07-10
+
 ### 🔄 変更
 
 - `GITHUB_MCP_GATEWAY_IMAGE` のデフォルトを `:main` から `:latest` に復帰
@@ -601,7 +603,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.15.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.0...HEAD
+[2.16.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.12.0...v2.13.0
