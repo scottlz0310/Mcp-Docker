@@ -36,6 +36,28 @@ jobs:
       - name: シェルスクリプトテスト実行
         run: bats tests/shell/*.bats
 
+  test-powershell:
+    name: PowerShell Lint・テスト（PSScriptAnalyzer/Pester）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $results = @('scripts', 'tests/powershell') | ForEach-Object {
+            Invoke-ScriptAnalyzer -Path $_ -Recurse -Settings PSScriptAnalyzerSettings.psd1
+          }
+          $results | Format-Table RuleName, Severity, ScriptName, Line -AutoSize
+          if ($results) { exit 1 }
+
+      - name: Pester テスト
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.5 -Force -Scope CurrentUser -SkipPublisherCheck
+          Invoke-Pester -Path tests/powershell -Output Detailed -CI
+
   test-go:
     name: Go CLI チェック（vet/test/build）
     runs-on: ubuntu-latest

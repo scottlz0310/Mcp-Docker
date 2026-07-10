@@ -23,49 +23,13 @@ $CertDir = Join-Path $RepoRoot 'config\certs'
 $EnvFile = Join-Path $RepoRoot '.env'
 $EnvTemplate = Join-Path $RepoRoot '.env.template'
 
+# .env 更新・証明書再利用判定は Pester で単体テストするため lib に分離している（#204）
+. (Join-Path $PSScriptRoot 'lib\setup-tls-functions.ps1')
+
 function Resolve-MkcertPath {
     $cmd = Get-Command mkcert -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
     return $null
-}
-
-# BOM 付き UTF-8 は Makefile の awk 抽出や docker compose の .env 解析を壊すため、
-# 書き込みは常に BOM なし UTF-8 で行う。
-function Write-EnvFileLines {
-    param([string[]]$Lines)
-    [System.IO.File]::WriteAllLines($EnvFile, $Lines, [System.Text.UTF8Encoding]::new($false))
-}
-
-function Set-EnvValue {
-    param([string]$Key, [string]$Value)
-    # PowerShell 5.1 の Get-Content 既定は BOM なし UTF-8 を ANSI と誤認するため明示する
-    $lines = @(Get-Content -Path $EnvFile -Encoding UTF8)
-    $pattern = "^\s*$([regex]::Escape($Key))\s*="
-    $newLine = "$Key=$Value"
-    $replaced = $false
-    $lines = @($lines | ForEach-Object {
-        if (-not $replaced -and $_ -match $pattern) {
-            $replaced = $true
-            $newLine
-        } else {
-            $_
-        }
-    })
-    if (-not $replaced) {
-        $lines += $newLine
-    }
-    Write-EnvFileLines -Lines $lines
-    Write-Host "  $newLine"
-}
-
-function Get-EnvValue {
-    param([string]$Key)
-    if (-not (Test-Path $EnvFile)) { return $null }
-    $line = @(Get-Content -Path $EnvFile -Encoding UTF8) |
-        Where-Object { $_ -match "^\s*$([regex]::Escape($Key))\s*=" } |
-        Select-Object -Last 1
-    if (-not $line) { return $null }
-    return ($line -split '=', 2)[1].Trim()
 }
 
 # ---------------------------------------------------------------------------
@@ -128,17 +92,12 @@ $keyFile = Join-Path $CertDir 'localhost-key.pem'
 $caFingerprintFile = Join-Path $CertDir '.ca-fingerprint'
 $caFingerprint = (Get-FileHash -Path $rootCaPem -Algorithm SHA256).Hash
 
-$reuseCert = $false
-if ((Test-Path $certFile) -and (Test-Path $keyFile) -and (Test-Path $caFingerprintFile)) {
-    $recorded = @(Get-Content -Path $caFingerprintFile -Encoding UTF8)[0]
-    if ($recorded -and $recorded.Trim() -eq $caFingerprint) {
-        $reuseCert = $true
-    } else {
-        Write-Host '⚠️  ローカル CA が変更されています。証明書を再生成します...'
-    }
+$certState = Get-CertReuseState -CertFile $certFile -KeyFile $keyFile -FingerprintFile $caFingerprintFile -CaFingerprint $caFingerprint
+if ($certState -eq 'ca-changed') {
+    Write-Host '⚠️  ローカル CA が変更されています。証明書を再生成します...'
 }
 
-if ($reuseCert) {
+if ($certState -eq 'reusable') {
     Write-Host "✅ サーバー証明書は生成済みです（現在の CA と一致）: $certFile"
 } else {
     Write-Host '📜 localhost / 127.0.0.1 宛ての証明書を生成します...'
@@ -158,17 +117,17 @@ if (-not (Test-Path $EnvFile)) {
     Write-Host "📄 .env を .env.template から作成しました"
 }
 
-$port = Get-EnvValue 'MCP_GATEWAY_PORT'
+$port = Get-EnvValue -Path $EnvFile -Key 'MCP_GATEWAY_PORT'
 if (-not $port) { $port = '8080' }
 
 Write-Host '🔧 .env を HTTPS 用に更新します:'
-Set-EnvValue 'MCP_GATEWAY_PUBLIC_URL' "https://localhost:$port"
+Set-EnvValue -Path $EnvFile -Key 'MCP_GATEWAY_PUBLIC_URL' -Value "https://localhost:$port"
 # コンテナ内パス（docker-compose.yml の ./config/certs -> /data/certs マウントに対応）
-Set-EnvValue 'MCP_GATEWAY_TLS_CERT_PATH' '/data/certs/localhost.pem'
-Set-EnvValue 'MCP_GATEWAY_TLS_KEY_PATH' '/data/certs/localhost-key.pem'
+Set-EnvValue -Path $EnvFile -Key 'MCP_GATEWAY_TLS_CERT_PATH' -Value '/data/certs/localhost.pem'
+Set-EnvValue -Path $EnvFile -Key 'MCP_GATEWAY_TLS_KEY_PATH' -Value '/data/certs/localhost-key.pem'
 # Node.js はバックスラッシュ区切りパスをエスケープと誤認するためスラッシュに変換する
 $rootCaPemFwd = $rootCaPem -replace '\\', '/'
-Set-EnvValue 'NODE_EXTRA_CA_CERTS' $rootCaPemFwd
+Set-EnvValue -Path $EnvFile -Key 'NODE_EXTRA_CA_CERTS' -Value $rootCaPemFwd
 
 Write-Host ''
 Write-Host '🎉 TLS セットアップが完了しました'
