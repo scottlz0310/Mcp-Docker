@@ -91,9 +91,16 @@ services:
       - MCP_GATEWAY_TOKEN_STORE_PATH=${MCP_GATEWAY_TOKEN_STORE_PATH:-/data/tokens.db}
       - MCP_GATEWAY_AUTH_AUDIT_LOG_PATH=${MCP_GATEWAY_AUTH_AUDIT_LOG_PATH:-/data/logs/auth-audit.jsonl}
       - MCP_GATEWAY_GITHUB_REFRESH_ENABLED=${MCP_GATEWAY_GITHUB_REFRESH_ENABLED:-true}
+      # ローカル HTTPS (TLS) 終端。make setup-tls が .env に設定する。
+      # 両方とも空の場合、gateway は従来どおり HTTP で listen する。
+      - MCP_GATEWAY_TLS_CERT_PATH=${MCP_GATEWAY_TLS_CERT_PATH:-}
+      - MCP_GATEWAY_TLS_KEY_PATH=${MCP_GATEWAY_TLS_KEY_PATH:-}
 
     volumes:
       - mcp-gateway-data:/data
+      # TLS 証明書（make setup-tls で生成）。Go プロセスのデッドロックを避けるため
+      # ファイル単体ではなく親ディレクトリ単位でマウントする。
+      - ./config/certs:/data/certs:ro
 
     ports:
       - "127.0.0.1:${MCP_GATEWAY_PORT:-8080}:${MCP_GATEWAY_PORT:-8080}"

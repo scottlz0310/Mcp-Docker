@@ -750,7 +750,10 @@ exec "%s" -test.run=TestHelperProcess -- "$@"
 		_ = os.Setenv("PATH", oldPath)
 	}()
 
-	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "100ms")
+	// list は fake claude が即終了し add のみタイムアウトさせる（helper は 10s sleep）。
+	// Windows では cmd.exe (claude.bat) の起動だけで 100ms を超えて list 段階で
+	// タイムアウトすることがあるため、起動オーバーヘッドを吸収できる値にする。
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "2s")
 
 	composePath := filepath.Join(dir, "docker-compose.yml")
 	externalPath := filepath.Join(dir, "mcp-external.yml")
@@ -834,7 +837,10 @@ exit 0
 		_ = os.Setenv("PATH", oldPath)
 	}()
 
-	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "100ms")
+	// list は fake claude が即終了し remove のみタイムアウトさせる（helper は 10s sleep）。
+	// TestRegisterTimeoutOnAddCommand と同様、cmd.exe の起動オーバーヘッドで
+	// list 段階がタイムアウトしないよう余裕を持たせる。
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "2s")
 
 	composePath := filepath.Join(dir, "docker-compose.yml")
 	externalPath := filepath.Join(dir, "mcp-external.yml")

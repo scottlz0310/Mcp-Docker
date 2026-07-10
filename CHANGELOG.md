@@ -9,12 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 機能追加
 
+- ローカル HTTPS (TLS) 接続のための自動セットアップ機能を追加 — #202
+  - `make setup-tls`（`scripts/setup-tls.ps1`）: winget による mkcert の非対話インストール、ローカル CA の信頼登録（`mkcert -install` のみ局所 UAC 昇格）、`./config/certs/` への localhost / 127.0.0.1 宛て証明書生成、`.env` の自動構成（`MCP_GATEWAY_PUBLIC_URL` / `MCP_GATEWAY_TLS_CERT_PATH` / `MCP_GATEWAY_TLS_KEY_PATH` / `NODE_EXTRA_CA_CERTS`）を実施
+  - `docker-compose.yml`: `./config/certs` を `/data/certs` として読み取り専用マウントし、TLS 環境変数を mcp-gateway に受け渡し（未設定時は従来どおり HTTP）
+  - `scripts/health-check.sh`: gateway URL のホストが `localhost` / `127.0.0.1` の HTTPS の場合に curl へ `-k` を自動付与（mkcert ローカル CA 未信頼環境での疎通確認失敗を防止）。authority 解析による host 完全一致判定で、userinfo 付き URL や外部ホストでは証明書検証を維持
+  - `mcp-docker register`: 登録 URL・prune 判定の origin を `MCP_GATEWAY_PUBLIC_URL`（旧名 `MCP_GATEWAY_BASE_URL`）に追従させ、TLS 有効時に HTTPS エンドポイントが登録されるよう変更（未設定時は従来どおり `http://127.0.0.1:<port>`）
+  - `setup-tls.ps1` は証明書生成時の CA fingerprint を `config/certs/.ca-fingerprint` に記録し、CA 再生成後の旧証明書再利用を防止
+  - mcp-gateway 側の TLS 終端実装（mcp-gateway#201）とペアで機能
+
 - `ROUTE_REVIEW_RAVEN` に `upstream_provider_token=true` を追加 — #197
   - `OAUTH_PROVIDER=builtin` モードで gateway JWT の代わりに GitHub provider token が review-raven upstream に注入されるようになる
   - gateway が独自 JWT を発行して provider token を破棄することで発生していた GitHub API 401 / `REAUTH_REQUIRED` を解消（mcp-gateway#186 の根本修正）
 
 ### 🐛 バグ修正
 
+- Windows で `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` が cmd.exe の起動オーバーヘッドにより `claude list` 段階で誤ってタイムアウトする flaky を修正（タイムアウトを 100ms から 2s に緩和）
 - `thread-owl` サービスの起動モードを実体に合わせて修正 — #199
   - `command` を `--webhook-mcp-http` から `--mcp-http` に変更（Webhook 受信経路が存在しないため）
   - 未使用の `GITHUB_WEBHOOK_SECRET` 環境変数を削除（Webhook 受信を再導入する際に thread-owl#112 / Mcp-Docker#195 側で改めて追加）

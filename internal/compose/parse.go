@@ -39,7 +39,7 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 			fmt.Fprintf(os.Stderr, "warning: MCP_GATEWAY_PORT contains unsupported variable expansion syntax: %s\n", expanded)
 		}
 	}
-	port := gatewayPort(env, lookup)
+	baseURL := gatewayBaseURL(env, lookup)
 
 	var keys []string
 	for key := range env {
@@ -72,14 +72,15 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 		name := routeName(key)
 		servers = append(servers, register.Server{
 			Name:   name,
-			URL:    fmt.Sprintf("http://127.0.0.1:%s%s", port, path),
+			URL:    baseURL + path,
 			Source: key,
 		})
 	}
 	return servers, nil
 }
 
-// GatewayOrigin は register が生成する URL の接頭辞（http://127.0.0.1:<port>/）を返す。
+// GatewayOrigin は register が生成する URL の接頭辞
+// （MCP_GATEWAY_PUBLIC_URL 由来、既定は http://127.0.0.1:<port>/）を返す。
 func GatewayOrigin(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -93,7 +94,22 @@ func gatewayOrigin(data []byte, lookup func(string) (string, bool)) (string, err
 	if err != nil {
 		return "", err
 	}
-	return "http://127.0.0.1:" + gatewayPort(env, lookup) + "/", nil
+	return gatewayBaseURL(env, lookup) + "/", nil
+}
+
+// gatewayBaseURL は register が生成する URL のベース（scheme://host:port）を返す。
+// TLS 終端（mcp-gateway#201）等で公開 URL が変わる場合に追従できるよう、
+// MCP_GATEWAY_PUBLIC_URL → MCP_GATEWAY_BASE_URL（旧名）→ http://127.0.0.1:<port>
+// の順で解決する。docker-compose.yml の environment 値はネスト変数展開
+// （${A:-${B:-...}}）を含み expandComposeVars では正しく展開できないため、
+// 実環境変数のみを参照する（make 経由の実行では Makefile が .env から export する）。
+func gatewayBaseURL(env map[string]string, lookup func(string) (string, bool)) string {
+	for _, key := range []string{"MCP_GATEWAY_PUBLIC_URL", "MCP_GATEWAY_BASE_URL"} {
+		if val, ok := lookup(key); ok && strings.TrimSpace(val) != "" {
+			return strings.TrimRight(strings.TrimSpace(val), "/")
+		}
+	}
+	return "http://127.0.0.1:" + gatewayPort(env, lookup)
 }
 
 func gatewayEnv(data []byte) (map[string]string, error) {
