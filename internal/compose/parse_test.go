@@ -239,7 +239,7 @@ services:
 	}
 }
 
-func TestGatewayOrigin(t *testing.T) {
+func TestGatewayOrigins(t *testing.T) {
 	const portYAML = `
 services:
   mcp-gateway:
@@ -250,42 +250,53 @@ services:
 		name string
 		yaml string
 		env  map[string]string
-		want string
+		want []string
 	}{
 		{
 			name: "environment 未定義ならデフォルトポート",
 			yaml: "services:\n  mcp-gateway: {}\n",
-			want: "http://127.0.0.1:8080/",
+			want: []string{"http://127.0.0.1:8080/"},
 		},
 		{
 			name: "compose の既定値を展開",
 			yaml: portYAML,
-			want: "http://127.0.0.1:9090/",
+			want: []string{"http://127.0.0.1:9090/"},
 		},
 		{
 			name: "実環境変数が優先される",
 			yaml: portYAML,
 			env:  map[string]string{"MCP_GATEWAY_PORT": "7000"},
-			want: "http://127.0.0.1:7000/",
+			want: []string{"http://127.0.0.1:7000/"},
 		},
 		{
-			name: "MCP_GATEWAY_PUBLIC_URL が origin に反映される",
+			name: "PUBLIC_URL 設定時はデフォルト origin も併せて返す",
 			yaml: portYAML,
 			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8080"},
-			want: "https://localhost:8080/",
+			want: []string{"https://localhost:8080/", "http://127.0.0.1:9090/"},
+		},
+		{
+			name: "PUBLIC_URL がデフォルト origin と同値なら重複しない",
+			yaml: portYAML,
+			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "http://127.0.0.1:9090"},
+			want: []string{"http://127.0.0.1:9090/"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := gatewayOrigin([]byte(tc.yaml), func(key string) (string, bool) {
+			got, err := gatewayOrigins([]byte(tc.yaml), func(key string) (string, bool) {
 				val, ok := tc.env[key]
 				return val, ok
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got != tc.want {
-				t.Fatalf("origin = %q, want %q", got, tc.want)
+			if len(got) != len(tc.want) {
+				t.Fatalf("origins = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("origins = %v, want %v", got, tc.want)
+				}
 			}
 		})
 	}

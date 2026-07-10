@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 バグ修正
 
+- `mcp-docker register --prune` が TLS 切替前の旧 origin で登録されたエントリを検出できない問題を修正 — #206
+  - stale 判定を複数 origin 照合に拡張し、`MCP_GATEWAY_PUBLIC_URL` 由来の現 origin に加えてデフォルト origin（`http://127.0.0.1:<port>/`）も既知の gateway origin として照合
+  - compose から削除済みかつ旧 origin で登録されたエントリが「削除対象の stale エントリはありません」と誤報告されたまま残留していた
 - Windows で `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` が cmd.exe の起動オーバーヘッドにより `claude list` 段階で誤ってタイムアウトする flaky を修正（タイムアウトを 100ms から 2s に緩和）
 - `thread-owl` サービスの起動モードを実体に合わせて修正 — #199
   - `command` を `--webhook-mcp-http` から `--mcp-http` に変更（Webhook 受信経路が存在しないため）

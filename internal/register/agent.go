@@ -71,8 +71,10 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server,
 
 // StaleEntries は agent に登録済みのエントリのうち、gateway 配下の URL を持ち、
 // かつ定義ファイル（available）に含まれないものを返す。
+// gatewayOrigins には現在の origin に加え、TLS 切替前のデフォルト origin など
+// 既知の gateway origin を複数渡せる。
 // URL が特定できないエントリは mcp-docker 管理外の可能性があるため候補にしない。
-func StaleEntries(entries []Entry, available []Server, gatewayOrigin string) []Entry {
+func StaleEntries(entries []Entry, available []Server, gatewayOrigins []string) []Entry {
 	availableNames := make(map[string]struct{}, len(available))
 	for _, server := range available {
 		availableNames[server.Name] = struct{}{}
@@ -82,12 +84,21 @@ func StaleEntries(entries []Entry, available []Server, gatewayOrigin string) []E
 		if _, ok := availableNames[entry.Name]; ok {
 			continue
 		}
-		if entry.URL == "" || !strings.HasPrefix(entry.URL, gatewayOrigin) {
+		if entry.URL == "" || !hasAnyPrefix(entry.URL, gatewayOrigins) {
 			continue
 		}
 		stale = append(stale, entry)
 	}
 	return stale
+}
+
+func hasAnyPrefix(url string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(url, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func Prune(ctx context.Context, out io.Writer, agent Agent, entries []Entry) error {
