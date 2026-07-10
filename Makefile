@@ -85,7 +85,7 @@ help: ## 利用可能なターゲット一覧を表示
 start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
-	docker compose up -d --remove-orphans github-mcp review-raven mcp-gateway playwright-mcp
+	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: stop-gateway

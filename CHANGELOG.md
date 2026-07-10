@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `make start-gateway`（および `restart-gateway`）が起動するサービス一覧に `thread-owl` が含まれておらず、`make restart-gateway` を実行すると `thread-owl` コンテナが停止したまま復帰しない問題を修正
+  - `start-main` / `pull-main` は #163/#164 で既に対応済みだったが、`start-gateway` 側は同じ修正が漏れていた
+  - `docker compose up -d --remove-orphans` の対象サービスに `thread-owl` を追加
+
 ## [2.16.0] - 2026-07-10
 
 ### 🔄 変更
