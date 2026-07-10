@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.1] - 2026-07-10
+
 ### 🐛 バグ修正
 
 - `make start-gateway`（および `restart-gateway`）が起動するサービス一覧に `thread-owl` が含まれておらず、`make restart-gateway` を実行すると `thread-owl` コンテナが停止したまま復帰しない問題を修正
@@ -613,7 +615,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.1...HEAD
+[2.16.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.0...v2.16.1
 [2.16.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.13.0...v2.14.0
