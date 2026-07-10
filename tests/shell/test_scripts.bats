@@ -67,6 +67,38 @@ EOF
     [[ "$output" =~ "mcp-gateway" ]]
 }
 
+@test "health-check.sh: curl_insecure_ok が -k 付与を localhost / 127.0.0.1 に限定する" {
+    # スクリプトはトップレベルで即実行されるため、判定関数のみを抽出して読み込む
+    source /dev/stdin <<<"$(sed -n '/^curl_insecure_ok()/,/^}/p' "${SCRIPTS_DIR}/health-check.sh")"
+
+    local allow=(
+        "https://localhost:8080"
+        "https://localhost"
+        "https://127.0.0.1:8080"
+        "https://127.0.0.1:8080/health"
+    )
+    local deny=(
+        "https://mcp.example.com"
+        "https://localhost.evil.com"
+        "https://localhost:password@example.com"
+        "https://user@localhost:8080"
+        "http://localhost:8080"
+        "http://127.0.0.1:8080"
+    )
+    for url in "${allow[@]}"; do
+        if ! curl_insecure_ok "$url"; then
+            echo "expected -k allowed for: $url"
+            return 1
+        fi
+    done
+    for url in "${deny[@]}"; do
+        if curl_insecure_ok "$url"; then
+            echo "expected -k denied for: $url"
+            return 1
+        fi
+    done
+}
+
 @test "lint-shell.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/lint-shell.sh" ]
     [ -x "${SCRIPTS_DIR}/lint-shell.sh" ]
