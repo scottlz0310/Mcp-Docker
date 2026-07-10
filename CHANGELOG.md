@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `make start-gateway`（および `restart-gateway`）が起動するサービス一覧に `thread-owl` が含まれておらず、`make restart-gateway` を実行すると `thread-owl` コンテナが停止したまま復帰しない問題を修正
   - `start-main` / `pull-main` は #163/#164 で既に対応済みだったが、`start-gateway` 側は同じ修正が漏れていた
   - `docker compose up -d --remove-orphans` の対象サービスに `thread-owl` を追加
+- `make setup-tls` が Windows PowerShell 5.1（`powershell.exe`）経由だと `scripts/setup-tls.ps1` の日本語文字列（BOM なし UTF-8）をシステムのレガシーコードページで誤読し、パースエラーで即座に失敗する問題を修正
+  - `pwsh`（PowerShell 7+）を明示的に使用するよう変更。未インストール時は winget でのインストール手順を案内してから終了する
+  - pwsh 存在確認は `scripts/require-pwsh.sh` に分離。一部の Windows 版 GNU Make バイナリは Makefile recipe に埋め込んだ日本語リテラルを誤って再エンコードし `@echo` 出力を文字化けさせるため、日本語メッセージは bash が直接読むスクリプトファイル側に置いて回避する
+- `scripts/setup-tls.ps1` の進捗表示（`Write-Host`）が Git Bash 経由のパイプ実行時に文字化けする問題を修正 — `[Console]::OutputEncoding` を UTF-8 に明示固定
 
 ## [2.16.0] - 2026-07-10
 

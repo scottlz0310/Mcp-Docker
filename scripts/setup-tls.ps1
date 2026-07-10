@@ -18,6 +18,11 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
+# Git Bash 等、コンソールを持たないパイプ経由で標準出力が消費される場合、
+# PowerShell はシステムのレガシーコードページ（日本語環境では CP932）で
+# Write-Host を出力し、日本語文字列が文字化けする。UTF-8 に固定して回避する。
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $CertDir = Join-Path $RepoRoot 'config\certs'
 $EnvFile = Join-Path $RepoRoot '.env'

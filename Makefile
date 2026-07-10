@@ -241,7 +241,8 @@ test-shell: ## シェルスクリプトのテスト実行
 
 .PHONY: setup-tls
 setup-tls: ## Windows ホスト上に TLS 証明書と CA をセットアップし、.env を更新
-	powershell -ExecutionPolicy Bypass -File ./scripts/setup-tls.ps1
+	"$(BASH_CMD)" ./scripts/require-pwsh.sh
+	pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-tls.ps1
 
 # ----------------------------------------
 # クレデンシャル管理

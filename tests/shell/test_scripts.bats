@@ -108,6 +108,41 @@ EOF
     bash -n "${SCRIPTS_DIR}/lint-shell.sh"
 }
 
+@test "require-pwsh.sh: スクリプトが存在し実行可能" {
+    [ -f "${SCRIPTS_DIR}/require-pwsh.sh" ]
+    [ -x "${SCRIPTS_DIR}/require-pwsh.sh" ]
+}
+
+@test "require-pwsh.sh: 構文エラーがない" {
+    bash -n "${SCRIPTS_DIR}/require-pwsh.sh"
+}
+
+@test "require-pwsh.sh: pwsh が PATH にあれば成功する" {
+    local bash_bin
+    bash_bin="$(command -v bash)"
+    local mock_bin="${BATS_TEST_TMPDIR}/bin"
+    mkdir -p "$mock_bin"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${mock_bin}/pwsh"
+    chmod +x "${mock_bin}/pwsh"
+
+    run env -i PATH="${mock_bin}" "$bash_bin" "${SCRIPTS_DIR}/require-pwsh.sh"
+
+    [ "$status" -eq 0 ]
+}
+
+@test "require-pwsh.sh: pwsh が PATH になければ日本語エラーで失敗する" {
+    local bash_bin
+    bash_bin="$(command -v bash)"
+    local empty_path="${BATS_TEST_TMPDIR}/empty-bin"
+    mkdir -p "$empty_path"
+
+    run env -i PATH="${empty_path}" "$bash_bin" "${SCRIPTS_DIR}/require-pwsh.sh"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pwsh (PowerShell 7+) が見つかりません"* ]]
+    [[ "$output" == *"winget install --id Microsoft.PowerShell --exact"* ]]
+}
+
 @test "rotate-secret.sh: Git Bashのパス変換を無効化して削除を検証する" {
     local mock_docker="${BATS_TEST_TMPDIR}/docker"
     local mock_log="${BATS_TEST_TMPDIR}/docker.log"
