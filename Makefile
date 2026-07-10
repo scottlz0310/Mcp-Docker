@@ -45,6 +45,8 @@ ifneq (,$(wildcard .env))
   GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
   MCP_GITHUB_PAT               ?= $(call ENV_GET,MCP_GITHUB_PAT)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
+  MCP_GATEWAY_PUBLIC_URL       ?= $(call ENV_GET,MCP_GATEWAY_PUBLIC_URL)
+  MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
 endif
 
 # OAUTH_* → GITHUB_MCP_* → GITHUB_* の優先順位でフォールバック解決
@@ -65,8 +67,8 @@ endif
 ifeq ($(strip $(MCP_GITHUB_PAT)),)
   MCP_GITHUB_PAT := $(GITHUB_PERSONAL_ACCESS_TOKEN)
 endif
-# 子プロセス（docker compose）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GITHUB_PAT MCP_GATEWAY_PORT
+# 子プロセス（docker compose / mcp-docker register）に確実に渡す
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GITHUB_PAT MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
 
 .DEFAULT_GOAL := help
 
@@ -84,7 +86,7 @@ start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:808
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
 	docker compose up -d --remove-orphans github-mcp review-raven mcp-gateway playwright-mcp
-	@echo "Started mcp-gateway endpoint: http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
+	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: stop-gateway
 stop-gateway: ## 全サービスを停止
@@ -153,7 +155,7 @@ start-main: ## 最新開発版イメージで全サービスを起動
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
-	@echo "Started mcp-gateway endpoint (main build): http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)"
+	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: restart-main
 restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動

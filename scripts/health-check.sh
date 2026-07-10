@@ -166,9 +166,10 @@ is_token_prefix_valid() {
 check_gateway_endpoint() {
     local gateway_url="$1"
     local curl_args=(-s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10)
-    # ローカル HTTPS は mkcert ローカル CA 署名のため、curl が CA を信頼していない
-    # 環境でも疎通確認できるよう証明書検証をスキップする (make setup-tls 参照)
-    if [[ "${gateway_url}" == https://* ]]; then
+    # ローカル HTTPS (make setup-tls) は mkcert ローカル CA 署名のため、curl が CA を
+    # 信頼していない環境でも疎通確認できるよう localhost / 127.0.0.1 宛てに限り
+    # 証明書検証をスキップする。それ以外のホストでは検証を維持し誤設定を検知する。
+    if [[ "${gateway_url}" =~ ^https://(localhost|127\.0\.0\.1)([:/]|$) ]]; then
         curl_args+=(-k)
     fi
 

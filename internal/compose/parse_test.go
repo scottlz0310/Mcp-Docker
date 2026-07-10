@@ -181,6 +181,64 @@ func TestParseExpandsRouteVariables(t *testing.T) {
 	}
 }
 
+func TestParseUsesPublicURLOverride(t *testing.T) {
+	data := []byte(`
+services:
+  mcp-gateway:
+    environment:
+      MCP_GATEWAY_PORT: ${MCP_GATEWAY_PORT:-8080}
+      ROUTE_GITHUB: /mcp/github|http://github-mcp:8082
+`)
+	tests := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{
+			name: "MCP_GATEWAY_PUBLIC_URL が HTTPS なら HTTPS URL を登録する",
+			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8080"},
+			want: "https://localhost:8080/mcp/github",
+		},
+		{
+			name: "PUBLIC_URL の末尾スラッシュは正規化される",
+			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8080/"},
+			want: "https://localhost:8080/mcp/github",
+		},
+		{
+			name: "旧名 MCP_GATEWAY_BASE_URL にフォールバックする",
+			env:  map[string]string{"MCP_GATEWAY_BASE_URL": "https://localhost:9443"},
+			want: "https://localhost:9443/mcp/github",
+		},
+		{
+			name: "PUBLIC_URL は MCP_GATEWAY_PORT より優先される",
+			env: map[string]string{
+				"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8443",
+				"MCP_GATEWAY_PORT":       "18080",
+			},
+			want: "https://localhost:8443/mcp/github",
+		},
+		{
+			name: "未設定なら従来どおり http://127.0.0.1 を使用する",
+			env:  map[string]string{},
+			want: "http://127.0.0.1:8080/mcp/github",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			servers, err := Parse(data, func(key string) (string, bool) {
+				val, ok := tt.env[key]
+				return val, ok
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := servers[0].URL; got != tt.want {
+				t.Fatalf("URL = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGatewayOrigin(t *testing.T) {
 	const portYAML = `
 services:
@@ -209,6 +267,12 @@ services:
 			yaml: portYAML,
 			env:  map[string]string{"MCP_GATEWAY_PORT": "7000"},
 			want: "http://127.0.0.1:7000/",
+		},
+		{
+			name: "MCP_GATEWAY_PUBLIC_URL が origin に反映される",
+			yaml: portYAML,
+			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8080"},
+			want: "https://localhost:8080/",
 		},
 	}
 	for _, tc := range cases {

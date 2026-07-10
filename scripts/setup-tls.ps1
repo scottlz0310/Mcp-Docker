@@ -38,7 +38,8 @@ function Write-EnvFileLines {
 
 function Set-EnvValue {
     param([string]$Key, [string]$Value)
-    $lines = @(Get-Content -Path $EnvFile)
+    # PowerShell 5.1 の Get-Content 既定は BOM なし UTF-8 を ANSI と誤認するため明示する
+    $lines = @(Get-Content -Path $EnvFile -Encoding UTF8)
     $pattern = "^\s*$([regex]::Escape($Key))\s*="
     $newLine = "$Key=$Value"
     $replaced = $false
@@ -60,7 +61,7 @@ function Set-EnvValue {
 function Get-EnvValue {
     param([string]$Key)
     if (-not (Test-Path $EnvFile)) { return $null }
-    $line = @(Get-Content -Path $EnvFile) |
+    $line = @(Get-Content -Path $EnvFile -Encoding UTF8) |
         Where-Object { $_ -match "^\s*$([regex]::Escape($Key))\s*=" } |
         Select-Object -Last 1
     if (-not $line) { return $null }
@@ -122,14 +123,30 @@ New-Item -ItemType Directory -Force -Path $CertDir | Out-Null
 $certFile = Join-Path $CertDir 'localhost.pem'
 $keyFile = Join-Path $CertDir 'localhost-key.pem'
 
-if ((Test-Path $certFile) -and (Test-Path $keyFile)) {
-    Write-Host "✅ サーバー証明書は生成済みです: $certFile"
+# 証明書生成時の CA fingerprint を記録し、CA 再生成（CAROOT 削除→再実行等）後に
+# 旧 CA 署名の証明書を再利用して HTTPS 接続が失敗するのを防ぐ
+$caFingerprintFile = Join-Path $CertDir '.ca-fingerprint'
+$caFingerprint = (Get-FileHash -Path $rootCaPem -Algorithm SHA256).Hash
+
+$reuseCert = $false
+if ((Test-Path $certFile) -and (Test-Path $keyFile) -and (Test-Path $caFingerprintFile)) {
+    $recorded = @(Get-Content -Path $caFingerprintFile -Encoding UTF8)[0]
+    if ($recorded -and $recorded.Trim() -eq $caFingerprint) {
+        $reuseCert = $true
+    } else {
+        Write-Host '⚠️  ローカル CA が変更されています。証明書を再生成します...'
+    }
+}
+
+if ($reuseCert) {
+    Write-Host "✅ サーバー証明書は生成済みです（現在の CA と一致）: $certFile"
 } else {
     Write-Host '📜 localhost / 127.0.0.1 宛ての証明書を生成します...'
     & $mkcert -cert-file $certFile -key-file $keyFile localhost 127.0.0.1
     if ($LASTEXITCODE -ne 0) {
         throw "mkcert による証明書生成に失敗しました (exit=$LASTEXITCODE)"
     }
+    [System.IO.File]::WriteAllText($caFingerprintFile, "$caFingerprint`n", [System.Text.UTF8Encoding]::new($false))
     Write-Host "✅ 証明書を生成しました: $certFile"
 }
 
