@@ -163,6 +163,30 @@ is_token_prefix_valid() {
     [[ "${token}" =~ ^(github_pat_|ghp_) ]]
 }
 
+check_gateway_endpoint() {
+    local gateway_url="$1"
+    local curl_args=(-s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10)
+    # ローカル HTTPS は mkcert ローカル CA 署名のため、curl が CA を信頼していない
+    # 環境でも疎通確認できるよう証明書検証をスキップする (make setup-tls 参照)
+    if [[ "${gateway_url}" == https://* ]]; then
+        curl_args+=(-k)
+    fi
+
+    local http_status
+    # curl failures should not abort the script, so we use || true and check the result
+    http_status="$(curl "${curl_args[@]}" "${gateway_url}/health" || true)"
+    # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
+    if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
+        http_status="000"
+    fi
+    if [[ "${http_status}" == "200" ]]; then
+        echo "✅ mcp-gateway ヘルスエンドポイント疎通成功 (${gateway_url}/health, status=${http_status})"
+        return 0
+    fi
+    echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
+    return 1
+}
+
 check_container_state() {
     local service_name="$1"
     local container_id
@@ -215,16 +239,7 @@ if [[ "${SERVICE}" == "review-raven" ]]; then
     check_container_state "mcp-gateway"
     gateway_url="$(resolve_gateway_url)"
     if command -v curl > /dev/null 2>&1; then
-        http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${gateway_url}/health" || true)"
-        if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
-            http_status="000"
-        fi
-        if [[ "${http_status}" == "200" ]]; then
-            echo "✅ mcp-gateway ヘルスエンドポイント疎通成功 (${gateway_url}/health, status=${http_status})"
-        else
-            echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
-            exit 1
-        fi
+        check_gateway_endpoint "${gateway_url}" || exit 1
     else
         echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
     fi
@@ -241,18 +256,7 @@ check_container_state "mcp-gateway"
 # HTTP エンドポイント確認 (mcp-gateway 経由)
 gateway_url="$(resolve_gateway_url)"
 if command -v curl > /dev/null 2>&1; then
-    # curl failures should not abort the script, so we use || true and check the result
-    http_status="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "${gateway_url}/health" || true)"
-    # 正常な3桁のHTTPステータスコードでない場合は "000" をデフォルトとする
-    if [[ ! "${http_status}" =~ ^[0-9]{3}$ ]]; then
-        http_status="000"
-    fi
-    if [[ "${http_status}" == "200" ]]; then
-        echo "✅ mcp-gateway ヘルスエンドポイント疎通成功 (${gateway_url}/health, status=${http_status})"
-    else
-        echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
-        exit 1
-    fi
+    check_gateway_endpoint "${gateway_url}" || exit 1
 else
     echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
 fi

@@ -4,6 +4,10 @@
 !.env.template
 !.env.ci
 
+# TLS certificates (make setup-tls)
+config/certs/*
+!config/certs/.gitkeep
+
 # Local MCP/client config
 .mcp.json
 mcp.json

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 機能追加
 
+- ローカル HTTPS (TLS) 接続のための自動セットアップ機能を追加 — #202
+  - `make setup-tls`（`scripts/setup-tls.ps1`）: winget による mkcert の非対話インストール、ローカル CA の信頼登録（`mkcert -install` のみ局所 UAC 昇格）、`./config/certs/` への localhost / 127.0.0.1 宛て証明書生成、`.env` の自動構成（`MCP_GATEWAY_PUBLIC_URL` / `MCP_GATEWAY_TLS_CERT_PATH` / `MCP_GATEWAY_TLS_KEY_PATH` / `NODE_EXTRA_CA_CERTS`）を実施
+  - `docker-compose.yml`: `./config/certs` を `/data/certs` として読み取り専用マウントし、TLS 環境変数を mcp-gateway に受け渡し（未設定時は従来どおり HTTP）
+  - `scripts/health-check.sh`: gateway URL が `https://` の場合に curl へ `-k` を自動付与（mkcert ローカル CA 未信頼環境での疎通確認失敗を防止）
+  - mcp-gateway 側の TLS 終端実装（mcp-gateway#201）とペアで機能
+
 - `ROUTE_REVIEW_RAVEN` に `upstream_provider_token=true` を追加 — #197
   - `OAUTH_PROVIDER=builtin` モードで gateway JWT の代わりに GitHub provider token が review-raven upstream に注入されるようになる
   - gateway が独自 JWT を発行して provider token を破棄することで発生していた GitHub API 401 / `REAUTH_REQUIRED` を解消（mcp-gateway#186 の根本修正）
