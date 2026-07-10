@@ -79,22 +79,30 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 	return servers, nil
 }
 
-// GatewayOrigin は register が生成する URL の接頭辞
-// （MCP_GATEWAY_PUBLIC_URL 由来、既定は http://127.0.0.1:<port>/）を返す。
-func GatewayOrigin(path string) (string, error) {
+// GatewayOrigins は register が生成しうる URL の接頭辞の集合
+// （MCP_GATEWAY_PUBLIC_URL 由来の origin と、既定の http://127.0.0.1:<port>/）を返す。
+func GatewayOrigins(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return gatewayOrigin(data, os.LookupEnv)
+	return gatewayOrigins(data, os.LookupEnv)
 }
 
-func gatewayOrigin(data []byte, lookup func(string) (string, bool)) (string, error) {
+// gatewayOrigins は現在の origin に加え、常に導出可能なデフォルト origin
+// （http://127.0.0.1:<port>/）を返す。TLS 切替等で MCP_GATEWAY_PUBLIC_URL が
+// 変わると、旧 origin で登録済みのエントリが stale 判定から漏れて残留するため、
+// デフォルト origin も既知の gateway origin として prune 判定に含める。
+func gatewayOrigins(data []byte, lookup func(string) (string, bool)) ([]string, error) {
 	env, err := gatewayEnv(data)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return gatewayBaseURL(env, lookup) + "/", nil
+	origins := []string{gatewayBaseURL(env, lookup) + "/"}
+	if def := "http://127.0.0.1:" + gatewayPort(env, lookup) + "/"; def != origins[0] {
+		origins = append(origins, def)
+	}
+	return origins, nil
 }
 
 // gatewayBaseURL は register が生成する URL のベース（scheme://host:port）を返す。

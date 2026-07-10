@@ -32,11 +32,12 @@ func (f *fakeAgent) RemoveCommand(name string) []string { return []string{"remov
 
 func TestStaleEntries(t *testing.T) {
 	available := []Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}}
-	const origin = "http://127.0.0.1:8080/"
+	defaultOrigins := []string{"http://127.0.0.1:8080/"}
 
 	cases := []struct {
 		name    string
 		entries []Entry
+		origins []string
 		want    []string
 	}{
 		{
@@ -68,10 +69,26 @@ func TestStaleEntries(t *testing.T) {
 			},
 			want: []string{"old-a", "old-b"},
 		},
+		{
+			name:    "TLS 切替後も旧 origin のエントリを候補にする",
+			entries: []Entry{{Name: "old-http", URL: "http://127.0.0.1:8080/mcp/old-http"}},
+			origins: []string{"https://localhost:8080/", "http://127.0.0.1:8080/"},
+			want:    []string{"old-http"},
+		},
+		{
+			name:    "どの origin にも一致しない URL は候補外",
+			entries: []Entry{{Name: "other-host", URL: "http://192.168.0.10:8080/mcp/other"}},
+			origins: []string{"https://localhost:8080/", "http://127.0.0.1:8080/"},
+			want:    nil,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			stale := StaleEntries(tc.entries, available, origin)
+			origins := tc.origins
+			if origins == nil {
+				origins = defaultOrigins
+			}
+			stale := StaleEntries(tc.entries, available, origins)
 			got := make([]string, 0, len(stale))
 			for _, entry := range stale {
 				got = append(got, entry.Name)

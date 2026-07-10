@@ -490,7 +490,7 @@ func TestPruneAgent(t *testing.T) {
 		{Name: "old-route", URL: "http://127.0.0.1:8080/mcp/old-route"},
 	}
 	available := []register.Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}}
-	const origin = "http://127.0.0.1:8080/"
+	origins := []string{"http://127.0.0.1:8080/"}
 
 	cases := []struct {
 		name        string
@@ -561,7 +561,7 @@ func TestPruneAgent(t *testing.T) {
 			var stdout bytes.Buffer
 			reader := bufio.NewReader(strings.NewReader(tc.input))
 
-			err := pruneAgent(context.Background(), reader, &stdout, agent, tc.entries, available, origin, tc.opts, tc.interactive)
+			err := pruneAgent(context.Background(), reader, &stdout, agent, tc.entries, available, origins, tc.opts, tc.interactive)
 			if err != nil {
 				t.Fatal(err)
 			}

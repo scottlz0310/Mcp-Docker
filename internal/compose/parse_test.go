@@ -239,7 +239,7 @@ services:
 	}
 }
 
-func TestGatewayOrigin(t *testing.T) {
+func TestGatewayOrigins(t *testing.T) {
 	const portYAML = `
 services:
   mcp-gateway:
@@ -250,45 +250,84 @@ services:
 		name string
 		yaml string
 		env  map[string]string
-		want string
+		want []string
 	}{
 		{
 			name: "environment 未定義ならデフォルトポート",
 			yaml: "services:\n  mcp-gateway: {}\n",
-			want: "http://127.0.0.1:8080/",
+			want: []string{"http://127.0.0.1:8080/"},
 		},
 		{
 			name: "compose の既定値を展開",
 			yaml: portYAML,
-			want: "http://127.0.0.1:9090/",
+			want: []string{"http://127.0.0.1:9090/"},
 		},
 		{
 			name: "実環境変数が優先される",
 			yaml: portYAML,
 			env:  map[string]string{"MCP_GATEWAY_PORT": "7000"},
-			want: "http://127.0.0.1:7000/",
+			want: []string{"http://127.0.0.1:7000/"},
 		},
 		{
-			name: "MCP_GATEWAY_PUBLIC_URL が origin に反映される",
+			name: "PUBLIC_URL 設定時はデフォルト origin も併せて返す",
 			yaml: portYAML,
 			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "https://localhost:8080"},
-			want: "https://localhost:8080/",
+			want: []string{"https://localhost:8080/", "http://127.0.0.1:9090/"},
+		},
+		{
+			name: "PUBLIC_URL がデフォルト origin と同値なら重複しない",
+			yaml: portYAML,
+			env:  map[string]string{"MCP_GATEWAY_PUBLIC_URL": "http://127.0.0.1:9090"},
+			want: []string{"http://127.0.0.1:9090/"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := gatewayOrigin([]byte(tc.yaml), func(key string) (string, bool) {
+			got, err := gatewayOrigins([]byte(tc.yaml), func(key string) (string, bool) {
 				val, ok := tc.env[key]
 				return val, ok
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got != tc.want {
-				t.Fatalf("origin = %q, want %q", got, tc.want)
+			if len(got) != len(tc.want) {
+				t.Fatalf("origins = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("origins = %v, want %v", got, tc.want)
+				}
 			}
 		})
 	}
+}
+
+func TestGatewayOriginsFromFile(t *testing.T) {
+	// 空文字の Setenv で実環境の値を無効化する（gatewayBaseURL / gatewayPort は空値を未設定扱いする）
+	for _, key := range []string{"MCP_GATEWAY_PUBLIC_URL", "MCP_GATEWAY_BASE_URL", "MCP_GATEWAY_PORT"} {
+		t.Setenv(key, "")
+	}
+
+	t.Run("compose ファイルから origin を読み取る", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "docker-compose.yml")
+		if err := os.WriteFile(path, []byte("services:\n  mcp-gateway: {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := GatewayOrigins(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"http://127.0.0.1:8080/"}
+		if len(got) != 1 || got[0] != want[0] {
+			t.Fatalf("origins = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("ファイルが存在しなければエラーを返す", func(t *testing.T) {
+		if _, err := GatewayOrigins(filepath.Join(t.TempDir(), "missing.yml")); err == nil {
+			t.Fatal("expected error for missing compose file")
+		}
+	})
 }
 
 func TestParseHandlesUnsupportedVariables(t *testing.T) {
