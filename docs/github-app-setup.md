@@ -12,13 +12,20 @@ mcp-gateway 経由で MCP サーバーに接続するために必要な GitHub A
 
 ## 前提: ベース URL
 
-以降 `<PUBLIC_URL>` と表記する URL は `.env` の `MCP_GATEWAY_PUBLIC_URL` の値。
+以降 `<PUBLIC_URL>` と表記する URL は、gateway の公開 URL として実際に解決される値。
 GitHub App に登録する URL は**必ずこの値と一致させる**。
+
+解決順（`docker-compose.yml` と `mcp-docker register` で共通）:
+
+1. `MCP_GATEWAY_PUBLIC_URL`（推奨。新規設定はこちらを使う）
+2. `MCP_GATEWAY_BASE_URL`（旧名・後方互換エイリアス）
+3. `http://127.0.0.1:<port>`（既定。port は `MCP_GATEWAY_PORT`、未設定時 `8080`）
 
 | 構成 | `<PUBLIC_URL>` |
 |---|---|
-| デフォルト（HTTP） | `http://127.0.0.1:8080`（`MCP_GATEWAY_PORT` に追従） |
-| `make setup-tls` 実行後（HTTPS） | `https://localhost:8080`（setup-tls が `.env` に自動設定） |
+| デフォルト（HTTP、上記 1〜2 とも未設定） | `http://127.0.0.1:8080`（`MCP_GATEWAY_PORT` に追従） |
+| 旧変数 `MCP_GATEWAY_BASE_URL` のみ設定済みの既存環境 | その設定値（既定値より優先される点に注意） |
+| `make setup-tls` 実行後（HTTPS） | `https://localhost:8080`（setup-tls が `MCP_GATEWAY_PUBLIC_URL` を自動設定） |
 
 ## 1. GitHub App の新規登録
 

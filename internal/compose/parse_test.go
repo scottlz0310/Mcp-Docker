@@ -302,6 +302,34 @@ services:
 	}
 }
 
+func TestGatewayOriginsFromFile(t *testing.T) {
+	// 空文字の Setenv で実環境の値を無効化する（gatewayBaseURL / gatewayPort は空値を未設定扱いする）
+	for _, key := range []string{"MCP_GATEWAY_PUBLIC_URL", "MCP_GATEWAY_BASE_URL", "MCP_GATEWAY_PORT"} {
+		t.Setenv(key, "")
+	}
+
+	t.Run("compose ファイルから origin を読み取る", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "docker-compose.yml")
+		if err := os.WriteFile(path, []byte("services:\n  mcp-gateway: {}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := GatewayOrigins(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"http://127.0.0.1:8080/"}
+		if len(got) != 1 || got[0] != want[0] {
+			t.Fatalf("origins = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("ファイルが存在しなければエラーを返す", func(t *testing.T) {
+		if _, err := GatewayOrigins(filepath.Join(t.TempDir(), "missing.yml")); err == nil {
+			t.Fatal("expected error for missing compose file")
+		}
+	})
+}
+
 func TestParseHandlesUnsupportedVariables(t *testing.T) {
 	data := []byte(`
 services:

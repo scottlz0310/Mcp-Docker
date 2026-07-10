@@ -90,7 +90,7 @@ make start-gateway
 
 mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 
-- Homepage URL / Callback URL のベースは `MCP_GATEWAY_PUBLIC_URL`（未設定時は `http://127.0.0.1:8080`）と一致させる
+- Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
 - 作成後に Client secret を生成し、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する
 
