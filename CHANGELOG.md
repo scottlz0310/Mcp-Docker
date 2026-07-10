@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ROUTE_THREAD_OWL`: GitHub App トークンによる高権限操作（Issue / PR / レビュー書き込み）が認証なしで露出していたリスクを解消
   - `ROUTE_PLAYWRIGHT` は認証不要な設計のまま維持（ローカルブラウザ制御専用）
 
+### 📝 ドキュメント
+
+- GitHub App の Web UI 作業手順を `docs/github-app-setup.md` に詳細化 — #207
+  - 現行 GitHub Web UI（2026-07 時点）の画面遷移・フィールドラベルに基づく新規登録手順、Client ID / Client secret の取得、TLS 切替時の Homepage URL / Callback URL 変更手順、トラブルシューティングを記載
+  - README の「GitHub App 登録」を要点のみに縮約し、詳細ドキュメントへの導線を追加。「ローカル HTTPS (TLS)」節を新設（`make setup-tls` と切替後の手作業の案内）
+  - `.env.template` のコメントから詳細ドキュメントを参照
+
 ## [2.15.0] - 2026-06-21
 
 ### ✨ 機能追加
