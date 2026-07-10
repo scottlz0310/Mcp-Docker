@@ -88,33 +88,21 @@ make start-gateway
 
 ### GitHub App 登録
 
-mcp-gateway 経由で接続するには GitHub App が必要です。
+mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 
-1. GitHub の **Settings > Developer settings > GitHub Apps > New GitHub App** を開く
-2. 設定：
-   - Homepage URL: `http://127.0.0.1:8080`
-   - Authorization callback URLs:
-     - `http://127.0.0.1:8080/callback`
-     - `http://127.0.0.1:8080/device_callback`
-   - Repository permissions:
-     - Metadata: Read-only（自動選択）
-     - Contents: Read-only
-     - Issues: Read and write
-     - Pull requests: Read and write
-   - Account permissions:
-     - Email addresses: Read-only
-   - Webhook: disabled
-   - Where can this GitHub App be installed?: 個人利用なら `Only on this account`
-3. 作成後、Client secret を生成し、Client ID / Secret を `.env` に設定：
+- Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
+- Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
+- 作成後に Client secret を生成し、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する
 
-```bash
-OAUTH_CLIENT_ID=Iv23xxxxxxxxxxxxxxxx
-OAUTH_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
-> callback URL のベース URL は `MCP_GATEWAY_PUBLIC_URL`（未設定時は `MCP_GATEWAY_BASE_URL`）と一致させてください。`/callback` と `/device_callback` の 2 本を登録します。
->
 > GitHub OAuth App から移行する場合は、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます。旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` も互換目的で読み取りますが、新規設定では `OAUTH_*` を使ってください。
+
+### ローカル HTTPS (TLS)
+
+`make setup-tls`（Windows）で mkcert による証明書生成と `.env` の自動構成（`MCP_GATEWAY_PUBLIC_URL` / TLS 証明書パス / `NODE_EXTRA_CA_CERTS`）を行い、gateway を HTTPS で公開できます。
+
+切替後は **GitHub App の Homepage URL / Callback URL の更新（GitHub Web UI での手作業）** と `make restart-gateway` / `make register-all` が必要です。手順は [docs/github-app-setup.md](docs/github-app-setup.md) を参照してください。
 
 
 ## CLI 統合
