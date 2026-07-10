@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `setup-tls.ps1` は証明書生成時の CA fingerprint を `config/certs/.ca-fingerprint` に記録し、CA 再生成後の旧証明書再利用を防止
   - mcp-gateway 側の TLS 終端実装（mcp-gateway#201）とペアで機能
 
+- PowerShell テスト基盤（Pester + PSScriptAnalyzer）を整備 — #204
+  - `scripts/setup-tls.ps1` の `.env` 更新・証明書再利用判定ロジックを `scripts/lib/setup-tls-functions.ps1` に分離（mkcert / winget / UAC 昇格などの環境依存処理は本体に残置）
+  - `tests/powershell/setup-tls.Tests.ps1`（Pester 5 形式）: `Set-EnvValue` / `Get-EnvValue` の置換・追記・BOM なし UTF-8 書き込み、CA fingerprint 比較による証明書再生成判定（PR #203 レビュー指摘の固定化）を検証
+  - CI に `windows-latest` の PSScriptAnalyzer + Pester ジョブを追加。除外ルールは `PSScriptAnalyzerSettings.psd1` に理由付きで明文化
+
 - `ROUTE_REVIEW_RAVEN` に `upstream_provider_token=true` を追加 — #197
   - `OAUTH_PROVIDER=builtin` モードで gateway JWT の代わりに GitHub provider token が review-raven upstream に注入されるようになる
   - gateway が独自 JWT を発行して provider token を破棄することで発生していた GitHub API 401 / `REAUTH_REQUIRED` を解消（mcp-gateway#186 の根本修正）
