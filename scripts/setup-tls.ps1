@@ -6,7 +6,7 @@
     mcp-gateway の TLS 終端（MCP_GATEWAY_TLS_CERT_PATH / MCP_GATEWAY_TLS_KEY_PATH）
     に必要なホスト側の環境構築を行う:
       1. winget による mkcert の非対話インストール
-      2. mkcert ローカル CA の生成と信頼登録（この処理のみ UAC 昇格）
+      2. mkcert ローカル CA の生成と信頼登録（実行ユーザーの証明書ストア）
       3. ./config/certs/ への localhost / 127.0.0.1 宛て証明書の生成
       4. .env の自動構成（MCP_GATEWAY_PUBLIC_URL / TLS パス / NODE_EXTRA_CA_CERTS）
 
@@ -72,12 +72,21 @@ $caTrusted = @(Get-ChildItem Cert:\CurrentUser\Root -ErrorAction SilentlyContinu
 if ((Test-Path $rootCaPem) -and $caTrusted) {
     Write-Host "✅ mkcert ローカル CA は信頼登録済みです: $caRoot"
 } else {
-    Write-Host '🔐 ローカル CA を生成・信頼登録します（UAC の確認ダイアログが表示されます）...'
-    # スクリプト全体を管理者として起動するとカレントディレクトリが System32 に
-    # 変わり相対パスが混乱するため、mkcert -install の実行だけを局所的に昇格する。
-    $proc = Start-Process -FilePath $mkcert -ArgumentList '-install' -Verb RunAs -Wait -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "mkcert -install に失敗しました (exit=$($proc.ExitCode))"
+    Write-Host '🔐 ローカル CA を生成・信頼登録します...'
+    # mkcert は現在の Windows ユーザーの ROOT 証明書ストアへ登録する。RunAs で
+    # 昇格すると管理者のプロファイル・証明書ストアが対象となり、呼び出し元の
+    # ユーザーには CA が作成・信頼登録されない。Java の cacerts への登録も不要で、
+    # JAVA_HOME がある通常ユーザー環境ではアクセス拒否になるため対象を system に絞る。
+    $previousTrustStores = $env:TRUST_STORES
+    try {
+        $env:TRUST_STORES = 'system'
+        & $mkcert -install
+        $mkcertExitCode = $LASTEXITCODE
+    } finally {
+        $env:TRUST_STORES = $previousTrustStores
+    }
+    if ($mkcertExitCode -ne 0) {
+        throw "mkcert -install に失敗しました (exit=$mkcertExitCode)"
     }
     if (-not (Test-Path $rootCaPem)) {
         throw "mkcert -install 後も rootCA.pem が見つかりません: $rootCaPem"

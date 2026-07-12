@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `make setup-tls` が mkcert を UAC 昇格して実行していたため、WinGet のシンボリックリンク経由で異常終了する問題を修正
+  - mkcert は実行ユーザーの証明書ストアへ登録するため、通常ユーザーとして直接実行するよう変更
+  - 管理者として実行して別ユーザーのプロファイル・証明書ストアへ CA を作成してしまう問題も解消
+  - `JAVA_HOME` がある通常ユーザー環境で Java の `cacerts` への登録がアクセス拒否になるため、mkcert の登録先を Windows の証明書ストアだけに限定
+
 ### ✨ 機能追加
 
 - `make setup-tls` が `NODE_EXTRA_CA_CERTS` を User スコープ環境変数にも自動設定するよう変更 — #217
