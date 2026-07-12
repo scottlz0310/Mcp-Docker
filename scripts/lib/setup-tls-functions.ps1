@@ -58,6 +58,29 @@ function Get-EnvValue {
     return ($line -split '=', 2)[1].Trim()
 }
 
+# User スコープ環境変数 NODE_EXTRA_CA_CERTS の扱いを判定する（#217）。
+# .env は docker compose にしか渡らないため、ホスト側で直接起動する Node 製
+# MCP クライアント（mcp-resource-subscriber 等）には User スコープでの設定が必要。
+#   set      — 未設定（要設定）
+#   noop     — 既に同じパスを指している（区切り文字・大文字小文字の差は無視）
+#   conflict — 別の値が設定済み。NODE_EXTRA_CA_CERTS は 1 ファイルしか指定
+#              できないため上書きせず、呼び出し側で警告する
+function Get-NodeExtraCaCertsAction {
+    param(
+        [string]$CurrentValue,
+        [Parameter(Mandatory)][string]$DesiredValue
+    )
+    if ([string]::IsNullOrWhiteSpace($CurrentValue)) {
+        return 'set'
+    }
+    $current = ($CurrentValue.Trim() -replace '\\', '/')
+    $desired = ($DesiredValue.Trim() -replace '\\', '/')
+    if ($current -ieq $desired) {
+        return 'noop'
+    }
+    return 'conflict'
+}
+
 # 証明書生成時に記録した CA fingerprint と現在の rootCA.pem の fingerprint を比較し、
 # 既存証明書の扱いを判定する。CA 再生成（CAROOT 削除→再実行等）後に旧 CA 署名の
 # 証明書を再利用して HTTPS 接続が失敗するのを防ぐ（PR #203 レビュー指摘）。

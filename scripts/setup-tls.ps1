@@ -134,6 +134,30 @@ Set-EnvValue -Path $EnvFile -Key 'MCP_GATEWAY_TLS_KEY_PATH' -Value '/data/certs/
 $rootCaPemFwd = $rootCaPem -replace '\\', '/'
 Set-EnvValue -Path $EnvFile -Key 'NODE_EXTRA_CA_CERTS' -Value $rootCaPemFwd
 
+# ---------------------------------------------------------------------------
+# 5. ユーザー環境変数 NODE_EXTRA_CA_CERTS の設定
+# ---------------------------------------------------------------------------
+# .env は docker compose にしか渡らない。ホスト側で直接起動する Node 製 MCP
+# クライアント（mcp-resource-subscriber 等）は Windows 証明書ストアを参照しない
+# ため、User スコープ環境変数として mkcert ローカル CA を信頼させる（#217）。
+$currentUserCa = [Environment]::GetEnvironmentVariable('NODE_EXTRA_CA_CERTS', 'User')
+switch (Get-NodeExtraCaCertsAction -CurrentValue $currentUserCa -DesiredValue $rootCaPemFwd) {
+    'set' {
+        [Environment]::SetEnvironmentVariable('NODE_EXTRA_CA_CERTS', $rootCaPemFwd, 'User')
+        Write-Host "✅ ユーザー環境変数 NODE_EXTRA_CA_CERTS を設定しました: $rootCaPemFwd"
+        Write-Host '   既に起動中のアプリ・シェルには反映されません。クライアントを再起動してください。'
+    }
+    'noop' {
+        Write-Host "✅ ユーザー環境変数 NODE_EXTRA_CA_CERTS は設定済みです: $currentUserCa"
+    }
+    'conflict' {
+        Write-Host "⚠️  ユーザー環境変数 NODE_EXTRA_CA_CERTS に別の値が設定されています: $currentUserCa"
+        Write-Host '   NODE_EXTRA_CA_CERTS は 1 ファイルしか指定できないため上書きしません。'
+        Write-Host "   mkcert CA も信頼させる場合は、既存 PEM と $rootCaPemFwd を連結した"
+        Write-Host '   ファイルを作成し、NODE_EXTRA_CA_CERTS をそのファイルに変更してください。'
+    }
+}
+
 Write-Host ''
 Write-Host '🎉 TLS セットアップが完了しました'
 Write-Host ''

@@ -103,6 +103,35 @@ Describe 'Get-EnvValue' {
     }
 }
 
+Describe 'Get-NodeExtraCaCertsAction' {
+    It '<name>' -TestCases @(
+        @{ name = '未設定なら set'
+           current = $null; desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'set' }
+        @{ name = '空文字列なら set'
+           current = ''; desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'set' }
+        @{ name = '空白のみなら set'
+           current = '   '; desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'set' }
+        @{ name = '同一パスなら noop'
+           current = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'
+           desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'noop' }
+        @{ name = 'バックスラッシュ区切りでも同一パスなら noop'
+           current = 'C:\Users\dev\AppData\Local\mkcert\rootCA.pem'
+           desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'noop' }
+        @{ name = '大文字小文字の差だけなら noop'
+           current = 'c:/users/dev/appdata/local/mkcert/rootca.pem'
+           desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'noop' }
+        @{ name = '前後の空白は無視して比較する'
+           current = ' C:/Users/dev/AppData/Local/mkcert/rootCA.pem '
+           desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'noop' }
+        @{ name = '別の値が設定済みなら conflict（上書きしない）'
+           current = 'C:/corp/proxy-ca.pem'
+           desired = 'C:/Users/dev/AppData/Local/mkcert/rootCA.pem'; expected = 'conflict' }
+    ) {
+        param($current, $desired, $expected)
+        Get-NodeExtraCaCertsAction -CurrentValue $current -DesiredValue $desired | Should -Be $expected
+    }
+}
+
 Describe 'Get-CertReuseState' {
     BeforeEach {
         $script:certFile = Join-Path $TestDrive 'localhost.pem'

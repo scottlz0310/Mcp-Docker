@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 機能追加
+
+- `make setup-tls` が `NODE_EXTRA_CA_CERTS` を User スコープ環境変数にも自動設定するよう変更 — #217
+  - `.env` は docker compose にしか渡らず、ホスト側で直接起動する Node 製 MCP クライアント（mcp-resource-subscriber、およびそれを子プロセス起動する Squirrel Notifier 等）が mkcert ローカル CA を信頼できず TLS 接続に失敗していた
+  - 別の値が設定済みの場合は上書きせず、PEM 連結による統合手順を警告表示（`NODE_EXTRA_CA_CERTS` は 1 ファイルのみ指定可能なため）
+  - 判定ロジック `Get-NodeExtraCaCertsAction` は `scripts/lib/setup-tls-functions.ps1` に配置し Pester で単体テスト
+
 ## [2.16.1] - 2026-07-10
 
 ### 🐛 バグ修正
