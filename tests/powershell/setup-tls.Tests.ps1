@@ -4,12 +4,27 @@
     scripts/lib/setup-tls-functions.ps1 の単体テスト（#204）。
 
 .DESCRIPTION
-    mkcert / winget / UAC 昇格などの環境依存処理は setup-tls.ps1 本体に残されており、
+    mkcert / winget / 証明書ストアなどの環境依存処理は setup-tls.ps1 本体に残されており、
     ここではパス引数のみで動作する純粋なロジックを $TestDrive 上で検証する。
 #>
 
 BeforeAll {
     . (Join-Path -Path $PSScriptRoot -ChildPath '../../scripts/lib/setup-tls-functions.ps1')
+    $script:setupTlsScript = Get-Content -Raw -Path (Join-Path -Path $PSScriptRoot -ChildPath '../../scripts/setup-tls.ps1')
+}
+
+Describe 'setup-tls.ps1 の mkcert 実行コンテキスト' {
+    It 'CA を現在のユーザーとして直接生成・信頼登録する' {
+        $setupTlsScript | Should -Match '(?m)^\s*& \$mkcert -install\s*$'
+    }
+
+    It 'mkcert を別ユーザーとして昇格実行しない' {
+        $setupTlsScript | Should -Not -Match '(?i)Start-Process.*-Verb\s+RunAs'
+    }
+
+    It 'Java の証明書ストアへ登録しない' {
+        $setupTlsScript | Should -Match '\$env:TRUST_STORES = ''system'''
+    }
 }
 
 Describe 'Set-EnvValue' {

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Pester から単体テストできるよう、対象パスはすべて引数で受け取る（#204）。
-    mkcert / winget / UAC 昇格など環境に依存する処理は setup-tls.ps1 本体に残す。
+    mkcert / winget / 証明書ストアなど環境に依存する処理は setup-tls.ps1 本体に残す。
 #>
 
 # BOM 付き UTF-8 は Makefile の awk 抽出や docker compose の .env 解析を壊すため、
