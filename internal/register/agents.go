@@ -181,7 +181,7 @@ func (a AntigravityAgent) getConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"), nil
+	return filepath.Join(home, ".gemini", "config", "mcp_config.json"), nil
 }
 
 func (a AntigravityAgent) ListEntries(ctx context.Context) ([]Entry, error) {

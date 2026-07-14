@@ -222,7 +222,7 @@ codex mcp list
 
 ```bash
 # グローバル設定ファイルを確認
-cat ~/.gemini/antigravity-cli/mcp_config.json
+cat ~/.gemini/config/mcp_config.json
 ```
 
 ### 5-2. 登録実行
@@ -235,13 +235,13 @@ cat ~/.gemini/antigravity-cli/mcp_config.json
 
 ```bash
 # グローバル設定ファイルが更新され、各サーバーが登録されていることを確認
-cat ~/.gemini/antigravity-cli/mcp_config.json
+cat ~/.gemini/config/mcp_config.json
 ```
 
 または `agy` 起動後に `/mcp` コマンドで確認する。
 
 **確認ポイント:**
-- [ ] `~/.gemini/antigravity-cli/mcp_config.json` に `github`、`review-raven`、`playwright` が登録されている
+- [ ] `~/.gemini/config/mcp_config.json` に `github`、`review-raven`、`playwright` が登録されている
 
 ---
 
