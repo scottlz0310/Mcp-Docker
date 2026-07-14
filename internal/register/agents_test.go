@@ -425,3 +425,21 @@ func TestAntigravitySafeWriteFileErrors(t *testing.T) {
 		t.Error("expected error when directory creation fails")
 	}
 }
+
+func TestAntigravityAgent_DefaultConfigPath(t *testing.T) {
+	agent := AntigravityAgent{
+		baseAgent: baseAgent{name: "antigravity", runner: &fakeRunner{}},
+	}
+	path, err := agent.getConfigPath()
+	if err != nil {
+		t.Fatalf("getConfigPath failed: %v", err)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := filepath.Join(home, ".gemini", "config", "mcp_config.json")
+	if path != expected {
+		t.Errorf("expected config path %q, got %q", expected, path)
+	}
+}
