@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- `mcp-docker register` で Antigravity を対象に選択した際、`~/.gemini/config/mcp_config.json` が空ファイル（サイズ0）で存在すると `unexpected end of JSON input` で失敗する問題を修正 — #221
+  - `AntigravityAgent` の `ListEntries`/`Add`/`Remove` で、存在するが空のファイルをファイル未存在時と同様に扱うよう修正
+  - 壊れた JSON（非空の不正データ）は従来通りエラーとする
+
 ## [2.16.2] - 2026-07-14
 
 ### 🐛 バグ修正

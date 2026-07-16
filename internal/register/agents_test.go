@@ -402,6 +402,52 @@ func TestAntigravityMcpServersNotObject(t *testing.T) {
 	}
 }
 
+func TestAntigravityEmptyConfigFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "antigravity-empty-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	configPath := filepath.Join(tmpDir, "mcp_config.json")
+	if err := os.WriteFile(configPath, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	agent := AntigravityAgent{
+		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
+		configPath: configPath,
+	}
+
+	// List should treat an empty file like a missing file, not error.
+	names, err := listNames(agent)
+	if err != nil {
+		t.Fatalf("List returned error for empty file: %v", err)
+	}
+	if len(names) != 0 {
+		t.Errorf("expected empty list for empty file, got %v", names)
+	}
+
+	// Add should succeed and create a fresh config.
+	if err := agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080"}); err != nil {
+		t.Fatalf("Add failed for empty file: %v", err)
+	}
+	names, err = listNames(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != 1 || names[0] != "github" {
+		t.Errorf("expected [github], got %v", names)
+	}
+
+	// Remove against an empty file should be a no-op, not an error.
+	if err := os.WriteFile(configPath, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := agent.Remove(context.Background(), "github"); err != nil {
+		t.Fatalf("Remove failed for empty file: %v", err)
+	}
+}
+
 func TestAntigravitySafeWriteFileErrors(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "antigravity-write-error-*")
 	if err != nil {

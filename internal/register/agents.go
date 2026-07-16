@@ -196,6 +196,9 @@ func (a AntigravityAgent) ListEntries(ctx context.Context) ([]Entry, error) {
 		}
 		return nil, err
 	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return nil, nil
+	}
 	var config map[string]any
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
@@ -232,8 +235,10 @@ func (a AntigravityAgent) Add(ctx context.Context, s Server) error {
 
 	data, err := os.ReadFile(path)
 	if err == nil {
-		if err := json.Unmarshal(data, &config); err != nil {
-			return err
+		if len(strings.TrimSpace(string(data))) > 0 {
+			if err := json.Unmarshal(data, &config); err != nil {
+				return err
+			}
 		}
 	} else if !os.IsNotExist(err) {
 		return err
@@ -280,6 +285,9 @@ func (a AntigravityAgent) Remove(ctx context.Context, name string) error {
 			return nil
 		}
 		return err
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return nil
 	}
 
 	var config map[string]any
