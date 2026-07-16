@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.3] - 2026-07-16
+
 ### 🐛 バグ修正
 
 - `mcp-docker register` で Antigravity を対象に選択した際、`~/.gemini/config/mcp_config.json` が空ファイル（サイズ0）で存在すると `unexpected end of JSON input` で失敗する問題を修正 — #221
