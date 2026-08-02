@@ -42,7 +42,7 @@ ifneq (,$(wildcard .env))
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
   GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
   GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
-  GITHUB_APP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_APP_CLIENT_ID)
+  GITHUB_APP_ID                ?= $(call ENV_GET,GITHUB_APP_ID)
   GITHUB_APP_INSTALLATION_ID   ?= $(call ENV_GET,GITHUB_APP_INSTALLATION_ID)
   MCP_GATEWAY_INTERNAL_SECRET  ?= $(call ENV_GET,MCP_GATEWAY_INTERNAL_SECRET)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
@@ -65,7 +65,7 @@ ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
   GITHUB_MCP_CLIENT_SECRET := $(OAUTH_CLIENT_SECRET)
 endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_APP_CLIENT_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
 
 .DEFAULT_GOAL := help
 
@@ -81,7 +81,7 @@ help: ## 利用可能なターゲット一覧を表示
 .PHONY: check-github-app-config
 check-github-app-config:
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
-	$(if $(and $(GITHUB_APP_CLIENT_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_CLIENT_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
+	$(if $(and $(GITHUB_APP_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
 	$(if $(MCP_GATEWAY_INTERNAL_SECRET),,$(error ERROR: MCP_GATEWAY_INTERNAL_SECRET is required for credential diagnostics. Set a random value of at least 32 characters.))
 	$(if $(wildcard config/github-app/private-key.pem),,$(error ERROR: config/github-app/private-key.pem is required. Download the GitHub App private key and place it at this path.))
 

@@ -61,8 +61,8 @@ GitHub App に登録する URL は**必ずこの値と一致させる**。
 App 作成直後は App の settings ページ（General）に遷移する。あとから開く場合は
 **Settings → Developer settings → GitHub Apps** で対象 App の右側の **Edit** をクリックする。
 
-1. settings ページ上部の **About** に表示される **Client ID**（`Iv23...` 形式）を控える
-   （**App ID とは別物**である点に注意）
+1. settings ページ上部の **About** に表示される **App ID**（数字）と **Client ID**（`Iv23...` 形式）を控える
+   （App ID はinstallation認証、Client IDはユーザー認可に使用する）
 2. **Client secrets** セクションの **Generate a new client secret** をクリックし、
    表示された secret を控える（**この画面を離れると再表示できない**。紛失時は再生成する）
 3. `.env` に設定する:
@@ -81,7 +81,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 5. `.env` に設定する:
 
    ```bash
-   GITHUB_APP_CLIENT_ID=Iv23xxxxxxxxxxxxxxxx
+   GITHUB_APP_ID=123456
    GITHUB_APP_INSTALLATION_ID=12345678
    MCP_GATEWAY_INTERNAL_SECRET=<32文字以上のランダム値>
    ```
@@ -120,7 +120,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 | TLS 切替後にブラウザが証明書警告を出す | mkcert のローカル CA が信頼されていない。`make setup-tls` を再実行する（CA の生成・信頼登録は冪等） |
 | Node.js 製 MCP クライアントが TLS 接続に失敗する | `NODE_EXTRA_CA_CERTS`（setup-tls が `.env` に自動設定）がクライアントのプロセス環境に渡っていない |
 | 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し `.env` を更新、`make restart-gateway` |
-| `--with-api` の資格情報診断が失敗する | Client ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
+| `--with-api` の資格情報診断が失敗する | App ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
 
 ## 関連
 

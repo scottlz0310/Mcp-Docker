@@ -177,7 +177,7 @@ check_github_app_credential() {
         return 0
     fi
     echo "❌ GitHub App installation credential 診断失敗"
-    echo "   mcp-gateway ログと GitHub App の Client ID / Installation ID / 秘密鍵を確認してください"
+    echo "   mcp-gateway ログと GitHub App の App ID / Installation ID / 秘密鍵を確認してください"
     return 1
 }
 

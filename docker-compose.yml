@@ -75,7 +75,7 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
-      - GITHUB_APP_CLIENT_ID=${GITHUB_APP_CLIENT_ID}
+      - GITHUB_APP_ID=${GITHUB_APP_ID}
       - GITHUB_APP_INSTALLATION_ID=${GITHUB_APP_INSTALLATION_ID}
       - GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app/private-key.pem
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}

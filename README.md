@@ -51,7 +51,7 @@ cp .env.template .env
 # .env を編集して以下を設定:
 #   OAUTH_CLIENT_ID                  (ユーザー認可用 GitHub App Client ID)
 #   OAUTH_CLIENT_SECRET              (ユーザー認可用 GitHub App Client Secret)
-#   GITHUB_APP_CLIENT_ID             (upstream 認証用 GitHub App Client ID)
+#   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
 #   GITHUB_APP_INSTALLATION_ID       (対象 owner の Installation ID)
 #   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
 # GitHub App の秘密鍵を config/github-app/private-key.pem に保存
@@ -70,7 +70,7 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 - Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
 - 作成後に Client secret を生成し、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する
-- App を対象 owner にインストールし、`.env` の `GITHUB_APP_CLIENT_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する
+- App を対象 owner にインストールし、`.env` の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する
 - 生成した秘密鍵を `config/github-app/private-key.pem` に保存する（`.gitignore` 対象、gateway へ read-only mount）
 
 gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
@@ -296,7 +296,7 @@ make status        # コンテナ状態確認
 make logs-gateway  # mcp-gateway ログ
 ```
 
-`GITHUB_APP_CLIENT_ID` / `GITHUB_APP_INSTALLATION_ID`、`config/github-app/private-key.pem`、GitHub App のインストール先と権限を確認してください。
+`GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`、`config/github-app/private-key.pem`、GitHub App のインストール先と権限を確認してください。
 
 ### CLI から接続できない
 
