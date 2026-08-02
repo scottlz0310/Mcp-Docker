@@ -16,8 +16,8 @@ usage() {
                           mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
                           review-raven       : review-raven / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
                           github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
-  --with-api              GitHub API接続確認を必ず実行
-  --no-api                GitHub API接続確認をスキップ
+  --with-api              GitHub App installation credential 診断を必ず実行
+  --no-api                GitHub App installation credential 診断をスキップ
   -h, --help              ヘルプを表示
 EOF
 }
@@ -98,14 +98,6 @@ extract_env_value() {
     echo "${line#*=}"
 }
 
-extract_token_from_env_file() {
-    extract_env_value "GITHUB_PERSONAL_ACCESS_TOKEN"
-}
-
-extract_api_url_from_env_file() {
-    extract_env_value "GITHUB_API_URL"
-}
-
 resolve_gateway_url() {
     local url="${MCP_GATEWAY_URL:-}"
     if [[ -z "${url}" ]]; then
@@ -134,33 +126,6 @@ resolve_gateway_url() {
     url="${url%/}"
     url="${url%/mcp}"
     echo "${url}"
-}
-
-is_placeholder_token() {
-    local token="$1"
-
-    if [[ -z "${token}" ]]; then
-        return 0
-    fi
-
-    # Match common placeholder patterns from .env.template
-    # Explicit patterns improve readability despite redundancy with *your_token_here*
-    case "${token}" in
-        github_pat_your_token_here|ghp_your_token_here|*your_token_here*)
-            return 0
-            ;;
-    esac
-
-    if [[ "${token}" =~ ^github_pat_[xX]+$ ]] || [[ "${token}" =~ ^ghp_[xX]+$ ]]; then
-        return 0
-    fi
-
-    return 1
-}
-
-is_token_prefix_valid() {
-    local token="$1"
-    [[ "${token}" =~ ^(github_pat_|ghp_) ]]
 }
 
 # ローカル HTTPS (make setup-tls) は mkcert ローカル CA 署名のため、curl が CA を
@@ -203,6 +168,16 @@ check_gateway_endpoint() {
         return 0
     fi
     echo "❌ mcp-gateway ヘルスエンドポイント疎通失敗 (${gateway_url}/health, status=${http_status})"
+    return 1
+}
+
+check_github_app_credential() {
+    if docker compose --profile diagnostics run --rm --no-deps gateway-credentials-check; then
+        echo "✅ GitHub App installation credential 診断成功"
+        return 0
+    fi
+    echo "❌ GitHub App installation credential 診断失敗"
+    echo "   mcp-gateway ログと GitHub App の App ID / Installation ID / 秘密鍵を確認してください"
     return 1
 }
 
@@ -280,44 +255,26 @@ else
     echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
 fi
 
-# GitHub API接続確認
-token="${GITHUB_PERSONAL_ACCESS_TOKEN:-}"
-if [[ -z "${token}" ]]; then
-    token="$(extract_token_from_env_file)"
-fi
-
-api_url="${GITHUB_API_URL:-}"
-if [[ -z "${api_url}" ]]; then
-    api_url="$(extract_api_url_from_env_file)"
-fi
-if [[ -z "${api_url}" ]]; then
-    api_url="https://api.github.com"
+# GitHub App installation credential 診断
+internal_secret="${MCP_GATEWAY_INTERNAL_SECRET:-}"
+if [[ -z "${internal_secret}" ]]; then
+    internal_secret="$(extract_env_value "MCP_GATEWAY_INTERNAL_SECRET")"
 fi
 
 should_run_api_check=false
 if [[ "${WITH_API_CHECK}" == "always" ]]; then
     should_run_api_check=true
-elif [[ "${WITH_API_CHECK}" == "auto" ]] && [[ -n "${token}" ]]; then
+elif [[ "${WITH_API_CHECK}" == "auto" ]] && [[ -n "${internal_secret}" ]]; then
     should_run_api_check=true
 fi
 
 if [[ "${should_run_api_check}" == "true" ]]; then
-    if is_placeholder_token "${token}" || ! is_token_prefix_valid "${token}"; then
-        echo "⚠️  GITHUB_PERSONAL_ACCESS_TOKEN が未設定またはプレースホルダのため、API接続確認をスキップします"
-    elif ! command -v curl > /dev/null 2>&1; then
-        echo "⚠️  curl が未インストールのため、API接続確認をスキップします"
-    elif curl -fsS -H "Authorization: Bearer ${token}" "${api_url}/user" > /dev/null; then
-        echo "✅ GitHub API接続成功"
-    else
-        echo "❌ GitHub API接続失敗"
-        echo "   GITHUB_PERSONAL_ACCESS_TOKEN を確認してください"
-        exit 1
-    fi
+    check_github_app_credential || exit 1
 else
     if [[ "${WITH_API_CHECK}" == "never" ]]; then
-        echo "ℹ️  API接続確認はスキップしました (--no-api)"
+        echo "ℹ️  GitHub App installation credential 診断はスキップしました (--no-api)"
     else
-        echo "ℹ️  GITHUB_PERSONAL_ACCESS_TOKEN が未設定のため、API接続確認をスキップしました"
+        echo "ℹ️  MCP_GATEWAY_INTERNAL_SECRET が未設定のため、資格情報診断をスキップしました"
     fi
 fi
 

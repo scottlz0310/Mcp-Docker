@@ -36,8 +36,8 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 ### 前提条件
 
 - Docker 20.10+
-- GitHub Personal Access Token（PAT）
-- GitHub App の Client ID / Secret（mcp-gateway 経由接続に必要）
+- 対象 owner にインストール済みの GitHub App
+- GitHub App の Client ID / Client Secret / Installation ID / 秘密鍵
 
 ### セットアップ
 
@@ -49,9 +49,12 @@ cd Mcp-Docker
 # 2. 環境ファイル作成
 cp .env.template .env
 # .env を編集して以下を設定:
-#   GITHUB_PERSONAL_ACCESS_TOKEN     (github-mcp-server 用 PAT)
-#   OAUTH_CLIENT_ID                  (mcp-gateway GitHub App Client ID)
-#   OAUTH_CLIENT_SECRET              (mcp-gateway GitHub App Client Secret)
+#   OAUTH_CLIENT_ID                  (ユーザー認可用 GitHub App Client ID)
+#   OAUTH_CLIENT_SECRET              (ユーザー認可用 GitHub App Client Secret)
+#   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
+#   GITHUB_APP_INSTALLATION_ID       (対象 owner の Installation ID)
+#   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
+# GitHub App の秘密鍵を config/github-app/private-key.pem に保存
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 # ※ 旧 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET も互換目的で受け付けます。
@@ -60,32 +63,6 @@ cp .env.template .env
 make start-gateway
 ```
 
-### GitHub Personal Access Token
-
-**Fine-grained token（推奨）**
-
-1. [GitHub Settings > Fine-grained tokens](https://github.com/settings/tokens?type=beta) でトークンを作成
-2. Permissions:
-   - Contents: Read and write
-   - Issues: Read and write
-   - Pull requests: Read and write
-   - Workflows: Read and write
-   - Metadata: Read-only（自動選択）
-3. `.env` に設定：
-
-```bash
-GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxxx
-```
-
-環境変数が設定済みの場合、`.env` の設定より優先されます：
-
-```bash
-export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_xxxx
-make start-gateway
-```
-
-**Classic token（非推奨）**: スコープ `repo, workflow, read:org, read:user`
-
 ### GitHub App 登録
 
 mcp-gateway 経由で接続するには GitHub App が必要です。要点：
@@ -93,6 +70,10 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 - Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
 - 作成後に Client secret を生成し、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する
+- App を対象 owner にインストールし、`.env` の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する
+- 生成した秘密鍵を `config/github-app/private-key.pem` に保存する（`.gitignore` 対象、gateway へ read-only mount）
+
+gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
 
 画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
@@ -236,6 +217,8 @@ mcp-docker register --agent all --yes
 
 ```bash
 ./scripts/health-check.sh
+# installation token の取得可否まで必ず検証
+./scripts/health-check.sh --with-api
 # または
 curl -i http://127.0.0.1:8080/health
 ```
@@ -313,7 +296,7 @@ make status        # コンテナ状態確認
 make logs-gateway  # mcp-gateway ログ
 ```
 
-`GITHUB_PERSONAL_ACCESS_TOKEN` が未設定または無効な場合は設定を確認してください。
+`GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`、`config/github-app/private-key.pem`、GitHub App のインストール先と権限を確認してください。
 
 ### CLI から接続できない
 
@@ -388,6 +371,7 @@ Mcp-Docker/
 ├── Makefile                    # 操作コマンド集
 ├── config/
 │   ├── mcp-external.yml        # 外部 MCP サーバー定義
+│   ├── github-app/             # GitHub App 秘密鍵（Git 管理対象外）
 │   └── github-mcp/             # GitHub MCP のローカル bind mount 用（未作成時は Docker が作成）
 ├── scripts/
 │   ├── health-check.sh         # ヘルスチェック

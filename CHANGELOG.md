@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔒 セキュリティ
+
+- GitHub upstream 認証を静的 GPAT から短命の GitHub App installation token に移行し、`github-mcp`・`mcp-gateway`・`review-raven` の runtime 環境から GPAT を削除 — #225
+- loopback の gateway 資格情報診断を使い、秘密値を表示せず installation token の取得・更新状態を検証する health-check を追加 — #225
+
 ## [2.16.3] - 2026-07-16
 
 ### 🐛 バグ修正

@@ -58,9 +58,9 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		want string
 	}{
 		{
-			name: "github の upstream endpoint（PAT 注入・auth=none なし）",
+			name: "github の upstream endpoint（GitHub App token 注入・auth=none なし）",
 			key:  "ROUTE_GITHUB",
-			want: "/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN",
+			want: "/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true",
 		},
 		{
 			name: "review-raven の upstream endpoint（provider token 注入）",
@@ -95,6 +95,25 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 	}
 	if _, ok := threadOwlEnv["MCP_HTTP_PATH"]; ok {
 		t.Fatal("thread-owl must use its default /mcp endpoint")
+	}
+
+	for _, serviceName := range []string{"github-mcp", "mcp-gateway", "review-raven"} {
+		service, ok := file.Services[serviceName]
+		if !ok {
+			t.Fatalf("services.%s not found", serviceName)
+		}
+		env, envErr := environmentMap(service.Environment)
+		if envErr != nil {
+			t.Fatal(envErr)
+		}
+		for _, key := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "MCP_GITHUB_PAT", "REVIEW_RAVEN_DEFAULT_USER", "GITHUB_APP_CLIENT_ID"} {
+			if _, exists := env[key]; exists {
+				t.Fatalf("services.%s must not receive deprecated credential %s", serviceName, key)
+			}
+		}
+		if serviceName == "mcp-gateway" && env["GITHUB_APP_ID"] != "${GITHUB_APP_ID}" {
+			t.Fatalf("services.mcp-gateway must receive the numeric GITHUB_APP_ID")
+		}
 	}
 }
 
