@@ -1,7 +1,7 @@
 # GitHub App セットアップガイド（GitHub Web UI 作業）
 
 mcp-gateway 経由で MCP サーバーに接続するために必要な GitHub App について、
-**GitHub Web UI 側で行う作業**（新規登録・TLS 切替時の URL 変更・Client secret 管理）を説明する。
+**GitHub Web UI 側で行う作業**（新規登録・インストール・秘密鍵管理・TLS 切替時の URL 変更）を説明する。
 `.env` への設定値は [README](../README.md) および `.env.template` のコメントを参照。
 
 > 本書の画面遷移・ラベルは 2026-07 時点の GitHub Web UI（表示は英語）に基づく。
@@ -72,7 +72,23 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
    OAUTH_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    ```
 
-## 3. TLS 切替時の変更（既存 App の URL 更新）
+## 3. Installation ID / 秘密鍵の取得
+
+1. settings ページ左側の **Install App** をクリックし、対象 owner へ App をインストールする
+2. インストール後の URL `https://github.com/settings/installations/<ID>` の末尾を Installation ID として控える
+3. App の **General** ページへ戻り、**Private keys** の **Generate a private key** をクリックする
+4. ダウンロードした PEM を `config/github-app/private-key.pem` に保存する
+5. `.env` に設定する:
+
+   ```bash
+   GITHUB_APP_CLIENT_ID=Iv23xxxxxxxxxxxxxxxx
+   GITHUB_APP_INSTALLATION_ID=12345678
+   MCP_GATEWAY_INTERNAL_SECRET=<32文字以上のランダム値>
+   ```
+
+秘密鍵は Git 管理対象外であり、gateway コンテナだけに read-only mount される。`github-mcp` と `review-raven` には秘密鍵も installation token も環境変数として渡さない。
+
+## 4. TLS 切替時の変更（既存 App の URL 更新）
 
 `make setup-tls` は `.env` の `MCP_GATEWAY_PUBLIC_URL` を `https://localhost:<port>` に
 書き換えるが、**GitHub App 側の URL は自動では変わらない**。以下を手動で行う。
@@ -96,14 +112,15 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 > ただし認可リクエストの `redirect_uri` を省略した場合は**先頭の Callback URL** が使われるため、
 > 並び順には注意する。
 
-## 4. トラブルシューティング
+## 5. トラブルシューティング
 
 | 症状 | 原因と対処 |
 |---|---|
-| 認可時に `redirect_uri` エラー（"The redirect_uri is not associated with this application." 等） | GitHub App の Callback URL が `<PUBLIC_URL>` と一致していない。scheme（http/https）・host（`127.0.0.1`/`localhost`）・port のいずれかの食い違いでも発生する。セクション 3 の手順で更新する |
+| 認可時に `redirect_uri` エラー（"The redirect_uri is not associated with this application." 等） | GitHub App の Callback URL が `<PUBLIC_URL>` と一致していない。scheme（http/https）・host（`127.0.0.1`/`localhost`）・port のいずれかの食い違いでも発生する。セクション 4 の手順で更新する |
 | TLS 切替後にブラウザが証明書警告を出す | mkcert のローカル CA が信頼されていない。`make setup-tls` を再実行する（CA の生成・信頼登録は冪等） |
 | Node.js 製 MCP クライアントが TLS 接続に失敗する | `NODE_EXTRA_CA_CERTS`（setup-tls が `.env` に自動設定）がクライアントのプロセス環境に渡っていない |
 | 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し `.env` を更新、`make restart-gateway` |
+| `--with-api` の資格情報診断が失敗する | Client ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
 
 ## 関連
 

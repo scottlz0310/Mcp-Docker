@@ -42,8 +42,9 @@ ifneq (,$(wildcard .env))
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
   GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
   GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
-  GITHUB_PERSONAL_ACCESS_TOKEN ?= $(call ENV_GET,GITHUB_PERSONAL_ACCESS_TOKEN)
-  MCP_GITHUB_PAT               ?= $(call ENV_GET,MCP_GITHUB_PAT)
+  GITHUB_APP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_APP_CLIENT_ID)
+  GITHUB_APP_INSTALLATION_ID   ?= $(call ENV_GET,GITHUB_APP_INSTALLATION_ID)
+  MCP_GATEWAY_INTERNAL_SECRET  ?= $(call ENV_GET,MCP_GATEWAY_INTERNAL_SECRET)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
   MCP_GATEWAY_PUBLIC_URL       ?= $(call ENV_GET,MCP_GATEWAY_PUBLIC_URL)
   MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
@@ -63,12 +64,8 @@ endif
 ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
   GITHUB_MCP_CLIENT_SECRET := $(OAUTH_CLIENT_SECRET)
 endif
-# MCP_GITHUB_PAT: docker-compose はネスト変数展開非対応のため Makefile 側で解決する
-ifeq ($(strip $(MCP_GITHUB_PAT)),)
-  MCP_GITHUB_PAT := $(GITHUB_PERSONAL_ACCESS_TOKEN)
-endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_PERSONAL_ACCESS_TOKEN MCP_GITHUB_PAT MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_APP_CLIENT_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
 
 .DEFAULT_GOAL := help
 
@@ -81,9 +78,15 @@ help: ## 利用可能なターゲット一覧を表示
 # サービス管理
 # ----------------------------------------
 
-.PHONY: start-gateway
-start-gateway: ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
+.PHONY: check-github-app-config
+check-github-app-config:
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
+	$(if $(and $(GITHUB_APP_CLIENT_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_CLIENT_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
+	$(if $(MCP_GATEWAY_INTERNAL_SECRET),,$(error ERROR: MCP_GATEWAY_INTERNAL_SECRET is required for credential diagnostics. Set a random value of at least 32 characters.))
+	$(if $(wildcard config/github-app/private-key.pem),,$(error ERROR: config/github-app/private-key.pem is required. Download the GitHub App private key and place it at this path.))
+
+.PHONY: start-gateway
+start-gateway: check-github-app-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
 	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
@@ -147,8 +150,7 @@ else
 endif
 
 .PHONY: start-main
-start-main: ## 最新開発版イメージで全サービスを起動
-	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
+start-main: check-github-app-config ## 最新開発版イメージで全サービスを起動
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \

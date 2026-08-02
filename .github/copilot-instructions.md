@@ -28,7 +28,7 @@ make lint            # All linting
 make lint-shell      # Shell script lint (shellcheck)
 
 # Validation
-./scripts/health-check.sh      # Checks container + HTTP endpoint + GitHub API
+./scripts/health-check.sh      # コンテナ・HTTP endpoint・GitHub App 資格情報を確認
 make register-all REGISTER_FLAGS=--dry-run
 
 # Cleanup
@@ -38,7 +38,7 @@ make clean-all       # Full cleanup including images
 
 ## Conventions
 
-- **Environment-first auth**: `GITHUB_PERSONAL_ACCESS_TOKEN` env var always wins over `.env` file. Set both consistently to avoid confusion.
+- **GitHub upstream auth**: `mcp-gateway` が GitHub App installation token を生成・更新する。GPAT を構成や各コンテナへ渡さない。
 - **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
 - **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image, and set `GITHUB_MCP_IMAGE` to swap the default `github-mcp-server` image.
 - **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.

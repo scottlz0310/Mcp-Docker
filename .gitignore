@@ -8,6 +8,10 @@
 config/certs/*
 !config/certs/.gitkeep
 
+# GitHub App private key
+config/github-app/*
+!config/github-app/.gitkeep
+
 # Local MCP/client config
 .mcp.json
 mcp.json

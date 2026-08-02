@@ -6,8 +6,6 @@ services:
     command: ["http", "--port", "${GITHUB_MCP_HTTP_PORT:-8082}"]
 
     environment:
-      - MCP_GITHUB_PAT=${MCP_GITHUB_PAT}
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - LOG_LEVEL=${LOG_LEVEL:-info}
 
@@ -77,8 +75,11 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
-      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_bearer_token_env=GITHUB_PERSONAL_ACCESS_TOKEN
+      - GITHUB_APP_CLIENT_ID=${GITHUB_APP_CLIENT_ID}
+      - GITHUB_APP_INSTALLATION_ID=${GITHUB_APP_INSTALLATION_ID}
+      - GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app/private-key.pem
+      - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
+      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
@@ -91,6 +92,8 @@ services:
       - MCP_GATEWAY_TOKEN_STORE_PATH=${MCP_GATEWAY_TOKEN_STORE_PATH:-/data/tokens.db}
       - MCP_GATEWAY_AUTH_AUDIT_LOG_PATH=${MCP_GATEWAY_AUTH_AUDIT_LOG_PATH:-/data/logs/auth-audit.jsonl}
       - MCP_GATEWAY_GITHUB_REFRESH_ENABLED=${MCP_GATEWAY_GITHUB_REFRESH_ENABLED:-true}
+      - MCP_GATEWAY_INTERNAL_SECRET=${MCP_GATEWAY_INTERNAL_SECRET}
+      - MCP_GATEWAY_INTERNAL_PORT=${MCP_GATEWAY_INTERNAL_PORT:-9090}
       # ローカル HTTPS (TLS) 終端。make setup-tls が .env に設定する。
       # 両方とも空の場合、gateway は従来どおり HTTP で listen する。
       - MCP_GATEWAY_TLS_CERT_PATH=${MCP_GATEWAY_TLS_CERT_PATH:-}
@@ -101,6 +104,7 @@ services:
       # TLS 証明書（make setup-tls で生成）。Go プロセスのデッドロックを避けるため
       # ファイル単体ではなく親ディレクトリ単位でマウントする。
       - ./config/certs:/data/certs:ro
+      - ./config/github-app:/run/secrets/github-app:ro
 
     ports:
       - "127.0.0.1:${MCP_GATEWAY_PORT:-8080}:${MCP_GATEWAY_PORT:-8080}"
@@ -139,8 +143,6 @@ services:
       - BIND_ADDR=0.0.0.0
       - MCP_PORT=${REVIEW_RAVEN_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
-      - REVIEW_RAVEN_DEFAULT_USER=${REVIEW_RAVEN_DEFAULT_USER:-}
 
     # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/review-raven）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
@@ -170,6 +172,32 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
+
+  gateway-credentials-check:
+    image: ${CURL_IMAGE:-curlimages/curl:8.16.0}
+    profiles: ["diagnostics"]
+    network_mode: "service:mcp-gateway"
+    depends_on:
+      mcp-gateway:
+        condition: service_started
+    environment:
+      - MCP_GATEWAY_INTERNAL_SECRET=${MCP_GATEWAY_INTERNAL_SECRET}
+      - MCP_GATEWAY_INTERNAL_PORT=${MCP_GATEWAY_INTERNAL_PORT:-9090}
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+    command:
+      - |
+        response="$$(curl -fsS \
+          -H "Authorization: Bearer $${MCP_GATEWAY_INTERNAL_SECRET}" \
+          "http://127.0.0.1:$${MCP_GATEWAY_INTERNAL_PORT}/internal/v1/credentials")"
+        case "$${response}" in
+          *'"credential_type":"github_app_installation"'*'"ready":true'*)
+            echo "GitHub App installation credential is ready"
+            ;;
+          *)
+            echo "GitHub App installation credential is not ready" >&2
+            exit 1
+            ;;
+        esac
 
   thread-owl:
     image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
