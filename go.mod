@@ -1,5 +1,5 @@
 module github.com/scottlz0310/mcp-docker/v2
 
-go 1.26.7
+go 1.27.0
 
 require gopkg.in/yaml.v3 v3.0.1
