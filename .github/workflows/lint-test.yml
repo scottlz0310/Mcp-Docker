@@ -76,7 +76,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.1
+          version: v2.13.2
 
       - name: Go テスト
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
