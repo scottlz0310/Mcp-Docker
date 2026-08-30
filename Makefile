@@ -57,15 +57,8 @@ endif
 ifeq ($(strip $(OAUTH_CLIENT_SECRET)),)
   OAUTH_CLIENT_SECRET := $(or $(GITHUB_MCP_CLIENT_SECRET),$(GITHUB_CLIENT_SECRET))
 endif
-# 旧変数名も OAUTH_* から補完（docker-compose.yml 後方互換エイリアス向け）
-ifeq ($(strip $(GITHUB_MCP_CLIENT_ID)),)
-  GITHUB_MCP_CLIENT_ID := $(OAUTH_CLIENT_ID)
-endif
-ifeq ($(strip $(GITHUB_MCP_CLIENT_SECRET)),)
-  GITHUB_MCP_CLIENT_SECRET := $(OAUTH_CLIENT_SECRET)
-endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_MCP_CLIENT_ID GITHUB_MCP_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
 
 .DEFAULT_GOAL := help
 
@@ -105,6 +98,39 @@ logs-gateway: ## mcp-gateway のログ表示
 .PHONY: status-gateway
 status-gateway: ## 全サービスの状態確認
 	docker compose ps
+
+SERVICE ?= mcp-gateway
+
+.PHONY: health-check
+health-check: ## サービスのヘルスチェック（GitHub App credential 診断込み）
+	"$(BASH_CMD)" ./scripts/health-check.sh --service "$(SERVICE)" --with-api
+
+.PHONY: health-check-quick
+health-check-quick: ## サービスのヘルスチェック（credential 診断をスキップ）
+	"$(BASH_CMD)" ./scripts/health-check.sh --service "$(SERVICE)" --no-api
+
+MCP_CONFORMANCE_GATEWAY_URL = $(patsubst %/,%,$(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)))
+MCP_CONFORMANCE_TOKEN_ENV ?= MCP_E2E_BEARER_TOKEN
+MCP_CONFORMANCE_TIMEOUT ?= 45s
+
+.PHONY: mcp-conformance
+mcp-conformance: mcp-conformance-thread-owl mcp-conformance-review-raven ## MCP 2026-07-28 conformance を全対象routeで実行
+
+.PHONY: mcp-conformance-thread-owl
+mcp-conformance-thread-owl: $(MCP_DOCKER) ## thread-owl route のdiscovery/resource/subscription ackを検証
+	$(MCP_DOCKER) conformance \
+		--url "$(MCP_CONFORMANCE_GATEWAY_URL)/mcp/thread-owl" \
+		--token-env "$(MCP_CONFORMANCE_TOKEN_ENV)" \
+		--resource-uri "queue://review/queue" \
+		--require-no-buffering \
+		--timeout "$(MCP_CONFORMANCE_TIMEOUT)"
+
+.PHONY: mcp-conformance-review-raven
+mcp-conformance-review-raven: $(MCP_DOCKER) ## review-raven route のdiscovery/stateless tool経路を検証
+	$(MCP_DOCKER) conformance \
+		--url "$(MCP_CONFORMANCE_GATEWAY_URL)/mcp/review-raven" \
+		--token-env "$(MCP_CONFORMANCE_TOKEN_ENV)" \
+		--timeout "$(MCP_CONFORMANCE_TIMEOUT)"
 
 .PHONY: pull-gateway
 pull-gateway: ## 全サービスの Docker イメージを取得

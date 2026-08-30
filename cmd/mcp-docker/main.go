@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/scottlz0310/mcp-docker/v2/internal/compose"
+	"github.com/scottlz0310/mcp-docker/v2/internal/conformance"
 	"github.com/scottlz0310/mcp-docker/v2/internal/external"
 	"github.com/scottlz0310/mcp-docker/v2/internal/register"
 )
@@ -21,6 +23,7 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
 
 使い方:
   mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run] [--prune]
+  mcp-docker conformance --url <MCP endpoint> [--token-env <環境変数名>] [--resource-uri <URI>] [--wait-for-update] [--require-no-buffering]
   mcp-docker version
   mcp-docker --version
   mcp-docker -v
@@ -49,6 +52,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.
 	switch args[0] {
 	case "register":
 		return runRegister(ctx, args[1:], stdout, stderr, stdin)
+	case "conformance":
+		return runConformance(ctx, args[1:], stdout, stderr)
 	case "version", "-v", "--version":
 		fmt.Fprintf(stdout, "mcp-docker %s\n", version)
 		return nil
@@ -58,6 +63,90 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.
 	default:
 		return fmt.Errorf("不明なコマンド %q\n\n%s", args[0], usage)
 	}
+}
+
+func runConformance(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("conformance", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
+	var (
+		endpoint                string
+		directEndpoint          string
+		tokenEnv                string
+		directTokenEnv          string
+		authenticatedUser       string
+		directAuthenticatedUser string
+		resourceURI             string
+		triggerTool             string
+		triggerArgumentsJSON    string
+		timeout                 time.Duration
+		waitForUpdate           bool
+		requireKeepAlive        bool
+		requireNoBuffering      bool
+		allowUnauthenticated    bool
+	)
+	fs.StringVar(&endpoint, "url", "", "gateway 経由の MCP endpoint URL（必須）")
+	fs.StringVar(&directEndpoint, "direct-url", "", "比較対象の direct MCP endpoint URL")
+	fs.StringVar(&tokenEnv, "token-env", "MCP_E2E_BEARER_TOKEN", "gateway Bearer token を保持する環境変数名")
+	fs.StringVar(&directTokenEnv, "direct-token-env", "", "direct endpoint の Bearer token を保持する環境変数名")
+	fs.StringVar(&authenticatedUser, "authenticated-user", "", "primary endpointへ送るX-Authenticated-User（閉じた診断環境専用）")
+	fs.StringVar(&directAuthenticatedUser, "direct-authenticated-user", "", "direct endpointへ送るX-Authenticated-User（閉じた診断環境専用）")
+	fs.StringVar(&resourceURI, "resource-uri", "", "resources/read と subscriptions/listen で検証する URI")
+	fs.StringVar(&triggerTool, "trigger-tool", "", "subscription ack 後に呼び出す通知発火用 tool 名")
+	fs.StringVar(&triggerArgumentsJSON, "trigger-args", "{}", "trigger tool に渡す JSON object")
+	fs.DurationVar(&timeout, "timeout", 30*time.Second, "conformance 検証全体の timeout")
+	fs.BoolVar(&waitForUpdate, "wait-for-update", false, "resources/updated を待って resource を再readする")
+	fs.BoolVar(&requireKeepAlive, "require-keepalive", false, "subscription ack 後に SSE keep-alive comment を待つ")
+	fs.BoolVar(&requireNoBuffering, "require-no-buffering", false, "subscription response に X-Accel-Buffering: no を要求する")
+	fs.BoolVar(&allowUnauthenticated, "allow-unauthenticated", false, "Bearer認証境界の検証を省略する")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("想定外の引数です: %s", strings.Join(fs.Args(), " "))
+	}
+	if endpoint == "" {
+		return errors.New("conformance: --url は必須です")
+	}
+	if timeout <= 0 {
+		return errors.New("conformance: --timeout は正の期間を指定してください")
+	}
+	if triggerTool == "" && triggerArgumentsJSON != "{}" {
+		return errors.New("conformance: --trigger-args を使う場合は --trigger-tool が必須です")
+	}
+
+	var triggerArguments map[string]any
+	if err := json.Unmarshal([]byte(triggerArgumentsJSON), &triggerArguments); err != nil {
+		return fmt.Errorf("conformance: --trigger-args はJSON objectで指定してください: %w", err)
+	}
+	if triggerArguments == nil {
+		return errors.New("conformance: --trigger-args はJSON objectで指定してください")
+	}
+
+	verifyCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	fmt.Fprintf(stdout, "MCP %s conformance: %s\n", conformance.ProtocolVersion, endpoint)
+	err := conformance.Verify(verifyCtx, conformance.Options{
+		URL:                     endpoint,
+		DirectURL:               directEndpoint,
+		Token:                   os.Getenv(tokenEnv),
+		DirectToken:             os.Getenv(directTokenEnv),
+		AuthenticatedUser:       authenticatedUser,
+		DirectAuthenticatedUser: directAuthenticatedUser,
+		ResourceURI:             resourceURI,
+		RequireAuth:             !allowUnauthenticated,
+		WaitForUpdate:           waitForUpdate,
+		RequireKeepAlive:        requireKeepAlive,
+		RequireNoBuffering:      requireNoBuffering,
+		TriggerTool:             triggerTool,
+		TriggerArguments:        triggerArguments,
+		Output:                  stdout,
+	})
+	if err != nil {
+		return fmt.Errorf("conformance: %w", err)
+	}
+	fmt.Fprintln(stdout, "MCP conformance 検証に合格しました")
+	return nil
 }
 
 func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.Reader) error {
@@ -427,4 +516,3 @@ func getRegisterTimeout() time.Duration {
 	}
 	return defaultRegisterTimeout
 }
-
