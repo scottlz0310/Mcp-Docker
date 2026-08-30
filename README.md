@@ -57,7 +57,7 @@ cp .env.template .env
 # GitHub App の秘密鍵を config/github-app/private-key.pem に保存
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
-# ※ 旧 GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET も互換目的で受け付けます。
+# ※ 新規設定には canonical 名の OAUTH_* を使用してください。
 
 # 3. 全サービス起動
 make start-gateway
@@ -77,7 +77,7 @@ gateway は秘密鍵から短命の installation token を生成し、期限前�
 
 画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
-> GitHub OAuth App から移行する場合は、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます。旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` も互換目的で読み取りますが、新規設定では `OAUTH_*` を使ってください。
+> GitHub OAuth App から移行する場合は、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます。既存 `.env` の旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` は `make` 実行時の移行フォールバックとしてのみ読み取られ、gateway へ旧名のまま渡されません。
 
 ### ローカル HTTPS (TLS)
 
@@ -191,6 +191,11 @@ mcp-docker register --agent all --yes
 | `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` イメージ取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
+| `make health-check` | サービスのヘルスチェック（GitHub App credential 診断込み） |
+| `make health-check-quick` | サービスのヘルスチェック（credential 診断をスキップ） |
+| `make mcp-conformance` | thread-owl / review-raven route の MCP `2026-07-28` conformance 検証 |
+| `make mcp-conformance-thread-owl` | thread-owl の discovery / resource / subscription ack 検証 |
+| `make mcp-conformance-review-raven` | review-raven の discovery / stateless tool 検証 |
 | `make register` | 対話的に IDE/CLI と MCP サーバーを選択して登録 |
 | `make register-claude` | Claude CLI に MCP サーバーを登録 |
 | `make register-copilot` | GitHub Copilot CLI に MCP サーバーを登録 |
@@ -216,12 +221,26 @@ mcp-docker register --agent all --yes
 疎通確認：
 
 ```bash
-./scripts/health-check.sh
-# installation token の取得可否まで必ず検証
-./scripts/health-check.sh --with-api
+# installation token の取得可否まで検証
+make health-check
+# credential 診断をスキップする簡易確認
+make health-check-quick
+# 対象サービスを切り替える場合
+make health-check SERVICE=review-raven
 # または
 curl -i http://127.0.0.1:8080/health
 ```
+
+MCP `2026-07-28` の protocol negotiation と実 route を検証する場合は、gateway-issued Bearer token を
+環境変数へ設定して conformance suite を実行する。token 値を command line へ渡さないこと。
+
+```powershell
+$env:MCP_E2E_BEARER_TOKEN = "<gateway-issued bearer token>"
+make mcp-conformance
+```
+
+legacy `initialize` の拒否、subscription notification、mcp-resource-subscriber / squirrel-notifier の
+実機受け入れ手順は [MCP 2026-07-28 conformance 検証](docs/mcp-2026-07-28-conformance.md) を参照。
 
 ポートを変更する場合：
 
@@ -312,7 +331,7 @@ make logs-gateway  # mcp-gateway ログ
 ### コンテナ内部に入れない（Distroless）
 
 `github-mcp-server` コンテナはシェルなし（Distroless）のため、`docker exec -it ... bash` は動作しません。
-ヘルスチェックはホスト側スクリプト（`scripts/health-check.sh`）で行ってください。
+ヘルスチェックは `make health-check` で行ってください。Windows では Makefile が Git for Windows の Bash を解決して実行します。
 
 ### コンフィグボリュームが古い
 
@@ -365,6 +384,7 @@ Mcp-Docker/
 │   └── mcp-docker/             # CLI 登録オーケストレータ
 ├── internal/
 │   ├── compose/                # docker-compose.yml の ROUTE_* 抽出
+│   ├── conformance/            # MCP 2026-07-28 実route検証
 │   ├── external/               # config/mcp-external.yml 読み込み
 │   └── register/               # Claude / Copilot / Codex adapter
 ├── docker-compose.yml          # メインの Compose 定義（4サービス）
@@ -380,6 +400,7 @@ Mcp-Docker/
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
 │   ├── e2e-runbook-mcp-docker-cli.md  # CLI E2E 確認手順
+│   ├── mcp-2026-07-28-conformance.md   # 横断protocol conformance手順
 │   ├── archives/               # 旧設計メモ・検証ログ
 │   └── skills/                 # Codex / LLM 向け運用スキル
 ├── tests/

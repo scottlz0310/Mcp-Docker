@@ -28,7 +28,8 @@ make lint            # All linting
 make lint-shell      # Shell script lint (shellcheck)
 
 # Validation
-./scripts/health-check.sh      # コンテナ・HTTP endpoint・GitHub App 資格情報を確認
+make health-check             # コンテナ・HTTP endpoint・GitHub App 資格情報を確認
+make mcp-conformance          # 実routeのMCP 2026-07-28契約を確認（MCP_E2E_BEARER_TOKENが必要）
 make register-all REGISTER_FLAGS=--dry-run
 
 # Cleanup
@@ -42,7 +43,7 @@ make clean-all       # Full cleanup including images
 - **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
 - **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image, and set `GITHUB_MCP_IMAGE` to swap the default `github-mcp-server` image.
 - **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.
-- **Distroless container**: The container has no shell. Health checks are done host-side via `scripts/health-check.sh`, not inside the container.
+- **Distroless container**: The container has no shell. Health checks are done host-side via `make health-check`, not inside the container.
 - **Documentation language**: User-facing docs, Makefile help output, and messages are written in Japanese.
 - **Registration**: Use `mcp-docker register` or `make register-*` for Claude CLI, GitHub Copilot CLI, and Codex CLI.
 
@@ -53,6 +54,7 @@ make clean-all       # Full cleanup including images
 | `docker-compose.yml` | Primary compose (official image, resource limits, log rotation) |
 | `cmd/mcp-docker/` | CLI registration orchestrator |
 | `scripts/health-check.sh` | Host-side container and gateway health checks |
+| `internal/conformance/` | MCP 2026-07-28 HTTP/SSE conformance client and tests |
 
 ## Gotchas
 

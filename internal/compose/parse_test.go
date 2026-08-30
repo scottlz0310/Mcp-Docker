@@ -106,7 +106,15 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		if envErr != nil {
 			t.Fatal(envErr)
 		}
-		for _, key := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "MCP_GITHUB_PAT", "REVIEW_RAVEN_DEFAULT_USER", "GITHUB_APP_CLIENT_ID"} {
+		for _, key := range []string{
+			"GITHUB_PERSONAL_ACCESS_TOKEN",
+			"MCP_GITHUB_PAT",
+			"REVIEW_RAVEN_DEFAULT_USER",
+			"GITHUB_APP_CLIENT_ID",
+			"GITHUB_MCP_CLIENT_ID",
+			"GITHUB_MCP_CLIENT_SECRET",
+			"GITHUB_MCP_OAUTH_SCOPES",
+		} {
 			if _, exists := env[key]; exists {
 				t.Fatalf("services.%s must not receive deprecated credential %s", serviceName, key)
 			}

@@ -99,6 +99,20 @@ EOF
     done
 }
 
+@test "Makefile: health-check は Git Bash 経由で credential 診断を実行する" {
+    run make -C "${PROJECT_ROOT}" --dry-run health-check SERVICE=review-raven
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"bash" ./scripts/health-check.sh --service "review-raven" --with-api'* ]]
+}
+
+@test "Makefile: health-check-quick は credential 診断をスキップする" {
+    run make -C "${PROJECT_ROOT}" --dry-run health-check-quick SERVICE=github-mcp
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"bash" ./scripts/health-check.sh --service "github-mcp" --no-api'* ]]
+}
+
 @test "lint-shell.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/lint-shell.sh" ]
     [ -x "${SCRIPTS_DIR}/lint-shell.sh" ]

@@ -38,6 +38,28 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
+func TestConformanceArgumentValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "URL is required", args: []string{"conformance"}, wantErr: "--url は必須です"},
+		{name: "timeout must be positive", args: []string{"conformance", "--url", "http://localhost/mcp", "--timeout", "0s"}, wantErr: "--timeout は正の期間"},
+		{name: "trigger args require tool", args: []string{"conformance", "--url", "http://localhost/mcp", "--trigger-args", `{"reason":"opened"}`}, wantErr: "--trigger-tool が必須"},
+		{name: "trigger args must be object", args: []string{"conformance", "--url", "http://localhost/mcp", "--trigger-tool", "enqueue_review", "--trigger-args", `[]`}, wantErr: "JSON object"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			err := run(t.Context(), tt.args, &stdout, &stderr, strings.NewReader(""))
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("run() error = %v, want to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestRegisterDryRunDoesNotPromptForRouteNames(t *testing.T) {
 	dir := t.TempDir()
 	composePath := filepath.Join(dir, "docker-compose.yml")
@@ -873,6 +895,3 @@ exit 0
 		t.Fatalf("expected error message to contain prune timeout explanation, but got: %v", err)
 	}
 }
-
-
-

@@ -61,11 +61,8 @@ services:
       # GitHub App の Client ID / Secret を指定します（Client ID は Iv23... 形式）。
       # GitHub App には <MCP_GATEWAY_PUBLIC_URL>/callback と
       # <MCP_GATEWAY_PUBLIC_URL>/device_callback の両方を登録してください。
-      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-${GITHUB_MCP_CLIENT_ID}}
-      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-${GITHUB_MCP_CLIENT_SECRET}}
-      # v0.4.0 未満のゲートウェイとの後方互換エイリアス
-      - GITHUB_MCP_CLIENT_ID=${OAUTH_CLIENT_ID:-${GITHUB_MCP_CLIENT_ID}}
-      - GITHUB_MCP_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-${GITHUB_MCP_CLIENT_SECRET}}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
       # mcp-gateway v0.6.0+: builtin にすることで gateway 自身が OIDC AS として動作し
       # GitHub OAuth App は social login（identity 取得）のみに使用する（mcp-gateway#126）。
       # 従来の github モードに戻す場合は .env に OAUTH_PROVIDER=github を設定してください。
@@ -83,8 +80,7 @@ services:
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true
       - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
-      - OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
-      - GITHUB_MCP_OAUTH_SCOPES=${OAUTH_SCOPES:-${GITHUB_MCP_OAUTH_SCOPES:-repo,user}}
+      - OAUTH_SCOPES=${OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
       - TOKEN_CACHE_TTL_MIN=${TOKEN_CACHE_TTL_MIN:-30}

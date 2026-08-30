@@ -7,10 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 機能追加
+
+- `make health-check` / `make health-check-quick` を追加し、Windows でも Git for Windows の Bash を経由してサービスと GitHub App credential を診断できるようにした — #229
+- `mcp-docker conformance` と `make mcp-conformance` を追加し、実 gateway route 上で MCP `2026-07-28` の discovery、stateless operation、resource read、subscription ack/notification、legacy `initialize` 拒否を検証できるようにした — #230
+
 ### 🔒 セキュリティ
 
 - GitHub upstream 認証を静的 GPAT から短命の GitHub App installation token に移行し、`github-mcp`・`mcp-gateway`・`review-raven` の runtime 環境から GPAT を削除 — #225
 - loopback の gateway 資格情報診断を使い、秘密値を表示せず installation token の取得・更新状態を検証する health-check を追加 — #225
+
+### 🔄 変更
+
+- mcp-gateway コンテナへ渡していた旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` / `GITHUB_MCP_OAUTH_SCOPES` alias を廃止し、canonical `OAUTH_*` のみに統一した。既存 `.env` の client credential は `make` 内の旧名→新名フォールバックで移行可能 — #228
 
 ## [2.16.3] - 2026-07-16
 
