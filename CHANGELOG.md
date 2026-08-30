@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ 機能追加
 
 - `make health-check` / `make health-check-quick` を追加し、Windows でも Git for Windows の Bash を経由してサービスと GitHub App credential を診断できるようにした — #229
-- `mcp-docker conformance` と `make mcp-conformance` を追加し、実 gateway route 上で MCP `2026-07-28` の discovery、stateless operation、resource read、subscription ack/notification、legacy `initialize` 拒否を検証できるようにした — #230
+- `mcp-docker conformance` と `make mcp-conformance` を追加し、実 gateway route 上で MCP `2026-07-28` の discovery、stateless operation、resource read、subscription ack/notification、legacy `initialize` 拒否を検証できるようにした。gateway 固有の buffering header は `--require-no-buffering` で明示的に検証する — #230
 
 ### 🔒 セキュリティ
 

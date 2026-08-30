@@ -23,7 +23,7 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
 
 使い方:
   mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run] [--prune]
-  mcp-docker conformance --url <MCP endpoint> [--token-env <環境変数名>] [--resource-uri <URI>] [--wait-for-update]
+  mcp-docker conformance --url <MCP endpoint> [--token-env <環境変数名>] [--resource-uri <URI>] [--wait-for-update] [--require-no-buffering]
   mcp-docker version
   mcp-docker --version
   mcp-docker -v
@@ -82,6 +82,7 @@ func runConformance(ctx context.Context, args []string, stdout, stderr io.Writer
 		timeout                 time.Duration
 		waitForUpdate           bool
 		requireKeepAlive        bool
+		requireNoBuffering      bool
 		allowUnauthenticated    bool
 	)
 	fs.StringVar(&endpoint, "url", "", "gateway 経由の MCP endpoint URL（必須）")
@@ -96,6 +97,7 @@ func runConformance(ctx context.Context, args []string, stdout, stderr io.Writer
 	fs.DurationVar(&timeout, "timeout", 30*time.Second, "conformance 検証全体の timeout")
 	fs.BoolVar(&waitForUpdate, "wait-for-update", false, "resources/updated を待って resource を再readする")
 	fs.BoolVar(&requireKeepAlive, "require-keepalive", false, "subscription ack 後に SSE keep-alive comment を待つ")
+	fs.BoolVar(&requireNoBuffering, "require-no-buffering", false, "subscription response に X-Accel-Buffering: no を要求する")
 	fs.BoolVar(&allowUnauthenticated, "allow-unauthenticated", false, "Bearer認証境界の検証を省略する")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -135,6 +137,7 @@ func runConformance(ctx context.Context, args []string, stdout, stderr io.Writer
 		RequireAuth:             !allowUnauthenticated,
 		WaitForUpdate:           waitForUpdate,
 		RequireKeepAlive:        requireKeepAlive,
+		RequireNoBuffering:      requireNoBuffering,
 		TriggerTool:             triggerTool,
 		TriggerArguments:        triggerArguments,
 		Output:                  stdout,

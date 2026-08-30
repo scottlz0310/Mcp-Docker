@@ -35,6 +35,7 @@ type Options struct {
 	RequireAuth             bool
 	WaitForUpdate           bool
 	RequireKeepAlive        bool
+	RequireNoBuffering      bool
 	TriggerTool             string
 	TriggerArguments        map[string]any
 	Output                  io.Writer
@@ -156,6 +157,7 @@ func Verify(ctx context.Context, opts Options) error {
 		opts.ResourceURI,
 		opts.WaitForUpdate || opts.TriggerTool != "",
 		opts.RequireKeepAlive,
+		opts.RequireNoBuffering,
 		trigger,
 	)
 	if err != nil {
@@ -415,6 +417,7 @@ func (c *client) verifySubscription(
 	uri string,
 	waitForUpdate bool,
 	requireKeepAlive bool,
+	requireNoBuffering bool,
 	trigger func(context.Context) error,
 ) (updated bool, err error) {
 	params := map[string]any{
@@ -438,8 +441,10 @@ func (c *client) verifySubscription(
 	if err != nil || mediaType != "text/event-stream" {
 		return false, fmt.Errorf("Content-Type = %q, want text/event-stream", resp.Header.Get("Content-Type"))
 	}
-	if got := strings.ToLower(resp.Header.Get("X-Accel-Buffering")); got != "no" {
-		return false, fmt.Errorf("X-Accel-Buffering = %q, want no", got)
+	if requireNoBuffering {
+		if got := strings.ToLower(resp.Header.Get("X-Accel-Buffering")); got != "no" {
+			return false, fmt.Errorf("X-Accel-Buffering = %q, want no", got)
+		}
 	}
 	if err := requireNoSession(resp); err != nil {
 		return false, err

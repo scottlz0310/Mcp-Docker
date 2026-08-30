@@ -24,7 +24,7 @@ Mcp-Docker は実コンテナと mcp-gateway route を使い、MCP `2026-07-28` 
 | old session transport | MCP endpoint の GET / DELETE が `405` を返す |
 | resource | `resources/list` で URI を確認し、`resources/read` が成功する |
 | subscription | 最初の JSON-RPC message が `notifications/subscriptions/acknowledged` で、要求 URI と subscription ID が一致する |
-| long-lived SSE | `X-Accel-Buffering: no`、任意で keep-alive comment の到達を確認する |
+| gateway long-lived SSE | `--require-no-buffering` 指定時に `X-Accel-Buffering: no`、任意で keep-alive comment の到達を確認する |
 | update | 任意の trigger tool 後に `notifications/resources/updated` を受信し、resource を再 read する |
 
 ## 前提
@@ -63,6 +63,7 @@ bin/mcp-docker.exe conformance `
   --trigger-tool enqueue_review `
   --trigger-args '{"owner":"OWNER","repo":"REPO","prNumber":123,"reason":"opened"}' `
   --require-keepalive `
+  --require-no-buffering `
   --timeout 15m
 ```
 
@@ -110,6 +111,8 @@ direct endpoint は通常ホストへ公開しないため、診断用の閉じ�
 review-raven の direct endpoint は gateway が注入する identity / provider token を前提とするため、
 `--direct-token-env` には upstream が受け付ける専用 token、`--direct-authenticated-user` には検証用 identity を指定する。
 direct endpoint を primary `--url` として単独診断する場合は、対応する `--token-env` と `--authenticated-user` を指定する。
+`X-Accel-Buffering` は MCP protocol の要件ではないため、direct endpoint の単独診断では通常 `--require-no-buffering` を指定しない。
+この option は mcp-gateway route の deployment contract を検証する場合だけ使用する。
 これらの header を public gateway に対する認証回避として使ってはならない。gateway は client が送った identity header を除去する。
 
 ## CI と実機の境界

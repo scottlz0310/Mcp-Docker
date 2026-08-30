@@ -122,6 +122,7 @@ mcp-conformance-thread-owl: $(MCP_DOCKER) ## thread-owl route のdiscovery/resou
 		--url "$(MCP_CONFORMANCE_GATEWAY_URL)/mcp/thread-owl" \
 		--token-env "$(MCP_CONFORMANCE_TOKEN_ENV)" \
 		--resource-uri "queue://review/queue" \
+		--require-no-buffering \
 		--timeout "$(MCP_CONFORMANCE_TIMEOUT)"
 
 .PHONY: mcp-conformance-review-raven
