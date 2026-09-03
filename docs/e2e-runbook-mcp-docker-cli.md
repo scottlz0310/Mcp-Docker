@@ -216,14 +216,15 @@ codex mcp list
 
 ## ステップ 5: Antigravity CLI への登録確認
 
-> **前提:** `agy` CLI がインストールされていること (`agy --version`)
+> **前提:** `agy` CLI がインストールされていること (`agy --version`)。`agy mcp` サブコマンド対応のため **v1.1.16 以降** が必要です。
 
 ### 5-1. 登録前の状態確認
 
 ```bash
-# グローバル設定ファイルを確認
-cat ~/.gemini/config/mcp_config.json
+agy mcp list
 ```
+
+**記録:** 登録前のサーバー一覧をメモしておく（未登録時は `No MCP servers configured.`）。
 
 ### 5-2. 登録実行
 
@@ -234,14 +235,13 @@ cat ~/.gemini/config/mcp_config.json
 ### 5-3. 登録後の確認
 
 ```bash
-# グローバル設定ファイルが更新され、各サーバーが登録されていることを確認
-cat ~/.gemini/config/mcp_config.json
+agy mcp list
 ```
 
-または `agy` 起動後に `/mcp` コマンドで確認する。
+または `cat ~/.gemini/config/mcp_config.json` で直接ファイルを確認するか、`agy` 起動後に `/mcp` コマンドで確認する。
 
 **確認ポイント:**
-- [ ] `~/.gemini/config/mcp_config.json` に `github`、`review-raven`、`playwright` が登録されている
+- [ ] `github`、`review-raven`、`playwright` が一覧に表示される
 
 ---
 

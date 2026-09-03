@@ -92,6 +92,10 @@ gateway は秘密鍵から短命の installation token を生成し、期限前�
 
 CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot CLI / Codex CLI / Antigravity CLI）は、`mcp-docker register` で mcp-gateway の HTTP エンドポイントを直接登録できます。
 
+> **前提条件:**
+> 対象エージェントの CLI コマンド（`claude`, `gh`, `codex`, `agy`）が実行環境の PATH に配置されている必要があります。
+> 特に Antigravity CLI は `agy mcp` コマンドが追加された **v1.1.16 以降** が必要です（旧バージョンでは直接設定ファイル I/O へのフォールバックは行われません）。
+
 ```bash
 # 事前に make start-gateway で mcp-gateway を起動
 make build-go
