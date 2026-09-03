@@ -147,6 +147,8 @@ func listCommand(agent Agent) []string {
 		return []string{"gh", "copilot", "--", "mcp", "list"}
 	case "codex":
 		return []string{"codex", "mcp", "list"}
+	case "antigravity":
+		return []string{"agy", "mcp", "list"}
 	default:
 		return []string{agent.Name(), "mcp", "list"}
 	}
