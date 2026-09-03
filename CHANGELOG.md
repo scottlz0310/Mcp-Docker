@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-09-03
+
 ### ✨ 機能追加
 
 - `make health-check` / `make health-check-quick` を追加し、Windows でも Git for Windows の Bash を経由してサービスと GitHub App credential を診断できるようにした — #229
@@ -659,7 +661,9 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.2...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.17.0...HEAD
+[2.17.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.3...v2.17.0
+[2.16.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.2...v2.16.3
 [2.16.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.1...v2.16.2
 [2.16.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.0...v2.16.1
 [2.16.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.15.0...v2.16.0
