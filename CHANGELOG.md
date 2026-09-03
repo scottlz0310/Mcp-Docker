@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 変更
 
+- `mcp-docker register` における `AntigravityAgent` を、独自の設定ファイル（`~/.gemini/config/mcp_config.json`）直接読み書き方式から `agy mcp` CLI 呼び出し方式へ移行 — #237
+  - `agy mcp add / remove / list` を `Runner` 経由で実行するようにリファクタリングし、他エージェント（Claude / Copilot / Codex）と設計を統一
+  - dry-run（`PrintPlan` / `PrintPrunePlan`）で `agy mcp` の実コマンドが表示されるよう改善
+  - 不要となった直接ファイル書き込みコード（`safeWriteFile` 等）およびファイルベーステストを整理・削除
 - mcp-gateway コンテナへ渡していた旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` / `GITHUB_MCP_OAUTH_SCOPES` alias を廃止し、canonical `OAUTH_*` のみに統一した。既存 `.env` の client credential は `make` 内の旧名→新名フォールバックで移行可能 — #228
 
 ## [2.16.3] - 2026-07-16

@@ -3,9 +3,7 @@ package register
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -51,6 +49,11 @@ func TestParseListEntries(t *testing.T) {
 		{
 			name:   "codex のテーブルヘッダーはスキップし行から URL を拾う",
 			output: "Name  Transport  Url\ngithub  streamable_http  http://127.0.0.1:8080/mcp/github\n",
+			want:   []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+		},
+		{
+			name:   "agy のテーブルヘッダーはスキップし行から URL を拾う",
+			output: "NAME        TYPE  STATUS   COMMAND/URL\ngithub      http  enabled  http://127.0.0.1:8080/mcp/github\n",
 			want:   []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
 		},
 		{
@@ -164,160 +167,10 @@ func TestPrintPlanShowsListAndConditionalRemove(t *testing.T) {
 	}
 }
 
-func TestAntigravityRegister(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "antigravity-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configPath := filepath.Join(tmpDir, "mcp_config.json")
-	agent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
-		configPath: configPath,
-	}
-
-	// 1. List when file does not exist
-	names, err := listNames(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 0 {
-		t.Errorf("expected empty list for non-existing file, got %v", names)
-	}
-
-	// 2. Pre-create config with other keys to test preservation
-	initialJSON := `{
-  "colorScheme": "dark",
-  "editor": "code",
-  "mcpServers": {
-    "existing-server": {
-      "serverUrl": "http://127.0.0.1:9090"
-    }
-  }
-}`
-	if err := os.WriteFile(configPath, []byte(initialJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// 3. Add a new server
-	err = agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// 4. Verify list contains both servers
-	names, err = listNames(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 2 {
-		t.Errorf("expected 2 servers, got %d: %v", len(names), names)
-	}
-	hasGithub := false
-	hasExisting := false
-	for _, n := range names {
-		if n == "github" {
-			hasGithub = true
-		}
-		if n == "existing-server" {
-			hasExisting = true
-		}
-	}
-	if !hasGithub || !hasExisting {
-		t.Errorf("missing expected servers in list: %v", names)
-	}
-
-	// 5. Verify other keys (colorScheme, editor) were preserved
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var finalConfig map[string]any
-	if err := json.Unmarshal(content, &finalConfig); err != nil {
-		t.Fatal(err)
-	}
-	if finalConfig["colorScheme"] != "dark" || finalConfig["editor"] != "code" {
-		t.Errorf("lost other top-level keys: %s", string(content))
-	}
-
-	// 6. Test Remove and ensure key preservation
-	err = agent.Remove(context.Background(), "github")
-	if err != nil {
-		t.Fatal(err)
-	}
-	names, err = listNames(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 1 || names[0] != "existing-server" {
-		t.Errorf("expected only existing-server, got %v", names)
-	}
-	content, err = os.ReadFile(configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var configAfterRemove map[string]any
-	if err := json.Unmarshal(content, &configAfterRemove); err != nil {
-		t.Fatal(err)
-	}
-	if configAfterRemove["colorScheme"] != "dark" || configAfterRemove["editor"] != "code" {
-		t.Errorf("lost other top-level keys after remove: %s", string(content))
-	}
-}
-
-func TestAntigravityErrorPaths(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "antigravity-test-errors-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configPath := filepath.Join(tmpDir, "mcp_config.json")
-	agent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
-		configPath: configPath,
-	}
-
-	// 1. Invalid JSON file
-	if err := os.WriteFile(configPath, []byte("invalid-json"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// List should error
-	_, err = listNames(agent)
-	if err == nil {
-		t.Error("expected error from List with invalid JSON")
-	}
-
-	// Add should error
-	err = agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080"})
-	if err == nil {
-		t.Error("expected error from Add with invalid JSON")
-	}
-
-	// Remove should error
-	err = agent.Remove(context.Background(), "github")
-	if err == nil {
-		t.Error("expected error from Remove with invalid JSON")
-	}
-
-	// 2. Test AddCommand and RemoveCommand outputs
-	cmdAdd := agent.AddCommand(Server{Name: "github", URL: "http://127.0.0.1:8080"})
-	if len(cmdAdd) < 5 || cmdAdd[2] != "add" || cmdAdd[3] != "github" {
-		t.Errorf("unexpected AddCommand output: %v", cmdAdd)
-	}
-
-	cmdRemove := agent.RemoveCommand("github")
-	if len(cmdRemove) < 4 || cmdRemove[2] != "remove" || cmdRemove[3] != "github" {
-		t.Errorf("unexpected RemoveCommand output: %v", cmdRemove)
-	}
-}
-
-func TestNewAntigravityAgentAndRegister(t *testing.T) {
-	// 1. Test constructor and interface methods
+func TestAntigravityAgentPropertiesAndCommands(t *testing.T) {
 	runner := &fakeRunner{}
 	agent := NewAntigravityAgent(runner)
+
 	if agent.Name() != "antigravity" {
 		t.Errorf("expected name antigravity, got %q", agent.Name())
 	}
@@ -325,167 +178,126 @@ func TestNewAntigravityAgentAndRegister(t *testing.T) {
 		t.Error("expected OverwritesOnAdd to be true")
 	}
 
-	// 2. Test Register integration
-	tmpDir, err := os.MkdirTemp("", "antigravity-register-test-*")
+	cmdAdd := agent.AddCommand(Server{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"})
+	wantAdd := []string{"agy", "mcp", "add", "github", "http://127.0.0.1:8080/mcp/github"}
+	if !slices.Equal(cmdAdd, wantAdd) {
+		t.Errorf("AddCommand = %v, want %v", cmdAdd, wantAdd)
+	}
+
+	cmdRemove := agent.RemoveCommand("github")
+	wantRemove := []string{"agy", "mcp", "remove", "github"}
+	if !slices.Equal(cmdRemove, wantRemove) {
+		t.Errorf("RemoveCommand = %v, want %v", cmdRemove, wantRemove)
+	}
+
+	cmdList := listCommand(agent)
+	wantList := []string{"agy", "mcp", "list"}
+	if !slices.Equal(cmdList, wantList) {
+		t.Errorf("listCommand = %v, want %v", cmdList, wantList)
+	}
+}
+
+func TestAntigravityAgentListEntries(t *testing.T) {
+	runner := &fakeRunner{
+		output: "NAME        TYPE  STATUS   COMMAND/URL\ngithub      http  enabled  http://127.0.0.1:8080/mcp/github\nplaywright  http  enabled  http://127.0.0.1:8080/mcp/playwright\n",
+	}
+	agent := NewAntigravityAgent(runner)
+
+	entries, err := agent.ListEntries(context.Background())
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ListEntries failed: %v", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configPath := filepath.Join(tmpDir, "mcp_config.json")
-
-	testAgent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: runner},
-		configPath: configPath,
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
+	if entries[0].Name != "github" || entries[0].URL != "http://127.0.0.1:8080/mcp/github" {
+		t.Errorf("entry[0] = %+v, want github", entries[0])
+	}
+	if entries[1].Name != "playwright" || entries[1].URL != "http://127.0.0.1:8080/mcp/playwright" {
+		t.Errorf("entry[1] = %+v, want playwright", entries[1])
+	}
+
+	if len(runner.calls) != 1 || runner.calls[0] != "agy mcp list" {
+		t.Errorf("calls = %v, want [agy mcp list]", runner.calls)
+	}
+}
+
+func TestAntigravityAgentRegisterOverwritesWithoutRemove(t *testing.T) {
+	runner := &fakeRunner{
+		output: "NAME  TYPE  STATUS  COMMAND/URL\ngithub  http  enabled  http://127.0.0.1:8080/mcp/github\n",
+	}
+	agent := NewAntigravityAgent(runner)
+	var out bytes.Buffer
 
 	servers := []Server{
 		{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"},
 		{Name: "playwright", URL: "http://127.0.0.1:8080/mcp/playwright"},
 	}
 
+	err := Register(context.Background(), &out, agent, servers, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := strings.Join(runner.calls, "\n")
+	if strings.Contains(got, "agy mcp remove") {
+		t.Fatalf("antigravity should overwrite on add and not remove, calls =\n%s", got)
+	}
+	for _, want := range []string{
+		"agy mcp add github http://127.0.0.1:8080/mcp/github",
+		"agy mcp add playwright http://127.0.0.1:8080/mcp/playwright",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("calls =\n%s\nmissing %q", got, want)
+		}
+	}
+}
+
+func TestAntigravityAgentRemove(t *testing.T) {
+	runner := &fakeRunner{}
+	agent := NewAntigravityAgent(runner)
+
+	err := agent.Remove(context.Background(), "github")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(runner.calls) != 1 || runner.calls[0] != "agy mcp remove github" {
+		t.Errorf("calls = %v, want [agy mcp remove github]", runner.calls)
+	}
+}
+
+func TestAntigravityAgentSkipsTokenEnvServer(t *testing.T) {
+	runner := &fakeRunner{}
+	agent := NewAntigravityAgent(runner)
 	var out bytes.Buffer
-	err = Register(context.Background(), &out, testAgent, servers, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	names, err := listNames(testAgent)
+	err := Register(context.Background(), &out, agent, []Server{{
+		Name:     "cloudflare-api",
+		URL:      "https://mcp.cloudflare.com/mcp",
+		TokenEnv: "CLOUDFLARE_API_TOKEN",
+	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(names) != 2 {
-		t.Errorf("expected 2 servers, got %v", names)
+	if !strings.Contains(out.String(), "スキップ") {
+		t.Fatalf("output = %q, want skip message", out.String())
+	}
+	got := strings.Join(runner.calls, "\n")
+	if strings.Contains(got, "agy mcp add") || strings.Contains(got, "agy mcp remove") {
+		t.Fatalf("unsupported server must not be added or removed, calls =\n%s", got)
 	}
 }
 
-func TestAntigravityMcpServersNotObject(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "antigravity-non-obj-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+func TestPrintPlanAntigravity(t *testing.T) {
+	agent := NewAntigravityAgent(&fakeRunner{})
+	var out bytes.Buffer
 
-	configPath := filepath.Join(tmpDir, "mcp_config.json")
-	agent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
-		configPath: configPath,
-	}
+	PrintPlan(&out, agent, []Server{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}})
 
-	// 1. mcpServers is a string, not an object
-	invalidJSON := `{"mcpServers": "not-an-object"}`
-	if err := os.WriteFile(configPath, []byte(invalidJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// List should return nil, nil (not crash or fail)
-	names, err := listNames(agent)
-	if err != nil {
-		t.Fatalf("List returned error when mcpServers is not an object: %v", err)
-	}
-	if len(names) != 0 {
-		t.Errorf("expected 0 names, got %v", names)
-	}
-
-	// Add should overwrite it or handle it cleanly
-	err = agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080"})
-	if err != nil {
-		t.Fatalf("Add failed when mcpServers is not an object: %v", err)
-	}
-
-	names, err = listNames(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 1 || names[0] != "github" {
-		t.Errorf("expected [github], got %v", names)
-	}
-}
-
-func TestAntigravityEmptyConfigFile(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "antigravity-empty-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configPath := filepath.Join(tmpDir, "mcp_config.json")
-	if err := os.WriteFile(configPath, []byte(""), 0644); err != nil {
-		t.Fatal(err)
-	}
-	agent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
-		configPath: configPath,
-	}
-
-	// List should treat an empty file like a missing file, not error.
-	names, err := listNames(agent)
-	if err != nil {
-		t.Fatalf("List returned error for empty file: %v", err)
-	}
-	if len(names) != 0 {
-		t.Errorf("expected empty list for empty file, got %v", names)
-	}
-
-	// Add should succeed and create a fresh config.
-	if err := agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080"}); err != nil {
-		t.Fatalf("Add failed for empty file: %v", err)
-	}
-	names, err = listNames(agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(names) != 1 || names[0] != "github" {
-		t.Errorf("expected [github], got %v", names)
-	}
-
-	// Remove against an empty file should be a no-op, not an error.
-	if err := os.WriteFile(configPath, []byte(""), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := agent.Remove(context.Background(), "github"); err != nil {
-		t.Fatalf("Remove failed for empty file: %v", err)
-	}
-}
-
-func TestAntigravitySafeWriteFileErrors(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "antigravity-write-error-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	filePath := filepath.Join(tmpDir, "some-file")
-	if err := os.WriteFile(filePath, []byte("hello"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	badConfigPath := filepath.Join(filePath, "mcp_config.json")
-	agent := AntigravityAgent{
-		baseAgent:  baseAgent{name: "antigravity", runner: &fakeRunner{}},
-		configPath: badConfigPath,
-	}
-
-	err = agent.Add(context.Background(), Server{Name: "github", URL: "http://127.0.0.1:8080"})
-	if err == nil {
-		t.Error("expected error when directory creation fails")
-	}
-}
-
-func TestAntigravityAgent_DefaultConfigPath(t *testing.T) {
-	agent := AntigravityAgent{
-		baseAgent: baseAgent{name: "antigravity", runner: &fakeRunner{}},
-	}
-	path, err := agent.getConfigPath()
-	if err != nil {
-		t.Fatalf("getConfigPath failed: %v", err)
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := filepath.Join(home, ".gemini", "config", "mcp_config.json")
-	if path != expected {
-		t.Errorf("expected config path %q, got %q", expected, path)
+	got := out.String()
+	want := "追加/上書き: agy mcp add github http://127.0.0.1:8080/mcp/github"
+	if !strings.Contains(got, want) {
+		t.Fatalf("PrintPlan output =\n%s\nmissing %q", got, want)
 	}
 }
