@@ -18,17 +18,6 @@ func (r *fakeRunner) Run(_ context.Context, name string, args ...string) (string
 	return r.output, nil
 }
 
-func listNames(agent Agent) ([]string, error) {
-	entries, err := agent.ListEntries(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		names = append(names, entry.Name)
-	}
-	return names, nil
-}
 
 func TestParseListEntries(t *testing.T) {
 	cases := []struct {
