@@ -96,6 +96,8 @@ CLI 登録に対応しているエージェント（Claude CLI / GitHub Copilot 
 > 対象エージェントの CLI コマンド（`claude`, `gh`, `codex`, `agy`）が実行環境の PATH に配置されている必要があります。
 > 特に Antigravity CLI は `agy mcp` コマンドが追加された **v1.1.16 以降** が必要です（旧バージョンでは直接設定ファイル I/O へのフォールバックは行われません）。
 
+MCP `2026-07-28` 未対応の agy から modern upstream に接続する場合は、既定無効の `GATEWAY_LEGACY_ADAPTER_ENABLED` を使用します。有効化の前提・登録・撤去手順は [agy 向け過渡期アダプタ](docs/agy-legacy-adapter.md) を参照してください。
+
 ```bash
 # 事前に make start-gateway で mcp-gateway を起動
 make build-go
