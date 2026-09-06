@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ 機能追加
 
 - agy 向け過渡期アダプタの `GATEWAY_LEGACY_ADAPTER_ENABLED` を Compose に追加（既定無効）。有効化・登録・撤去とマージ後の実構成 E2E 手順を文書化 — #240
+  - 全 upstream の対応判定、起動ログによる有効・無効の反映確認、不正な設定値による起動失敗を運用手順に明記
 
 ## [2.17.0] - 2026-09-03
 
