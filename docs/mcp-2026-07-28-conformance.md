@@ -29,6 +29,8 @@ Mcp-Docker は実コンテナと mcp-gateway route を使い、MCP `2026-07-28` 
 
 ## 前提
 
+- `GATEWAY_LEGACY_ADAPTER_ENABLED=false` をコンテナに反映してから実行する。有効時は legacy `initialize` の成功が意図した動作となり、この suite の負の対照とは両立しない。[agy 向け検証](agy-legacy-adapter.md) は別途行う。
+
 - mcp-gateway v0.10.0 以降
 - thread-owl v0.4.0 以降
 - review-raven v0.3.0 以降
