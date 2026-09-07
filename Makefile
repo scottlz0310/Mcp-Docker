@@ -193,12 +193,15 @@ ifeq ($(OS),Windows_NT)
   EXE_EXT    := .exe
 endif
 MCP_DOCKER   := $(BIN_DIR)/mcp-docker$(EXE_EXT)
-GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null)
+GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null) skills.go
+# skill 実体はバイナリへ埋め込むため、変更時に再ビルドされるよう依存に含める。
+SKILL_SOURCES := $(shell find skills -type f 2>/dev/null)
 REGISTER_FLAGS ?=
+SKILL_FLAGS ?=
 VERSION ?= 2.17.0
 GO_LDFLAGS ?= -X main.version=$(VERSION)
 
-$(MCP_DOCKER): Makefile go.mod go.sum $(GO_SOURCES)
+$(MCP_DOCKER): Makefile go.mod go.sum $(GO_SOURCES) $(SKILL_SOURCES)
 	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
 	go build -ldflags "$(GO_LDFLAGS)" -o $(MCP_DOCKER) ./cmd/mcp-docker
 
@@ -225,6 +228,26 @@ register-antigravity: $(MCP_DOCKER) ## Antigravity CLI に MCP サーバーを�
 .PHONY: register-all
 register-all: $(MCP_DOCKER) ## Claude / Copilot / Codex / Antigravity CLI に MCP サーバーを登録
 	$(MCP_DOCKER) register --agent all $(REGISTER_FLAGS)
+
+# ----------------------------------------
+# skill 配置
+# ----------------------------------------
+
+.PHONY: skill-list
+skill-list: $(MCP_DOCKER) ## 収蔵している skill の一覧を表示
+	$(MCP_DOCKER) skill list
+
+.PHONY: skill-status
+skill-status: $(MCP_DOCKER) ## 各 CLI に配置済みの skill が最新かを確認
+	$(MCP_DOCKER) skill status $(SKILL_FLAGS)
+
+.PHONY: skill-install
+skill-install: $(MCP_DOCKER) ## Claude / Copilot / Codex / Antigravity CLI に skill を配置
+	$(MCP_DOCKER) skill install $(SKILL_FLAGS)
+
+.PHONY: skill-uninstall
+skill-uninstall: $(MCP_DOCKER) ## 配置済みの skill を各 CLI から削除
+	$(MCP_DOCKER) skill uninstall $(SKILL_FLAGS)
 
 # ----------------------------------------
 # 開発

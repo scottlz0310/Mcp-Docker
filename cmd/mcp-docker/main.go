@@ -23,6 +23,7 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
 
 使い方:
   mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run] [--prune]
+  mcp-docker skill <list|status|install|uninstall> [--agent <csv>|all] [--skill <csv>|all] [--dry-run] [--yes] [--force]
   mcp-docker conformance --url <MCP endpoint> [--token-env <環境変数名>] [--resource-uri <URI>] [--wait-for-update] [--require-no-buffering]
   mcp-docker version
   mcp-docker --version
@@ -52,6 +53,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, stdin io.
 	switch args[0] {
 	case "register":
 		return runRegister(ctx, args[1:], stdout, stderr, stdin)
+	case "skill":
+		return runSkill(args[1:], stdout, stderr, stdin)
 	case "conformance":
 		return runConformance(ctx, args[1:], stdout, stderr)
 	case "version", "-v", "--version":

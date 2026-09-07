@@ -182,6 +182,48 @@ mcp-docker register --agent all --yes
 
 `ROUTE_GITHUB` は `github`、`ROUTE_REVIEW_RAVEN` は `review-raven` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
 
+### skill の配置（`mcp-docker skill`）
+
+レビュー基盤の skill（`review-raven-thread-owl-cycle` / `thread-owl-pr-reviewer`）は本リポジトリの `skills/` に収蔵し、`mcp-docker` バイナリへ埋め込んでいます。各 CLI エージェントの skill ディレクトリへの配置は `mcp-docker skill` が行うため、手動コピーは不要です。
+
+| クライアント | 配置先 |
+|---|---|
+| Claude CLI | `~/.claude/skills/` |
+| GitHub Copilot CLI | `~/.copilot/skills/` |
+| Codex CLI | `~/.codex/skills/` |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/` |
+
+```bash
+# 収蔵している skill の一覧
+make skill-list
+
+# 配置計画の確認（何も書き込まない）
+make skill-install SKILL_FLAGS=--dry-run
+
+# 全クライアントへ配置（冪等・再実行可）
+make skill-install SKILL_FLAGS=--yes
+
+# 配置済みが最新かどうかの確認
+make skill-status
+
+# 対象を絞る
+make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-reviewer --yes"
+```
+
+配置先には `.mcp-docker-skill.json`（source ハッシュ・配置時の mcp-docker バージョン・配置日時）を書き出します。`mcp-docker skill status` はこれと skill 本体のハッシュを突き合わせ、次のいずれかを報告します。
+
+| 状態 | 意味 |
+|---|---|
+| `最新` | 収蔵内容と一致 |
+| `古い` | mcp-docker が配置したが、その後 `skills/` が更新された |
+| `ローカル改変あり` | 配置後に配置先で編集された |
+| `管理外` | `.mcp-docker-skill.json` がない（手動コピー等）。上書きには確認が入る |
+| `未配置` | まだ配置されていない |
+
+`管理外` の配置を上書きする場合と `skill uninstall` で削除する場合は確認プロンプトが入ります（`--yes` で省略）。`skill uninstall` は既定では `管理外` の配置を削除しません（`--force` が必要）。
+
+skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
+
 ## サービス操作
 
 ### Makefile コマンド
@@ -208,6 +250,10 @@ mcp-docker register --agent all --yes
 | `make register-codex` | Codex CLI に MCP サーバーを登録 |
 | `make register-antigravity` | Antigravity CLI に MCP サーバーを登録 |
 | `make register-all` | Claude / Copilot / Codex / Antigravity CLI に MCP サーバーを登録 |
+| `make skill-list` | 収蔵している skill の一覧を表示 |
+| `make skill-status` | 各 CLI に配置済みの skill が最新かを確認 |
+| `make skill-install` | Claude / Copilot / Codex / Antigravity CLI に skill を配置 |
+| `make skill-uninstall` | 配置済みの skill を各 CLI から削除 |
 | `make lint` | シェルスクリプト Lint |
 | `make test-go` | Go CLI テスト |
 | `make test-shell` | シェルスクリプトテスト（BATS） |
@@ -392,7 +438,11 @@ Mcp-Docker/
 │   ├── compose/                # docker-compose.yml の ROUTE_* 抽出
 │   ├── conformance/            # MCP 2026-07-28 実route検証
 │   ├── external/               # config/mcp-external.yml 読み込み
-│   └── register/               # Claude / Copilot / Codex adapter
+│   ├── register/               # Claude / Copilot / Codex adapter
+│   └── skill/                  # skill カタログと各 CLI への配置
+├── skills/                     # skill の収蔵先（バイナリへ埋め込み）
+│   ├── review-raven-thread-owl-cycle/
+│   └── thread-owl-pr-reviewer/
 ├── docker-compose.yml          # メインの Compose 定義（4サービス）
 ├── Makefile                    # 操作コマンド集
 ├── config/
