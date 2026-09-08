@@ -405,3 +405,120 @@ func TestUninstallForceRemovesUnmanagedFiles(t *testing.T) {
 		t.Fatalf("--force must remove the whole directory, err = %v", err)
 	}
 }
+
+// 隠しファイル・隠しディレクトリも「ユーザーが置いたもの」として保持することを固定する。
+// scanInstalled がドット始まりを除外すると Unmanaged が空になり、uninstall が
+// ディレクトリごと削除してこれらを失う。
+func TestUninstallPreservesHiddenUserFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	dir := filepath.Join(client.Dir, "alpha")
+	hidden := filepath.Join(dir, ".local-notes")
+	if err := os.WriteFile(hidden, []byte("hidden\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed hidden file: %v", err)
+	}
+	nestedDir := filepath.Join(dir, ".config")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("failed to seed hidden dir: %v", err)
+	}
+	nested := filepath.Join(nestedDir, "notes")
+	if err := os.WriteFile(nested, []byte("nested hidden\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed nested hidden file: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	if status.State != StateUpToDate {
+		t.Fatalf("state = %s, want %s", status.State, StateUpToDate)
+	}
+	if want := ".config/notes,.local-notes"; strings.Join(status.Unmanaged, ",") != want {
+		t.Fatalf("unmanaged = %v, want %s", status.Unmanaged, want)
+	}
+
+	plan := PlanRemove(status, false)
+	if plan.Action != ActionRemovePartial || plan.RemoveDir {
+		t.Fatalf("action = %s removeDir = %v, want %s / false", plan.Action, plan.RemoveDir, ActionRemovePartial)
+	}
+	if err := Remove(plan); err != nil {
+		t.Fatalf("Remove returned error: %v", err)
+	}
+
+	for _, path := range []string{hidden, nested} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("hidden user file %s must survive uninstall: %v", path, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("SKILL.md should be gone, err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ManifestName)); !os.IsNotExist(err) {
+		t.Fatalf("manifest should be gone, err = %v", err)
+	}
+}
+
+// マニフェスト自身は Unmanaged に数えない（数えると常に部分削除になり、
+// ユーザーファイルのないディレクトリが残り続ける）。
+func TestManifestIsNotCountedAsUnmanaged(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	if len(status.Unmanaged) != 0 {
+		t.Fatalf("unmanaged = %v, want empty", status.Unmanaged)
+	}
+	plan := PlanRemove(status, false)
+	if plan.Action != ActionRemove || !plan.RemoveDir {
+		t.Fatalf("action = %s removeDir = %v, want %s / true", plan.Action, plan.RemoveDir, ActionRemove)
+	}
+}
+
+func TestInstallStaysIdempotentWithHiddenUserFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	if err := os.WriteFile(filepath.Join(client.Dir, "alpha", ".local-notes"), []byte("hidden\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed hidden file: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	if status.State != StateUpToDate {
+		t.Fatalf("state = %s, want %s", status.State, StateUpToDate)
+	}
+	if plan := PlanInstall(status, s, false); plan.Action != ActionSkip {
+		t.Fatalf("action = %s, want %s", plan.Action, ActionSkip)
+	}
+}
+
+func TestUninstallForceRemovesHiddenUserFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	dir := filepath.Join(client.Dir, "alpha")
+	if err := os.WriteFile(filepath.Join(dir, ".local-notes"), []byte("hidden\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed hidden file: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	if err := Remove(PlanRemove(status, true)); err != nil {
+		t.Fatalf("Remove returned error: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("--force must remove the whole directory, err = %v", err)
+	}
+}

@@ -217,3 +217,31 @@ func TestSkillUninstallPreservesUserFiles(t *testing.T) {
 		t.Fatalf("--force must remove the directory, err = %v", err)
 	}
 }
+
+func TestSkillUninstallPreservesHiddenUserFiles(t *testing.T) {
+	home := t.TempDir()
+	args := []string{"skill", "uninstall", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes"}
+	if _, err := runSkillCommand(t, home, "", "skill", "install", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes"); err != nil {
+		t.Fatalf("install returned error: %v", err)
+	}
+
+	dir := filepath.Join(home, ".claude", "skills", "thread-owl-pr-reviewer")
+	hidden := filepath.Join(dir, ".local-notes")
+	if err := os.WriteFile(hidden, []byte("hidden\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed hidden file: %v", err)
+	}
+
+	out, err := runSkillCommand(t, home, "", args...)
+	if err != nil {
+		t.Fatalf("uninstall returned error: %v", err)
+	}
+	if !strings.Contains(out, ".local-notes") {
+		t.Fatalf("stdout = %q, want it to report the kept hidden file", out)
+	}
+	if _, err := os.Stat(hidden); err != nil {
+		t.Fatalf("hidden user file must survive uninstall: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("SKILL.md should be gone, err = %v", err)
+	}
+}

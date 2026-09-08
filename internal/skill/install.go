@@ -113,14 +113,14 @@ func Inspect(client Client, s Skill) (Status, error) {
 		return status, err
 	}
 
-	installed, err := scanInstalled(dir)
-	if err != nil {
-		return status, err
-	}
-
 	if manifest == nil {
 		status.State = StateUnmanaged
 		return status, nil
+	}
+
+	installed, err := scanInstalled(dir, catalogPaths(s))
+	if err != nil {
+		return status, err
 	}
 	status.InstalledVersion = manifest.Version
 	status.Managed, status.Unmanaged = partitionInstalled(manifest.Files, installed)
@@ -343,32 +343,48 @@ func writeManifest(dir string, manifest Manifest) error {
 	return nil
 }
 
-// scanInstalled は配置先の実ファイルを読み、カタログと同じ形式の File 一覧にする。
-// マニフェストとドットで始まるエントリは skill の内容に含めない。
-func scanInstalled(dir string) ([]File, error) {
+// catalogPaths は skill を構成するファイルの相対パス集合を返す。
+func catalogPaths(s Skill) map[string]struct{} {
+	paths := make(map[string]struct{}, len(s.Files))
+	for _, f := range s.Files {
+		paths[f.Path] = struct{}{}
+	}
+	return paths
+}
+
+// scanInstalled は配置先に実在するファイルの相対パスを列挙する。
+// 除外するのはマニフェスト自身だけで、隠しファイル・隠しディレクトリも含める。
+// 隠しエントリを除外すると、ユーザーが置いた `.local-notes` のようなファイルが
+// Unmanaged に載らず、uninstall がディレクトリごと削除して失われる。
+//
+// 内容ハッシュは hashPaths に含まれるパスだけ計算する。
+// ユーザーが置いた任意サイズのファイルを読み込まないための制限。
+func scanInstalled(dir string, hashPaths map[string]struct{}) ([]File, error) {
 	var files []File
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if p != dir && strings.HasPrefix(d.Name(), ".") {
-				return fs.SkipDir
-			}
 			return nil
-		}
-		if strings.HasPrefix(d.Name(), ".") {
-			return nil
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			return err
 		}
 		rel, err := filepath.Rel(dir, p)
 		if err != nil {
 			return err
 		}
-		files = append(files, File{Path: filepath.ToSlash(rel), Data: data, SHA256: hashBytes(data)})
+		slashRel := filepath.ToSlash(rel)
+		if slashRel == ManifestName {
+			return nil
+		}
+		file := File{Path: slashRel}
+		if _, ok := hashPaths[slashRel]; ok {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			file.SHA256 = hashBytes(data)
+		}
+		files = append(files, file)
 		return nil
 	})
 	if err != nil {
