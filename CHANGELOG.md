@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 変更
 
-- `review-raven-thread-owl-cycle` に、再レビュー依頼時の review queue 登録（`enqueue_review(reason: "re-review-requested")`）を必須手順として明記 — squirrel-notifier#253
-  - thread-owl の `issue_comment.created` webhook は意図的に未実装のため、`@thread-owl re-review requested` コメントの投稿だけでは queue に何も積まれず、レビューサイクルが静かに停止する。コメント投稿と enqueue を 1 組として扱うよう全体フロー・Phase U6・注意事項・ツール対応表を更新した
+- `review-raven-thread-owl-cycle` に、再レビュー依頼時の review queue 登録手順を thread-owl の起動モード別に明記 — squirrel-notifier#253
+  - `--mcp-http`（Mcp-Docker の既定。`POST /webhook` を提供しない）では `@thread-owl re-review requested` コメントの投稿だけでは queue に何も積まれず、レビューサイクルが静かに停止する。`enqueue_review(reason: "re-review-requested")` を必須手順とした
+  - `--webhook-mcp-http` では thread-owl 自身が enqueue するため明示 enqueue を行わない。queue の中身は PR キーで dedup されるが通知 listener は enqueue のたびに発火するため、重ねて呼ぶと `notifications/resources/updated` が二重に飛び reviewer が二重起動し得る
+  - 「起動モードの判定」節を追加し、全体フロー・Phase U6・注意事項・ツール対応表をモード条件付きの記述に揃えた
   - `thread-owl` MCP サーバーを必要サーバーに追加。フォールバック経路がないため、利用できない場合は cycle を完了扱いにせず停止する
 - `thread-owl-pr-reviewer` に「ハンドオフ提示」節を追加し、レビュー完了時に実装 CLI へ渡す次アクションをテキストで提示するようにした — squirrel-notifier#255 / #256 / #257 への準備
   - 対応が必要な場合はコピー可能な 1 行のプロンプトを、サイクル終了とみなせる場合は完了である旨を提示する
@@ -19,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 両 skill の `agents/openai.yaml` に `policy.allow_implicit_invocation: false` を設定した。いずれも明示起動で使う運用のため、既定のモデルコンテキストへの注入を止める
 
 ### 🐛 バグ修正
+
+- `review-raven-thread-owl-cycle` の必須コメント投稿者ゲートから信頼済み identity 4 件（`cloudflare-workers-and-pages` / `mcp-gateway-authentication-app` の suffix あり・なし）が欠落していたのを復元。#243 で skill を Mcp-Docker へ収蔵した際、収蔵元とした review-raven のリポジトリ内テンプレートが、実際に各 CLI へ配置されていた版より古かったことによる。とくに `mcp-gateway-authentication-app` は本スキル自身が PR へ書き込むときの App identity であり、欠けると次サイクルの投稿者ゲートが自分の書き込みを未信頼と判定して恒久的に停止する
 
 - `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` の flaky を解消。タイムアウト予算 2s が Windows の `cmd.exe` 起動オーバーヘッドに近すぎ、負荷時に本来タイムアウトさせたくない `list` 段階で先にタイムアウトしていた。予算を helper の sleep (10s) の半分となる 5s に引き上げ、満たすべき条件を定数のコメントに明記した
 
