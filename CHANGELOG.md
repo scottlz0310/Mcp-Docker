@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-09-08
+
+### ✨ 機能追加
+
+- レビュー基盤 skill（`review-raven-thread-owl-cycle` / `thread-owl-pr-reviewer`）を `skills/` に収蔵し、`mcp-docker skill` サブコマンドで Claude / Copilot / Codex / Antigravity CLI へ配置できるようにした — #242
+  - `skill list` / `skill status` / `skill install` / `skill uninstall` と `make skill-*` ターゲットを追加。`--agent` / `--skill` で対象を絞り、`--dry-run` で計画を確認できる
+  - skill 本体はバイナリへ埋め込むため、リポジトリ外からでも 1 コマンドで配置できる
+  - 配置先に `.mcp-docker-skill.json`（source ハッシュ・配置時バージョン）を残し、`最新` / `古い` / `ローカル改変あり` / `管理外` / `未配置` を判定する。再実行は冪等
+  - 管理外（手動コピー）の配置の上書きと削除は確認プロンプトを挟み、`skill uninstall` は `--force` なしでは管理外の配置を削除しない
+  - 配置先にユーザーが置いたファイル（隠しファイル・隠しディレクトリを含む）は管理対象外として扱い、更新でも削除でも残す。`skill uninstall` はマニフェスト記録ファイルのみを削除し、ユーザーファイルが残る場合はディレクトリを残す（`--force` でディレクトリごと削除）
+  - 収蔵元は review-raven（`review-raven-thread-owl-cycle`）と thread-owl（`thread-owl-pr-reviewer`）。移動に伴い、skill 内の手動コピー手順を `mcp-docker skill install` へ、リポジトリ相対リンクを絶対 URL へ置き換えた
+- agy 向け過渡期アダプタの `GATEWAY_LEGACY_ADAPTER_ENABLED` を Compose に追加（既定無効）。有効化・登録・撤去とマージ後の実構成 E2E 手順を文書化 — #240
+  - 全 upstream の対応判定、起動ログによる有効・無効の反映確認、不正な設定値による起動失敗を運用手順に明記
+
 ### 🔄 変更
 
 - `review-raven-thread-owl-cycle` に、再レビュー依頼時の review queue 登録手順を thread-owl の起動モード別に明記 — squirrel-notifier#253
@@ -24,20 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 バグ修正
 
 - `review-raven-thread-owl-cycle` の必須コメント投稿者ゲートから信頼済み identity 4 件（`cloudflare-workers-and-pages` / `mcp-gateway-authentication-app` の suffix あり・なし）が欠落していたのを復元。#243 で skill を Mcp-Docker へ収蔵した際、収蔵元とした review-raven のリポジトリ内テンプレートが、実際に各 CLI へ配置されていた版より古かったことによる。とくに `mcp-gateway-authentication-app` は本スキル自身が PR へ書き込むときの App identity であり、欠けると次サイクルの投稿者ゲートが自分の書き込みを未信頼と判定して恒久的に停止する。あわせて、同じ PR への書き込みでも記録される identity が経路によって変わること（GitHub MCP 経由の issue comment は App の login、review-raven MCP のスレッド返信や `gh` CLI は実行ユーザーの login）を明記した
-
 - `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` の flaky を解消。タイムアウト予算 2s が Windows の `cmd.exe` 起動オーバーヘッドに近すぎ、負荷時に本来タイムアウトさせたくない `list` 段階で先にタイムアウトしていた。予算を helper の sleep (10s) の半分となる 5s に引き上げ、満たすべき条件を定数のコメントに明記した
-
-### ✨ 機能追加
-
-- レビュー基盤 skill（`review-raven-thread-owl-cycle` / `thread-owl-pr-reviewer`）を `skills/` に収蔵し、`mcp-docker skill` サブコマンドで Claude / Copilot / Codex / Antigravity CLI へ配置できるようにした — #242
-  - `skill list` / `skill status` / `skill install` / `skill uninstall` と `make skill-*` ターゲットを追加。`--agent` / `--skill` で対象を絞り、`--dry-run` で計画を確認できる
-  - skill 本体はバイナリへ埋め込むため、リポジトリ外からでも 1 コマンドで配置できる
-  - 配置先に `.mcp-docker-skill.json`（source ハッシュ・配置時バージョン）を残し、`最新` / `古い` / `ローカル改変あり` / `管理外` / `未配置` を判定する。再実行は冪等
-  - 管理外（手動コピー）の配置の上書きと削除は確認プロンプトを挟み、`skill uninstall` は `--force` なしでは管理外の配置を削除しない
-  - 配置先にユーザーが置いたファイル（隠しファイル・隠しディレクトリを含む）は管理対象外として扱い、更新でも削除でも残す。`skill uninstall` はマニフェスト記録ファイルのみを削除し、ユーザーファイルが残る場合はディレクトリを残す（`--force` でディレクトリごと削除）
-  - 収蔵元は review-raven（`review-raven-thread-owl-cycle`）と thread-owl（`thread-owl-pr-reviewer`）。移動に伴い、skill 内の手動コピー手順を `mcp-docker skill install` へ、リポジトリ相対リンクを絶対 URL へ置き換えた
-- agy 向け過渡期アダプタの `GATEWAY_LEGACY_ADAPTER_ENABLED` を Compose に追加（既定無効）。有効化・登録・撤去とマージ後の実構成 E2E 手順を文書化 — #240
-  - 全 upstream の対応判定、起動ログによる有効・無効の反映確認、不正な設定値による起動失敗を運用手順に明記
 
 ## [2.17.0] - 2026-09-03
 
@@ -693,7 +694,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.17.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.18.0...HEAD
+[2.18.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.3...v2.17.0
 [2.16.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.2...v2.16.3
 [2.16.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.1...v2.16.2
