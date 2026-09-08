@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `review-raven-thread-owl-cycle` に `agents/openai.yaml` を追加し、両 skill の構成を揃えた。Codex の system skill が持つ規約に合わせたもので、harness が読む設定のため他クライアントは無視する
 - 両 skill の `agents/openai.yaml` に `policy.allow_implicit_invocation: false` を設定した。いずれも明示起動で使う運用のため、既定のモデルコンテキストへの注入を止める
 
+### 🐛 バグ修正
+
+- `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` の flaky を解消。タイムアウト予算 2s が Windows の `cmd.exe` 起動オーバーヘッドに近すぎ、負荷時に本来タイムアウトさせたくない `list` 段階で先にタイムアウトしていた。予算を helper の sleep (10s) の半分となる 5s に引き上げ、満たすべき条件を定数のコメントに明記した
+
 ### ✨ 機能追加
 
 - レビュー基盤 skill（`review-raven-thread-owl-cycle` / `thread-owl-pr-reviewer`）を `skills/` に収蔵し、`mcp-docker skill` サブコマンドで Claude / Copilot / Codex / Antigravity CLI へ配置できるようにした — #242

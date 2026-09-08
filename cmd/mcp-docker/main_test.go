@@ -18,6 +18,15 @@ import (
 
 var errUnexpectedStdinRead = errors.New("unexpected stdin read")
 
+// registerTimeoutForTimeoutTest はタイムアウト経路を検証するテストの予算。
+//
+// 満たすべき条件は「即終了する fake claude の起動オーバーヘッド < 予算 < helper の 10s sleep」。
+// 予算はタイムアウトさせたい段階（add / remove）だけに効かせ、その手前の list 段階には
+// 効かせてはならない。Windows では cmd.exe (claude.bat) の起動だけで秒単位かかることがあり、
+// 2s では負荷時に list 段階でタイムアウトして flaky になっていた。
+// helper の sleep (10s) の半分に取り、起動オーバーヘッド側へ十分な余裕を持たせる。
+const registerTimeoutForTimeoutTest = "5s"
+
 type errorReader struct{}
 
 func (errorReader) Read([]byte) (int, error) {
@@ -773,9 +782,7 @@ exec "%s" -test.run=TestHelperProcess -- "$@"
 	}()
 
 	// list は fake claude が即終了し add のみタイムアウトさせる（helper は 10s sleep）。
-	// Windows では cmd.exe (claude.bat) の起動だけで 100ms を超えて list 段階で
-	// タイムアウトすることがあるため、起動オーバーヘッドを吸収できる値にする。
-	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "2s")
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", registerTimeoutForTimeoutTest)
 
 	composePath := filepath.Join(dir, "docker-compose.yml")
 	externalPath := filepath.Join(dir, "mcp-external.yml")
@@ -860,9 +867,7 @@ exit 0
 	}()
 
 	// list は fake claude が即終了し remove のみタイムアウトさせる（helper は 10s sleep）。
-	// TestRegisterTimeoutOnAddCommand と同様、cmd.exe の起動オーバーヘッドで
-	// list 段階がタイムアウトしないよう余裕を持たせる。
-	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", "2s")
+	t.Setenv("MCP_DOCKER_REGISTER_TIMEOUT", registerTimeoutForTimeoutTest)
 
 	composePath := filepath.Join(dir, "docker-compose.yml")
 	externalPath := filepath.Join(dir, "mcp-external.yml")
