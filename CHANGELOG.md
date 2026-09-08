@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 バグ修正
 
-- `review-raven-thread-owl-cycle` の必須コメント投稿者ゲートから信頼済み identity 4 件（`cloudflare-workers-and-pages` / `mcp-gateway-authentication-app` の suffix あり・なし）が欠落していたのを復元。#243 で skill を Mcp-Docker へ収蔵した際、収蔵元とした review-raven のリポジトリ内テンプレートが、実際に各 CLI へ配置されていた版より古かったことによる。とくに `mcp-gateway-authentication-app` は本スキル自身が PR へ書き込むときの App identity であり、欠けると次サイクルの投稿者ゲートが自分の書き込みを未信頼と判定して恒久的に停止する
+- `review-raven-thread-owl-cycle` の必須コメント投稿者ゲートから信頼済み identity 4 件（`cloudflare-workers-and-pages` / `mcp-gateway-authentication-app` の suffix あり・なし）が欠落していたのを復元。#243 で skill を Mcp-Docker へ収蔵した際、収蔵元とした review-raven のリポジトリ内テンプレートが、実際に各 CLI へ配置されていた版より古かったことによる。とくに `mcp-gateway-authentication-app` は本スキル自身が PR へ書き込むときの App identity であり、欠けると次サイクルの投稿者ゲートが自分の書き込みを未信頼と判定して恒久的に停止する。あわせて、同じ PR への書き込みでも記録される identity が経路によって変わること（GitHub MCP 経由の issue comment は App の login、review-raven MCP のスレッド返信や `gh` CLI は実行ユーザーの login）を明記した
 
 - `TestRegisterTimeoutOnAddCommand` / `TestRegisterTimeoutOnPruneCommand` の flaky を解消。タイムアウト予算 2s が Windows の `cmd.exe` 起動オーバーヘッドに近すぎ、負荷時に本来タイムアウトさせたくない `list` 段階で先にタイムアウトしていた。予算を helper の sleep (10s) の半分となる 5s に引き上げ、満たすべき条件を定数のコメントに明記した
 
