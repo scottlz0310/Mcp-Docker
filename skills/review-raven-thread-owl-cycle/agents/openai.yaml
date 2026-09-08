@@ -1,0 +1,7 @@
+interface:
+  display_name: "Review Raven / Thread Owl Cycle"
+  short_description: "thread-owlのレビュー指摘に対応し再レビューまで回す"
+  default_prompt: "$review-raven-thread-owl-cycle を使って、このPRのレビュー指摘に対応してください。"
+
+policy:
+  allow_implicit_invocation: false
