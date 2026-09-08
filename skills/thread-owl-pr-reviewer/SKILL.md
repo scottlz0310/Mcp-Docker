@@ -11,7 +11,8 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 
 - コード変更、commit、push、branch 操作、merge を行わない。
 - review thread を resolve / unresolve しない。修正側 workflow の責務とする。
-- `@thread-owl re-review requested` を投稿して再レビューを依頼する処理は修正側 workflow の責務とする。
+- `@thread-owl re-review requested` の投稿と、それに伴う `enqueue_review(reason: "re-review-requested")` による review queue への登録は、いずれも修正側 workflow の責務とする。reviewer 側からは行わない。
+- レビュー完了時に、実装 CLI へ渡す次アクションを**テキストとして提示する**（「ハンドオフ提示」節）。提示にとどめ、修正側 skill を自分で起動しない。
 - レビュー判断、コメント生成、merge readiness 判定を行う。Thread Owl 自体に LLM があると仮定しない。
 - レビュー本文、GitHub 投稿、ユーザー報告を日本語で書く。
 - token、cookie、Authorization header、秘密鍵、環境変数値を出力しない。
@@ -325,3 +326,34 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 ```
 
 queue を使った場合は resource URI、candidate reason、subscription route も報告する。指摘がない場合は、レビュー済み範囲と残存リスクだけを報告する。
+
+## ハンドオフ提示
+
+`initial-review` / `re-review` を終えたら、ユーザー報告の**最後に**次アクションを提示する。レビュー指摘への対応は、その PR を実装した CLI エージェントが同一セッションで引き受けるのが最良であり（実装時の設計意図・トレードオフ・棄却案がコンテキストに残っており、リポジトリとスレッドの再調査が要らない）、reviewer 側がここで停止して実装側へ渡すのが正しい。`thread-follow-up` / `summary-only` では提示しない。
+
+verdict によって提示内容を分ける。
+
+### 対応が必要な場合（`request changes` / `comment only` / `needs follow-up`）
+
+そのまま実装 CLI へ貼り付けられる 1 行を、**コードブロックに単独で**出力する。前後に説明を混ぜず、コピーしてそのまま使える形にする。
+
+```
+/review-raven-thread-owl-cycle <owner>/<repo>#<pr> のレビュー指摘に対応してください
+```
+
+続けて 1 行で、投稿した blocking 件数と未解決 thread 数を添える。
+
+### サイクル終了とみなせる場合（`verdict: approve`）
+
+対応プロンプトは出さない。新規 `blocking` がなく全 thread が resolved でありサイクルが終了したことを示し、次アクションが**人によるマージ判断**であることを述べる。
+
+```
+レビューサイクル完了: <owner>/<repo>#<pr>（Verdict: APPROVED / Reviewed HEAD SHA: <SHA>）
+```
+
+### 制約
+
+- 提示はテキスト出力に限る。**このスキルは実装側 skill を自分で起動しない。** reviewer と reviewed は別セッションで動かす。
+- `<owner>` / `<repo>` / `<pr>` / `<SHA>` は実際の値に展開する。プレースホルダーのまま出力しない。
+- コードブロックにはプロンプト 1 行だけを入れる。ここは機械的に読み取られる前提の出力である（Squirrel Notifier のハンドオフポップアップがこの行をコピー対象として扱う）。
+- 実際にマージするかどうかは判断しない。マージは常に人の明示的な操作を挟む。

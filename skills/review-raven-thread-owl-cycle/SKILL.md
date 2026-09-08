@@ -11,7 +11,11 @@ description: "thread-owl レビュー用の reviewed-side cycle スキル。thre
 
 thread-owl がレビュアーの場合に reviewed-side cycle を実行するスキル。Copilot watch ループはない。エントリーは thread-owl が新しいレビューを投稿した後（PR に unresolved な thread-owl スレッドが存在する状態）に行う。thread-owl review の通知を受け取ったらこのスキルを起動すること。
 
-再レビュー依頼は `@thread-owl re-review requested` PR コメントとして投稿する。reviewed-side cycle はそこで完了する。thread-owl は自身の `issue_comment.created` webhook でこのコメントを検知し、`re-review-requested` candidate を enqueue して `queue://review/re-review-requests` の subscriber（reviewer-side）に通知する。次の reviewer-side cycle はこの通知で起動する。
+再レビュー依頼は **`@thread-owl re-review requested` PR コメントの投稿と `enqueue_review(reason: "re-review-requested")` の実行を 1 組**として行う。両方を終えて reviewed-side cycle が完了する。
+
+> **コメント投稿だけでは再レビューは起動しない。**
+> thread-owl の `issue_comment.created` webhook 受信は**意図的に未実装**であり、コメントを投稿しても review queue には何も積まれない。queue に event が載らない限り、Squirrel Notifier の Recent review events にも通知ポップアップにも「レビューする」ボタンは現れず、**サイクルが静かに停止する**。
+> `enqueue_review` は省略可能な手順ではない。
 
 > **このファイルについて**
 > このスキルの収蔵先は [Mcp-Docker](https://github.com/scottlz0310/Mcp-Docker) の `skills/review-raven-thread-owl-cycle/SKILL.md` です。編集はそちらに対して行ってください。
@@ -31,8 +35,11 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 |---------|------|------|
 | `github` | PR コメント投稿・Issue 作成 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
 | `review-raven` | PR レビュースレッドの取得・返信・解決 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
+| `thread-owl` | review queue への登録（`enqueue_review`） | [README.ja.md](https://github.com/scottlz0310/thread-owl/blob/main/README.ja.md) |
 
 > このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。MCP ツールが利用不可能な場合のフォールバックとして `gh` CLI（GraphQL/REST API）を使用します。
+>
+> `thread-owl` は再レビュー依頼を review queue へ登録するためだけに使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。利用できない場合の扱いは「queue への登録（必須）」節を参照してください。
 
 ### プレースホルダーの読み替え
 
@@ -40,6 +47,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 |----------------|------|-----|
 | `{GH}` | `github` サーバーツール | `mcp__github__*` |
 | `{RAVEN}` | `review-raven` サーバーツール | `mcp__review-raven__*` |
+| `{OWL}` | `thread-owl` サーバーツール | `mcp__thread-owl__*` |
 
 ---
 
@@ -59,7 +67,7 @@ Phase U2: スレッド取得 → Phase 3: 分類 → Phase 4: 修正 → PR HEAD
                                     ↓ ESCALATE（最大サイクル超過）
                           Phase 6.5 → Phase 7 → Phase 8
                                     ↓ REQUEST_REREVIEW（cycles_done < max_cycles）
-                          @thread-owl コメント投稿 → reviewed-side cycle 完了
+                          @thread-owl コメント投稿 → enqueue_review（必須）→ reviewed-side cycle 完了
 ```
 
 ---
@@ -294,7 +302,7 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 
 - `need_re_review = no` → **Phase 6.5**（`termination_status = READY_TO_MERGE`）
 - `need_re_review = yes` かつ `cycles_done ≥ max_cycles` → 終了分類して **Phase 6.5**
-- `need_re_review = yes` かつ `cycles_done < max_cycles` → `@thread-owl` コメント投稿（下記フォーマット参照）→ **reviewed-side cycle 完了**
+- `need_re_review = yes` かつ `cycles_done < max_cycles` → `@thread-owl` コメント投稿（下記フォーマット参照）→ **`enqueue_review` の実行（必須）** → **reviewed-side cycle 完了**
 
 ### 終了分類
 
@@ -324,8 +332,25 @@ Phase 7 用に記録する: `termination_status`、`final_cycle_fix_types`、`un
 
 `N` には現在の `cycles_done` の値、`handled_comments` にはこれまでに処理を完了した（本サイクルで処理したものを含む）すべての非スレッドコメント ID のリストをカンマ区切りで記入し、`expected_head` には確認した最新の PR HEAD SHA を記入します。これにより、次回のサイクル開始時（Phase 0）に正しく処理済み状態が復元され、重複対応を防ぎます。
 
-**reviewed-side cycle はここで完了する。Phase U2 には戻らない。**
-次の reviewer-side cycle は thread-owl の `issue_comment.created` webhook → queue → mcp-resource-subscriber 通知によって起動される。
+### queue への登録（必須）
+
+コメント投稿に続けて、**同一サイクル内で必ず** `{OWL}:enqueue_review` を実行する。ユーザーの指示を待たない。
+
+- `owner`: `<owner>`
+- `repo`: `<repo>`
+- `prNumber`: `<pr>`
+- `reason`: `"re-review-requested"`
+
+**この手順を省略すると、レビューサイクルはここで静かに停止する。** thread-owl の `issue_comment.created` webhook は意図的に未実装のため、`@thread-owl` コメントを投稿しても review queue には何も積まれない。queue に event が載って初めて Squirrel Notifier の Recent review events と通知ポップアップに「レビューする」ボタンが現れ、次の reviewer-side cycle を起動できる。
+
+`reason` は `opened`（PR 新規作成）/ `synchronized`（既存 PR への push）/ `re-review-requested`（修正対応後の再レビュー）の 3 値である。reviewer 側 skill の起動モード（`initial-review` / `re-review`）とは別物なので混同しない。本スキルが使うのは常に `re-review-requested`。
+
+enqueue は「レビュー対象として queue に載せる」操作であり、**それ自体は reviewer エージェントを起動しない**。したがって「PR を実装したエージェントは自己レビューしてはならない」という規約には抵触しない。自分が更新した PR に対する enqueue は破壊的操作の事前確認の対象外とし、確認なしで実行する。
+
+`enqueue_review` が利用できない場合は、cycle を完了扱いにせず、**queue へ登録できなかったことをユーザーに明示して停止する**。Squirrel Notifier の「レビュー開始」（PR の URL と reason を手入力する導線）がフォールバックである旨も伝える。
+
+**reviewed-side cycle はコメント投稿と enqueue の両方を終えて完了する。Phase U2 には戻らない。**
+次の reviewer-side cycle は、queue event を受けた Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> re-review` の明示的な起動指示によって開始される。
 
 ---
 
@@ -430,7 +455,7 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 
 - `max_cycles` デフォルトは 3。Phase 0 で必要に応じて調整する。
 - `cycles_done` はサーバー状態ではなく `<!-- review-raven: cycles_done=N -->` PR コメントアノテーションから復元する。
-- 再レビュー依頼は `@thread-owl` PR コメント経由。`request_copilot_review` は使用しない。
+- 再レビュー依頼は `@thread-owl` PR コメントの投稿と `{OWL}:enqueue_review(reason: "re-review-requested")` の実行の**両方**で成立する。**コメントだけでは queue に何も積まれず、サイクルが静かに停止する。** `request_copilot_review` は使用しない。
 - このスキルは Copilot watch を開始せず、`get_pr_review_cycle_status` を呼ばない。
 - 修正粒度: スレッド単位 atomic（1 スレッド = 1 論理変更単位）。
 - コミット戦略: Phase 4 完了後まとめて 1 コミット（Conventional Commits 形式）。
@@ -450,6 +475,7 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 | `{RAVEN}:reply_to_review_thread` | レビュースレッドに返信 | **第一選択** |
 | `{RAVEN}:resolve_review_thread` | レビュースレッドを解決済みにする | **第一選択** |
 | `{GH}:add_issue_comment` | PR サマリ・再レビュー依頼コメント投稿 | 共通 |
+| `{OWL}:enqueue_review` | 再レビューを review queue へ登録（**必須・フォールバックなし**） | 共通 |
 | `{GH}:create_issue` | フォローアップトラッキング Issue を作成 | 共通 |
 | `gh pr checks` | CI確認 | 共通 |
 

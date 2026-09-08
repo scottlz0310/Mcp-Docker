@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔄 変更
+
+- `review-raven-thread-owl-cycle` に、再レビュー依頼時の review queue 登録（`enqueue_review(reason: "re-review-requested")`）を必須手順として明記 — squirrel-notifier#253
+  - thread-owl の `issue_comment.created` webhook は意図的に未実装のため、`@thread-owl re-review requested` コメントの投稿だけでは queue に何も積まれず、レビューサイクルが静かに停止する。コメント投稿と enqueue を 1 組として扱うよう全体フロー・Phase U6・注意事項・ツール対応表を更新した
+  - `thread-owl` MCP サーバーを必要サーバーに追加。フォールバック経路がないため、利用できない場合は cycle を完了扱いにせず停止する
+- `thread-owl-pr-reviewer` に「ハンドオフ提示」節を追加し、レビュー完了時に実装 CLI へ渡す次アクションをテキストで提示するようにした — squirrel-notifier#255 / #256 / #257 への準備
+  - 対応が必要な場合はコピー可能な 1 行のプロンプトを、サイクル終了とみなせる場合は完了である旨を提示する
+  - 提示のみで修正側 skill は起動しない（reviewer と reviewed は別セッション）
+
 ### ✨ 機能追加
 
 - レビュー基盤 skill（`review-raven-thread-owl-cycle` / `thread-owl-pr-reviewer`）を `skills/` に収蔵し、`mcp-docker skill` サブコマンドで Claude / Copilot / Codex / Antigravity CLI へ配置できるようにした — #242
