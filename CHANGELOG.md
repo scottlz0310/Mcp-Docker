@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - skill 本体はバイナリへ埋め込むため、リポジトリ外からでも 1 コマンドで配置できる
   - 配置先に `.mcp-docker-skill.json`（source ハッシュ・配置時バージョン）を残し、`最新` / `古い` / `ローカル改変あり` / `管理外` / `未配置` を判定する。再実行は冪等
   - 管理外（手動コピー）の配置の上書きと削除は確認プロンプトを挟み、`skill uninstall` は `--force` なしでは管理外の配置を削除しない
+  - 配置先にユーザーが置いたファイルは管理対象外として扱い、更新でも削除でも残す。`skill uninstall` はマニフェスト記録ファイルのみを削除し、ユーザーファイルが残る場合はディレクトリを残す（`--force` でディレクトリごと削除）
   - 収蔵元は review-raven（`review-raven-thread-owl-cycle`）と thread-owl（`thread-owl-pr-reviewer`）。移動に伴い、skill 内の手動コピー手順を `mcp-docker skill install` へ、リポジトリ相対リンクを絶対 URL へ置き換えた
 - agy 向け過渡期アダプタの `GATEWAY_LEGACY_ADAPTER_ENABLED` を Compose に追加（既定無効）。有効化・登録・撤去とマージ後の実構成 E2E 手順を文書化 — #240
   - 全 upstream の対応判定、起動ログによる有効・無効の反映確認、不正な設定値による起動失敗を運用手順に明記

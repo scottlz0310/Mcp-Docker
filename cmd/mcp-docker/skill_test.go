@@ -174,3 +174,46 @@ func TestSkillArgumentValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestSkillUninstallPreservesUserFiles(t *testing.T) {
+	home := t.TempDir()
+	if _, err := runSkillCommand(t, home, "", "skill", "install", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes"); err != nil {
+		t.Fatalf("install returned error: %v", err)
+	}
+
+	dir := filepath.Join(home, ".claude", "skills", "thread-owl-pr-reviewer")
+	userFile := filepath.Join(dir, "user-notes.md")
+	if err := os.WriteFile(userFile, []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed user file: %v", err)
+	}
+
+	// ユーザーファイルがあっても、install の再実行は最新のままスキップする。
+	out, err := runSkillCommand(t, home, "", "skill", "install", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes")
+	if err != nil {
+		t.Fatalf("reinstall returned error: %v", err)
+	}
+	if !strings.Contains(out, string(skill.ActionSkip)) {
+		t.Fatalf("stdout = %q, want the re-run to skip", out)
+	}
+
+	out, err = runSkillCommand(t, home, "", "skill", "uninstall", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes")
+	if err != nil {
+		t.Fatalf("uninstall returned error: %v", err)
+	}
+	if !strings.Contains(out, "user-notes.md") {
+		t.Fatalf("stdout = %q, want it to report the kept file", out)
+	}
+	if _, err := os.Stat(userFile); err != nil {
+		t.Fatalf("user file must survive uninstall: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("SKILL.md should be gone, err = %v", err)
+	}
+
+	if _, err := runSkillCommand(t, home, "", "skill", "uninstall", "--agent", "claude", "--skill", "thread-owl-pr-reviewer", "--yes", "--force"); err != nil {
+		t.Fatalf("forced uninstall returned error: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("--force must remove the directory, err = %v", err)
+	}
+}

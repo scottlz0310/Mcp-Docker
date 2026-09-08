@@ -220,7 +220,13 @@ make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-revie
 | `管理外` | `.mcp-docker-skill.json` がない（手動コピー等）。上書きには確認が入る |
 | `未配置` | まだ配置されていない |
 
-`管理外` の配置を上書きする場合と `skill uninstall` で削除する場合は確認プロンプトが入ります（`--yes` で省略）。`skill uninstall` は既定では `管理外` の配置を削除しません（`--force` が必要）。
+`管理外` の配置を上書きする場合と `skill uninstall` で削除する場合は確認プロンプトが入ります（`--yes` で省略）。
+
+配置先にユーザーが置いたファイルは mcp-docker の管理対象外として扱い、更新でも削除でも残します。
+
+- `skill install`: カタログのファイルのみを書き込み、マニフェストに記録した旧ファイルのみを削除します。ユーザーファイルがあっても `最新` 判定は変わらず、再実行はスキップされます
+- `skill uninstall`: マニフェスト記録ファイルのみを削除し、ユーザーファイルが残る場合はディレクトリごと残します。ディレクトリごと削除するには `--force` を指定してください
+- `skill uninstall` は既定では `管理外` の配置を削除しません（`--force` が必要）
 
 skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
 

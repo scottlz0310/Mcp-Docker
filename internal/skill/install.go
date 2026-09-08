@@ -40,8 +40,10 @@ const (
 	ActionUpdate Action = "更新"
 	// ActionAdopt は管理外の既存配置を上書きして管理下に置く。
 	ActionAdopt Action = "上書き（管理外を引き取り）"
-	// ActionRemove は配置を削除する。
+	// ActionRemove は配置ディレクトリごと削除する。
 	ActionRemove Action = "削除"
+	// ActionRemovePartial は mcp-docker が配置したファイルだけを削除し、ユーザーが置いたファイルを残す。
+	ActionRemovePartial Action = "削除（ユーザーファイルは保持）"
 )
 
 // Manifest は配置先に残す配置メタデータ。
@@ -62,7 +64,12 @@ type Status struct {
 	State  State
 	// InstalledVersion はマニフェストに記録された mcp-docker のバージョン。管理外・未配置では空。
 	InstalledVersion string
-	// Obsolete はマニフェストに記録されているがカタログに存在しないファイル（相対パス）。
+	// Managed はマニフェストに記録されており、配置先に残っているファイル（相対パス）。
+	Managed []string
+	// Unmanaged はマニフェストに記録がなく配置先に残っているファイル（相対パス）。
+	// 配置後にユーザーが置いたものとみなし、更新でも削除でも触らない。
+	Unmanaged []string
+	// Obsolete は Managed のうち現在のカタログに存在しないファイル（相対パス）。
 	Obsolete []string
 }
 
@@ -74,12 +81,14 @@ type Plan struct {
 	Write []string
 	// Delete は削除するファイルの相対パス。
 	Delete []string
+	// RemoveDir は配置ディレクトリごと削除するかどうか。
+	RemoveDir bool
 }
 
 // NeedsConfirm は破壊的な確認をユーザーに求めるべきかを返す。
 // 管理外の配置を上書きする場合と削除する場合は、mcp-docker が書いていない内容を失うため確認する。
 func (p Plan) NeedsConfirm() bool {
-	return p.Action == ActionAdopt || p.Action == ActionRemove
+	return p.Action == ActionAdopt || p.Action == ActionRemove || p.Action == ActionRemovePartial
 }
 
 // Inspect は client 上の skill の配置状態を調べる。
@@ -114,10 +123,11 @@ func Inspect(client Client, s Skill) (Status, error) {
 		return status, nil
 	}
 	status.InstalledVersion = manifest.Version
-	status.Obsolete = obsoleteFiles(manifest.Files, installed, s)
+	status.Managed, status.Unmanaged = partitionInstalled(manifest.Files, installed)
+	status.Obsolete = obsoleteFiles(status.Managed, s)
 
 	switch {
-	case contentHash(installed) == s.ContentHash:
+	case catalogMatches(installed, s) && len(status.Obsolete) == 0:
 		status.State = StateUpToDate
 	case manifest.ContentHash == s.ContentHash:
 		// マニフェストは最新版を指しているのに実体が違う = 配置後に改変された。
@@ -126,6 +136,36 @@ func Inspect(client Client, s Skill) (Status, error) {
 		status.State = StateOutdated
 	}
 	return status, nil
+}
+
+// catalogMatches はカタログの全ファイルが配置先に同じ内容で存在するかを返す。
+// 配置先にユーザーが置いたファイルは mcp-docker の管理対象ではないため判定に含めない。
+// これを含めると、ユーザーがファイルを 1 つ置いただけで恒久的に「最新」に収束しなくなる。
+func catalogMatches(installed []File, s Skill) bool {
+	byPath := make(map[string]string, len(installed))
+	for _, f := range installed {
+		byPath[f.Path] = f.SHA256
+	}
+	for _, f := range s.Files {
+		if byPath[f.Path] != f.SHA256 {
+			return false
+		}
+	}
+	return true
+}
+
+// partitionInstalled は配置先の実ファイルを、マニフェスト記載の有無で分ける。
+func partitionInstalled(recorded map[string]string, installed []File) (managed, unmanaged []string) {
+	for _, f := range installed {
+		if _, ok := recorded[f.Path]; ok {
+			managed = append(managed, f.Path)
+			continue
+		}
+		unmanaged = append(unmanaged, f.Path)
+	}
+	sort.Strings(managed)
+	sort.Strings(unmanaged)
+	return managed, unmanaged
 }
 
 // PlanInstall は Inspect の結果から install の計画を作る。
@@ -157,20 +197,31 @@ func PlanInstall(status Status, s Skill, force bool) Plan {
 
 // PlanRemove は Inspect の結果から uninstall の計画を作る。
 // 管理外の配置は force を指定しない限り削除しない。
+// 配置後にユーザーが置いたファイルが残っている場合、force なしではそれらを残す
+// （更新時にユーザーファイルを残す挙動と揃える）。
 func PlanRemove(status Status, force bool) Plan {
 	plan := Plan{Status: status}
 	switch status.State {
 	case StateAbsent:
 		plan.Action = ActionSkip
+		return plan
 	case StateUnmanaged:
 		if !force {
 			plan.Action = ActionSkip
 			return plan
 		}
 		plan.Action = ActionRemove
-	default:
-		plan.Action = ActionRemove
+		plan.RemoveDir = true
+		return plan
 	}
+
+	if force || len(status.Unmanaged) == 0 {
+		plan.Action = ActionRemove
+		plan.RemoveDir = true
+		return plan
+	}
+	plan.Action = ActionRemovePartial
+	plan.Delete = append(append([]string{}, status.Managed...), ManifestName)
 	return plan
 }
 
@@ -212,13 +263,21 @@ func Install(plan Plan, s Skill, version string, now time.Time) error {
 	return writeManifest(plan.Dir, manifest)
 }
 
-// Remove は plan に従って skill の配置ディレクトリを削除する。
+// Remove は plan に従って skill の配置を削除する。
 func Remove(plan Plan) error {
-	if plan.Action != ActionRemove {
+	if plan.RemoveDir {
+		if err := os.RemoveAll(plan.Dir); err != nil {
+			return fmt.Errorf("%s の削除に失敗しました: %w", plan.Dir, err)
+		}
 		return nil
 	}
-	if err := os.RemoveAll(plan.Dir); err != nil {
-		return fmt.Errorf("%s の削除に失敗しました: %w", plan.Dir, err)
+	if plan.Action != ActionRemovePartial {
+		return nil
+	}
+	for _, rel := range plan.Delete {
+		if err := removeRelative(plan.Dir, rel); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -241,24 +300,19 @@ func removeRelative(dir, rel string) error {
 	return nil
 }
 
-// obsoleteFiles は「mcp-docker が配置した（マニフェスト記載）」かつ「実際に残っている」が
-// 「現在のカタログには無い」ファイルを返す。マニフェストに無いファイルはユーザー由来なので触らない。
-func obsoleteFiles(recorded map[string]string, installed []File, s Skill) []string {
+// obsoleteFiles は managed（mcp-docker が配置し実際に残っている）のうち、
+// 現在のカタログには無いファイルを返す。
+func obsoleteFiles(managed []string, s Skill) []string {
 	current := make(map[string]struct{}, len(s.Files))
 	for _, f := range s.Files {
 		current[f.Path] = struct{}{}
 	}
 	var obsolete []string
-	for _, f := range installed {
-		if _, ok := recorded[f.Path]; !ok {
-			continue
+	for _, path := range managed {
+		if _, ok := current[path]; !ok {
+			obsolete = append(obsolete, path)
 		}
-		if _, ok := current[f.Path]; ok {
-			continue
-		}
-		obsolete = append(obsolete, f.Path)
 	}
-	sort.Strings(obsolete)
 	return obsolete
 }
 

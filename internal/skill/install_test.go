@@ -284,3 +284,124 @@ func TestRemoveRelativeRejectsEscape(t *testing.T) {
 		t.Fatalf("error = %v, want an escape rejection", err)
 	}
 }
+
+// 配置後にユーザーがファイルを追加しても、再実行が ActionSkip に収束することを固定する。
+func TestInstallStaysIdempotentWithUnmanagedFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	userFile := filepath.Join(client.Dir, "alpha", "user-notes.md")
+	if err := os.WriteFile(userFile, []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed user file: %v", err)
+	}
+
+	for i := range 2 {
+		status, err := Inspect(client, s)
+		if err != nil {
+			t.Fatalf("Inspect returned error: %v", err)
+		}
+		if status.State != StateUpToDate {
+			t.Fatalf("run %d: state = %s, want %s", i, status.State, StateUpToDate)
+		}
+		if want := []string{"user-notes.md"}; strings.Join(status.Unmanaged, ",") != strings.Join(want, ",") {
+			t.Fatalf("run %d: unmanaged = %v, want %v", i, status.Unmanaged, want)
+		}
+		plan := PlanInstall(status, s, false)
+		if plan.Action != ActionSkip {
+			t.Fatalf("run %d: action = %s, want %s", i, plan.Action, ActionSkip)
+		}
+		if err := Install(plan, s, "1.0.0", time.Unix(0, 0)); err != nil {
+			t.Fatalf("run %d: Install returned error: %v", i, err)
+		}
+	}
+
+	if _, err := os.Stat(userFile); err != nil {
+		t.Fatalf("user file must survive: %v", err)
+	}
+}
+
+// 配置済み skill が編集された場合は、ユーザーファイルの有無に関わらず改変を検知する。
+func TestInspectDetectsEditWithUnmanagedFilePresent(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	dir := filepath.Join(client.Dir, "alpha")
+	if err := os.WriteFile(filepath.Join(dir, "user-notes.md"), []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed user file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("local edit\n"), 0o644); err != nil {
+		t.Fatalf("failed to edit installed skill: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	if status.State != StateModified {
+		t.Fatalf("state = %s, want %s", status.State, StateModified)
+	}
+}
+
+func TestUninstallPreservesUnmanagedFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	dir := filepath.Join(client.Dir, "alpha")
+	userFile := filepath.Join(dir, "user-notes.md")
+	if err := os.WriteFile(userFile, []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed user file: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	plan := PlanRemove(status, false)
+	if plan.Action != ActionRemovePartial {
+		t.Fatalf("action = %s, want %s", plan.Action, ActionRemovePartial)
+	}
+	if plan.RemoveDir {
+		t.Fatal("partial removal must not remove the directory")
+	}
+	if err := Remove(plan); err != nil {
+		t.Fatalf("Remove returned error: %v", err)
+	}
+
+	if _, err := os.Stat(userFile); err != nil {
+		t.Fatalf("user file must survive uninstall: %v", err)
+	}
+	for _, rel := range []string{"SKILL.md", filepath.Join("agents", "openai.yaml"), ManifestName} {
+		if _, err := os.Stat(filepath.Join(dir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("%s should be gone, err = %v", rel, err)
+		}
+	}
+}
+
+func TestUninstallForceRemovesUnmanagedFiles(t *testing.T) {
+	client := newTestClient(t)
+	s := alphaV1(t)
+	install(t, client, s, "1.0.0")
+
+	dir := filepath.Join(client.Dir, "alpha")
+	if err := os.WriteFile(filepath.Join(dir, "user-notes.md"), []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("failed to seed user file: %v", err)
+	}
+
+	status, err := Inspect(client, s)
+	if err != nil {
+		t.Fatalf("Inspect returned error: %v", err)
+	}
+	plan := PlanRemove(status, true)
+	if plan.Action != ActionRemove || !plan.RemoveDir {
+		t.Fatalf("action = %s removeDir = %v, want %s / true", plan.Action, plan.RemoveDir, ActionRemove)
+	}
+	if err := Remove(plan); err != nil {
+		t.Fatalf("Remove returned error: %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("--force must remove the whole directory, err = %v", err)
+	}
+}

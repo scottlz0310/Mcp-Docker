@@ -230,7 +230,7 @@ func runSkillUninstall(stdout io.Writer, stdin io.Reader, clients []skill.Client
 			if err := skill.Remove(plan); err != nil {
 				return err
 			}
-			fmt.Fprintf(stdout, "- %s: %s\n", s.Name, plan.Action)
+			fmt.Fprintf(stdout, "- %s: %s%s\n", s.Name, plan.Action, keptHint(plan))
 		}
 	}
 	return nil
@@ -243,6 +243,14 @@ func unmanagedHint(status skill.Status) string {
 	return " — mcp-docker が配置したものではありません。削除するには --force を指定してください"
 }
 
+// keptHint は配置先に残したユーザーファイルを伝える。
+func keptHint(plan skill.Plan) string {
+	if plan.Action != skill.ActionRemovePartial {
+		return ""
+	}
+	return fmt.Sprintf(" — %s は残しました（ディレクトリごと削除するには --force）", strings.Join(plan.Unmanaged, ", "))
+}
+
 func printSkillPlan(stdout io.Writer, plan skill.Plan) {
 	fmt.Fprintf(stdout, "- %s: %s (現在: %s)\n", plan.Skill, plan.Action, plan.State)
 	for _, rel := range plan.Write {
@@ -251,8 +259,11 @@ func printSkillPlan(stdout io.Writer, plan skill.Plan) {
 	for _, rel := range plan.Delete {
 		fmt.Fprintf(stdout, "  - 削除: %s\n", rel)
 	}
-	if plan.Action == skill.ActionRemove {
+	if plan.RemoveDir {
 		fmt.Fprintf(stdout, "  - 削除: %s\n", plan.Dir)
+	}
+	if plan.Action == skill.ActionRemovePartial {
+		fmt.Fprintf(stdout, "  - 保持: %s\n", strings.Join(plan.Unmanaged, ", "))
 	}
 }
 
@@ -262,6 +273,9 @@ func confirmSkillAction(reader *bufio.Reader, stdout io.Writer, plan skill.Plan)
 		fmt.Fprintf(stdout, "- %s: %s に mcp-docker 管理外の配置があります。上書きすると既存の内容は失われます。\n", plan.Skill, plan.Dir)
 	case skill.ActionRemove:
 		fmt.Fprintf(stdout, "- %s: %s を削除します。\n", plan.Skill, plan.Dir)
+	case skill.ActionRemovePartial:
+		fmt.Fprintf(stdout, "- %s: %s から mcp-docker が配置したファイルを削除します（%s は残します）。\n",
+			plan.Skill, plan.Dir, strings.Join(plan.Unmanaged, ", "))
 	}
 	fmt.Fprint(stdout, "実行しますか？ [y/N]: ")
 	line, err := reader.ReadString('\n')
