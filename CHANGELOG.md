@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `thread-owl-pr-reviewer` に「ハンドオフ提示」節を追加し、レビュー完了時に実装 CLI へ渡す次アクションをテキストで提示するようにした — squirrel-notifier#255 / #256 / #257 への準備
   - 対応が必要な場合はコピー可能な 1 行のプロンプトを、サイクル終了とみなせる場合は完了である旨を提示する
   - 提示のみで修正側 skill は起動しない（reviewer と reviewed は別セッション）
+- `review-raven-thread-owl-cycle` に `agents/openai.yaml` を追加し、両 skill の構成を揃えた。Codex の system skill が持つ規約に合わせたもので、harness が読む設定のため他クライアントは無視する
+- 両 skill の `agents/openai.yaml` に `policy.allow_implicit_invocation: false` を設定した。いずれも明示起動で使う運用のため、既定のモデルコンテキストへの注入を止める
 
 ### ✨ 機能追加
 
