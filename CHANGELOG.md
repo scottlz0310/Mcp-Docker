@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--mcp-http`（Mcp-Docker の既定。`POST /webhook` を提供しない）では `@thread-owl re-review requested` コメントの投稿だけでは queue に何も積まれず、レビューサイクルが静かに停止する。`enqueue_review(reason: "re-review-requested")` を必須手順とした
   - `--webhook-mcp-http` では thread-owl 自身が enqueue するため明示 enqueue を行わない。queue の中身は PR キーで dedup されるが通知 listener は enqueue のたびに発火するため、重ねて呼ぶと `notifications/resources/updated` が二重に飛び reviewer が二重起動し得る
   - 「起動モードの判定」節を追加し、全体フロー・Phase U6・注意事項・ツール対応表をモード条件付きの記述に揃えた
+  - 起動モードを判定できない場合は手動 enqueue せず停止する。webhook はリトライを伴う非同期配送のため、ある時点で queue に載っていないことは未到達の証拠にならず、queue の観測結果から起動モードを推定してはならない
   - `thread-owl` MCP サーバーを必要サーバーに追加。フォールバック経路がないため、利用できない場合は cycle を完了扱いにせず停止する
 - `thread-owl-pr-reviewer` に「ハンドオフ提示」節を追加し、レビュー完了時に実装 CLI へ渡す次アクションをテキストで提示するようにした — squirrel-notifier#255 / #256 / #257 への準備
   - 対応が必要な場合はコピー可能な 1 行のプロンプトを、サイクル終了とみなせる場合は完了である旨を提示する

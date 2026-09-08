@@ -342,12 +342,14 @@ thread-owl は queue への入口が異なる 2 つのモードで動く。**ど
 | 起動モード | `POST /webhook` | `@thread-owl` コメントによる自動 enqueue | 明示 `enqueue_review` |
 |---|---|---|---|
 | `--mcp-http` | 提供しない | **されない** | **必須** |
-| `--webhook-mcp-http` | 提供する | される（webhook が到達している場合） | **行わない** |
+| `--webhook-mcp-http` | 提供する | される | **行わない** |
 
 判定方法:
 
 1. thread-owl を Docker で運用している場合は compose 定義の `command` を見る。`docker compose config` または `docker-compose.yml` の `thread-owl` サービスを確認する。
-2. 判定できない場合はユーザーに確認する。**推測で二重に投げない。**
+2. **判定できない場合は手動 enqueue せず、ユーザーに確認して停止する。推測で投げない。** 誤って `--webhook-mcp-http` で手動 enqueue すると通知 listener が二重発火し、reviewer が二重起動し得る。逆に誤って `--mcp-http` で enqueue を省くとサイクルが静かに停止する。どちらも安全側ではないため、**判定を飛ばして先へ進んではならない。**
+
+queue の観測結果から起動モードを推定してはならない。webhook はリトライを伴う非同期配送であり、ある時点で queue に載っていないことは `--mcp-http` である証拠にならない。
 
 **Mcp-Docker の既定構成は `--mcp-http`**（`docker-compose.yml` の `thread-owl` サービスが `command: ["--mcp-http"]`）であり、この場合は次節の enqueue が必須である。
 
@@ -368,7 +370,9 @@ thread-owl は queue への入口が異なる 2 つのモードで動く。**ど
 
 同一 PR を二重に enqueue しても queue の中身は PR キーで dedup されるが、**enqueue のたびに購読者への通知 listener が発火する**。結果として `notifications/resources/updated` が 2 回飛び、自動レビュー開始が有効な環境では reviewer が二重起動し得る。webhook の delivery-id による重複排除は webhook 受信経路にしか効かず、MCP tool 呼び出しには効かない。
 
-コメントを投稿しても queue に載らない場合、それは webhook が thread-owl に到達していないことを意味する（エンドポイント未公開など）。その場合は実質 `--mcp-http` と同じ状態なので、`enqueue_review` を実行したうえで、webhook 経路が機能していないことをユーザーに報告する。
+コメント投稿後に queue へ載ったことを確認できない場合でも、**手動 enqueue へ切り替えてはならない。** webhook はリトライを伴う非同期配送であり、ある時点で queue に無いことは「今後も到達しない」ことを意味しない。確認した直後に手動 enqueue し、その後で webhook 側の enqueue が届けば、結局 listener が二重発火する。thread-owl は配送結果を MCP に公開していないため、**未到達を確実に判定する手段は skill 側にない**。
+
+この場合は cycle を完了扱いにせず、**queue に載ったことを確認できない旨をユーザーに報告して停止する**。webhook 経路の疎通（エンドポイントの公開状況、GitHub App 側の配送履歴）の確認と、`--mcp-http` へ切り替えるか webhook を疎通させるかの判断は、ユーザーに委ねる。
 
 `reason` は `opened`（PR 新規作成）/ `synchronized`（既存 PR への push）/ `re-review-requested`（修正対応後の再レビュー）の 3 値である。reviewer 側 skill の起動モード（`initial-review` / `re-review`）とは別物なので混同しない。本スキルが使うのは常に `re-review-requested`。
 
