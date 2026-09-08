@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 提示のみで修正側 skill は起動しない（reviewer と reviewed は別セッション）
 - `review-raven-thread-owl-cycle` に `agents/openai.yaml` を追加し、両 skill の構成を揃えた。Codex の system skill が持つ規約に合わせたもので、harness が読む設定のため他クライアントは無視する
 - 両 skill の `agents/openai.yaml` に `policy.allow_implicit_invocation: false` を設定した。いずれも明示起動で使う運用のため、既定のモデルコンテキストへの注入を止める
+- `main.version` の既定値を `dev` にした。従来は `2.14.0` 固定でリリースのたびに更新されず陳腐化していた。Makefile と release.yml は `-X main.version=<VERSION>` で上書きするためリリース物の表示は変わらないが、ldflags なしでビルドしたバイナリが誤ったバージョンを名乗り、`mcp-docker skill install` の書き出すマニフェストにもその値が残る経路があった
 
 ### 🐛 バグ修正
 

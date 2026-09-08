@@ -33,7 +33,11 @@ register に何も引数を指定せず TTY から実行した場合は対話モ
 （agent と MCP サーバーを番号入力で複数選択できます）。
 `
 
-var version = "2.14.0"
+// version はリリースビルド時に -X main.version=<VERSION> で上書きされる
+// （Makefile の GO_LDFLAGS と .github/workflows/release.yml）。
+// 既定値をリリース番号にすると更新漏れで陳腐化するため、
+// ldflags なしのビルドであることが分かる値にしておく。
+var version = "dev"
 
 var allAgentNames = []string{"claude", "copilot", "codex", "antigravity"}
 
