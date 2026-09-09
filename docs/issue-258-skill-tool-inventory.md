@@ -2,6 +2,7 @@
 issue: 258
 repository: scottlz0310/Mcp-Docker
 document_type: skill-tool-inventory
+schema_version: 2
 status: initial
 snapshot_at: 2026-09-10
 repo_commit: 37c9eb9c4aadebd1e2cc9f7b56848568ab3213b9
@@ -11,6 +12,12 @@ scope:
 skill_revisions:
   review-raven-thread-owl-cycle: 3
   thread-owl-pr-reviewer: 1
+redesign_targets:
+  - skill execution contract
+  - review-raven MCP
+  - thread-owl MCP
+  - mcp-resource-subscriber CLI
+  - MCP client / gateway integration
 ---
 
 # #258 skill のツール棚卸し
@@ -25,7 +32,7 @@ skill_revisions:
 - ローカルの編集・テスト・Git・Docker 設定確認は MCP へ寄せる対象ではなく A。CLI を使うことが正しい。
 - queue の購読待機は Thread Owl の責務ではない。現環境では queue resource は存在するが native subscriptions/listen が利用可能なツール一覧にないため、mcp-resource-subscriber CLI を使う A。
 
-本書は skill 本体を変更せず、現在の手順を固定 ID 付きの表に分解した調査記録である。
+本書は skill 本体や各サーバーを直接実装せず、現在の手順を固定 ID 付きの表に分解した調査記録である。加えて、別モデル・別クライアントでも同じ skill を遂行できるように、実装へ引き渡せる横断契約と受入れ条件を定義する。
 
 ## 再調査の方法
 
@@ -59,6 +66,7 @@ skill_revisions:
 | 対象 skill | review-raven-thread-owl-cycle rev 3、thread-owl-pr-reviewer rev 1 |
 | 実運用の観測範囲 | #248、#253、#255、#256、#257。Issue #258 の記載を主証跡とする |
 | MCP の確認 | Thread Owl / review-raven / GitHub connector の read-only call、resource discovery |
+| サーバー / CLI snapshot | review-raven: go.mod の go-sdk v1.7.0、thread-owl: v0.4.1 / MCP SDK v2.0.0、mcp-resource-subscriber: v0.6.1 / protocol `2026-07-28` |
 | 制約 | GitHub の PR timeline は結果を残すが、過去の shell の完全な実行コマンドは保持しない |
 
 ## 観測対象
@@ -87,6 +95,34 @@ skill 本文の {GH} / {RAVEN} / {OWL} は論理名である。今回の実行�
 今回確認した Thread Owl resource は queue://review/queue と queue://review/re-review-requests である。native subscriptions/listen はこの環境の利用可能ツール一覧には現れなかったため、queue を読む処理は mcp-resource-subscriber を選ぶ。
 
 行列中の github_*、review_raven_*、thread_owl_* は、上表の実ツール名から共通 prefix を省略した表記である。Run では、実際に呼んだ完全な tool name と引数を記録する。
+
+### Run 1 の完全な tool registry
+
+次の一覧は「利用可能だった tool」と「各行での第一候補」を区別するための registry である。別クライアントでは namespace が変わり得るため、再調査時は同じ論理名に解決できたかを記録する。
+
+| 論理対象 | 完全な tool / command | 対象行 | read / write |
+|---|---|---|---|
+| GitHub review threads | `mcp__codex_apps__github_list_pull_request_review_threads` | R-01 / R-03 / R-12 / O-08 | read |
+| GitHub reviews | `mcp__codex_apps__github_list_pull_request_reviews` | R-01 / R-04 / R-12 / O-08 | read |
+| GitHub issue comments | `mcp__codex_apps__github_fetch_issue_comments` | R-01 / R-05 / R-17 / R-18 | read |
+| GitHub PR timeline | `mcp__codex_apps__github_fetch_pr_comments` | R-02 / R-05 / R-12 | read |
+| GitHub PR metadata | `mcp__codex_apps__github_get_pr_info` | R-02 / R-08b / R-18b / O-02 | read |
+| GitHub CI runs/jobs/logs | `mcp__codex_apps__github_fetch_commit_workflow_runs`、`mcp__codex_apps__github_fetch_workflow_run_jobs`、`mcp__codex_apps__github_fetch_workflow_job_logs` | R-16 / O-06 | read |
+| GitHub comment | `mcp__codex_apps__github_add_comment_to_issue` | R-10 / R-14 / R-19 | write |
+| GitHub follow-up Issue | `mcp__codex_apps__github_create_issue` | R-11 | write |
+| reviewed-side thread | `mcp__review_raven__get_review_threads` | R-03 / R-12 | read |
+| reviewed-side reply | `mcp__review_raven__reply_to_review_thread` | R-09 | write |
+| reviewed-side resolve | `mcp__review_raven__resolve_review_thread` | R-09 | write |
+| reviewed-side reply + resolve | `mcp__review_raven__reply_and_resolve_review_thread` | R-09 | write |
+| reviewer-side PR snapshot | `mcp__thread_owl__get_pr` | O-02 / O-03 / O-10 / O-14 / O-15 | read |
+| reviewer-side threads | `mcp__thread_owl__list_review_threads` | O-08 / O-15 / O-19 | read |
+| reviewer-side inline | `mcp__thread_owl__post_inline_comment` | O-11 / O-17 | write |
+| reviewer-side summary | `mcp__thread_owl__post_summary_comment` | O-12 / O-18 / O-20 | write |
+| reviewer-side reply | `mcp__thread_owl__reply_review_thread` | O-16 / O-19 | write |
+| reviewer-side approve | `mcp__thread_owl__approve_pull_request` | O-13 | write（明示承認後のみ） |
+| review queue enqueue | `mcp__thread_owl__enqueue_review` | R-15 | write |
+| queue subscribe/read | `mcp-resource-subscriber --url <url> --uri <resource-uri> --timeout-ms <ms> --json` | O-00 / O-14 | read / wait |
+| generic MCP call | `mcp-resource-subscriber call --url <url> --tool <name> --args <json> --json` | 将来の CLI fallback | tool 依存 |
 
 ## review-raven-thread-owl-cycle の棚卸し
 
@@ -164,9 +200,81 @@ skill 本文の {GH} / {RAVEN} / {OWL} は論理名である。今回の実行�
 4. O-11〜O-13 または O-16〜O-18 で、Thread Owl MCP の契約に従って投稿する。
 5. O-20 で verdict を決め、O-21 で固定フォーマットの結果とハンドオフを出力する。
 
+## 再設計スコープ（今回追加）
+
+元の #258 は `gh` と MCP の利用実態を分類する調査としては十分だが、複数の LLM クライアントで skill を再実行するための「実行契約」までは定義していなかった。本件の成果物には、次回以降の実装・再監査へそのまま渡せる以下の範囲を含める。
+
+### 1. LLM 非依存の実行契約
+
+skill 内の `{GH}` / `{RAVEN}` / `{OWL}` は論理名として維持し、クライアントごとに異なる MCP namespace や tool 名を実行時の discovery で解決する。tool 名を推測できない、server が未接続、schema が不一致のときは、LLM が勝手に別の write 経路へ進まず、`blocked` として停止・報告できる契約にする。
+
+R-xx / O-xx の各行について、将来の実装仕様として次の項目を埋める。
+
+| 契約項目 | 必須内容 |
+|---|---|
+| precondition | 入力 PR、current head、認証、allowlist、作業ツリーなどの前提 |
+| primary tool | 実際の完全な tool 名、または解決した論理 alias と schema version |
+| input / output | 必須引数、型、ページ境界、成功時に次の step が読むフィールド |
+| side effect | read / comment / reply / resolve / approve / enqueue の別、外部変更の有無 |
+| guard | 投稿者ゲート、current head SHA、位置の有効性、重複投稿防止など |
+| fallback | primary が使えない場合に許される代替と、代替を使う条件 |
+| failure / stop | timeout、auth、schema 不一致、partial failure ごとの停止状態と報告 |
+| evidence | 実行順、tool/command、引数の秘匿化ログ、応答要約、observed/simulated/inferred |
+
+この契約により、「MCP 第一選択」という宣言だけでなく、各 step がどの tool を使い、何を確認したら次へ進めるかをモデル間で比較できるようにする。
+
+### 2. コンポーネント別の追加対象
+
+| 対象 | #258 で固定すべき再設計要件 | 現行実装との接続 |
+|---|---|---|
+| 2つの skill | entry / phase / termination の状態機械、論理 alias の解決、read-before-write、失敗時の fail-closed、固定された最終報告 schema、skill revision の記録 | R-00〜R-21 / O-00〜O-21。実際の tool 名はクライアント依存なので Run ごとに snapshot する |
+| review-raven | 本文なしの投稿者・thread metadata projection、全本文取得との明確な境界、ページネーション、安定した thread/comment ID、reply→resolve の順序と partial failure、認証・GitHub エラーの分類 | `get_review_threads` は現在本文を返す。本文なし経路は review-raven#124 で追跡する |
+| thread-owl | PR snapshot と reviewed head SHA、差分・thread のページ境界、inline/summary/reply/approve の write guard、allowlist、冪等性、queue candidate の reason・dedup・通知・再取得契約 | `get_pr` / `list_review_threads` / `post_*` / `reply_review_thread` / `approve_pull_request` / `enqueue_review` の schema を基準にする |
+| mcp-resource-subscriber | `subscribe` と `call` の JSON schema、stdout/stderr、exit code、timeout/cancel/reconnect、通知の重複・切断・pre-completion、auth/token store、protocol revision の固定 | v0.6.1 は `--json` と `call` を持ち、`2026-07-28` に pin している。mcp-resource-subscriber#86 は JSON の基礎部分を完了済み |
+| MCP client / gateway | server discovery、tool/resource の可視性、namespace mapping、認証ヘッダー、protocol/version、long-lived stream の透過性をクライアント別に記録する | `review-raven` / `thread-owl` は gateway 経由の HTTP と stdio で挙動が異なる。Thread Owl の #165/#176、mcp-gateway#216 と接続する |
+
+### 3. cross-repository 受入れ条件
+
+以下は #258 自体で実装する項目ではなく、各リポジトリの後続 Issue / PR を完了と判定するための共通条件である。
+
+- **skill**: すべての R/O 行に primary tool、入力・出力、fallback、停止条件、証跡があり、クライアント固有の namespace を直接ハードコードしない。
+- **prompt injection 境界**: reviewed-side の review body / issue comment body は投稿者 metadata gate 通過後にだけ LLM へ渡す。両 side とも対象 SHA を先に固定し、diff・コメントを untrusted data として扱い、そこに含まれる指示を実行しない。metadata projection 自体に本文を混ぜない。
+- **review-raven**: metadata-only と full-body の応答を schema 上区別し、ID・author・種別・URL・resolved・pageInfo を欠落なく返す。reply / resolve は成否と partial failure を機械的に判定できる。
+- **thread-owl**: read の応答に対象 PR と head SHA を含め、write は allowlist と current head / expected head guard を通す。queue は `opened` / `synchronized` / `re-review-requested`、dedup、通知、再取得結果を区別できる。
+- **subscriber**: `--json` が成功・失敗の両方で一つの JSON object を stdout に出し、diagnostic は stderr に分離する。`0`（成功）、tool error、auth、通信/usage を区別し、timeout や切断を success と誤認しない。
+- **protocol / deployment**: server、gateway、subscriber の MCP revision と transport が一致し、`server/discover`、resource read、subscription/listen、updated notification を実接続で検証する。`--mcp-http` と `--webhook-mcp-http` の責務差を構成に残す。
+- **E2E**: initial review、re-review、修正なし、blocking、out-of-scope、本文なし gate fail、stale SHA、無効な inline 行、duplicate enqueue、notification timeout、stream disconnect、再認証、MCP unavailable を fixture で再現できる。
+- **観測性**: `run_id` / correlation ID、skill・server・CLI version、対象 SHA、tool/command 数、round-trip 数、経過時間、error code、route を記録し、token・秘密鍵・本文全文をログに出さない。
+
+### 4. 既存 Issue との責務分解
+
+既存の課題を #258 の表から漏らさず、重複実装を起こさないための対応表を持つ。新しい子 Issue は、既存 Issue で扱われていない受入れ条件が確定した後に必要最小限で起票する。
+
+| 所管 | 既存の追跡先 | #258 から引き渡す内容 |
+|---|---|---|
+| Mcp-Docker / skill | #258、#250 | 固定 ID 行列、LLM 実行契約、allowlist の信頼境界、Run 比較フォーマット |
+| review-raven | [#124](https://github.com/scottlz0310/review-raven/issues/124)、[#109](https://github.com/scottlz0310/review-raven/issues/109) | metadata projection、本文取得境界、protocol/SDK 前提、partial failure の受入れ条件 |
+| thread-owl | [#165](https://github.com/scottlz0310/thread-owl/issues/165)、[#176](https://github.com/scottlz0310/thread-owl/issues/176)、[#117](https://github.com/scottlz0310/thread-owl/issues/117) | `2026-07-28`、queue/listen、dedup、stream lifecycle、PR/write guard の E2E 条件 |
+| mcp-resource-subscriber | [#86](https://github.com/scottlz0310/mcp-resource-subscriber/issues/86)、[#162](https://github.com/scottlz0310/mcp-resource-subscriber/issues/162) | 完了済み JSON の残差（exit/error/route/timeout/切断）とクライアント別検証 |
+| gateway / 通知基盤 | mcp-gateway#216、squirrel-notifier の関連検証 | gateway 透過性、認証、long-lived stream、実運用の再接続と観測性 |
+
+### 5. 次回 Run で追加計測するもの
+
+従来の A〜D は「なぜ gh を選んだか」を表す分類であり、再設計の完了度やモデル間の実行品質を測れない。各 Run で次も記録する。
+
+| 計測 | 目的 |
+|---|---|
+| client / model / skill revision / server・CLI version | モデル変更と環境変更を混同しない |
+| discovery で見えた server・tool・resource と実際の namespace | tool 名の推測・未接続を検出する |
+| step ごとの primary / fallback、read/write、call 数、shell 数、round-trip 数 | C と D を区別し、粒度改善の効果を測る |
+| elapsed time、timeout、route、exit code、error code | 「速い」という印象を再現可能な値にする |
+| 入力 PR / reviewed head SHA / queue reason / fixture | 同じ対象・同じ状態で比較する |
+| body gate 通過時刻と本文取得時刻 | prompt injection 境界の順序違反を検出する |
+| 出力 schema 検証結果と最終 termination status | LLM が異なる表現で成功を報告する問題を防ぐ |
+
 ## MCP 側の改善候補
 
-この PR では実装しない。MCP 側の別 Issue に切り出す候補を、責務境界に沿って記録する。
+この PR では各 MCP / CLI の機能実装は行わない。上の受入れ条件を MCP 側の別 Issue / PR に切り出す候補として、責務境界に沿って記録する。skill 本体の変更も #258 の直接実装には含めないが、契約を消費するために必要な変更は後続 PR の受入れ条件として扱う。
 
 | 優先度 | 候補 | 所管 | 根拠 |
 |---|---|---|---|
@@ -184,7 +292,7 @@ skill 本文の {GH} / {RAVEN} / {OWL} は論理名である。今回の実行�
 - D は command log がないため今回の事実とは断定せず、次回 Run で「単独操作だったか」「一括実行だったか」を記録する。
 - A はローカル環境の責務であり、MCP 化しない。
 
-また、gh pr merge、gh release edit、タグ push は #258 の背景で観測されたリリース操作だが、両 skill の手順ではない。Phase 8 は自律 merge を禁止しているため、今回の skill 行列には移行候補として混ぜない。
+また、gh pr merge、gh release edit、タグ push は #258 の背景で観測されたリリース操作だが、両 skill の手順ではない。Phase 8 は自律 merge を禁止しているため、今回の skill 行列には移行候補として混ぜない。`gh` の一律禁止、MCP への subscriber 内蔵、ユーザー承認なしの merge も再設計スコープには含めない。
 
 ## Run 2 以降の追記テンプレート
 
@@ -198,10 +306,15 @@ skill 本文の {GH} / {RAVEN} / {OWL} は論理名である。今回の実行�
 | 実行モデル |  |
 | 実行環境 |  |
 | 対象 commit / skill revision |  |
+| server / CLI version・MCP protocol |  |
 | 対象 PR |  |
 | MCP tool snapshot |  |
+| client namespace / discovery 結果 |  |
 | observed / simulated / inferred の境界 |  |
 | 失敗・未確認事項 |  |
+| call 数 / shell 数 / round-trip 数 / elapsed_ms |  |
+| queue reason / reviewed head SHA / fixture |  |
+| body gate 時刻 / 本文取得時刻 / output schema 検証 |  |
 
 #### 変更された判定
 
@@ -211,9 +324,9 @@ skill 本文の {GH} / {RAVEN} / {OWL} は論理名である。今回の実行�
 
 #### 今回の実行 tool log
 
-| 順序 | 行 ID | tool / command | read/write | 結果 | observed / simulated |
-|---|---|---|---|---|---|
-| 1 |  |  |  |  |  |
+| 順序 | 行 ID | tool / command | read/write | 結果 | elapsed_ms | error / route | observed / simulated |
+|---|---|---|---|---|---:|---|---|
+| 1 |  |  |  |  |  |  |  |
 
 #### 今回の提案差分
 

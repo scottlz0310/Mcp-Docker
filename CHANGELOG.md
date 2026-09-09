@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📚 ドキュメント
 
 - #258 の review-raven-thread-owl-cycle / thread-owl-pr-reviewer について、手順ごとの CLI・MCP ツール・未使用理由・移行可否を再調査できる棚卸しフォーマットを追加
+- 複数 LLM での再実行に向け、skill・review-raven・thread-owl・mcp-resource-subscriber・gateway の実行契約、受入れ条件、E2E・観測性のスコープを文書化
 
 ## [2.20.0] - 2026-09-09
 
