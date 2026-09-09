@@ -1,6 +1,8 @@
 package skill
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -14,7 +16,22 @@ func testCatalogFS() fstest.MapFS {
 		"skills/beta/references/notes.md":     {Data: []byte("notes\n")},
 		"skills/.hidden/SKILL.md":             {Data: []byte("hidden\n")},
 		"skills/alpha/.mcp-docker-skill.json": {Data: []byte("{}\n")},
+		"skills/catalog.json":                 {Data: catalogJSON(map[string]int{"alpha": 3, "beta": 1})},
 	}
+}
+
+// catalogJSON は revision を指定した catalog.json の中身を組み立てる。
+func catalogJSON(revisions map[string]int) []byte {
+	entries := make([]string, 0, len(revisions))
+	names := make([]string, 0, len(revisions))
+	for name := range revisions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		entries = append(entries, fmt.Sprintf("%q: {\"revision\": %d}", name, revisions[name]))
+	}
+	return fmt.Appendf(nil, "{\"skills\": {%s}}\n", strings.Join(entries, ", "))
 }
 
 func TestLoadCatalog(t *testing.T) {
@@ -37,6 +54,13 @@ func TestLoadCatalog(t *testing.T) {
 	}
 	if alpha.ContentHash == "" || alpha.ContentHash == skills[1].ContentHash {
 		t.Fatalf("content hash must be non-empty and distinct per skill: %q / %q", alpha.ContentHash, skills[1].ContentHash)
+	}
+	if alpha.Revision != 3 || skills[1].Revision != 1 {
+		t.Fatalf("revisions = %d / %d, want 3 / 1", alpha.Revision, skills[1].Revision)
+	}
+	// catalog.json は skill ディレクトリではないため配置対象に混ざらない。
+	if hasFile(alpha.Files, CatalogName) {
+		t.Fatalf("catalog.json must not be part of a skill: %v", gotPaths)
 	}
 }
 
@@ -64,6 +88,39 @@ func TestLoadCatalogErrors(t *testing.T) {
 			fsys:    fstest.MapFS{"skills/alpha/notes.md": {Data: []byte("x")}},
 			root:    "skills",
 			wantErr: `skill "alpha" に SKILL.md がありません`,
+		},
+		{
+			name:    "missing catalog.json",
+			fsys:    fstest.MapFS{"skills/alpha/SKILL.md": {Data: []byte("x")}},
+			root:    "skills",
+			wantErr: `skill カタログ "skills/catalog.json" の読み込みに失敗しました`,
+		},
+		{
+			name: "malformed catalog.json",
+			fsys: fstest.MapFS{
+				"skills/alpha/SKILL.md": {Data: []byte("x")},
+				"skills/catalog.json":   {Data: []byte("{\n")},
+			},
+			root:    "skills",
+			wantErr: `skill カタログ "skills/catalog.json" の解析に失敗しました`,
+		},
+		{
+			name: "skill missing revision",
+			fsys: fstest.MapFS{
+				"skills/alpha/SKILL.md": {Data: []byte("x")},
+				"skills/catalog.json":   {Data: catalogJSON(map[string]int{"beta": 1})},
+			},
+			root:    "skills",
+			wantErr: `skill "alpha" の revision が skills/catalog.json にありません`,
+		},
+		{
+			name: "revision below one",
+			fsys: fstest.MapFS{
+				"skills/alpha/SKILL.md": {Data: []byte("x")},
+				"skills/catalog.json":   {Data: catalogJSON(map[string]int{"alpha": 0})},
+			},
+			root:    "skills",
+			wantErr: `skill "alpha" の revision は 1 以上である必要があります: 0`,
 		},
 	}
 	for _, tt := range tests {
