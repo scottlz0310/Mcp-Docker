@@ -106,10 +106,21 @@ PR 由来のコメントは、GitHub の `author.login` がこのゲートを通
 
 ---
 
+## `max_cycles` の扱い
+
+`max_cycles` は**固定値 3** である。**エージェントはこの値を変更してはならない。**
+
+- **例外を作らない。** 「今回は人が毎サイクル起動している（Human in the loop）だから安全」「あと 1 サイクルで収束する」といった判断で引き上げてはならない。skill の内側から起動元が自動サイクルか人の手動起動かは判別できず、誤判定は警告も痕跡も残さずに起きる。上限がもっとも要る状況（同じ根本原因の修正を繰り返している状況）ほど、エージェントは「自分は例外だ」と判断しやすい。
+- **延長は人の明示指示によってのみ発生する。** `ESCALATE` に到達した後、人が「続行」と明示的に指示した場合に限り、次サイクルで上限を延長する。エージェントは延長を**提案**できるが、**実行はできない**。
+- **上限が止めるのは「再レビュー依頼コメントの投稿」だけである。** `@thread-owl re-review requested` の投稿（＝ webhook → queue → reviewed-side agent と連鎖する自動継続のトリガー）を止めるのであって、指摘への対応を止めるものではない。上限に達していても、**指摘の分類・修正・コミット・push・返信・resolve・処理済み記録は通常どおり実行する**。
+- **`ESCALATE` は回避すべき失敗状態ではない。** Phase 6.5 → Phase 7 → Phase 8 へ進み、サマリを投稿して人がマージ可否を判断する**正常な合流点**である。行き止まりではないため、`ESCALATE` を避けることを理由に上限を動かす必要はない。
+
+---
+
 ## Phase 0: エントリー・サイクルカウント復元
 
 1. `owner`、`repo`、`pr` を確定する。
-2. `max_cycles = 3` を設定する（必要に応じて調整）。
+2. `max_cycles = 3` を設定する。**この値は固定であり、エージェントは変更できない**（「`max_cycles` の扱い」節を参照）。人から明示的に延長を指示された場合に限り、指示された値を使用する。
 3. 必須コメント投稿者ゲートを実行する。いずれかの人間エスカレーション状態になった場合は停止する。
 4. `cycles_done` と `handled_comments`（処理済みの非スレッドコメントID）を信頼済みの PR コメント履歴から復元する:
    - PR の issue comment を検索し、最新の `<!-- review-raven: cycles_done=N, handled_comments=ID1,ID2,... -->`（または `cycles_done=N` 単体）を見つける。
@@ -307,6 +318,8 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 - `need_re_review = yes` かつ `cycles_done ≥ max_cycles` → 終了分類して **Phase 6.5**
 - `need_re_review = yes` かつ `cycles_done < max_cycles` → `@thread-owl` コメント投稿（下記フォーマット参照）→ **起動モードに応じた queue 登録** → **reviewed-side cycle 完了**
 
+> **上限到達時に止まるのは再レビュー依頼だけである。** `cycles_done ≥ max_cycles` の経路にも、本サイクルの Phase 3〜U5（分類・修正・コミット・push・返信・resolve・処理済み記録）を通常どおり完了させた上で到達する。上限が抑止するのは `@thread-owl re-review requested` の投稿と queue 登録（＝自動継続のトリガー）だけであり、「もう何もしない」という意味ではない。**上限に達したことを理由に `max_cycles` を引き上げてはならない**（「`max_cycles` の扱い」節を参照）。
+
 ### 終了分類
 
 | 分類 | 条件 | マージへの影響 |
@@ -316,6 +329,8 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 | 🔴 `ESCALATE — Unverified Fix` | 最大サイクル超過 かつ 最終サイクルで `blocking` fix を 1 件以上 accept したが再レビューなし | 危険 — マージ前に人間レビュー推奨。**Verdict コメント確認は対象外**（Phase 8 参照） |
 
 **`ESCALATE` で Verdict 確認を対象外とする理由**: 最大サイクルを超過しているため、最終サイクルの修正コミットが thread-owl に再レビューされていない可能性があり、その場合現在の HEAD に対する新しい Verdict コメントは存在し得ない。ここで Verdict 確認を必須にすると恒久的なデッドロックになる。`ESCALATE` は Phase 8 で既に人間による明示的な確認を必須としており、これが自動 Verdict 確認の代替として機能する。
+
+**`ESCALATE` は正常な合流点であり、回避対象ではない。** Phase 6.5 → Phase 7 → Phase 8 へ通常どおり進み、サマリを投稿して人のマージ判断を待つ経路である。行き止まりではないため、`ESCALATE` を避けるために `max_cycles` を引き上げてはならない。
 
 Phase 7 用に記録する: `termination_status`、`final_cycle_fix_types`、`unverified_blocking_commits`。
 
@@ -471,6 +486,8 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 2. 未検証コミット SHA を付けて警告を明確に提示する。
 3. ユーザーがそれでもマージを要求する場合は、未検証 blocking 修正を手動レビュー済みであることを明示的に確認してから進める。
 
+**`ESCALATE — *` からのサイクル続行**: ユーザーが「続行」（レビューサイクルを継続する）と明示的に指示した場合に限り、指示された分だけ `max_cycles` を延長し、Phase U6 のステップ 3 に戻って `@thread-owl re-review requested` の投稿と起動モードに応じた queue 登録を行う。**エージェントの判断で延長して続行してはならない。** 延長が妥当と考える場合は、理由（未収束の根本原因・残る blocking など）を添えてユーザーに提案するにとどめ、指示を待つ。
+
 `termination_status = AWAITING_THREAD_OWL_VERDICT`（Verdict コメント未確認・不一致）の場合:
 1. マージ準備完了とは報告しない。
 2. 「thread-owl の Verdict コメントが未確認、または PR HEAD と不一致です。thread-owl 側のレビュー完了を待機してください。」と報告する。
@@ -484,7 +501,7 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 
 ## 注意事項
 
-- `max_cycles` デフォルトは 3。Phase 0 で必要に応じて調整する。
+- `max_cycles` は固定値 3。**エージェントは変更できない**（延長は人の明示指示のみ。「`max_cycles` の扱い」節を参照）。上限が止めるのは `@thread-owl re-review requested` の投稿と queue 登録だけで、指摘への対応・修正・返信・resolve は通常どおり行う。`ESCALATE` は回避すべき失敗ではなく、人のマージ判断へ合流する正常な経路である。
 - `cycles_done` はサーバー状態ではなく `<!-- review-raven: cycles_done=N -->` PR コメントアノテーションから復元する。
 - 再レビュー依頼で queue に載せる経路は thread-owl の起動モードで決まる。`--mcp-http`（Mcp-Docker の既定）では `@thread-owl` コメントに加えて `{OWL}:enqueue_review(reason: "re-review-requested")` が**必須**（コメントだけでは queue に何も積まれずサイクルが静かに停止する）。`--webhook-mcp-http` では thread-owl 自身が enqueue するため**明示 enqueue は行わない**（通知 listener が二重発火する）。`request_copilot_review` は使用しない。
 - このスキルは Copilot watch を開始せず、`get_pr_review_cycle_status` を呼ばない。
