@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 変更
 
+- `review-raven-thread-owl-cycle` / `pr-review-cycle` の再レビュー上限（`max_cycles`）をエージェントの裁量から外し、人の操作に固定 — review-raven#121
+  - 「必要に応じて調整する」記述を削除し、`max_cycles` は固定値（thread-owl 側は 3、Copilot 側はサーバー既定を使う `0`）でエージェントは変更できないと明記。「Human in the loop だから引き上げてよい」という例外も設けない（skill の内側から起動元が自動サイクルか手動起動かを判別できず、誤判定が無警告で起きるため）
+  - 延長は人が「続行」と明示指示した場合にのみ発生する経路として手順化。エージェントは提案のみ可能
+  - 上限が止めるのは `@thread-owl re-review requested` の投稿と queue 登録（＝自動継続のトリガー）だけであり、指摘の分類・修正・コミット・返信・resolve は通常どおり行うことを明記
+  - `ESCALATE` が回避すべき失敗状態ではなく、人のマージ判断へ合流する正常な経路であることを明記
+
 - `thread-owl-pr-reviewer` スキルで `Verdict: APPROVED` 判定時に、固定テンプレートだけでなくレビュー観点サマリー（主な確認観点・判定根拠）を Verdict コメントへ含めて投稿するよう更新 — #246
   - `review-raven` のマージゲート判定が依存する見出し（`## @thread-owl Review Verdict: APPROVED`）および末尾メタデータ（`Reviewed HEAD SHA` / `Status`）の形式・文言は厳格に維持しつつ、中間にレビューサマリーを記述する指示を追加
 
