@@ -23,7 +23,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 - style nit、既存コードだけに由来する問題、PR の目的外の大規模改善を投稿しない。
 - 既存レビューへの同意、言い換え、根拠の弱い追従を投稿しない。
 - 再レビューで、初回に出さなかった軽微な指摘を後出ししない。
-- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で `verdict: approve`（後述の「Verdict」節を参照）と判定した場合は例外とし、「Verdict コメント投稿」節に従って固定フォーマットの Verdict コメントを投稿する。
+- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で `verdict: approve`（後述の「Verdict」節を参照）と判定した場合は例外とし、「Verdict コメント投稿」節に従ってレビュー観点サマリーを含む Verdict コメントを投稿する。
 - 書き込み失敗が曖昧な場合は、同じ投稿を即時再実行せず thread を再取得して重複を確認する。
 
 ## Thread Owl 契約
@@ -232,17 +232,28 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 **振る舞い**
 
 - `approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
-- 代わりに `post_summary_comment` で以下の固定フォーマットの Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
+- 代わりに `post_summary_comment` でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
+- **reviewed-side 連携の必須要件**: reviewed-side workflow（`review-raven`）は `## @thread-owl Review Verdict: APPROVED`、`Reviewed HEAD SHA`、`Status: READY_TO_MERGE` を機械的に検出してマージゲートを判定する。そのため、**見出し行および末尾のメタデータ行の形式・文言は変更せず、その間にレビューサマリーを記述する**こと。
 
 ```markdown
 ## @thread-owl Review Verdict: APPROVED
 
 すべての対象コードの検証が完了しました。技術的・品質的にマージ可能な状態である（マージ推奨）と判定しました。
 
+### レビューサマリー
+- **主な確認観点**:
+  - （例: 境界値・異常系入力に対する堅牢性、エラーハンドリング）
+  - （例: 既存仕様・設定との後方互換性やマイグレーション影響）
+  - （例: 型安全性、テストコードによる仕様の固定状況）
+  - （例: CI（build, test, lint, coverage）の成否と実行対象 SHA の一致）
+- **判定根拠**: （なぜ問題なし・マージ可能と判断したかの具体的要約。再レビューの場合は前回指摘事項の解消確認を含む）
+
+---
 - Reviewed HEAD SHA: `<reviewedHeadSha>`
 - Status: `READY_TO_MERGE`
 ```
 
+- サマリー内容は固定定型文の羅列で済ませず、Independent Stage や Synthesis Stage で実際に確認・評価した PR 固有の観点・根拠を反映すること。
 - `<reviewedHeadSha>` は Snapshot Guard で確認済みの `reviewedHeadSha` と一致させる。
 - この Verdict コメント投稿自体は、上記の投稿判断基準（本節冒頭のリスト）にそのまま従う。承認不要の新たな自律アクションとして追加するものではない。
 

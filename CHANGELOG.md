@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔄 変更
+
+- `thread-owl-pr-reviewer` スキルで `Verdict: APPROVED` 判定時に、固定テンプレートだけでなくレビュー観点サマリー（主な確認観点・判定根拠）を Verdict コメントへ含めて投稿するよう更新 — #246
+  - `review-raven` のマージゲート判定が依存する見出し（`## @thread-owl Review Verdict: APPROVED`）および末尾メタデータ（`Reviewed HEAD SHA` / `Status`）の形式・文言は厳格に維持しつつ、中間にレビューサマリーを記述する指示を追加
+
 ## [2.18.0] - 2026-09-08
 
 ### ✨ 機能追加
