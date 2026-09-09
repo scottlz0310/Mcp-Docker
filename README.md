@@ -478,8 +478,7 @@ Mcp-Docker/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
 │   ├── e2e-runbook-mcp-docker-cli.md  # CLI E2E 確認手順
 │   ├── mcp-2026-07-28-conformance.md   # 横断protocol conformance手順
-│   ├── archives/               # 旧設計メモ・検証ログ
-│   └── skills/                 # Codex / LLM 向け運用スキル
+│   └── archives/               # 旧設計メモ・検証ログ
 ├── tests/
 │   └── shell/                  # BATS シェルテスト
 ```

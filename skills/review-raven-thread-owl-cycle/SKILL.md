@@ -7,7 +7,7 @@ description: "thread-owl レビュー用の reviewed-side cycle スキル。thre
 
 > **スコープ: thread-owl レビュー専用。**
 > このスキルは reviewer が **thread-owl** の場合の reviewed-side cycle を担当する。
-> **Copilot** review（async watch ポーリング）には [`pr-review-cycle`](https://github.com/scottlz0310/review-raven/blob/main/docs/skills/pr-review-cycle.ja.md) を使うこと。
+> Copilot review 用の `pr-review-cycle` は廃止済みで、reviewed-side cycle はこのスキルだけが担当する。
 
 thread-owl がレビュアーの場合に reviewed-side cycle を実行するスキル。Copilot watch ループはない。エントリーは thread-owl が新しいレビューを投稿した後（PR に unresolved な thread-owl スレッドが存在する状態）に行う。thread-owl review の通知を受け取ったらこのスキルを起動すること。
 
@@ -579,4 +579,4 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 
 ## 関連スキル
 
-- [`pr-review-cycle`](https://github.com/scottlz0310/review-raven/blob/main/docs/skills/pr-review-cycle.ja.md) — Copilot review 専用。再レビューは `request_copilot_review` + async watch ループ（`@thread-owl` コメントは使用しない）。
+- [`thread-owl-pr-reviewer`](https://github.com/scottlz0310/Mcp-Docker/blob/main/skills/thread-owl-pr-reviewer/SKILL.md) — reviewer 側。本スキル（reviewed 側）とは別セッションで動かす。
