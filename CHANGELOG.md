@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.19.0] - 2026-09-09
+### 🔄 変更
+
+- `review-raven-thread-owl-cycle` のサイクル状態管理を、隠し HTML コメントによるアノテーションから**人間が読める Markdown ブロック**へ移行 — #251 / #249
+  - `<!-- review-raven: cycles_done=N, handled_comments=... -->` を廃止し、`### サイクル状態` ブロック（`cycles_done` / `max_cycles` / `expected_head` / `handled_comments`）を PR コメント本文に書くようにした
+  - **`max_cycles` を記録対象に追加**。従来は呼び出しごとにエージェントの内部にしか存在せず PR 上に痕跡が残らなかったため、適用値が正しかったかを後から検証できなかった（#249）
+  - Phase 0 の復元は新形式を優先し、見つからない場合のみ旧アノテーションへフォールバックする。進行中の PR で `cycles_done` の復元に失敗すると上限ゲートが黙って外れ、`handled_comments` も失われて重複対応が起きるため、移行期間の互換として残す。新規の書き込みでは旧形式を出力しない
+  - 復元した `max_cycles` で固定値を上書きしない。食い違う場合は報告したうえで固定値のまま続行する（エージェントが過去の記録に追随して上限を動かせないようにするため）
+  - 書式は 1 行 1 キーに固定し、折り返しや `<details>` での畳み込みを禁止して、復元を本文の行単位パースだけで完結させる
+
 
 ### 🔄 変更
 
