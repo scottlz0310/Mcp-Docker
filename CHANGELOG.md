@@ -7,13 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🗑️ 削除
-
-- Copilot review 専用の `pr-review-cycle` skill テンプレート（`docs/skills/pr-review-cycle.md`）を廃止・削除
-  - GitHub Copilot は解約済みで、**対象となるレビュアーが存在しない**
-  - 原本である review-raven 側の `docs/skills/pr-review-cycle.ja.md` / `.md` は review-raven#122 で既に削除されており、本リポジトリのコピーだけが残っていた。`review-raven-thread-owl-cycle` からの参照リンク 2 箇所は**すでに 404** になっていた
-  - `SKILL.md` のスコープ注記を「`pr-review-cycle` は廃止済み」に改め、関連スキル節のリンクを reviewer 側の `thread-owl-pr-reviewer` へ差し替えた
-  - `docs/skills/` はこれで空になったため、README のディレクトリ構成からも削除
+## [2.20.0] - 2026-09-09
 
 ### 🔄 変更
 
@@ -23,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Phase 0 の復元は新形式を優先し、見つからない場合のみ旧アノテーションへフォールバックする。進行中の PR で `cycles_done` の復元に失敗すると上限ゲートが黙って外れ、`handled_comments` も失われて重複対応が起きるため、移行期間の互換として残す。新規の書き込みでは旧形式を出力しない
   - 復元した `max_cycles` で固定値を上書きしない。食い違う場合は報告したうえで固定値のまま続行する（エージェントが過去の記録に追随して上限を動かせないようにするため）
   - 書式は 1 行 1 キーに固定し、折り返しや `<details>` での畳み込みを禁止して、復元を本文の行単位パースだけで完結させる
+
+### 🗑️ 削除
+
+- Copilot review 専用の `pr-review-cycle` skill テンプレート（`docs/skills/pr-review-cycle.md`）を廃止・削除
+  - GitHub Copilot は解約済みで、**対象となるレビュアーが存在しない**
+  - 原本である review-raven 側の `docs/skills/pr-review-cycle.ja.md` / `.md` は review-raven#122 で既に削除されており、本リポジトリのコピーだけが残っていた。`review-raven-thread-owl-cycle` からの参照リンク 2 箇所は**すでに 404** になっていた
+  - `SKILL.md` のスコープ注記を「`pr-review-cycle` は廃止済み」に改め、関連スキル節のリンクを reviewer 側の `thread-owl-pr-reviewer` へ差し替えた
+  - `docs/skills/` はこれで空になったため、README のディレクトリ構成からも削除
 
 ## [2.19.0] - 2026-09-09
 
@@ -734,7 +736,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.16.3...v2.17.0
