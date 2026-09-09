@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -243,5 +244,75 @@ func TestSkillUninstallPreservesHiddenUserFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatalf("SKILL.md should be gone, err = %v", err)
+	}
+}
+
+// newSkillsDir は revision を指定した最小構成の skill カタログを作る。
+func newSkillsDir(t *testing.T, revision int, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "alpha"), 0o755); err != nil {
+		t.Fatalf("failed to create skill dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "alpha", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("failed to write SKILL.md: %v", err)
+	}
+	catalog := fmt.Sprintf("{\"skills\": {\"alpha\": {\"revision\": %d}}}\n", revision)
+	if err := os.WriteFile(filepath.Join(dir, "catalog.json"), []byte(catalog), 0o644); err != nil {
+		t.Fatalf("failed to write catalog.json: %v", err)
+	}
+	return dir
+}
+
+// 配置済みより古い埋め込みで install しても、確認なしには巻き戻さない。
+func TestSkillInstallGuardsAgainstDowngrade(t *testing.T) {
+	home := t.TempDir()
+	newer := newSkillsDir(t, 2, "v2\n")
+	older := newSkillsDir(t, 1, "v1\n")
+
+	if _, err := runSkillCommand(t, home, "", "skill", "install", "--agent", "claude", "--skills-dir", newer, "--yes"); err != nil {
+		t.Fatalf("install returned error: %v", err)
+	}
+
+	installed := filepath.Join(skill.Clients(home)[0].Dir, "alpha", "SKILL.md")
+
+	out, err := runSkillCommand(t, home, "", "skill", "status", "--agent", "claude", "--skills-dir", older)
+	if err != nil {
+		t.Fatalf("status returned error: %v", err)
+	}
+	if !strings.Contains(out, string(skill.StateBinaryOutdated)) {
+		t.Fatalf("stdout = %q, want it to report %s", out, skill.StateBinaryOutdated)
+	}
+
+	tests := []struct {
+		name    string
+		answer  string
+		want    string
+		wantOut string
+	}{
+		{name: "declined keeps the newer content", answer: "n\n", want: "v2\n", wantOut: "中止しました"},
+		{name: "accepted rolls back", answer: "y\n", want: "v1\n", wantOut: string(skill.ActionDowngrade)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := os.WriteFile(installed, []byte("v2\n"), 0o644); err != nil {
+				t.Fatalf("failed to reset installed skill: %v", err)
+			}
+			out, err := runSkillCommand(t, home, tt.answer, "skill", "install", "--agent", "claude", "--skills-dir", older)
+			if err != nil {
+				t.Fatalf("install returned error: %v", err)
+			}
+			// 確認を挟まずに巻き戻さないこと、どちらの向きの不一致かが読めることを確かめる。
+			if !strings.Contains(out, "配置済み rev 2") || !strings.Contains(out, tt.wantOut) {
+				t.Fatalf("stdout = %q, want it to confirm the downgrade and report %q", out, tt.wantOut)
+			}
+			data, err := os.ReadFile(installed)
+			if err != nil {
+				t.Fatalf("failed to read installed skill: %v", err)
+			}
+			if string(data) != tt.want {
+				t.Fatalf("installed content = %q, want %q", data, tt.want)
+			}
+		})
 	}
 }

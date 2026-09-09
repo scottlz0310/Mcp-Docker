@@ -4,6 +4,7 @@ package skill
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,6 +15,10 @@ import (
 
 // ManifestName は配置先に書き出す配置メタデータのファイル名。
 const ManifestName = ".mcp-docker-skill.json"
+
+// CatalogName はカタログ直下に置く skill メタデータのファイル名。
+// skill ディレクトリではないため配置対象にはならない。
+const CatalogName = "catalog.json"
 
 // File は skill を構成する 1 ファイル。Path は skill ディレクトリからの相対パス（slash 区切り）。
 type File struct {
@@ -28,6 +33,16 @@ type Skill struct {
 	Files []File
 	// ContentHash は skill 全体のハッシュ。配置済みが最新かどうかの判定に使う。
 	ContentHash string
+	// Revision は catalog.json が持つ単調増加のリビジョン。
+	// ContentHash は一致するかしか答えられないため、配置済みと埋め込みのどちらが新しいかはこれで判定する。
+	Revision int
+}
+
+// catalogFile は catalog.json の構造。
+type catalogFile struct {
+	Skills map[string]struct {
+		Revision int `json:"revision"`
+	} `json:"skills"`
 }
 
 // LoadCatalog は fsys の root 配下から skill を読み込む。
@@ -52,8 +67,41 @@ func LoadCatalog(fsys fs.FS, root string) ([]Skill, error) {
 	if len(skills) == 0 {
 		return nil, fmt.Errorf("skill カタログ %q に skill がありません", root)
 	}
+
+	revisions, err := loadRevisions(fsys, root)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range skills {
+		revision, ok := revisions[s.Name]
+		if !ok {
+			return nil, fmt.Errorf("skill %q の revision が %s にありません", s.Name, path.Join(root, CatalogName))
+		}
+		if revision < 1 {
+			return nil, fmt.Errorf("skill %q の revision は 1 以上である必要があります: %d", s.Name, revision)
+		}
+		skills[i].Revision = revision
+	}
 	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
 	return skills, nil
+}
+
+// loadRevisions は catalog.json から skill ごとの revision を読む。
+func loadRevisions(fsys fs.FS, root string) (map[string]int, error) {
+	p := path.Join(root, CatalogName)
+	data, err := fs.ReadFile(fsys, p)
+	if err != nil {
+		return nil, fmt.Errorf("skill カタログ %q の読み込みに失敗しました: %w", p, err)
+	}
+	var parsed catalogFile
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("skill カタログ %q の解析に失敗しました: %w", p, err)
+	}
+	revisions := make(map[string]int, len(parsed.Skills))
+	for name, entry := range parsed.Skills {
+		revisions[name] = entry.Revision
+	}
+	return revisions, nil
 }
 
 func loadSkill(fsys fs.FS, dir, name string) (Skill, error) {

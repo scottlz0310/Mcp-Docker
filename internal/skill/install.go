@@ -22,6 +22,9 @@ const (
 	StateUpToDate State = "最新"
 	// StateOutdated は mcp-docker が配置したが内容が古い。
 	StateOutdated State = "古い"
+	// StateBinaryOutdated は配置済みのほうが新しい＝実行中バイナリの埋め込みが古い。
+	// このまま install すると新しい配置を旧版へ巻き戻してしまう。
+	StateBinaryOutdated State = "バイナリが古い"
 	// StateModified は配置後にローカルで改変されている。
 	StateModified State = "ローカル改変あり"
 	// StateUnmanaged はマニフェストのない配置（手動コピー等）。
@@ -40,6 +43,8 @@ const (
 	ActionUpdate Action = "更新"
 	// ActionAdopt は管理外の既存配置を上書きして管理下に置く。
 	ActionAdopt Action = "上書き（管理外を引き取り）"
+	// ActionDowngrade は配置済みより古い内容で上書きする。
+	ActionDowngrade Action = "巻き戻し（配置済みのほうが新しい）"
 	// ActionRemove は配置ディレクトリごと削除する。
 	ActionRemove Action = "削除"
 	// ActionRemovePartial は mcp-docker が配置したファイルだけを削除し、ユーザーが置いたファイルを残す。
@@ -48,10 +53,13 @@ const (
 
 // Manifest は配置先に残す配置メタデータ。
 type Manifest struct {
-	Skill       string            `json:"skill"`
-	Source      string            `json:"source"`
-	Version     string            `json:"version"`
-	ContentHash string            `json:"content_hash"`
+	Skill       string `json:"skill"`
+	Source      string `json:"source"`
+	Version     string `json:"version"`
+	ContentHash string `json:"content_hash"`
+	// Revision は配置した skill のカタログ revision。
+	// 0 は revision 導入前に配置された legacy マニフェストを表し、方向判定に使えない。
+	Revision    int               `json:"revision"`
 	Files       map[string]string `json:"files"`
 	InstalledAt string            `json:"installed_at"`
 }
@@ -64,6 +72,10 @@ type Status struct {
 	State  State
 	// InstalledVersion はマニフェストに記録された mcp-docker のバージョン。管理外・未配置では空。
 	InstalledVersion string
+	// InstalledRevision はマニフェストに記録されたカタログ revision。legacy マニフェスト・管理外・未配置では 0。
+	InstalledRevision int
+	// CatalogRevision は実行中バイナリが持つカタログ revision。
+	CatalogRevision int
 	// Managed はマニフェストに記録されており、配置先に残っているファイル（相対パス）。
 	Managed []string
 	// Unmanaged はマニフェストに記録がなく配置先に残っているファイル（相対パス）。
@@ -87,14 +99,16 @@ type Plan struct {
 
 // NeedsConfirm は破壊的な確認をユーザーに求めるべきかを返す。
 // 管理外の配置を上書きする場合と削除する場合は、mcp-docker が書いていない内容を失うため確認する。
+// 巻き戻しは配置済みの新しい内容を失うため同様に確認する。
 func (p Plan) NeedsConfirm() bool {
-	return p.Action == ActionAdopt || p.Action == ActionRemove || p.Action == ActionRemovePartial
+	return p.Action == ActionAdopt || p.Action == ActionDowngrade ||
+		p.Action == ActionRemove || p.Action == ActionRemovePartial
 }
 
 // Inspect は client 上の skill の配置状態を調べる。
 func Inspect(client Client, s Skill) (Status, error) {
 	dir := filepath.Join(client.Dir, s.Name)
-	status := Status{Client: client.Name, Skill: s.Name, Dir: dir}
+	status := Status{Client: client.Name, Skill: s.Name, Dir: dir, CatalogRevision: s.Revision}
 
 	info, err := os.Stat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -123,6 +137,7 @@ func Inspect(client Client, s Skill) (Status, error) {
 		return status, err
 	}
 	status.InstalledVersion = manifest.Version
+	status.InstalledRevision = manifest.Revision
 	status.Managed, status.Unmanaged = partitionInstalled(manifest.Files, installed)
 	status.Obsolete = obsoleteFiles(status.Managed, s)
 
@@ -132,6 +147,10 @@ func Inspect(client Client, s Skill) (Status, error) {
 	case manifest.ContentHash == s.ContentHash:
 		// マニフェストは最新版を指しているのに実体が違う = 配置後に改変された。
 		status.State = StateModified
+	case manifest.Revision > s.Revision:
+		// 配置済みのほうが新しい = 実行中バイナリの埋め込みが古い。
+		// revision を持たない legacy マニフェストは 0 のためここには入らず、従来どおり「古い」に落ちる。
+		status.State = StateBinaryOutdated
 	default:
 		status.State = StateOutdated
 	}
@@ -178,6 +197,8 @@ func PlanInstall(status Status, s Skill, force bool) Plan {
 		plan.Action = ActionInstall
 	case StateUnmanaged:
 		plan.Action = ActionAdopt
+	case StateBinaryOutdated:
+		plan.Action = ActionDowngrade
 	case StateUpToDate:
 		if !force {
 			plan.Action = ActionSkip
@@ -257,6 +278,7 @@ func Install(plan Plan, s Skill, version string, now time.Time) error {
 		Source:      "mcp-docker",
 		Version:     version,
 		ContentHash: s.ContentHash,
+		Revision:    s.Revision,
 		Files:       files,
 		InstalledAt: now.UTC().Format(time.RFC3339),
 	}

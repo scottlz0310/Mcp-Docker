@@ -131,7 +131,7 @@ func printSkillList(stdout io.Writer, catalog []skill.Skill, dir string) error {
 	}
 	fmt.Fprintf(stdout, "skill カタログ: %s\n", source)
 	for _, s := range catalog {
-		fmt.Fprintf(stdout, "- %s (%d ファイル, %s)\n", s.Name, len(s.Files), shortHash(s.ContentHash))
+		fmt.Fprintf(stdout, "- %s (rev %d, %d ファイル, %s)\n", s.Name, s.Revision, len(s.Files), shortHash(s.ContentHash))
 	}
 	return nil
 }
@@ -144,7 +144,7 @@ func runSkillStatus(stdout io.Writer, clients []skill.Client, skills []skill.Ski
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(stdout, "- %s: %s%s\n", s.Name, status.State, versionSuffix(status))
+			fmt.Fprintf(stdout, "- %s: %s%s%s\n", s.Name, status.State, versionSuffix(status), binaryOutdatedHint(status))
 		}
 	}
 	return nil
@@ -154,7 +154,28 @@ func versionSuffix(status skill.Status) string {
 	if status.InstalledVersion == "" {
 		return ""
 	}
-	return fmt.Sprintf(" (配置時 mcp-docker %s)", status.InstalledVersion)
+	if status.State == skill.StateUpToDate {
+		// 内容が一致している以上、実効 revision はカタログ側。マニフェストの記録有無は関係ない。
+		return fmt.Sprintf(" (配置時 mcp-docker %s, rev %d)", status.InstalledVersion, status.CatalogRevision)
+	}
+	if status.InstalledRevision == 0 {
+		// revision 導入前に配置された legacy マニフェスト。方向は判定できない。
+		return fmt.Sprintf(" (配置時 mcp-docker %s, rev 記録なし → 実行中 rev %d)",
+			status.InstalledVersion, status.CatalogRevision)
+	}
+	if status.InstalledRevision == status.CatalogRevision {
+		return fmt.Sprintf(" (配置時 mcp-docker %s, rev %d)", status.InstalledVersion, status.InstalledRevision)
+	}
+	return fmt.Sprintf(" (配置時 mcp-docker %s, rev %d → 実行中 rev %d)",
+		status.InstalledVersion, status.InstalledRevision, status.CatalogRevision)
+}
+
+// binaryOutdatedHint は配置済みのほうが新しい場合に、install してはいけないことを伝える。
+func binaryOutdatedHint(status skill.Status) string {
+	if status.State != skill.StateBinaryOutdated {
+		return ""
+	}
+	return " — 実行中バイナリの埋め込みが配置済みより古いため、install すると巻き戻ります。バイナリを入れ直してください"
 }
 
 func runSkillInstall(stdout io.Writer, stdin io.Reader, clients []skill.Client, skills []skill.Skill, opts skillOptions) error {
@@ -271,6 +292,9 @@ func confirmSkillAction(reader *bufio.Reader, stdout io.Writer, plan skill.Plan)
 	switch plan.Action {
 	case skill.ActionAdopt:
 		fmt.Fprintf(stdout, "- %s: %s に mcp-docker 管理外の配置があります。上書きすると既存の内容は失われます。\n", plan.Skill, plan.Dir)
+	case skill.ActionDowngrade:
+		fmt.Fprintf(stdout, "- %s: 配置済み rev %d に対し実行中バイナリの埋め込みは rev %d です。上書きすると配置済みの新しい内容が失われます。バイナリを入れ直すのが本来の対処です。\n",
+			plan.Skill, plan.InstalledRevision, plan.CatalogRevision)
 	case skill.ActionRemove:
 		fmt.Fprintf(stdout, "- %s: %s を削除します。\n", plan.Skill, plan.Dir)
 	case skill.ActionRemovePartial:

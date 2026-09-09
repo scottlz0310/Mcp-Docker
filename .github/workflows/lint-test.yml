@@ -96,3 +96,16 @@ jobs:
 
       - name: Go ビルド
         run: go build ./cmd/mcp-docker
+
+  check-skill-revision:
+    name: skill revision チェック
+    # base ref との比較が必要なため pull_request でのみ実行する。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: skill 変更時の revision 更新を確認
+        run: bash scripts/check-skill-revision.sh "origin/${{ github.base_ref }}"

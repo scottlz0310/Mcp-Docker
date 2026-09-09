@@ -189,3 +189,84 @@ EOF
     [[ "$output" == *"エラー: /data/config.yaml の削除を確認できませんでした (test-volume)"* ]]
     [[ ! "$output" =~ "config.yaml を削除しました" ]]
 }
+
+# --- check-skill-revision.sh ---
+
+setup_skill_repo() {
+    local repo="$1"
+    mkdir -p "${repo}/scripts" "${repo}/skills/alpha"
+    cp "${SCRIPTS_DIR}/check-skill-revision.sh" "${repo}/scripts/"
+    chmod +x "${repo}/scripts/check-skill-revision.sh"
+    cd "${repo}" || return 1
+    git init -q -b main
+    git config user.email "test@example.com"
+    git config user.name "test"
+    printf 'v1\n' >skills/alpha/SKILL.md
+    printf '{"skills":{"alpha":{"revision":1}}}\n' >skills/catalog.json
+    git add -A
+    git commit -qm "init"
+    git branch base
+}
+
+commit_all() {
+    git add -A
+    git commit -qm "change"
+}
+
+@test "check-skill-revision.sh: スクリプトが存在し実行可能" {
+    [ -f "${SCRIPTS_DIR}/check-skill-revision.sh" ]
+    [ -x "${SCRIPTS_DIR}/check-skill-revision.sh" ]
+}
+
+@test "check-skill-revision.sh: skill 未変更なら成功する" {
+    setup_skill_repo "${BATS_TEST_TMPDIR}/repo"
+    printf 'note\n' >README.md
+    commit_all
+
+    run bash scripts/check-skill-revision.sh base
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"変更なし"* ]]
+}
+
+@test "check-skill-revision.sh: 内容変更で revision 据え置きなら失敗する" {
+    setup_skill_repo "${BATS_TEST_TMPDIR}/repo"
+    printf 'v2\n' >skills/alpha/SKILL.md
+    commit_all
+
+    run bash scripts/check-skill-revision.sh base
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"revision が上がっていません"* ]]
+}
+
+@test "check-skill-revision.sh: 内容変更で revision を上げれば成功する" {
+    setup_skill_repo "${BATS_TEST_TMPDIR}/repo"
+    printf 'v2\n' >skills/alpha/SKILL.md
+    printf '{"skills":{"alpha":{"revision":2}}}\n' >skills/catalog.json
+    commit_all
+
+    run bash scripts/check-skill-revision.sh base
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rev 1 → 2"* ]]
+}
+
+@test "check-skill-revision.sh: 新規 skill は revision があれば成功する" {
+    setup_skill_repo "${BATS_TEST_TMPDIR}/repo"
+    mkdir -p skills/beta
+    printf 'beta\n' >skills/beta/SKILL.md
+    printf '{"skills":{"alpha":{"revision":1},"beta":{"revision":1}}}\n' >skills/catalog.json
+    commit_all
+
+    run bash scripts/check-skill-revision.sh base
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"新規追加"* ]]
+}
+
+@test "check-skill-revision.sh: catalog.json に revision が無ければ失敗する" {
+    setup_skill_repo "${BATS_TEST_TMPDIR}/repo"
+    printf '{"skills":{}}\n' >skills/catalog.json
+    commit_all
+
+    run bash scripts/check-skill-revision.sh base
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"revision がありません"* ]]
+}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 修正
+
+- `mcp-docker skill status` の「古い」が新旧どちらの向きの不一致か判定できず、**古いバイナリで `skill install` すると確認なしで配置済みを旧版へ巻き戻していた**問題を修正 — #252
+  - `skills/catalog.json` に skill ごとの revision を追加。内容ハッシュは一致するかしか答えられないため、方向判定は revision で行う
+  - 配置済み revision が実行中バイナリの埋め込みより新しい場合に新状態 `バイナリが古い` を報告し、バイナリを入れ直すよう促す
+  - `skill install` は巻き戻しを専用アクションとして扱い、管理外の上書きと同様に確認プロンプトを挟む（`--force` を付けても確認は省略されない）
+  - `skill status` / `skill list` の表示に revision を出し、不一致の方向が読めるようにした
+  - revision を記録しない配置（revision 導入前）は方向を判定できないため、従来どおり `古い` として扱う
+  - `skills/<name>/` の変更時に revision の更新を CI（`scripts/check-skill-revision.sh`）で強制。更新忘れを誤判定ではなく CI 失敗として顕在化させる
+
 ### 🔄 変更
 
 - `review-raven-thread-owl-cycle` / `pr-review-cycle` の再レビュー上限（`max_cycles`）をエージェントの裁量から外し、人の操作に固定 — review-raven#121

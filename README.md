@@ -210,17 +210,32 @@ make skill-status
 make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-reviewer --yes"
 ```
 
-配置先には `.mcp-docker-skill.json`（source ハッシュ・配置時の mcp-docker バージョン・配置日時）を書き出します。`mcp-docker skill status` はこれと skill 本体のハッシュを突き合わせ、次のいずれかを報告します。
+配置先には `.mcp-docker-skill.json`（source ハッシュ・配置時の mcp-docker バージョン・カタログ revision・配置日時）を書き出します。`mcp-docker skill status` はこれと skill 本体のハッシュ・revision を突き合わせ、次のいずれかを報告します。
 
 | 状態 | 意味 |
 |---|---|
 | `最新` | 収蔵内容と一致 |
 | `古い` | mcp-docker が配置したが、その後 `skills/` が更新された |
+| `バイナリが古い` | 配置済みのほうが新しい。実行中バイナリの埋め込みが古いため、install すると巻き戻る |
 | `ローカル改変あり` | 配置後に配置先で編集された |
 | `管理外` | `.mcp-docker-skill.json` がない（手動コピー等）。上書きには確認が入る |
 | `未配置` | まだ配置されていない |
 
-`管理外` の配置を上書きする場合と `skill uninstall` で削除する場合は確認プロンプトが入ります（`--yes` で省略）。
+`管理外` の配置を上書きする場合、`バイナリが古い` 配置を巻き戻す場合、`skill uninstall` で削除する場合は確認プロンプトが入ります（`--yes` で省略）。
+
+#### skill の revision
+
+`skills/catalog.json` が skill ごとの revision を持ちます。内容ハッシュは一致するかしか答えられないため、**配置済みと実行中バイナリのどちらが新しいかはこの revision で判定します**。
+
+```json
+{
+  "skills": {
+    "review-raven-thread-owl-cycle": { "revision": 1 }
+  }
+}
+```
+
+`skills/<name>/` を変更したら `catalog.json` の revision も上げてください。更新忘れは CI（`scripts/check-skill-revision.sh`）が検出して落とします。revision を記録していない古い配置（revision 導入前）は方向を判定できないため、従来どおり `古い` として扱います。
 
 配置先にユーザーが置いたファイルは mcp-docker の管理対象外として扱い、更新でも削除でも残します（隠しファイル・隠しディレクトリを含む）。
 
@@ -228,7 +243,7 @@ make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-revie
 - `skill uninstall`: マニフェスト記録ファイルのみを削除し、ユーザーファイルが残る場合はディレクトリごと残します。ディレクトリごと削除するには `--force` を指定してください
 - `skill uninstall` は既定では `管理外` の配置を削除しません（`--force` が必要）
 
-skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
+skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`skills/catalog.json` の revision を上げてから、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
 
 ## サービス操作
 

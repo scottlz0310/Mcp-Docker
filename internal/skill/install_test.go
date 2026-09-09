@@ -25,15 +25,29 @@ func loadOne(t *testing.T, fsys fstest.MapFS) Skill {
 
 func alphaV1(t *testing.T) Skill {
 	t.Helper()
+	return alphaV1Rev(t, 1)
+}
+
+func alphaV1Rev(t *testing.T, revision int) Skill {
+	t.Helper()
 	return loadOne(t, fstest.MapFS{
 		"skills/alpha/SKILL.md":           {Data: []byte("v1\n")},
 		"skills/alpha/agents/openai.yaml": {Data: []byte("v1 agent\n")},
+		"skills/catalog.json":             {Data: catalogJSON(map[string]int{"alpha": revision})},
 	})
 }
 
 func alphaV2(t *testing.T) Skill {
 	t.Helper()
-	return loadOne(t, fstest.MapFS{"skills/alpha/SKILL.md": {Data: []byte("v2\n")}})
+	return alphaV2Rev(t, 2)
+}
+
+func alphaV2Rev(t *testing.T, revision int) Skill {
+	t.Helper()
+	return loadOne(t, fstest.MapFS{
+		"skills/alpha/SKILL.md": {Data: []byte("v2\n")},
+		"skills/catalog.json":   {Data: catalogJSON(map[string]int{"alpha": revision})},
+	})
 }
 
 func install(t *testing.T, client Client, s Skill, version string) {
@@ -69,6 +83,10 @@ func TestInstallWritesFilesAndManifest(t *testing.T) {
 	}
 	if status.InstalledVersion != "9.9.9" {
 		t.Fatalf("installed version = %q, want 9.9.9", status.InstalledVersion)
+	}
+	if status.InstalledRevision != s.Revision || status.CatalogRevision != s.Revision {
+		t.Fatalf("revisions = %d / %d, want %d / %d",
+			status.InstalledRevision, status.CatalogRevision, s.Revision, s.Revision)
 	}
 }
 
@@ -141,8 +159,22 @@ func TestInstallRemovesObsoleteManagedFilesOnly(t *testing.T) {
 	}
 }
 
+// clearManifestRevision は revision 導入前に配置された legacy マニフェストを再現する。
+func clearManifestRevision(t *testing.T, dir string) {
+	t.Helper()
+	manifest, err := readManifest(dir)
+	if err != nil || manifest == nil {
+		t.Fatalf("readManifest returned %v, %v", manifest, err)
+	}
+	manifest.Revision = 0
+	if err := writeManifest(dir, *manifest); err != nil {
+		t.Fatalf("writeManifest returned error: %v", err)
+	}
+}
+
 func TestInspectStates(t *testing.T) {
-	s := alphaV1(t)
+	// カタログ側を rev 5 に置き、配置済みの revision を上下させて方向判定を確かめる。
+	s := alphaV1Rev(t, 5)
 
 	tests := []struct {
 		name  string
@@ -164,7 +196,24 @@ func TestInspectStates(t *testing.T) {
 		{
 			name: "outdated",
 			setup: func(t *testing.T, client Client) {
-				install(t, client, alphaV2(t), "1.0.0")
+				install(t, client, alphaV2Rev(t, 4), "1.0.0")
+			},
+			want: StateOutdated,
+		},
+		{
+			// 配置済みのほうが新しい = 実行中バイナリの埋め込みが古い。
+			name: "binary outdated",
+			setup: func(t *testing.T, client Client) {
+				install(t, client, alphaV2Rev(t, 6), "1.0.0")
+			},
+			want: StateBinaryOutdated,
+		},
+		{
+			// revision を記録しない legacy マニフェストは方向を判定できないため従来どおり「古い」。
+			name: "legacy manifest without revision",
+			setup: func(t *testing.T, client Client) {
+				install(t, client, alphaV2Rev(t, 6), "1.0.0")
+				clearManifestRevision(t, filepath.Join(client.Dir, "alpha"))
 			},
 			want: StateOutdated,
 		},
@@ -223,6 +272,8 @@ func TestPlanInstallActions(t *testing.T) {
 		{name: "up to date skips", state: StateUpToDate, want: ActionSkip},
 		{name: "up to date with force updates", state: StateUpToDate, force: true, want: ActionUpdate},
 		{name: "unmanaged needs confirmation", state: StateUnmanaged, want: ActionAdopt, wantConfrm: true},
+		{name: "binary outdated needs confirmation", state: StateBinaryOutdated, want: ActionDowngrade, wantConfrm: true},
+		{name: "binary outdated with force still needs confirmation", state: StateBinaryOutdated, force: true, want: ActionDowngrade, wantConfrm: true},
 	}
 	s := alphaV1(t)
 	for _, tt := range tests {
