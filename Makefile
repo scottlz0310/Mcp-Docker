@@ -198,7 +198,7 @@ GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null) skills.go
 SKILL_SOURCES := $(shell find skills -type f 2>/dev/null)
 REGISTER_FLAGS ?=
 SKILL_FLAGS ?=
-VERSION ?= 2.18.0
+VERSION ?= 2.19.0
 GO_LDFLAGS ?= -X main.version=$(VERSION)
 
 $(MCP_DOCKER): Makefile go.mod go.sum $(GO_SOURCES) $(SKILL_SOURCES)
