@@ -48,6 +48,7 @@ ifneq (,$(wildcard .env))
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
   MCP_GATEWAY_PUBLIC_URL       ?= $(call ENV_GET,MCP_GATEWAY_PUBLIC_URL)
   MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
+  PLAYWRIGHT_MCP_IMAGE         ?= $(call ENV_GET,PLAYWRIGHT_MCP_IMAGE)
 endif
 
 # OAUTH_* → GITHUB_MCP_* → GITHUB_* の優先順位でフォールバック解決
@@ -156,11 +157,15 @@ status: status-gateway ## 全サービスの状態確認（status-gateway のエ
 # docker-compose.yml のデフォルトは :latest（mcp-gateway v0.9.0 で builtin AS / TLS 終端とも収録済み）。
 # mcp-gateway / review-raven / thread-owl の :latest はリリース時のみ更新されるため、
 # リリース前の最新 main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
+# playwright-mcp は :main が公開されていない場合に通常の :latest へフォールバックする。
+# start-main は pull を行わず、pull-main で取得済みのローカルイメージを起動する。
 # ?= により環境変数・make コマンドライン引数での上書きが可能
 # 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
-MCP_GATEWAY_MAIN_IMAGE       ?= ghcr.io/scottlz0310/mcp-gateway:main
-REVIEW_RAVEN_MAIN_IMAGE ?= ghcr.io/scottlz0310/review-raven:main
-THREAD_OWL_MAIN_IMAGE ?= ghcr.io/scottlz0310/thread-owl:main
+MCP_GATEWAY_MAIN_IMAGE        ?= ghcr.io/scottlz0310/mcp-gateway:main
+REVIEW_RAVEN_MAIN_IMAGE       ?= ghcr.io/scottlz0310/review-raven:main
+THREAD_OWL_MAIN_IMAGE         ?= ghcr.io/scottlz0310/thread-owl:main
+PLAYWRIGHT_MCP_MAIN_IMAGE     ?= mcr.microsoft.com/playwright/mcp:main
+PLAYWRIGHT_MCP_FALLBACK_IMAGE ?= $(or $(PLAYWRIGHT_MCP_IMAGE),mcr.microsoft.com/playwright/mcp:latest)
 
 .PHONY: pull-main
 pull-main: ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
@@ -169,22 +174,25 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	docker compose pull mcp-gateway review-raven thread-owl
+	"$(BASH_CMD)" ./scripts/pull-playwright-main.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)"
 ifeq ($(OS),Windows_NT)
-	@echo $$'\u2713 :main \u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
+	@echo $$'\u2713 \u958b\u767a\u7248\u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
 else
-	@echo "✓ :main イメージを取得しました。起動: make start-main"
+	@echo "✓ 開発版イメージを取得しました。起動: make start-main"
 endif
 
 .PHONY: start-main
-start-main: check-github-app-config ## 最新開発版イメージで全サービスを起動
+start-main: check-github-app-config ## pull-main で取得済みの開発版イメージで全サービスを起動
+	@playwright_image=$$("$(BASH_CMD)" ./scripts/select-playwright-main-image.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)") || { status=$$?; exit "$$status"; }; \
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
-	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
+	PLAYWRIGHT_MCP_IMAGE="$$playwright_image" \
+	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: restart-main
-restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動
+restart-main: stop-gateway start-main ## 取得済みの開発版イメージで全サービスを再起動（pull なし）
 
 # CLI 登録（Primary）
 BIN_DIR      := bin
