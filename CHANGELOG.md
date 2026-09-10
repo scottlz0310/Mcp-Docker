@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - #264 の検証結果を記録し、thread-owl / review-raven の全件取得は server 内の cursor 巡回で保証されるため、skill 側の停止条件は追加しない方針を明記。`pageInfo` は correctness ではなく透明性の低優先度改善として扱う
 - #265 に対応し、reviewed-side の R-00〜R-21（R-08a/b・R-18a/b を含む）へ precondition、primary tool、input / output、side effect、guard、fallback、failure / stop、evidence の 8 項目を記入。discovery 固定、本文取得前の投稿者ゲート、current head / CI SHA、queue mode、merge の人手境界を各行の契約として明記
 - #266 に対応し、reviewer-side の O-00〜O-21 へ実行契約 8 項目を記入。reviewedHeadSha の remote snapshot / CI / inline / APPROVE 間の固定、Independent Stage 先行、queue の read と待機の分離、allowlist read 拒否時の fail-closed、current diff の投稿位置分岐を各行の契約として明記
+- #267 に対応し、R-00 で R-10 / R-14 / R-19 の GitHub write binding と投稿 identity を固定する契約を追加。get_me を停止条件から外し、comment ID と PR 上の author.login の再取得による観測を定義し、実測結果を棚卸しへ記録
 - #258 の review-raven-thread-owl-cycle / thread-owl-pr-reviewer について、手順ごとの CLI・MCP ツール・未使用理由・移行可否を再調査できる棚卸しフォーマットを追加
 - 複数 LLM での再実行に向け、skill・review-raven・thread-owl・mcp-resource-subscriber・gateway の実行契約、受入れ条件、E2E・観測性のスコープを文書化
 - #258 の棚卸しに Run 2（Claude Opus 5 / Claude Code、mcp-gateway 経由）を追記。別 client で同じ論理名がどの tool へ解決されるかを実測し、Run 1 との判定差分を記録

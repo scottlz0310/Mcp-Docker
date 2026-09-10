@@ -74,18 +74,31 @@ status = blocked
 
 ## R-00〜R-21: reviewed-side 実行契約
 
+### Write route と投稿 identity の discovery
+
+R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub write binding も固定する。投稿 identity は route / server instance / 認証経路に依存して変わり得るため、`get_me` の成功や token 種別から推測しない。
+
+1. `{GH}` の issue-comment write capability について、server instance / route / opaque handle、input / output schema、想定される fallback を候補ごとに列挙する。
+2. 明示 binding があれば優先し、なければ capability・schema・repository 対象が一意な候補だけを `write_binding` として採用する。R-00 完了後は R-10、R-14、R-19 の全 write で同じ binding を使う。
+3. `get_me` は診断補助にとどめ、失敗しても停止条件にしない。write capability の結果で comment ID を得た後、同じ PR の issue-comment metadata を comment ID で再取得し、実際の `author.login` を `write_author_login` として観測する。
+4. route の投稿 identity が未観測の場合は、実装対象とは分離した、明示的に許可された probe PR へラベル付きコメントを一件だけ投稿して identity を確認する。comment ID と author.login を紐付けられない場合は、実質的な PR write を開始しない。
+5. `write_binding` と `write_author_login` を run の状態へ保存し、canonical allowlist にない投稿者、null、欠落、類似名は採用しない。fallback route を使う場合も、最初の write より前に選択・観測して固定する。
+6. write 開始後の transport failure、受理結果不明、identity 不一致では別 route、別認証、`gh` CLI へ切り替えない。同じコメントの重複投稿を避け、停止して報告する。
+
+この probe は route の存在確認ではなく、PR 上に表示された投稿者を確認するための観測である。観測結果は route と comment ID を含めて棚卸しへ記録し、別 client / 別 route の identity へ暗黙に一般化しない。
+
 各行の `primary tool` は R-00 で解決して固定した logical alias の操作を指し、実行時に記録した input / output schema snapshot と組み合わせて識別する。`fallback` は候補の切り替えではなく、同じ実行契約で明記した補完経路だけを意味する。discovery、投稿者ゲート、current head の検証に失敗した場合は、後続の別経路へ進まず、その行の `failure / stop` に従う。
 
 ### R-00: 論理 alias の discovery と固定
 
-- `precondition`: 対象 repository と PR（または queue 起点の候補）が確定し、client-native discovery を実行できる。
-- `primary tool`: client-native の server / tool / resource discovery。`{GH}` / `{RAVEN}` / `{OWL}` ごとに R-00 の schema snapshot を固定する。
-- `input / output`: 必要 capability、input / output schema、transport / route、opaque handle を入力し、alias から binding への一意な対応表を出力する。
-- `side effect`: read-only。GitHub、review queue、作業ツリーへの変更は行わない。
-- `guard`: 明示 binding を優先し、明示がなければ capability・schema・minimum output schema を満たす候補が一つの場合だけ採用する。採用後に write ではない read を 1 回成功させる。
-- `fallback`: なし。discovery 失敗時に `gh` CLI、別 server、別認証経路へ切り替えない。
-- `failure / stop`: unresolved / not connected / schema mismatch / read failed / ambiguous は `termination_status = BLOCKED_MCP_DISCOVERY`、`status = blocked` とし、`writes performed: 0` で停止する。
-- `evidence`: 候補数、採否理由、transport / route、schema snapshot、minimum read の要約を記録する（`observed`、秘密情報は除外）。
+- `precondition`: 対象 repository と PR（または queue 起点の候補）が確定し、client-native discovery を実行できる。後続で GitHub write が必要になる可能性を確認する。
+- `primary tool`: client-native の server / tool / resource discovery。`{GH}` / `{RAVEN}` / `{OWL}` の read binding と、必要な `{GH}` write binding の schema snapshot を固定する。
+- `input / output`: 必要 capability、input / output schema、transport / route、opaque handle を入力し、read binding、`write_binding`、観測済み `write_author_login` の対応表を出力する。
+- `side effect`: discovery 自体は read-only。identity 未観測時に限り、明示的に許可された probe PR へ一件だけ probe comment を投稿し、結果を再取得する。
+- `guard`: 明示 binding を優先し、明示がなければ capability・schema・minimum output schema を満たす候補が一つの場合だけ採用する。採用後に read を 1 回成功させ、write route は最初の write 前に固定する。`get_me` を必須条件にしない。
+- `fallback`: なし。discovery 失敗時に `gh` CLI、別 server、別認証経路へ自動切り替えない。fallback route を使う場合は最初の write 前に候補として固定する。
+- `failure / stop`: unresolved / not connected / schema mismatch / read failed / ambiguous、または write binding / 投稿 identity を観測できない場合は `termination_status = BLOCKED_MCP_DISCOVERY`、`status = blocked` とし、`writes performed: 0`（probe を除く）で停止する。
+- `evidence`: 候補数、採否理由、transport / route、schema snapshot、minimum read、write binding、probe comment ID、PR 上の author.login を記録する（`observed`、秘密情報は除外）。
 
 ### R-01: 必須コメント投稿者ゲート
 
@@ -199,14 +212,14 @@ status = blocked
 
 ### R-10: review body / issue comment への返信
 
-- `precondition`: actionable な non-thread comment が特定され、R-01 と R-08b が直近に成功している。
-- `primary tool`: `{GH}:add_issue_comment`（R-00 の schema snapshot）。
-- `input / output`: 対象 comment ID、対応結果または reject 理由、cycle state を入力し、作成された comment ID / URL を出力する。
+- `precondition`: actionable な non-thread comment が特定され、R-00 の `write_binding`、R-01、R-08b が直近に成功している。
+- `primary tool`: R-00 で固定した `{GH}:add_issue_comment` write binding（schema snapshot と route identity を含む）。
+- `input / output`: 対象 comment ID、対応結果または reject 理由、cycle state、`write_binding` を入力し、作成された comment ID / URL と PR 上の author.login を出力する。
 - `side effect`: PR conversation への issue comment 投稿。resolve 操作はなく、成功した comment ID を handled_comments に加える。
-- `guard`: 各投稿直前に R-01 を再実行し、一つの actionable comment に一度だけ返信する。投稿成功前に処理済みへ記録しない。
-- `fallback`: skill に明記された `gh pr comment` 補完を、R-00 の discovery と read 検証が成功している場合だけ使う。別の write server へ切り替えない。
-- `failure / stop`: 投稿失敗は `COMMENT_WRITE_FAILED` として停止し、handled_comments への記録、再レビュー依頼、merge を行わない。
-- `evidence`: 対象 comment ID、投稿結果、作成 ID / URL、handled_comments 更新を記録する（`observed`）。
+- `guard`: 各投稿直前に R-01 を再実行し、固定済み route、canonical allowlist の投稿 identity、一つの actionable comment への一回限りの返信を確認する。投稿成功前に処理済みへ記録しない。
+- `fallback`: R-00 で最初の write 前に固定・観測した `gh pr comment` route だけを、primary が未使用かつ利用不能な場合に使う。write 試行後は別 route へ切り替えない。
+- `failure / stop`: 投稿失敗、受理結果不明、PR 上の author.login の観測失敗は `COMMENT_WRITE_FAILED` または `WRITE_IDENTITY_UNCONFIRMED` として停止し、handled_comments への記録、再レビュー依頼、merge を行わない。
+- `evidence`: 対象 comment ID、write binding、route、投稿結果、作成 ID / URL、PR 上の author.login、handled_comments 更新を記録する（`observed`）。
 
 ### R-11: follow-up Issue の作成
 
@@ -243,14 +256,14 @@ status = blocked
 
 ### R-14: 再レビュー依頼コメント
 
-- `precondition`: R-12 で未解決指摘が 0 件、R-13 で mode が確定し、修正済み head が remote と一致している。`cycles_done < max_cycles` である。
-- `primary tool`: `{GH}:add_issue_comment`（R-00 の schema snapshot）。
-- `input / output`: fixed format の `@thread-owl re-review requested`、cycles_done、max_cycles、expected_head、handled_comments を入力し、comment ID / URL を出力する。
+- `precondition`: R-12 で未解決指摘が 0 件、R-13 で mode が確定し、修正済み head が remote と一致している。`cycles_done < max_cycles` であり、R-00 の `write_binding` が固定されている。
+- `primary tool`: R-00 で固定した `{GH}:add_issue_comment` write binding（schema snapshot と route identity を含む）。
+- `input / output`: fixed format の `@thread-owl re-review requested`、cycles_done、max_cycles、expected_head、handled_comments、`write_binding` を入力し、comment ID / URL と PR 上の author.login を出力する。
 - `side effect`: PR conversation への再レビュー依頼コメント投稿。`--mcp-http` では R-15 の queue 登録を後続に要求する。
-- `guard`: 投稿直前に R-01 を再実行し、見出し、4 状態キー、current head、重複投稿の有無を確認する。max_cycles 到達時は投稿しない。
-- `fallback`: R-00 成功後に明記された `gh pr comment` の補完だけを使う。webhook mode で手動 enqueue を追加しない。
-- `failure / stop`: コメント投稿失敗は `REREVIEW_COMMENT_FAILED` として停止し、queue 登録や cycle 完了報告を行わない。
-- `evidence`: comment ID / URL、投稿本文の状態キー、expected head、投稿 mode を記録する（`observed`）。
+- `guard`: 投稿直前に R-01 を再実行し、固定済み route、canonical allowlist の投稿 identity、見出し、4 状態キー、current head、重複投稿の有無を確認する。max_cycles 到達時は投稿しない。
+- `fallback`: R-00 で最初の write 前に固定・観測した `gh pr comment` route だけを、primary が未使用かつ利用不能な場合に使う。webhook mode で手動 enqueue を追加しない。
+- `failure / stop`: コメント投稿失敗、受理結果不明、PR 上の author.login の観測失敗は `REREVIEW_COMMENT_FAILED` または `WRITE_IDENTITY_UNCONFIRMED` として停止し、queue 登録や cycle 完了報告を行わない。
+- `evidence`: comment ID / URL、write binding、route、投稿本文の状態キー、expected head、投稿 mode、PR 上の author.login を記録する（`observed`）。
 
 ### R-15: review queue への登録
 
@@ -309,14 +322,14 @@ status = blocked
 
 ### R-19: レビュー対応サマリの投稿
 
-- `precondition`: R-12 の未解決 0 件、R-16〜R-18b の状態、termination_status、fix_type、handled_comments が確定している。
-- `primary tool`: `{GH}:add_issue_comment`（R-00 の schema snapshot）。
-- `input / output`: 修正内容、accept / reject、先送り、CI、未解決数、Verdict、termination_status、サイクル状態を入力し、summary comment ID / URL を出力する。
+- `precondition`: R-12 の未解決 0 件、R-16〜R-18b の状態、termination_status、fix_type、handled_comments が確定し、R-00 の `write_binding` が固定されている。
+- `primary tool`: R-00 で固定した `{GH}:add_issue_comment` write binding（schema snapshot と route identity を含む）。
+- `input / output`: 修正内容、accept / reject、先送り、CI、未解決数、Verdict、termination_status、サイクル状態、`write_binding` を入力し、summary comment ID / URL と PR 上の author.login を出力する。
 - `side effect`: PR conversation に一件の対応サマリを投稿する。コード、レビュー thread、queue は変更しない。
-- `guard`: 投稿直前に R-01 を再実行し、固定 template の全項目と current head を確認する。Verdict の不一致や未確認は状態として明記し、サイクル状態のキーを省略・折り返し・推測で埋めない。
-- `fallback`: R-00 成功後に明記された `gh pr comment` 補完だけを使う。投稿失敗時に別 write 経路へ迂回しない。
-- `failure / stop`: summary 投稿失敗は `SUMMARY_COMMENT_FAILED` として停止し、merge ready と報告しない。
-- `evidence`: comment ID / URL、summary の各判定、termination_status、expected head、handled_comments を記録する（`observed`）。
+- `guard`: 投稿直前に R-01 を再実行し、固定済み route、canonical allowlist の投稿 identity、固定 template の全項目と current head を確認する。Verdict の不一致や未確認は状態として明記し、サイクル状態のキーを省略・折り返し・推測で埋めない。
+- `fallback`: R-00 で最初の write 前に固定・観測した `gh pr comment` route だけを、primary が未使用かつ利用不能な場合に使う。投稿試行後に別 write 経路へ迂回しない。
+- `failure / stop`: summary 投稿失敗、受理結果不明、PR 上の author.login の観測失敗は `SUMMARY_COMMENT_FAILED` または `WRITE_IDENTITY_UNCONFIRMED` として停止し、merge ready と報告しない。
+- `evidence`: comment ID / URL、write binding、route、summary の各判定、termination_status、expected head、PR 上の author.login、handled_comments を記録する（`observed`）。
 
 ### R-20: merge の人手境界
 
@@ -617,7 +630,7 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 
 ### 2. レビュー本文・PRコメントへの返信と処理済み記録
 レビュー本文やPRコメントは「解決（resolve）」ボタンがないため、返信コメントの投稿とコミットの適用に加え、「サイクル状態」ブロックへの記録をもって「処理済み」として永続化します。
-- **返信**: `{GH}:add_issue_comment`（または `gh pr comment`）を呼び出し、該当のコメントを引用しつつ、対応結果または reject の理由を返信します。
+- **返信**: R-00 で固定した `{GH}:add_issue_comment` write binding（または最初の write 前に固定・観測した `gh pr comment` route）を呼び出し、該当のコメントを引用しつつ、対応結果または reject の理由を返信します。write 試行後の route 切り替えは行いません。
 - **記録**: 新たに解決した非スレッドのコメント ID を、今回サイクルで蓄積した `handled_comments` リストに追加します。これらは Phase 7 のサマリや再レビュー依頼コメントの「サイクル状態」ブロックに記録されます。
 
 ### Reject 返信ルール

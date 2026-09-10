@@ -468,3 +468,16 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
   - 解消（#264）: thread が 100 件を超える PR でも、review-raven の取得結果と thread-owl の cursor 巡回実装を確認し、全件取得を検証済み。
   - queue の `notifications/resources/updated` を、この client がネイティブに受け取れるのか（本 Run では resource read のみ確認し、購読は未検証）。
   - `pull_request_read` の `minimal_output` は server instructions にのみ現れ schema に無い。server バージョン差か instructions の誤りかを次回切り分ける。
+### Run 2 後の追加実測: write route の投稿 identity（#267）
+
+2026-09-10 に、reviewed-side の R-10 / R-14 / R-19 が使う `{GH}` の write route を実測した。実装対象とは分離された merged PR #273 へ、GitHub connector の issue-comment write を一件だけ投稿し、返却された comment ID を使って PR 上の REST metadata を再取得した。
+
+| route / identity source | 実測結果 | 分類 |
+|---|---|---|
+| `{GH}` GitHub connector の issue-comment write | `mcp__codex_apps__github_add_comment_to_issue` が comment ID `5613370593` を返却。PR #273 の metadata は `author.login = scottlz0310-user`、`author_association = MEMBER`、URL は `https://github.com/scottlz0310/Mcp-Docker/pull/273#issuecomment-5613370593` | observed |
+| `{GH}` の identity read | `mcp__codex_apps__github_get_user_login` が `scottlz0310-user` を返却。review-raven の `diagnose_github_token` も同じ login を返却した（token 値は記録しない） | observed |
+| `gh` CLI の identity read | `gh api user` は `scottlz0310-user` を返却したが、今回 `gh pr comment` の write は実行していない | identity read は observed、write identity は未観測 |
+| Run 2 の `/mcp/github` route | GitHub App installation token であり `get_me` が 403 になった事実はあるが、write の PR 表示 identity は今回も直接測定していない | write identity は inferred のまま |
+| Run 2 の `/mcp/review-raven` route | `diagnose_github_token` で `scottlz0310-user` を確認したが、write の PR 表示 identity は Run 2 では測定していない | write identity は inferred のまま |
+
+この結果から、write identity は route / server instance / 認証経路ごとに変わり得るため、`get_me`、token 種別、過去の別 route の login から推測しない。R-00 で write binding を一意に固定し、identity が未観測の route は明示的に許可された probe comment の ID と PR 上の `author.login` を紐付けてから使用する。write 試行後に `gh`、別 MCP server、別認証へ切り替えると identity drift と重複投稿を招くため、失敗時は停止して報告する。
