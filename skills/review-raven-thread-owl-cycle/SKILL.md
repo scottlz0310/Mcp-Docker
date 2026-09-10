@@ -36,17 +36,39 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | `review-raven` | PR レビュースレッドの取得・返信・解決 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
 | `thread-owl` | review queue への登録（`enqueue_review`。`--mcp-http` 運用時のみ使用） | [README.ja.md](https://github.com/scottlz0310/thread-owl/blob/main/README.ja.md) |
 
-> このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。MCP ツールが利用不可能な場合のフォールバックとして `gh` CLI（GraphQL/REST API）を使用します。
+> このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。`gh` CLI は、論理 alias の discovery と read 検証が成功した後に、各手順で明記された read-only の補完経路としてのみ使用します。discovery に失敗した場合、`gh` CLI を別の write 経路として使いません。
 >
 > `thread-owl` は再レビュー依頼を review queue へ登録するためだけに使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
 
-### プレースホルダーの読み替え
+### 論理 alias
 
-| プレースホルダー | 役割 | 例 |
-|----------------|------|-----|
-| `{GH}` | `github` サーバーツール | `mcp__github__*` |
-| `{RAVEN}` | `review-raven` サーバーツール | `mcp__review-raven__*` |
-| `{OWL}` | `thread-owl` サーバーツール | `mcp__thread-owl__*` |
+| alias | 役割 |
+|-------|------|
+| `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作 |
+| `{RAVEN}` | review-raven のレビュー thread 読み取り・返信・resolve |
+| `{OWL}` | thread-owl の queue 読み取り・再レビュー enqueue |
+
+### R-00: 論理 alias の discovery と固定
+
+`{GH}` / `{RAVEN}` / `{OWL}` は論理 alias であり、MCP client が割り当てた server 名・tool 名・namespace を skill 本文に書かない。各 alias の実体は、対象 PR と起動モードが確定した時点で、実行中の client の discovery 結果から解決する。
+
+1. client-native の server / tool / resource discovery を実行し、候補ごとに server の識別情報、transport / route、tool または resource の opaque handle、input / output schema を記録する。server 一覧の `Connected` 表示や tool 名の存在だけでは、利用可能と判定しない。
+2. 候補は文字列の prefix / namespace ではなく、論理 alias に必要な capability と schema で分類する。method 引数で操作を切り替える tool と操作ごとに分かれた tool は、schema が契約を満たす限り同じ論理候補として扱う。
+3. 選択規則は次のとおりとする。
+   - host / client の設定で alias に明示的な server binding が指定されている場合は、それを優先する。
+   - 明示指定がない場合は、必要な capability・input schema・minimum output schema を満たす候補が一つだけのときに限り採用する。同一 server 内の操作別 tool は、その server binding に属する操作候補として扱う。
+   - 複数の server / route が残る場合、discovery 順や表示名だけで選ばず、`BLOCKED_MCP_DISCOVERY` として停止する。異なる認証経路を自動的に試してはならない。
+4. 採用した各 binding について、write ではない最小の read を **1 回成功** させる。成功とは transport が応答しただけでなく、tool error がなく、論理契約の minimum output schema を満たすことをいう。server 一覧、schema の取得、resource の存在確認だけでは read 成功とみなさない。`{RAVEN}` の read が review本文を返す場合は、必須コメント投稿者ゲートの metadata-only 検査を先に完了してから read 検証を行い、その検証が成功するまで R-00 を完了扱いにしない。
+5. alias から選択済み binding への対応表と、各論理操作に使う tool / resource handle をこの run の状態として固定する。以後は同じ binding を使い、途中の再 discovery、候補の切り替え、失敗した write の別経路への迂回を行わない。後続の transport failure は新しい候補を探す理由にせず、停止・報告する。
+
+候補を解決できない、未接続、schema 不一致、read 検証失敗、または複数候補を一意に選べない場合は、次の状態で停止する。
+
+```text
+termination_status = BLOCKED_MCP_DISCOVERY
+status = blocked
+```
+
+この場合は、対象 PR（確定済みの場合）、logical alias、必要 capability、候補数、失敗分類（unresolved / not connected / schema mismatch / read failed / ambiguous）、read 検証の結果、`writes performed: 0`、再実行に必要な設定変更を報告する。token・Authorization header・秘密情報は報告しない。`gh` CLI、別の MCP candidate、別の write 経路へ進まず、Phase 3 以降の変更・返信・resolve・コメント投稿・enqueue を実行しない。
 
 ---
 
@@ -162,14 +184,16 @@ PR 由来のコメントは、GitHub の `author.login` がこのゲートを通
 ## Phase 0: エントリー・サイクルカウント復元
 
 1. `owner`、`repo`、`pr` を確定する。
-2. `max_cycles = 3` を設定する。**この値は固定であり、エージェントは変更できない**（「`max_cycles` の扱い」節を参照）。人から明示的に延長を指示された場合に限り、指示された値を使用する。
-3. 必須コメント投稿者ゲートを実行する。いずれかの人間エスカレーション状態になった場合は停止する。
-4. `cycles_done` と `handled_comments`（処理済みの非スレッドコメントID）を信頼済みの PR コメント履歴から復元する:
+2. R-00 の discovery を実行し、当該 run で必要な `{GH}` / `{RAVEN}` / `{OWL}` の binding を確定する。queue 起点で PR が未確定の場合は、まず `{OWL}` の resource read で candidate を取得してから、対象 PR に必要な残りの binding を確定する。本文を返す `{RAVEN}` の read 検証は、必須コメント投稿者ゲート後まで保留する。
+3. `max_cycles = 3` を設定する。**この値は固定であり、エージェントは変更できない**（「`max_cycles` の扱い」節を参照）。人から明示的に延長を指示された場合に限り、指示された値を使用する。
+4. 必須コメント投稿者ゲートを実行する。いずれかの人間エスカレーション状態になった場合は停止する。
+5. `cycles_done` と `handled_comments`（処理済みの非スレッドコメントID）を信頼済みの PR コメント履歴から復元する:
    - PR の issue comment を検索し、`### サイクル状態` ブロックを含む最新のコメントを見つける（「サイクル状態ブロック」節を参照）。見つからない場合は旧アノテーション `<!-- review-raven: ... -->` を探す。
    - `cycles_done`: 見つかった場合 `N + 1`、見つからない場合 `0`。
    - `handled_comments`: ブロックに列挙されている ID 群を記録してセット（既処理リスト）を作成する。`なし` または見つからない場合は空。
-   - `max_cycles`: 復元した値で**上書きしない**。ステップ 2 の固定値を使う。記録された値と食い違う場合は、過去に人の指示で延長された履歴か、規約違反の書き込みである。**どちらであってもエージェントの判断で追随してはならない**ため、食い違いを報告したうえで固定値のまま続行する。
-5. Phase U2 へ進む。
+   - `max_cycles`: 復元した値で**上書きしない**。ステップ 3 の固定値を使う。記録された値と食い違う場合は、過去に人の指示で延長された履歴か、規約違反の書き込みである。**どちらであってもエージェントの判断で追随してはならない**ため、食い違いを報告したうえで固定値のまま続行する。
+6. R-00 で保留した read 検証を実行する。失敗した場合は `BLOCKED_MCP_DISCOVERY` として停止し、本文取得・変更・返信・resolve・コメント投稿・enqueue を行わない。
+7. Phase U2 へ進む。
 
 ## Phase U2: レビュー指摘の収集
 
@@ -181,7 +205,7 @@ PR 由来のコメントは、GitHub の `author.login` がこのゲートを通
 - `repo`: `<repo>`
 - `pr`: `<pr>`
 
-**フォールバック (gh CLI)**: MCP ツールが使用できない場合は、GraphQL を用いて `gh` CLI で全レビュースレッドを取得します。
+**read-only 補完 (gh CLI)**: R-00 の binding と read 検証が成功しており、MCP の read 呼び出しを補完する必要がある場合に限り、GraphQL を用いて `gh` CLI で全レビュースレッドを取得します。
 ```bash
 gh api graphql -f query='
   query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
@@ -301,7 +325,7 @@ gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate --jq '.[] | {id: .id
 
 ※返信のみを行う場合は `{RAVEN}:reply_to_review_thread` を、解決のみを行う場合は `{RAVEN}:resolve_review_thread` を個別に使用してもよい。
 
-**フォールバック (gh CLI)**: MCP ツールが使用できない場合は、以下を実行します。
+**補完経路 (gh CLI)**: R-00 の discovery が成功している場合に限り、以下を実行します。discovery 失敗、未接続、schema 不一致、read 検証失敗からこの経路へ切り替えてはなりません。
 - **返信**: `{GH}:add_reply_to_pull_request_comment` を使用します。
   - `owner`, `repo`, `pull_number`: Phase 0 で確定した値
   - `comment_id`: Phase U2 で取得したルートコメントの `databaseId`

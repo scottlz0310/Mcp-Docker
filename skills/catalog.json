@@ -1,10 +1,10 @@
 {
   "skills": {
     "review-raven-thread-owl-cycle": {
-      "revision": 3
+      "revision": 4
     },
     "thread-owl-pr-reviewer": {
-      "revision": 1
+      "revision": 2
     }
   }
 }
