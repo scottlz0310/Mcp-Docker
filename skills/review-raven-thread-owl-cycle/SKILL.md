@@ -32,7 +32,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 | サーバー | 役割 | 参照 |
 |---------|------|------|
-| `github` | PR コメント投稿・Issue 作成 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
+| `github` | PR / Issue の読み取り・コメント投稿・Issue 作成、check runs の読み取り | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
 | `review-raven` | PR レビュースレッドの取得・返信・解決 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
 | `thread-owl` | review queue への登録（`enqueue_review`。`--mcp-http` 運用時のみ使用） | [README.ja.md](https://github.com/scottlz0310/thread-owl/blob/main/README.ja.md) |
 
@@ -44,7 +44,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 | alias | 役割 |
 |-------|------|
-| `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作 |
+| `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作、check runs 読み取り |
 | `{RAVEN}` | review-raven のレビュー thread 読み取り・返信・resolve |
 | `{OWL}` | thread-owl の queue 読み取り・再レビュー enqueue |
 
@@ -471,13 +471,12 @@ enqueue は「レビュー対象として queue に載せる」操作であり�
 
 ## Phase 6.5: CI 確認
 
-1. `gh pr checks <PR番号>` を実行する。
-2. 全ジョブ SUCCESS → Phase 6.6 へ。
-3. 失敗ジョブあり: `gh run view <run-id> --log-failed` でログを確認する。
-   - 修正可能 → Phase 4 へ戻る。
-   - 修正困難 → ユーザーに報告して停止。
+R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分けて実行する。
 
-`gh` が利用不可な場合は `{GH}` / GitHub MCP server で確認する。どちらでも確認できない場合は `CI: unknown` を報告して停止する。
+1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に `{GH}:get_check_runs` を PR 番号で **1 call** 実行する。`get_check_runs` は SHA を受け取らないため、返却された各 check run の `head_sha` / `sha`（または同等の対象 SHA）が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+2. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却、または `queued` / `in_progress` / `pending` の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
+3. **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` としてユーザーに報告し、修正可能なら Phase 4、修正困難なら停止する。
+4. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
 
 ## Phase 6.6: カバレッジ確認
 
@@ -597,7 +596,8 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 | `{GH}:add_issue_comment` | PR サマリ・再レビュー依頼コメント投稿 | 共通 |
 | `{OWL}:enqueue_review` | 再レビューを review queue へ登録（`--mcp-http` では**必須**、`--webhook-mcp-http` では**使用しない**。フォールバックなし） | 共通 |
 | `{GH}:create_issue` | フォローアップトラッキング Issue を作成 | 共通 |
-| `gh pr checks` | CI確認 | 共通 |
+| `{GH}:get_check_runs` | PR 番号で check runs を取得し、current head SHA に対する CI を判定 | **第一選択** |
+| `gh run view <run-id> --log-failed` | MCP に workflow run / job / log capability がない client で失敗ログを取得 | **失敗ログのフォールバック** |
 
 ---
 

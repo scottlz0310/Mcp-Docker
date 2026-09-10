@@ -43,6 +43,10 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 
 Thread Owl は `REQUEST_CHANGES`、resolve、unresolve、merge を提供しない。`request changes` は verdict と blocking comment で表現し、未実装操作を代替経路で送らない。
 
+### CI read capability
+
+`get_check_runs` は client 固有の tool 名ではなく、PR 番号を入力として check run ごとの `status`、`conclusion`、対象 SHA（`head_sha` / `sha` または同等のフィールド）を返す論理 read capability として扱う。利用可能な client-native capability は schema で discovery し、候補が一つの場合だけこの run に binding する。候補が無い、複数候補を一意に選べない、または対象 SHA を返さない場合は `CI: unknown` とし、combined status や write 経路で代替しない。失敗ログ用の workflow run / job / log capability は任意の補助 capability であり、client ごとに有無が異なる。
+
 ### O-00: `{OWL}` の discovery と固定
 
 `{OWL}` の候補は、tool / resource の表示名や client 固有の namespace の文字列一致ではなく、Thread Owl の logical capability と input / output schema で判定する。候補の識別単位は server instance / route と opaque handle の組み合わせであり、同名の tool が別 route に存在しても一つにまとめない。
@@ -145,10 +149,11 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 （生成物などの untracked file は許容するが、tracked file の変更は厳禁とする）
 
 ### 4. CI 検証の SHA 固定
-- CI の成否確認は、ブランチの最新状態ではなく `reviewedHeadSha` に紐づく workflow run または combined status を確認する。
+- **状態集約**: CI 判定の直前に固定済み `{OWL}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に check-runs read capability の `get_check_runs` を PR 番号で **1 call** 実行する。`get_check_runs` は SHA を受け取らないため、返却された各 check run の `head_sha` / `sha`（または同等の対象 SHA）が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+- `CI: success` は、`reviewedHeadSha` に対するすべての required checks が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却、または `queued` / `in_progress` / `pending` の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
+- **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` として記録し、Verdict / APPROVE を投稿せず停止する。
 - 最終的な verdict（判定）の根拠とした CI の対象 SHA を確認・記録する。
-- `CI: success` は、すべての required checks が `reviewedHeadSha` に対して成功している場合のみ適用する。SHA を特定・保証できない場合は `CI: unknown` とする。
-- APPROVE 投稿の直前に、PR HEAD SHA と CI 対象 SHA の両方が `reviewedHeadSha` と一致していることを再確認する。
+- **HEAD 移動時の再確認**: 検証結果の採用または APPROVE 投稿の直前に、`{OWL}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して `get_check_runs` を再実行する。再取得または SHA 照合ができない場合は `CI: unknown` とし、Verdict / APPROVE を停止する。
 
 ### 5. 再レビュー依頼の期待 HEAD 照合
 - candidate queue などの再レビュー依頼に `expected_head` が含まれる場合、開始時に `candidate.expected_head` と、固定済み `{OWL}` binding の `get_pr(...).pr.head.sha` を比較する。
@@ -166,7 +171,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 1. PR の owner、repo、番号、title、description、base/head、head SHA を確認する。
 2. diff、変更ファイル、関連実装、テスト差分を読む。
-3. CI、failed/skipped checks、packaging、docs、release への影響を確認する。確認経路がなければ `CI: unknown` と記録する。
+3. CI は Snapshot Guard の check-runs 契約（current head SHA を先に固定し、`get_check_runs` の対象 SHA を照合する）で確認する。failed/skipped checks、packaging、docs、release への影響も確認し、確認経路がなければ `CI: unknown` と記録する。
 4. 既存レビューを参照せず、独立した懸念候補を作る。
 5. 次の非主要パスを横断確認する。
    - 空、null、不正値、境界値、巨大入力、重複入力

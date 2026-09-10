@@ -280,7 +280,6 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 | 優先度 | 候補 | 所管 | 根拠 |
 |---|---|---|---|
 | 高 | 本文なしの review thread / review body / issue comment metadata projection | review-raven または GitHub connector | R-01、R-18a。prompt injection 防御の前提であり、review-raven#124 が既存の切り出し先 |
-| 中 | reviewedHeadSha をキーに required checks、workflow runs、failed/skipped、job logs をまとめる read tool | GitHub connector 側 | R-16、O-06。C の往復コストを下げる |
 | 中 | queue subscribe/read の native client tool | host / subscriber 側 | O-00。ただし architecture 上、Thread Owl に subscriber を内蔵しない |
 | 低 | review-raven の全 review body / issue comment を含む取得結果のページ境界・projection の明示 | review-raven / GitHub connector | R-04、R-05。モデル間の再現差を減らす |
 
@@ -289,7 +288,7 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 現在の skill 本文は、review thread の取得・返信・resolveを MCP 第一選択として記述している。したがって、gh が使われた事実だけを理由に skill 本体を直すのは不十分である。
 
 - B は MCP の API 契約を改善する問題であり、review-raven#124 に委ねる。
-- C は一括取得の速度・粒度の問題であり、CI 集約 tool の設計論点として扱う。
+- R-16 / O-06 の状態集約は、公式 GitHub MCP Server の `get_check_runs` で 1 call に収束するため、CI 集約 read tool の改善候補は取り下げる。失敗ログ取得は client に workflow run / job / log capability があるかで分岐し、無ければ `gh run view --log-failed` を使う。
 - D は command log がないため今回の事実とは断定せず、次回 Run で「単独操作だったか」「一括実行だったか」を記録する。
 - A はローカル環境の責務であり、MCP 化しない。
 
