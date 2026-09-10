@@ -229,7 +229,7 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 | 対象 | #258 で固定すべき再設計要件 | 現行実装との接続 |
 |---|---|---|
 | 2つの skill | entry / phase / termination の状態機械、論理 alias の解決、read-before-write、失敗時の fail-closed、固定された最終報告 schema、skill revision の記録 | R-00〜R-21 / O-00〜O-21。実際の tool 名はクライアント依存なので Run ごとに snapshot する |
-| review-raven | 本文なしの投稿者・thread metadata projection、全本文取得との明確な境界、ページネーション、安定した thread/comment ID、reply→resolve の順序と partial failure、認証・GitHub エラーの分類 | `get_review_threads` は現在本文を返す。本文なし経路は review-raven#124 で追跡する |
+| review-raven | 本文なしの投稿者・thread metadata projection、全本文取得との明確な境界、ページネーション、安定した thread/comment ID、reply→resolve の順序と partial failure、認証・GitHub エラーの分類 | `get_review_threads(include_bodies=false)` の metadata-only 経路は review-raven#124（PR #126）で完了。Mcp-Docker の reviewed-side skill からの利用は #278 で追従する |
 | thread-owl | PR snapshot と reviewed head SHA、差分・thread のページ境界、inline/summary/reply/approve の write guard、allowlist、冪等性、queue candidate の reason・dedup・通知・再取得契約 | `get_pr` / `list_review_threads` / `post_*` / `reply_review_thread` / `approve_pull_request` / `enqueue_review` の schema を基準にする |
 | mcp-resource-subscriber | `subscribe` と `call` の JSON schema、stdout/stderr、exit code、timeout/cancel/reconnect、通知の重複・切断・pre-completion、auth/token store、protocol revision の固定 | v0.6.1 は `--json` と `call` を持ち、`2026-07-28` に pin している。mcp-resource-subscriber#86 は JSON の基礎部分を完了済み |
 | MCP client / gateway | server discovery、tool/resource の可視性、namespace mapping、認証ヘッダー、protocol/version、long-lived stream の透過性をクライアント別に記録する | `review-raven` / `thread-owl` は gateway 経由の HTTP と stdio で挙動が異なる。Thread Owl の #165/#176、mcp-gateway#216 と接続する |
@@ -279,7 +279,7 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 
 | 優先度 | 候補 | 所管 | 根拠 |
 |---|---|---|---|
-| 高 | 本文なしの review thread / review body / issue comment metadata projection | review-raven または GitHub connector | R-01、R-18a。prompt injection 防御の前提であり、review-raven#124 が既存の切り出し先 |
+| 高 | 本文なしの review thread / review body / issue comment metadata projection | review-raven または GitHub connector | R-01、R-18a。review thread は review-raven#124（PR #126）で `include_bodies=false` を実装済み。review body / issue comment と skill の利用追従は各所管で継続 |
 | 中 | queue subscribe/read の native client tool | host / subscriber 側 | O-00。ただし architecture 上、Thread Owl に subscriber を内蔵しない |
 | 低 | review-raven の全 review body / issue comment を含む取得結果のページ境界（correctness ではなく透明性）・projection の明示 | review-raven / GitHub connector | R-04、R-05、#264。モデル間の再現差を減らす |
 
@@ -496,3 +496,16 @@ Issue #250 の対応として、プロジェクト固有の CI/CD 通知 bot を
 | 信頼境界 | 設定ファイルを protected base branch へ取り込む変更をリポジトリ管理者がレビューする。wildcard、正規表現、所属、`author_association`、App 権限の暗黙判定は使わない |
 
 `cloudflare-workers-and-pages` は skill 本体の base allowlist から削除した。Mcp-Docker 自身では該当するプロジェクト固有 bot を利用していないため、追加設定ファイルは作成していない。Cloudflare Pages 等を利用する対象リポジトリが必要に応じて base branch 側へ設定を追加する。
+
+### #278 実装追従: review-raven metadata-only projection
+
+review-raven #124 の実装（PR #126、merge `68c261b`、v0.4.0）を受け、Mcp-Docker の `review-raven-thread-owl-cycle` で次の経路を固定した。Run 1 / Run 2 の「当時 metadata-only projection が存在しない」という観測は変更せず、現在の実装契約だけを追記する。
+
+| 対象 | 現行契約 |
+|---|---|
+| R-00 / R-01 の review thread metadata | `{RAVEN}:get_review_threads` に `include_bodies=false` を明示し、`commentId`、`author`、`authorType`、`url`、`isResolved`、thread ID、`pagination.complete` を検証する |
+| 本文の境界 | metadata-only の request / response / log に `body` を含めず、投稿者ゲート成功後にだけ `include_bodies=true` で R-03 の本文取得を行う |
+| 失敗時 | schema 不一致は `BLOCKED_MCP_DISCOVERY`、投稿者 metadata の欠落・null、取得失敗、部分応答、ページネーション未完了は `HUMAN_ESCALATION_AUTHOR_CHECK_FAILED` として fail-closed に停止する |
+| 残る metadata source | review body / PR issue comment は `{GH}` の metadata-only projection を使う。review-raven の projection でこれらを代用しない |
+
+実装根拠は [review-raven PR #126](https://github.com/scottlz0310/review-raven/pull/126) と [Mcp-Docker #278](https://github.com/scottlz0310/Mcp-Docker/issues/278) であり、この追従自体の実測 run はまだ行っていない。
