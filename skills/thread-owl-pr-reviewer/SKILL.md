@@ -28,20 +28,40 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 
 ## Thread Owl 契約
 
-利用可能なら Thread Owl MCP を読み取り・投稿の第一候補にする。未ロードなら tool discovery で `thread-owl` の tools と resources を検索する。
+Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果から解決して読み取り・投稿の第一候補にする。skill 本文に client 固有の server 名・tool 名・namespace を書かず、未ロードなら client-native の tool / resource discovery を行う。
 
 | 操作 | 契約 |
 | --- | --- |
-| `get_pr` | `owner`、`repo`、`prNumber` から `pr` と `files` を返す。`pr.head.sha`、`pr.base.sha`、各 file の `patch` を記録する |
-| `list_review_threads` | resolved / outdated 状態とコメントを含む review thread 一覧を返す |
-| `post_inline_comment` | `commitId`、`path`、`line`、`body` を指定して current diff に投稿する |
-| `reply_review_thread` | `threadId` へ返信する。thread の所属 repository は server 側でも allowlist 照合される |
-| `post_summary_comment` | PR conversation に issue comment として summary を投稿する。blocking 0件・全 review thread resolved 時の Verdict コメント投稿にも使う（「Verdict コメント投稿」節参照） |
-| `approve_pull_request` | `expectedHeadSha` と現在の head が一致する場合だけ APPROVE review を送る |
+| `{OWL}:get_pr` | `owner`、`repo`、`prNumber` から `pr` と `files` を返す。`pr.head.sha`、`pr.base.sha`、各 file の `patch` を記録する |
+| `{OWL}:list_review_threads` | resolved / outdated 状態とコメントを含む review thread 一覧を返す |
+| `{OWL}:post_inline_comment` | `commitId`、`path`、`line`、`body` を指定して current diff に投稿する |
+| `{OWL}:reply_review_thread` | `threadId` へ返信する。thread の所属 repository は server 側でも allowlist 照合される |
+| `{OWL}:post_summary_comment` | PR conversation に issue comment として summary を投稿する。blocking 0件・全 review thread resolved 時の Verdict コメント投稿にも使う（「Verdict コメント投稿」節参照） |
+| `{OWL}:approve_pull_request` | `expectedHeadSha` と現在の head が一致する場合だけ APPROVE review を送る |
 
-`get_pr` は CI status、check logs、通常の issue comment 全文を返さない。必要な読み取りだけ GitHub connector または `gh` で補う。Thread Owl で提供されない書き込みを別経路へ迂回しない。
+`{OWL}:get_pr` は CI status、check logs、通常の issue comment 全文を返さない。必要な read-only の補完だけ GitHub connector または `gh` で行う。Thread Owl で提供されない書き込みを別経路へ迂回しない。
 
 Thread Owl は `REQUEST_CHANGES`、resolve、unresolve、merge を提供しない。`request changes` は verdict と blocking comment で表現し、未実装操作を代替経路で送らない。
+
+### O-00: `{OWL}` の discovery と固定
+
+`{OWL}` の候補は、tool / resource の表示名や client 固有の namespace の文字列一致ではなく、Thread Owl の logical capability と input / output schema で判定する。候補の識別単位は server instance / route と opaque handle の組み合わせであり、同名の tool が別 route に存在しても一つにまとめない。
+
+1. PR URL 起点では `owner`、`repo`、`prNumber` を確定してから候補を列挙する。queue 起点では、まず review queue resource を discovery し、resource read で candidate の `owner`、`repo`、`prNumber`、`reason` を取得する。
+2. host / client の設定に `{OWL}` の明示 binding があれば優先する。それがなければ、必要な read / write capability と schema を満たす候補が一つだけの場合に限り採用する。複数候補が残った場合は discovery 順や表示名だけで選ばず、`BLOCKED_MCP_DISCOVERY` として停止する。
+3. 採用候補で、PR URL 起点なら `{OWL}:get_pr`、queue 起点なら queue resource read と `{OWL}:get_pr` のうち対象を確認できる最小 read を **1 回成功** させる。成功とは tool / resource error がなく、PR identity・head SHA などの minimum output schema を満たすことをいう。server 一覧、`Connected` 表示、schema 取得だけでは成功とみなさない。
+4. `{OWL}` から選択済み server / route / handle への binding を run の状態に固定し、以後の全 read / write で同じ binding を使う。後続の接続失敗、schema 不一致、allowlist 拒否を別 candidate や GitHub connector / `gh` の write に切り替える理由にしてはならない。
+
+候補を解決できない、未接続、schema 不一致、read 検証失敗、または複数候補を一意に選べない場合は、次の状態で停止する。
+
+```text
+termination_status = BLOCKED_MCP_DISCOVERY
+status = blocked
+```
+
+対象 PR（確定済みの場合）、logical alias `{OWL}`、必要 capability、候補数、失敗分類（unresolved / not connected / schema mismatch / read failed / ambiguous）、read 検証結果、`writes performed: 0`、再実行に必要な設定変更を報告する。token・Authorization header・秘密情報は報告しない。別の MCP candidate、GitHub connector、`gh` write 経路へ進まず、レビューコメント・Verdict・APPROVEを投稿しない。
+
+この binding は initial review、re-review、thread follow-up、summary-only の全モードで共通に使用する。再 discovery による途中の候補切り替えは禁止する。
 
 ## Queue 契約
 
@@ -70,6 +90,8 @@ bunx mcp-resource-subscriber `
 
 依頼から次のモードを選ぶ。PR URL だけでレビューを依頼された場合は `initial-review` とする。
 
+モードを決めた直後、queue 待機またはレビュー本文の取得に入る前に O-00 を実行する。`{OWL}` の binding と read 検証が成功するまで、Independent Stage、Filter Stage、各種コメント投稿、Verdict、APPROVEへ進まない。
+
 ### `initial-review`
 
 PR 全体を初回レビューする。queue candidate の `reason` が `opened` または通常の `synchronized` の場合も使う。
@@ -90,7 +112,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 ### 1. Remote Snapshot の原則
 - レビュアーは現在のローカル作業ツリーをレビュー対象として信頼してはならない。GitHub から取得した PR HEAD SHA（`reviewedHeadSha`）を唯一のレビュー対象として固定する。
-- PR metadata / diff / 変更ファイルは `get_pr` を第一候補にする。
+- PR metadata / diff / 変更ファイルは `{OWL}:get_pr` を第一候補にする。
 - GitHub connector や `gh` で補完する場合も、必ず `reviewedHeadSha` を明示して取得する。branch 名だけを指定した読み取りは禁止する（レビュー中に branch が更新されて内容が変化し得るため、commit SHA を使用する）。
 
 ### 2. ローカル検証時の Repository State Guard
@@ -129,14 +151,11 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 - APPROVE 投稿の直前に、PR HEAD SHA と CI 対象 SHA の両方が `reviewedHeadSha` と一致していることを再確認する。
 
 ### 5. 再レビュー依頼の期待 HEAD 照合
-- candidate queue などの再レビュー依頼に `expected_head` が含まれる場合、開始時に以下を照合する。
-  ```text
-  candidate.expected_head == get_pr().pr.head.sha
-  ```
+- candidate queue などの再レビュー依頼に `expected_head` が含まれる場合、開始時に `candidate.expected_head` と、固定済み `{OWL}` binding の `get_pr(...).pr.head.sha` を比較する。
 - 不一致の場合は古い再レビュー依頼とみなし、そのまま APPROVE せず、最新の HEAD を新しいレビュー対象としてレビューをやり直すか、明示的に処理を停止する。
 
 ### 6. 既存 Snapshot Guard の維持
-- `post_inline_comment.commitId` と `approve_pull_request.expectedHeadSha` には、最終確認済みの同じ head SHA (`reviewedHeadSha`) を使う。
+- `{OWL}:post_inline_comment.commitId` と `{OWL}:approve_pull_request.expectedHeadSha` には、最終確認済みの同じ head SHA (`reviewedHeadSha`) を使う。
 - inline の `path` と `line` が current diff 上の投稿可能な位置であることを確認する。確実でなければ PR-level summary にする。
 
 ## Initial Review
@@ -163,7 +182,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 ### 2. Filter Stage
 
-1. `list_review_threads` と必要な GitHub 読み取り経路で、既存 review、thread、実装者返信を初めて読む。
+1. `{OWL}:list_review_threads` と必要な GitHub 読み取り経路で、既存 review、thread、実装者返信を初めて読む。
 2. 既存レビューが扱った行、条件、リスク種別、edge case、修正方針を整理する。
 3. Independent Stage の候補から次を削除する。
    - 同じ条件、結論、修正方針を繰り返すもの
@@ -231,8 +250,8 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 
 **振る舞い**
 
-- `approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
-- 代わりに `post_summary_comment` でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
+- `{OWL}:approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
+- 代わりに `{OWL}:post_summary_comment` でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
 - **reviewed-side 連携の必須要件**: reviewed-side workflow（`review-raven`）は `## @thread-owl Review Verdict: APPROVED`、`Reviewed HEAD SHA`、`Status: READY_TO_MERGE` を機械的に検出してマージゲートを判定する。そのため、**見出し行および末尾のメタデータ行の形式・文言は変更せず、その間にレビューサマリーを記述する**こと。
 
 ```markdown
@@ -259,7 +278,7 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 
 ### APPROVE 投稿とマージ判断について
 
-`approve_pull_request` はユーザーが明示的に APPROVE 投稿を依頼した場合だけ実行する。実行直前に `get_pr` で head SHA と CI を再確認する。CI が unknown、blocking が残る、または head が変わった場合は実行しない。
+`{OWL}:approve_pull_request` はユーザーが明示的に APPROVE 投稿を依頼した場合だけ実行する。実行直前に `{OWL}:get_pr` で head SHA と CI を再確認する。CI が unknown、blocking が残る、または head が変わった場合は実行しない。
 
 安全性の観点（自動マージや自動デプロイがトリガーされるリスク等）から、明示的な許可（指示）がない限り、自律的に `APPROVE` を送信してはならない。
 
@@ -281,7 +300,7 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 | unresolved | resolved in code | 元 thread へ簡潔に返信する。thread 自体は resolve しない |
 | unresolved | partially resolved / not resolved / needs clarification | 元 thread へ残存再現条件を具体的に返信する |
 | resolved / outdated | resolved in code | 新規コメントを投稿しない。必要なら PR summary のみで解消を報告する |
-| resolved / outdated | partially resolved / not resolved / needs clarification | current diff 上の関連行へ `post_inline_comment` で新規 unresolved thread を作る |
+| resolved / outdated | partially resolved / not resolved / needs clarification | current diff 上の関連行へ `{OWL}:post_inline_comment` で新規 unresolved thread を作る |
 
 新規 inline comment には、以前の指摘の継続であることと、現 head に残る具体的な再現条件を記載する。元 thread への重複返信は行わない。
 
@@ -300,8 +319,8 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 4. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` を判断する。
 5. 新しい独立論点を同じ thread に混ぜない。
 6. Re-review の投稿経路表と同じルールを適用する。
-   - thread が unresolved なら `reply_review_thread` で返信する。resolve は行わない。
-   - thread が resolved / outdated で問題が残るなら、current diff 上の関連行へ `post_inline_comment` で新規 thread を作る。元 thread への返信は行わない。
+   - thread が unresolved なら `{OWL}:reply_review_thread` で返信する。resolve は行わない。
+   - thread が resolved / outdated で問題が残るなら、current diff 上の関連行へ `{OWL}:post_inline_comment` で新規 thread を作る。元 thread への返信は行わない。
    - current diff 上に投稿可能な行がない場合は PR-level summary にする。
 
 ## Verdict
