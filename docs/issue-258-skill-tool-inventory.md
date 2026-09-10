@@ -281,7 +281,7 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 |---|---|---|---|
 | 高 | 本文なしの review thread / review body / issue comment metadata projection | review-raven または GitHub connector | R-01、R-18a。prompt injection 防御の前提であり、review-raven#124 が既存の切り出し先 |
 | 中 | queue subscribe/read の native client tool | host / subscriber 側 | O-00。ただし architecture 上、Thread Owl に subscriber を内蔵しない |
-| 低 | review-raven の全 review body / issue comment を含む取得結果のページ境界・projection の明示 | review-raven / GitHub connector | R-04、R-05。モデル間の再現差を減らす |
+| 低 | review-raven の全 review body / issue comment を含む取得結果のページ境界（correctness ではなく透明性）・projection の明示 | review-raven / GitHub connector | R-04、R-05、#264。モデル間の再現差を減らす |
 
 ## スキル記述と実運用の差分
 
@@ -432,6 +432,12 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
 
 再設計スコープの「ページ境界」要件は、GitHub connector 側では満たされ、自作 2 server では未達である。thread が多い PR で thread-owl / review-raven を第一選択にすると、取りこぼしを検出できない。
 
+#### 3-a. #264 の検証結果
+
+#264 の前提を、thread 数が多い外部 OSS の PR と server 実装の両方で検証した。`home-assistant/core#169872`（280 thread）では、review-raven の `summary.total` と取得配列がともに 280 で一致した。thread-owl も `src/github/graphql.ts` で thread と thread 内 comment の cursor を `while` ループで最後まで巡回し、上限・早期 `break`・`slice` による打ち切りがないことを確認した。
+
+したがって、現行 server の `pageInfo` 不在は thread の欠落を引き起こす correctness の問題ではなく、呼び出し側から全件取得の証跡を確認できない透明性の問題である。skill に件数照合による停止条件は追加せず、将来 `pageInfo` が提供された場合は cursor の完了確認に利用する。#264 は実装不要としてクローズ済みであり、page boundary の API 改善は低優先度で追跡する。
+
 #### 4. Run 1 の registry に無かった review-raven tool
 
 本環境の review-raven は `get_pr_review_cycle_status`、`diagnose_github_token`、Copilot watch 系（`start_copilot_review_watch` 等）も公開している。`get_pr_review_cycle_status` は reviewed-side のサイクル判定（WAIT / REPLY_RESOLVE / REQUEST_REREVIEW / READY_TO_MERGE / ESCALATE）を返すが、現行の review-raven-thread-owl-cycle skill の R-xx 行はこの tool を使っていない。Copilot watch 系は #256 で廃止した `pr-review-cycle` 向けであり、本 skill の対象外である。
@@ -449,7 +455,7 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
   - R-01 / R-18a は B のまま。3 経路すべてで本文なし射影が無いことを確認したため、review-raven#124 の必要性は Run 1 より強い証跡で裏付けられた。
 - 新規 MCP tool の必要性:
   - 高: 本文なし metadata projection（review-raven#124）。加えて `[bot]` サフィックス正規化と、`author_association` を信頼判定に使わない旨を受入れ条件へ明記する。
-  - 高: thread-owl / review-raven の thread 一覧への `pageInfo` 追加。取りこぼし検出手段が現状ない。
+  - 低: thread-owl / review-raven の thread 一覧への `pageInfo` 追加。#264 の検証で全件巡回は確認済みであり、correctness ではなく透明性の改善として扱う。
   - 中: 失敗した workflow job の log を返す read tool。本 client の GitHub MCP には存在しない。
   - 取り下げ: 「CI 集約 read tool」は公式 GitHub MCP Server の `get_check_runs` で充足済み。新規実装は不要。
 - skill 本体を変更しない理由または変更候補:
@@ -459,6 +465,6 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
     3. 投稿者ゲートの login 比較は正規化を通す。
 - 次回に再確認する仮説:
   - write 経路（`add_issue_comment` / thread-owl の post 系）が、どの identity で PR に現れるか。本 Run は read-only のため未検証。
-  - thread が 100 件を超える PR で、thread-owl / review-raven が全件を返すのか静かに打ち切るのか。
+  - 解消（#264）: thread が 100 件を超える PR でも、review-raven の取得結果と thread-owl の cursor 巡回実装を確認し、全件取得を検証済み。
   - queue の `notifications/resources/updated` を、この client がネイティブに受け取れるのか（本 Run では resource read のみ確認し、購読は未検証）。
   - `pull_request_read` の `minimal_output` は server instructions にのみ現れ schema に無い。server バージョン差か instructions の誤りかを次回切り分ける。
