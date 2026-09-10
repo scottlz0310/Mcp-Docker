@@ -481,3 +481,18 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
 | Run 2 の `/mcp/review-raven` route | `diagnose_github_token` で `scottlz0310-user` を確認したが、write の PR 表示 identity は Run 2 では測定していない | write identity は inferred のまま |
 
 この結果から、write identity は route / server instance / 認証経路ごとに変わり得るため、`get_me`、token 種別、過去の別 route の login から推測しない。R-00 で write binding を一意に固定し、identity が未観測の route は明示的に許可された probe comment の ID と PR 上の `author.login` を紐付けてから使用する。write 試行後に `gh`、別 MCP server、別認証へ切り替えると identity drift と重複投稿を招くため、失敗時は停止して報告する。
+
+### #250 対応方針の確定: プロジェクト固有 allowlist
+
+Issue #250 の対応として、プロジェクト固有の CI/CD 通知 bot を skill 本体の canonical allowlist から分離する方針を確定した。これは設計判断であり、次のルールを `skills/review-raven-thread-owl-cycle/SKILL.md` に反映した。
+
+| 項目 | 決定 |
+|---|---|
+| 設定ファイル | 対象リポジトリのルートにある `.review-raven/trusted-comment-authors.json` |
+| スキーマ | `version: 1` と文字列配列 `additional_logins` のみ。未知のキー、null、空文字、非文字列、正規化後重複は拒否 |
+| 読み取り対象 | R-00 で固定した PR の base ref SHA 上のファイル。作業ツリー、PR HEAD、PR の変更ファイルは信頼源にしない |
+| 合成規則 | 既存の base allowlist と、`normalize_login` 後の追加 login の union。base 項目を削除・上書きできない |
+| 不在・失敗 | 404 は追加項目なし。読み取り、JSON、schema 検証の失敗は `PROJECT_ALLOWLIST_INVALID` として fail-closed |
+| 信頼境界 | 設定ファイルを protected base branch へ取り込む変更をリポジトリ管理者がレビューする。wildcard、正規表現、所属、`author_association`、App 権限の暗黙判定は使わない |
+
+`cloudflare-workers-and-pages` は skill 本体の base allowlist から削除した。Mcp-Docker 自身では該当するプロジェクト固有 bot を利用していないため、追加設定ファイルは作成していない。Cloudflare Pages 等を利用する対象リポジトリが必要に応じて base branch 側へ設定を追加する。
