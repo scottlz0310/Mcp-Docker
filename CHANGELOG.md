@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - #258 の review-raven-thread-owl-cycle / thread-owl-pr-reviewer について、手順ごとの CLI・MCP ツール・未使用理由・移行可否を再調査できる棚卸しフォーマットを追加
 - 複数 LLM での再実行に向け、skill・review-raven・thread-owl・mcp-resource-subscriber・gateway の実行契約、受入れ条件、E2E・観測性のスコープを文書化
+- #258 の棚卸しに Run 2（Claude Opus 5 / Claude Code、mcp-gateway 経由）を追記。別 client で同じ論理名がどの tool へ解決されるかを実測し、Run 1 との判定差分を記録
+  - 論理名 `{GH}` / `{RAVEN}` / `{OWL}` は client ごとに tool 名・区切り文字・呼び出し形が変わるため、文字列一致で解決できないことを実証（`mcp__review_raven__*` → `mcp__review-raven__*`、操作別 tool → `method` 引数型）
+  - CI 判定は combined status を使用禁止とし、check runs を根拠にする。merged かつ全 check success の PR で `get_status` が `state: pending` / `total_count: 0` を返す実測に基づく
+  - 投稿者ゲートの login が経路によって `thread-owl` / `thread-owl[bot]` に揺れ、`author_association` が bot でも `NONE` になることを実測。正規化規則を受入れ条件へ追加
+  - thread 一覧の `pageInfo` が thread-owl / review-raven のどちらにも無く、取りこぼしを検出できないことを新規の高優先課題として記録
 
 ## [2.20.0] - 2026-09-09
 

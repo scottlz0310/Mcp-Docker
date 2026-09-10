@@ -3,7 +3,8 @@ issue: 258
 repository: scottlz0310/Mcp-Docker
 document_type: skill-tool-inventory
 schema_version: 2
-status: initial
+status: run-2
+latest_run: 2026-09-10-claude-code-opus5
 snapshot_at: 2026-09-10
 repo_commit: 37c9eb9c4aadebd1e2cc9f7b56848568ab3213b9
 scope:
@@ -334,3 +335,131 @@ R-xx / O-xx の各行について、将来の実装仕様として次の項目�
 - 新規 MCP tool の必要性:
 - skill 本体を変更しない理由または変更候補:
 - 次回に再確認する仮説:
+
+## Run 2
+
+| 項目 | 値 |
+|---|---|
+| run_id | 2026-09-10-claude-code-opus5 |
+| 実行モデル | Claude Opus 5（claude-opus-5）/ Claude Code |
+| 実行環境 | Windows 11、PowerShell + Git Bash、Asia/Tokyo |
+| 対象 commit / skill revision | 2d19064（`docs/258-skill-tool-inventory`）。review-raven-thread-owl-cycle rev 3、thread-owl-pr-reviewer rev 1（Run 1 と同一） |
+| server / CLI version・MCP protocol | thread-owl `ghcr.io/scottlz0310/thread-owl:main` rev 51145c4、review-raven `:main` rev 5b5c834、mcp-gateway `:main` rev b19e00a、github-mcp `ghcr.io/github/github-mcp-server:main`、mcp-resource-subscriber v0.6.1。protocol pin `2026-07-28` |
+| 対象 PR | #255（代表ケース）、#256（get_pr サンプル）、#257（CI ゲート）、#259（本 PR） |
+| MCP tool snapshot | Run 1 の registry とは tool 名・namespace の両方が異なる。下記「Run 2 の client namespace」を参照 |
+| client namespace / discovery 結果 | `claude mcp list` で 11 server。`github` / `review-raven` / `thread-owl` はいずれも mcp-gateway 経由の HTTP（`https://localhost:8080/mcp/*`）。tool 名は `mcp__github__*` / `mcp__review-raven__*` / `mcp__thread-owl__*`（Run 1 は `mcp__codex_apps__github_*` / `mcp__review_raven__*` / `mcp__thread_owl__*`） |
+| observed / simulated / inferred の境界 | 本 Run の MCP 呼び出しはすべて read-only で observed。PR への投稿・resolve・approve・enqueue（write 系）は一切実行していないため inferred。skill の phase 遷移自体は実行していないので simulated ですらなく、tool 契約の実測に限定する |
+| 失敗・未確認事項 | `mcp__github__get_me` が 403（下記）。`desktop-commander` は `claude mcp list` では Connected だが本セッションでは CONNECT_TIMEOUT。write 経路の投稿 identity は未実測 |
+| call 数 / shell 数 / round-trip 数 / elapsed_ms | MCP call 11（うち失敗 1）、shell 6、ToolSearch 3。elapsed_ms は計測なし（この client は tool 単位の所要時間を返さないため、印象値を書かない） |
+| queue reason / reviewed head SHA / fixture | queue 待機なし（PR URL 起点）。参照 head SHA: #255 `b4239c93ccd996cc034592da7cf8e4b8db019d8a`、#256 `80f0bbda66de1e971bd68bd12d0506846b2b9057`、#257 `4a5871d33f7c16a404fe56a16295b5c77f1993f7`。fixture なし（本番 PR の read-only 参照） |
+| body gate 時刻 / 本文取得時刻 / output schema 検証 | 本 Run は skill 実行ではなく tool 契約の実測のため、投稿者ゲートを先行させていない。本文取得を先に行った事実をここに明記する。output schema 検証は各 tool の応答構造の目視確認まで |
+
+### Run 2 の client namespace
+
+Run 1 の registry は論理名の解決結果であって、別 client では tool 名そのものが変わる。本 Run は同じ論理名が次へ解決された。
+
+| 論理名 | Run 1 の解決結果 | Run 2 の解決結果 | 差分 |
+|---|---|---|---|
+| {GH} | `mcp__codex_apps__github_*`（操作ごとに 1 tool） | `mcp__github__*`（公式 GitHub MCP Server。`pull_request_read` / `issue_read` の method 引数で操作を切り替える） | tool 名も呼び出し形も非互換。skill が tool 名を固定できない実例 |
+| {RAVEN} | `mcp__review_raven__*` | `mcp__review-raven__*` | 区切り文字が `_` から `-` へ。文字列一致でハードコードすると解決に失敗する |
+| {OWL} | `mcp__thread_owl__*` | `mcp__thread-owl__*` | 同上 |
+| queue bridge | mcp-resource-subscriber CLI | `ListMcpResourcesTool` / `ReadMcpResourceTool`（client ネイティブ）＋ 待機は引き続き subscriber CLI | read はネイティブ化。待機だけが CLI の責務として残る |
+
+本 Run では GitHub 系 server が 2 つ見えた（gateway 経由の `mcp__github__*` と claude.ai connector の `mcp__claude_ai_github__*`）。どちらも公式 GitHub MCP Server 系の tool 名で、同名 tool が異なる認証で 2 経路存在する。skill は「どちらを使うか」を discovery 時に固定しないと、投稿 identity が Run ごとに変わる。
+
+### 変更された判定
+
+| 行 ID | 前回分類 | 今回分類 | 変更理由 | 証跡 |
+|---|---|---|---|---|
+| R-01 / R-12 / R-18a | B | B（維持・強化） | 本文なし射影は Run 2 の 3 経路すべてに存在しない。`pull_request_read:get_review_comments`、`issue_read:get_comments`、`review-raven:get_review_threads` はいずれも `body` を必ず含み、除外する引数を持たない。server instructions が言及する `minimal_output` はこれらの tool の schema に存在しない | observed（tool schema と #255 の応答） |
+| R-16 / O-06（状態集約） | C（SHA → run → job → log の複数往復） | C から改善。1 call で状態集約が可能 | `pull_request_read:get_check_runs` が #257 の 13 check run を conclusion 付きで 1 回で返した。Run 1 が「中優先度の改善候補」とした CI 集約 read tool は、公式 GitHub MCP Server にすでに存在する | observed（#257、total_count 13、全 success） |
+| R-16 / O-06（失敗ログ） | C | A（client 依存） | 本 Run の GitHub MCP には workflow run / job / log を取得する tool が 1 つも存在しない（`mcp__github__*` / `mcp__claude_ai_github__*` の両方を検索して不在を確認）。Run 1 の client には `github_fetch_workflow_job_logs` があった。失敗ログは `gh run view --log-failed` に戻る | observed（tool 検索結果） |
+| R-16 / O-06（combined status） | C | 使用禁止に格上げ | #257 の `get_status` は `total_count: 0` かつ `state: "pending"`。全 check が success の merged PR に対して pending を返す。unknown を success にしないだけでは不十分で、pending を「実行中」と解釈しても誤りになる。CI 判定は check runs のみを根拠にする | observed（#257） |
+| R-02 / R-08b（HEAD 取得） | C | MCP 単独で完結（寄せ済みを実測） | `thread-owl:get_pr` が `pr.head.sha` / `pr.base.sha` / `state` / `htmlUrl` を 1 call で返した。gh を併用する理由が本 Run では発生しない | observed（#256） |
+| O-02 / O-03 | C | MCP 単独で完結（寄せ済みを実測） | 同じ `get_pr` 応答に `files[]`（filename / status / additions / deletions / patch）が同梱された。metadata と diff で call を分ける必要がない | observed（#256、5 ファイル・patch 込み） |
+| O-00 / O-14（queue read） | A（subscriber の責務） | A（待機のみ）＋ ネイティブ read | この client は `ReadMcpResourceTool` を持ち、`queue://review/re-review-requests` を直接読めた（`[]`）。購読して待つ部分だけが subscriber CLI の責務として残る | observed（resource 一覧 2 件、read 成功） |
+| R-13 | A | A（維持・observed へ昇格） | Run 1 は skill 手順からの再現だったが、本 Run は `docker-compose.yml:203` の `command: ["--mcp-http"]` を直接確認した | observed |
+
+### 今回の実行 tool log
+
+| 順序 | 行 ID | tool / command | read/write | 結果 | elapsed_ms | error / route | observed / simulated |
+|---|---|---|---|---|---:|---|---|
+| 1 | R-00 / O-00 | `claude mcp list` | read | server 11 件。github / review-raven / thread-owl は gateway HTTP | 未計測 | — | observed |
+| 2 | R-13 | `grep -n -A25 'thread-owl' docker-compose.yml` | read | `command: ["--mcp-http"]`、`ROUTE_THREAD_OWL=/mcp/thread-owl` | 未計測 | — | observed |
+| 3 | 環境 | `docker compose ps` / `docker inspect` | read | thread-owl rev 51145c4、review-raven rev 5b5c834、mcp-gateway rev b19e00a | 未計測 | — | observed |
+| 4 | O-00 | `bunx mcp-resource-subscriber --version` | read | `v0.6.1`、exit 0 | 未計測 | — | observed |
+| 5 | R-00 / O-00 | `ToolSearch select:...`（3 回） | read | tool schema 取得。namespace が Run 1 と非互換であることを確認 | 未計測 | — | observed |
+| 6 | R-02 | `mcp__github__get_me` | read | 失敗。`403 Resource not accessible by integration` | 未計測 | gateway `ROUTE_GITHUB` は `upstream_github_app=true`。App installation token に `/user` はない | observed |
+| 7 | O-02 / O-03 | `mcp__thread-owl__get_pr`（#256） | read | pr + head.sha + files[].patch を 1 call で取得 | 未計測 | gateway `/mcp/thread-owl` | observed |
+| 8 | R-03 / O-08 | `mcp__thread-owl__list_review_threads`（#255） | read | thread 1 件、`isResolved: true`、comment に id と url あり。pageInfo なし | 未計測 | 同上 | observed |
+| 9 | R-03 | `mcp__review-raven__get_review_threads`（#255） | read | `summary{total:1, unresolved:0}` + thread 1 件。comment に id / url なし、pageInfo なし | 未計測 | gateway `/mcp/review-raven`、`upstream_provider_token=true` | observed |
+| 10 | R-01 / R-12 | `mcp__github__pull_request_read:get_review_comments`（#255） | read | body 必須。pageInfo（cursor 付き）あり。`is_outdated` / `original_line` を返す | 未計測 | — | observed |
+| 11 | R-16 / O-06 | `mcp__github__pull_request_read:get_status`（#257） | read | `state: pending`、`total_count: 0`、`statuses: []` | 未計測 | — | observed |
+| 12 | R-16 / O-06 | `mcp__github__pull_request_read:get_check_runs`（#257） | read | 13 件すべて `conclusion: success`。job 単位の URL 付き | 未計測 | — | observed |
+| 13 | R-05 / R-17 / R-18b | `mcp__github__issue_read:get_comments`（#255） | read | 4 件（Codecov / 再レビュー依頼 / Verdict / 対応サマリ）。Run 1 の 4 件と一致。`author_association` を含む | 未計測 | — | observed |
+| 14 | O-00 / O-14 | `ListMcpResourcesTool(server=thread-owl)` | read | `queue://review/queue` と `queue://review/re-review-requests` の 2 件。Run 1 と同一 | 未計測 | — | observed |
+| 15 | O-14 | `ReadMcpResourceTool(queue://review/re-review-requests)` | read | `[]`（空 queue）。client ネイティブで read 成功 | 未計測 | — | observed |
+| 16 | 認証 | `mcp__review-raven__diagnose_github_token` | read | `login: scottlz0310-user`、`scopes: []` | 未計測 | provider token 経路 | observed |
+
+### Run 2 で新たに判明した事項
+
+#### 1. 同一 gateway 上で identity が 2 つに割れている
+
+| route | gateway 設定 | 実測した identity |
+|---|---|---|
+| `/mcp/github` | `upstream_github_app=true` | GitHub App installation token。`get_me` が 403 で login を取得できない |
+| `/mcp/review-raven` | `upstream_provider_token=true` | `scottlz0310-user`、`scopes: []`（fine-grained PAT / App token のため header なし） |
+
+公式 GitHub MCP Server の instructions は「まず `get_me` を呼べ」と指示するが、この deployment では常に失敗する。skill が identity を前提に分岐する場合、`get_me` に依存してはならない。write を伴う R-10 / R-14 / R-19 は、どの route で投稿したかによって PR 上の投稿者が変わる（本 Run では write 未実行のため inferred）。
+
+#### 2. 投稿者 login の表記が経路によって揺れる
+
+同じ thread-owl の発言が、経路ごとに次の login で返った。
+
+| 経路 | author |
+|---|---|
+| `thread-owl:list_review_threads` / `review-raven:get_review_threads` | `thread-owl` |
+| `github:issue_read:get_comments`（Verdict コメント） | `thread-owl[bot]` |
+
+投稿者ゲートを login の完全一致で実装すると、経路を替えた時点で信頼判定が静かに壊れる。`[bot]` サフィックスの正規化規則を、review-raven#124 の metadata projection と thread-owl 側の応答契約の両方に含める必要がある。あわせて、`author_association` は thread-owl[bot] / codecov[bot] のいずれも `NONE` を返すため、信頼シグナルとして使えないことを実測した。
+
+#### 3. ページ境界の実装差
+
+| 経路 | pageInfo |
+|---|---|
+| `github:pull_request_read:get_review_comments` | あり（`hasNextPage` / `endCursor`、`after` 引数で継続） |
+| `thread-owl:list_review_threads` | なし |
+| `review-raven:get_review_threads` | なし（`summary.total` はあるが継続手段がない） |
+
+再設計スコープの「ページ境界」要件は、GitHub connector 側では満たされ、自作 2 server では未達である。thread が多い PR で thread-owl / review-raven を第一選択にすると、取りこぼしを検出できない。
+
+#### 4. Run 1 の registry に無かった review-raven tool
+
+本環境の review-raven は `get_pr_review_cycle_status`、`diagnose_github_token`、Copilot watch 系（`start_copilot_review_watch` 等）も公開している。`get_pr_review_cycle_status` は reviewed-side のサイクル判定（WAIT / REPLY_RESOLVE / REQUEST_REREVIEW / READY_TO_MERGE / ESCALATE）を返すが、現行の review-raven-thread-owl-cycle skill の R-xx 行はこの tool を使っていない。Copilot watch 系は #256 で廃止した `pr-review-cycle` 向けであり、本 skill の対象外である。
+
+#### 5. discovery と実接続の乖離
+
+`claude mcp list` は `desktop-commander` を Connected と表示したが、本セッションでは CONNECT_TIMEOUT で利用できなかった。health 一覧の Connected 表示は、そのセッションで tool が呼べることを保証しない。skill の R-00 / O-00 は「一覧に出たか」ではなく「実際に 1 回 read できたか」を discovery の完了条件にする必要がある。
+
+### 今回の提案差分
+
+- 既存の B / C / D 判定から変わったもの:
+  - R-16 / O-06 を 3 つに分解する。状態集約は `get_check_runs` で 1 call（改善候補は実装済み）、combined status は使用禁止、失敗ログは client 依存で `gh run view --log-failed` に残る。
+  - R-02 / R-08b / O-02 / O-03 は `thread-owl:get_pr` 単独で完結することを実測した。C の根拠だった「往復コスト」は本 client では成立しない。
+  - O-00 / O-14 の queue read はネイティブ tool へ寄せられる。subscriber CLI に残る責務は購読と待機に限定される。
+  - R-01 / R-18a は B のまま。3 経路すべてで本文なし射影が無いことを確認したため、review-raven#124 の必要性は Run 1 より強い証跡で裏付けられた。
+- 新規 MCP tool の必要性:
+  - 高: 本文なし metadata projection（review-raven#124）。加えて `[bot]` サフィックス正規化と、`author_association` を信頼判定に使わない旨を受入れ条件へ明記する。
+  - 高: thread-owl / review-raven の thread 一覧への `pageInfo` 追加。取りこぼし検出手段が現状ない。
+  - 中: 失敗した workflow job の log を返す read tool。本 client の GitHub MCP には存在しない。
+  - 取り下げ: 「CI 集約 read tool」は公式 GitHub MCP Server の `get_check_runs` で充足済み。新規実装は不要。
+- skill 本体を変更しない理由または変更候補:
+  - 本 Run でも skill 本体は変更しない。ただし次の 3 点は #258 の execution contract へ追加すべき確定事項である。
+    1. `{GH}` / `{RAVEN}` / `{OWL}` の解決は文字列一致に依存できない（`_` と `-` の差、method 引数型の tool、同名 2 経路）。discovery は「read を 1 回成功させる」ことを完了条件にする。
+    2. CI 判定に combined status を使わない。check runs を根拠とし、対象が current head SHA であることを `get_pr` で再確認する（`get_check_runs` は SHA ではなく PR 番号を受け取るため、head が動くと黙って対象が変わる）。
+    3. 投稿者ゲートの login 比較は正規化を通す。
+- 次回に再確認する仮説:
+  - write 経路（`add_issue_comment` / thread-owl の post 系）が、どの identity で PR に現れるか。本 Run は read-only のため未検証。
+  - thread が 100 件を超える PR で、thread-owl / review-raven が全件を返すのか静かに打ち切るのか。
+  - queue の `notifications/resources/updated` を、この client がネイティブに受け取れるのか（本 Run では resource read のみ確認し、購読は未検証）。
+  - `pull_request_read` の `minimal_output` は server instructions にのみ現れ schema に無い。server バージョン差か instructions の誤りかを次回切り分ける。
