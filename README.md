@@ -144,7 +144,7 @@ Makefile を使わず Go ツールチェーンから直接ビルド・実行す�
 
 ```bash
 # Linux/macOS/Git Bash
-go build -trimpath -ldflags="-X main.version=2.9.1" -o ./bin/mcp-docker ./cmd/mcp-docker
+go build -trimpath -o ./bin/mcp-docker ./cmd/mcp-docker
 ./bin/mcp-docker --version
 ./bin/mcp-docker register --dry-run
 ./bin/mcp-docker register --agent all --yes
@@ -153,7 +153,7 @@ go build -trimpath -ldflags="-X main.version=2.9.1" -o ./bin/mcp-docker ./cmd/mc
 Windows のネイティブシェルで実行する場合：
 
 ```powershell
-go build -trimpath -ldflags="-X main.version=2.9.1" -o .\bin\mcp-docker.exe .\cmd\mcp-docker
+go build -trimpath -o .\bin\mcp-docker.exe .\cmd\mcp-docker
 .\bin\mcp-docker.exe --version
 .\bin\mcp-docker.exe register --dry-run
 .\bin\mcp-docker.exe register --agent all --yes
@@ -174,6 +174,10 @@ go install github.com/scottlz0310/mcp-docker/v2/cmd/mcp-docker@latest
 mcp-docker --version
 mcp-docker register --agent all --yes
 ```
+
+`go install` は GitHub Release のビルド済み成果物ではなく、指定した Go module をローカルでビルドします。バージョン表示は module build info から取得するため、リリース版を指定した場合はそのタグのバージョンが表示されます。GitHub Release の成果物を使う場合は、Release ページから対象 OS のアーカイブを手動でダウンロード・配置してください。
+
+リリースは GitHub Actions の「リリース」workflow から手動実行できます。`tag` に `vX.Y.Z`、`source_ref` にリリース対象の branch・tag・commit（通常は `main`）を指定すると、検証・クロスビルド成功後にタグ、GitHub Release、チェックサムが作成されます。既存の `v*` タグ push によるリリースも利用できます。
 
 登録対象は以下から読み取ります：
 

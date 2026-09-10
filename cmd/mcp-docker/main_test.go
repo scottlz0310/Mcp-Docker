@@ -39,7 +39,7 @@ func TestVersionCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run returned error: %v", err)
 	}
-	if got, want := stdout.String(), "mcp-docker "+version+"\n"; got != want {
+	if got, want := stdout.String(), "mcp-docker "+currentVersion()+"\n"; got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 	if stderr.Len() != 0 {

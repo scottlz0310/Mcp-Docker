@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔧 改善
+
+- #281 に対応し、Go module build info を CLI と skill manifest の共通バージョン情報源として使用。Makefile と README のリリース番号固定を除去し、Git tag を基準にしたリリース workflow の手動 dispatch を追加
+
 ## [2.21.1] - 2026-09-11
 
 ### 🔄 変更

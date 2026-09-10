@@ -207,7 +207,7 @@ func runSkillInstall(stdout io.Writer, stdin io.Reader, clients []skill.Client, 
 					continue
 				}
 			}
-			if err := skill.Install(plan, s, version, now); err != nil {
+			if err := skill.Install(plan, s, currentVersion(), now); err != nil {
 				return err
 			}
 			fmt.Fprintf(stdout, "- %s: %s (%d ファイル", s.Name, plan.Action, len(plan.Write))
