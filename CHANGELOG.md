@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 変更
 
-- `make pull-main` / `make start-main` が playwright-mcp の `:main` イメージを優先して取得・起動し、manifest 未公開時のみ `:latest` へフォールバックするよう変更
+- `make pull-main` が playwright-mcp の `:main` イメージを優先して取得し、manifest 未公開時のみ `:latest` へフォールバックするよう変更。`make start-main` は pull せず、取得済みのローカルイメージを起動するよう変更
 
 ## [2.21.0] - 2026-09-10
 

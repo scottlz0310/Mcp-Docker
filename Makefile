@@ -158,6 +158,7 @@ status: status-gateway ## 全サービスの状態確認（status-gateway のエ
 # mcp-gateway / review-raven / thread-owl の :latest はリリース時のみ更新されるため、
 # リリース前の最新 main ブランチビルドを使いたい場合はこれらのターゲットを使用する。
 # playwright-mcp は :main が公開されていない場合に通常の :latest へフォールバックする。
+# start-main は pull を行わず、pull-main で取得済みのローカルイメージを起動する。
 # ?= により環境変数・make コマンドライン引数での上書きが可能
 # 例: make pull-main MCP_GATEWAY_MAIN_IMAGE=ghcr.io/scottlz0310/mcp-gateway:edge
 MCP_GATEWAY_MAIN_IMAGE        ?= ghcr.io/scottlz0310/mcp-gateway:main
@@ -181,17 +182,17 @@ else
 endif
 
 .PHONY: start-main
-start-main: check-github-app-config ## 最新開発版イメージで全サービスを起動
-	@playwright_image=$$("$(BASH_CMD)" ./scripts/pull-playwright-main.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)") || { status=$$?; exit "$$status"; }; \
+start-main: check-github-app-config ## pull-main で取得済みの開発版イメージで全サービスを起動
+	@playwright_image=$$("$(BASH_CMD)" ./scripts/select-playwright-main-image.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)") || { status=$$?; exit "$$status"; }; \
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	PLAYWRIGHT_MCP_IMAGE="$$playwright_image" \
-	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
+	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
 	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: restart-main
-restart-main: stop-gateway start-main ## 最新開発版イメージで全サービスを再起動
+restart-main: stop-gateway start-main ## 取得済みの開発版イメージで全サービスを再起動（pull なし）
 
 # CLI 登録（Primary）
 BIN_DIR      := bin

@@ -50,7 +50,7 @@ if ! is_missing_manifest "${PULL_OUTPUT}"; then
 fi
 
 print_pull_output
-echo "⚠️ Playwright MCP の :main イメージが公開されていないため、${FALLBACK_IMAGE} にフォールバックします。" >&2
+echo "⚠️ Playwright MCP の :main イメージの manifest が公開されていないため、${FALLBACK_IMAGE} にフォールバックします。" >&2
 
 if pull_image "${FALLBACK_IMAGE}"; then
     print_pull_output

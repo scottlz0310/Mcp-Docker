@@ -62,6 +62,35 @@ EOF
     chmod +x "$mock_path"
 }
 
+create_playwright_inspect_mock() {
+    local mock_path="$1"
+    cat >"$mock_path" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" != "image" || "${2:-}" != "inspect" ]]; then
+    echo "unexpected docker command: $*" >&2
+    exit 2
+fi
+
+printf 'image=%s\n' "${3:-}" >>"${DOCKER_MOCK_LOG:?}"
+
+if [[ "${DOCKER_MOCK_INSPECT_MODE:-missing}" == "error" ]]; then
+    echo "Cannot connect to the Docker daemon" >&2
+    exit 125
+fi
+
+if [[ "${DOCKER_MOCK_INSPECT_IMAGE:-}" == "${3:-}" ]]; then
+    echo "inspected ${3:-}"
+    exit 0
+fi
+
+echo "Error: No such image: ${3:-}" >&2
+exit 1
+EOF
+    chmod +x "$mock_path"
+}
+
 @test "health-check.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/health-check.sh" ]
     [ -x "${SCRIPTS_DIR}/health-check.sh" ]
@@ -159,12 +188,74 @@ EOF
     grep -F 'fallback は行いません' "$stderr_log"
 }
 
+@test "select-playwright-main-image.sh: ローカルに main があれば main を選択する" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    create_playwright_inspect_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        DOCKER_MOCK_INSPECT_IMAGE="mcr.microsoft.com/playwright/mcp:main" \
+        bash "${SCRIPTS_DIR}/select-playwright-main-image.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "mcr.microsoft.com/playwright/mcp:main" ]
+    [ "$(wc -l <"$mock_log")" -eq 1 ]
+}
+
+@test "select-playwright-main-image.sh: main がなければローカル fallback を選択する" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    create_playwright_inspect_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        DOCKER_MOCK_INSPECT_IMAGE="mcr.microsoft.com/playwright/mcp:latest" \
+        bash "${SCRIPTS_DIR}/select-playwright-main-image.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "mcr.microsoft.com/playwright/mcp:latest" ]
+    [ "$(wc -l <"$mock_log")" -eq 2 ]
+}
+
+@test "select-playwright-main-image.sh: Docker daemon エラーは fallback せず伝播する" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    create_playwright_inspect_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        DOCKER_MOCK_INSPECT_MODE=error \
+        bash "${SCRIPTS_DIR}/select-playwright-main-image.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest"
+
+    [ "$status" -eq 125 ]
+    [ "$(wc -l <"$mock_log")" -eq 1 ]
+}
+
 @test "Makefile: pull-main は Playwright の main/fallback resolver を呼び出す" {
     run make -C "${PROJECT_ROOT}" --dry-run pull-main
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"pull-playwright-main.sh"* ]]
     [[ "$output" == *"mcr.microsoft.com/playwright/mcp:main"* ]]
+}
+
+@test "Makefile: start-main は pull せずローカルイメージ選択を呼び出す" {
+    run sed -n '/^start-main:/,/^\.PHONY: restart-main/p' "${PROJECT_ROOT}/Makefile"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"select-playwright-main-image.sh"* ]]
+    [[ "$output" == *"--pull never"* ]]
+    [[ "$output" != *"pull-playwright-main.sh"* ]]
 }
 
 @test "health-check.sh: curl_insecure_ok が -k 付与を localhost / 127.0.0.1 に限定する" {
