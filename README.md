@@ -257,7 +257,7 @@ skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`sk
 | `make status` / `make status-gateway` | 全コンテナ状態一覧 |
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
-| `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` イメージ取得 |
+| `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` と、playwright-mcp の `:main`（未公開時は `:latest`）を取得 |
 | `make start-main` | 最新開発版イメージで全サービス起動 |
 | `make restart-main` | 最新開発版イメージで全サービス再起動 |
 | `make health-check` | サービスのヘルスチェック（GitHub App credential 診断込み） |
@@ -374,6 +374,9 @@ servers:
 | `GITHUB_MCP_GATEWAY_IMAGE` | `ghcr.io/scottlz0310/mcp-gateway:main` | ゲートウェイイメージ |
 | `GITHUB_MCP_IMAGE` | `ghcr.io/github/github-mcp-server:main` | github-mcp-server イメージ |
 | `REVIEW_RAVEN_IMAGE` | `ghcr.io/scottlz0310/review-raven:latest` | review-raven イメージ |
+| `PLAYWRIGHT_MCP_IMAGE` | `mcr.microsoft.com/playwright/mcp:latest` | 通常起動時のイメージ。`pull-main` / `start-main` の fallback にも使用 |
+| `PLAYWRIGHT_MCP_MAIN_IMAGE` | `mcr.microsoft.com/playwright/mcp:main` | `pull-main` / `start-main` が最初に取得する開発版イメージ |
+| `PLAYWRIGHT_MCP_FALLBACK_IMAGE` | `PLAYWRIGHT_MCP_IMAGE` または `mcr.microsoft.com/playwright/mcp:latest` | `:main` の manifest が未公開の場合に使用するイメージ |
 
 ```bash
 GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.0.0 make start-gateway

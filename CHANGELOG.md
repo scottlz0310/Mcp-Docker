@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔄 変更
+
+- `make pull-main` / `make start-main` が playwright-mcp の `:main` イメージを優先して取得・起動し、manifest 未公開時のみ `:latest` へフォールバックするよう変更
+
 ## [2.21.0] - 2026-09-10
 
 ### 📚 ドキュメント

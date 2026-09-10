@@ -34,6 +34,34 @@ EOF
     chmod +x "$mock_path"
 }
 
+create_playwright_pull_mock() {
+    local mock_path="$1"
+    cat >"$mock_path" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" != "compose" || "${2:-}" != "pull" || "${3:-}" != "playwright-mcp" ]]; then
+    echo "unexpected docker command: $*" >&2
+    exit 2
+fi
+
+printf 'image=%s\n' "${PLAYWRIGHT_MCP_IMAGE:-}" >>"${DOCKER_MOCK_LOG:?}"
+
+if [[ "${DOCKER_MOCK_PULL_MODE:-main}" == "missing-main" && "${PLAYWRIGHT_MCP_IMAGE:-}" == *":main" ]]; then
+    echo "failed to resolve reference \"${PLAYWRIGHT_MCP_IMAGE:-}\": not found" >&2
+    exit 1
+fi
+
+if [[ "${DOCKER_MOCK_PULL_MODE:-main}" == "error" ]]; then
+    echo "Error response from daemon: connection refused" >&2
+    exit 42
+fi
+
+echo "pulled ${PLAYWRIGHT_MCP_IMAGE:-}"
+EOF
+    chmod +x "$mock_path"
+}
+
 @test "health-check.sh: スクリプトが存在し実行可能" {
     [ -f "${SCRIPTS_DIR}/health-check.sh" ]
     [ -x "${SCRIPTS_DIR}/health-check.sh" ]
@@ -65,6 +93,78 @@ EOF
     run "${SCRIPTS_DIR}/health-check.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" =~ "mcp-gateway" ]]
+}
+
+@test "pull-playwright-main.sh: :main を取得できる場合は main を選択する" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    local stderr_log="${BATS_TEST_TMPDIR}/stderr.log"
+    create_playwright_pull_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        bash -c 'bash "$1" "$2" "$3" 2>"$4"' _ \
+        "${SCRIPTS_DIR}/pull-playwright-main.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest" \
+        "$stderr_log"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "mcr.microsoft.com/playwright/mcp:main" ]
+    grep -Fx 'image=mcr.microsoft.com/playwright/mcp:main' "$mock_log"
+}
+
+@test "pull-playwright-main.sh: :main の manifest 未公開時は latest にフォールバックする" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    local stderr_log="${BATS_TEST_TMPDIR}/stderr.log"
+    create_playwright_pull_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        DOCKER_MOCK_PULL_MODE=missing-main \
+        bash -c 'bash "$1" "$2" "$3" 2>"$4"' _ \
+        "${SCRIPTS_DIR}/pull-playwright-main.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest" \
+        "$stderr_log"
+
+    [ "$status" -eq 0 ]
+    [ "$output" = "mcr.microsoft.com/playwright/mcp:latest" ]
+    grep -Fx 'image=mcr.microsoft.com/playwright/mcp:main' "$mock_log"
+    grep -Fx 'image=mcr.microsoft.com/playwright/mcp:latest' "$mock_log"
+    grep -F 'manifest が公開されていない' "$stderr_log"
+}
+
+@test "pull-playwright-main.sh: manifest 未公開以外のエラーは伝播する" {
+    local mock_docker="${BATS_TEST_TMPDIR}/docker"
+    local mock_log="${BATS_TEST_TMPDIR}/docker.log"
+    local stderr_log="${BATS_TEST_TMPDIR}/stderr.log"
+    create_playwright_pull_mock "$mock_docker"
+
+    run env \
+        DOCKER_BIN="$mock_docker" \
+        DOCKER_MOCK_LOG="$mock_log" \
+        DOCKER_MOCK_PULL_MODE=error \
+        bash -c 'bash "$1" "$2" "$3" 2>"$4"' _ \
+        "${SCRIPTS_DIR}/pull-playwright-main.sh" \
+        "mcr.microsoft.com/playwright/mcp:main" \
+        "mcr.microsoft.com/playwright/mcp:latest" \
+        "$stderr_log"
+
+    [ "$status" -eq 42 ]
+    [ "$(wc -l <"$mock_log")" -eq 1 ]
+    grep -F 'fallback は行いません' "$stderr_log"
+}
+
+@test "Makefile: pull-main は Playwright の main/fallback resolver を呼び出す" {
+    run make -C "${PROJECT_ROOT}" --dry-run pull-main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pull-playwright-main.sh"* ]]
+    [[ "$output" == *"mcr.microsoft.com/playwright/mcp:main"* ]]
 }
 
 @test "health-check.sh: curl_insecure_ok が -k 付与を localhost / 127.0.0.1 に限定する" {
