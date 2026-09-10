@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔄 変更
 
 - `make pull-main` が playwright-mcp の `:main` イメージを優先して取得し、manifest 未公開時のみ `:latest` へフォールバックするよう変更。`make start-main` は pull せず、取得済みのローカルイメージを起動するよう変更
+- #278 に対応し、reviewed-side の必須コメント投稿者ゲートで review-raven の `get_review_threads(include_bodies=false)` を第一選択に変更。全 thread / comment の metadata と `pagination.complete` を検証してから `include_bodies=true` の本文取得へ進み、投稿者情報の欠落、取得失敗、ページネーション未完了は fail-closed で停止するよう実行契約を更新
 
 ## [2.21.0] - 2026-09-10
 
