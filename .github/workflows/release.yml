@@ -78,6 +78,27 @@ jobs:
           echo "release tag: $TAG"
           echo "source ref: $SOURCE_SHA"
 
+      - name: リリースノート生成
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          SOURCE_SHA: ${{ steps.metadata.outputs.source_sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          bash scripts/generate-release-notes.sh \
+            "$RELEASE_TAG" \
+            "$SOURCE_SHA" \
+            "$REPOSITORY" \
+            CHANGELOG.md \
+            dist/release-notes.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: dist/release-notes.md
+          if-no-files-found: error
+
   test:
     name: テスト・lint
     needs: release-context
@@ -182,6 +203,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" \
             --title "$RELEASE_TAG" \
+            --notes-file dist/release-notes.md \
             --generate-notes \
             ${ARCHIVES} \
             dist/checksums.txt
