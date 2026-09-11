@@ -179,6 +179,7 @@ jobs:
           set -euo pipefail
           ARCHIVES=$(find dist \( -name "mcp-docker-*.tar.gz" -o -name "mcp-docker-*.zip" \) | sort | tr '\n' ' ')
           gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" \
             --title "$RELEASE_TAG" \
             --generate-notes \
