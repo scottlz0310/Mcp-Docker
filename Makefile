@@ -206,12 +206,10 @@ GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null) skills.go
 SKILL_SOURCES := $(shell find skills -type f 2>/dev/null)
 REGISTER_FLAGS ?=
 SKILL_FLAGS ?=
-VERSION ?= 2.21.1
-GO_LDFLAGS ?= -X main.version=$(VERSION)
 
 $(MCP_DOCKER): Makefile go.mod go.sum $(GO_SOURCES) $(SKILL_SOURCES)
 	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
-	go build -ldflags "$(GO_LDFLAGS)" -o $(MCP_DOCKER) ./cmd/mcp-docker
+	go build -o $(MCP_DOCKER) ./cmd/mcp-docker
 
 .PHONY: register
 register: $(MCP_DOCKER) ## 対話的に IDE/CLI と MCP サーバーを選択して登録
