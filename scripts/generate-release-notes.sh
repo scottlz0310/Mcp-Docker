@@ -114,7 +114,7 @@ fi
     printf '\n## 検証\n\n'
     printf -- '- リリースタグ: [%s](%s)\n' "$TAG" "$RELEASE_URL"
     printf -- '- 対象コミット: [%s](%s)\n' "$SOURCE_SHA" "$COMMIT_URL"
-    printf -- '- Linux amd64 の成果物で `mcp-docker --version` が `mcp-docker %s` になることを確認しています。\n' "$VERSION"
+    printf -- "- Linux amd64 の成果物で \`mcp-docker --version\` が \`mcp-docker %s\` になることを確認しています。\n" "$VERSION"
 
     printf '\n[CHANGELOG.md](%s)\n' "$CHANGELOG_URL"
 } > "$NOTES_FILE"
