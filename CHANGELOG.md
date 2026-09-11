@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.4] - 2026-09-11
+
+### 🔄 変更
+
+- #287 に対応し、`review-raven-thread-owl-cycle` のカバレッジ確認（R-17 / Phase 6.6）で Codecov を一律 patch coverage 100% のゲートにしない実行契約へ更新。明示的な閾値がない場合は情報提供（informative）として扱い、テスト追加は行の網羅ではなく振る舞い・境界・状態遷移の契約検証を優先。設計上カバー不要な行の例外扱い、同一サイクル内のカバレッジ修正上限（最大1回）、および `max_cycles` 到達後の人手エスカレーションへの合流を定義
+
 ## [2.21.3] - 2026-09-11
 
 ### 🔧 改善
@@ -773,7 +779,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.3...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.4...HEAD
+[2.21.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.3...v2.21.4
 [2.21.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.2...v2.21.3
 [2.21.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.1...v2.21.2
 [2.21.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.0...v2.21.1
