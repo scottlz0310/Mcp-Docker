@@ -49,6 +49,7 @@ if ! awk -v version="$VERSION" '
         heading = "## [" version "]"
         found = 0
         content = 0
+        pending_blank = 0
     }
     !found && index($0, heading) == 1 && \
         (length($0) == length(heading) || substr($0, length(heading) + 1, 3) == " - ") {
@@ -59,8 +60,15 @@ if ! awk -v version="$VERSION" '
         exit
     }
     found {
-        if (!content && $0 ~ /^[[:space:]]*$/) {
+        if ($0 ~ /^[[:space:]]*$/) {
+            if (content) {
+                pending_blank = 1
+            }
             next
+        }
+        if (pending_blank) {
+            print ""
+            pending_blank = 0
         }
         content = 1
         print
@@ -79,7 +87,7 @@ fi
     printf '## 変更内容\n\n'
     cat "$CHANGELOG_SECTION"
 
-    printf '\n\n## インストール\n\n'
+    printf '\n## インストール\n\n'
     printf '### Go でインストール\n\n'
     printf '指定したリリースタグからインストールする場合:\n\n'
     printf '```sh\n'
