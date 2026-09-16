@@ -35,8 +35,8 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 | サーバー | 役割 | 参照 |
 |---------|------|------|
-| `github` | PR / Issue の読み取り・コメント投稿・Issue 作成、check runs の読み取り | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
-| `review-raven` | PR レビュースレッドの取得・返信・解決 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
+| `github` | PR / Issue の読み取り・コメント投稿・Issue 作成 | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
+| `review-raven` | PR レビュースレッドの取得・返信・解決、固定した head SHA の check runs 読み取り（`list_check_runs_for_sha` は v0.5.0 以降） | [README.ja.md](https://github.com/scottlz0310/review-raven/blob/main/README.ja.md) |
 | `thread-owl` | review queue への登録（`enqueue_review`。`--mcp-http` 運用時のみ使用） | [README.ja.md](https://github.com/scottlz0310/thread-owl/blob/main/README.ja.md) |
 
 > このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。必須コメント投稿者ゲートでは `get_review_threads` に `include_bodies=false` を渡し、ゲート通過後にだけ `include_bodies=true` で本文を取得します。`gh` CLI は、論理 alias の discovery と read 検証が成功した後に、各手順で明記された read-only の補完経路としてのみ使用します。discovery に失敗した場合、`gh` CLI を別の write 経路として使いません。
@@ -53,8 +53,8 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 | alias | 役割 |
 |-------|------|
-| `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作、check runs 読み取り |
-| `{RAVEN}` | review-raven のレビュー thread 読み取り・返信・resolve |
+| `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作 |
+| `{RAVEN}` | review-raven のレビュー thread 読み取り・返信・resolve、固定した head SHA の check runs 読み取り |
 | `{OWL}` | thread-owl の queue 読み取り・再レビュー enqueue |
 
 ### R-00: 論理 alias の discovery と固定
@@ -69,6 +69,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
    - 複数の server / route が残る場合、discovery 順や表示名だけで選ばず、`BLOCKED_MCP_DISCOVERY` として停止する。異なる認証経路を自動的に試してはならない。
 4. 採用した各 binding について、write ではない最小の read を **1 回成功** させる。成功とは transport が応答しただけでなく、tool error がなく、論理契約の minimum output schema を満たすことをいう。server 一覧、schema の取得、resource の存在確認だけでは read 成功とみなさない。`{RAVEN}` の minimum read は `get_review_threads` に `include_bodies=false` を明示した metadata-only 呼び出しとし、`include_bodies` の入力 schema、本文を含まない出力、`pagination.complete=true` を検証する。本文ありの read は必須コメント投稿者ゲートが成功するまで実行しない。
 5. alias から選択済み binding への対応表と、各論理操作に使う tool / resource handle をこの run の状態として固定する。以後は同じ binding を使い、途中の再 discovery、候補の切り替え、失敗した write の別経路への迂回を行わない。後続の transport failure は新しい候補を探す理由にせず、停止・報告する。
+6. `{RAVEN}` の `list_check_runs_for_sha`（R-16 / Phase 6.5 の CI read）は**任意 capability**として扱う。採用した `{RAVEN}` binding にこの tool があり、input（`owner` / `repo` / 40 桁小文字 hex の `sha`）と output（`sha`、`check_runs[].head_sha` / `name` / `status` / `conclusion` / `app`、`pagination.complete`、`deduplication.strategy`）の schema が一致する場合に CI read の第一選択として固定する。無い（review-raven v0.5.0 未満）または schema 不一致の場合だけ、Phase 6.5 の `gh api` fallback を CI read 経路として固定する。**この任意 capability の不在を `BLOCKED_MCP_DISCOVERY` にしない。**どちらの経路を使うかは discovery 時点で決め、実行時の tool error や transport failure から切り替えない。
 
 候補を解決できない、未接続、schema 不一致、read 検証失敗、または複数候補を一意に選べない場合は、次の状態で停止する。
 
@@ -101,13 +102,13 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 ### R-00: 論理 alias の discovery と固定
 
 - `precondition`: 対象 repository と PR（または queue 起点の候補）が確定し、client-native discovery を実行できる。後続で GitHub write が必要になる可能性と、PR の base ref SHA を固定できることを確認する。
-- `primary tool`: client-native の server / tool / resource discovery。`{GH}` / `{RAVEN}` / `{OWL}` の read binding、必要な `{GH}` write binding、base ref 上のプロジェクト allowlist ファイル read の schema snapshot を固定する。`{RAVEN}` では `get_review_threads` の optional boolean `include_bodies` と、false 時の metadata-only output schema を必須 capability とする。
+- `primary tool`: client-native の server / tool / resource discovery。`{GH}` / `{RAVEN}` / `{OWL}` の read binding、必要な `{GH}` write binding、base ref 上のプロジェクト allowlist ファイル read の schema snapshot を固定する。`{RAVEN}` では `get_review_threads` の optional boolean `include_bodies` と、false 時の metadata-only output schema を必須 capability とし、`list_check_runs_for_sha` を CI read の任意 capability として判定・固定する。
 - `input / output`: 必要 capability、input / output schema、transport / route、opaque handle、base ref SHA を入力し、read binding、`write_binding`、観測済み `write_author_login`、プロジェクト allowlist の検証済み内容の対応表を出力する。`{RAVEN}` の minimum output は `threads[].id` / `isResolved`、`comments[].commentId` / `author`（`author.login` の射影）/ `authorType` / `url`、`pagination.pageCount` / `complete` を含む。
 - `side effect`: discovery 自体は read-only。identity 未観測時に限り、明示的に許可された probe PR へ一件だけ probe comment を投稿し、結果を再取得する。
-- `guard`: 明示 binding を優先し、明示がなければ capability・schema・minimum output schema を満たす候補が一つの場合だけ採用する。採用後に read を 1 回成功させ、write route は最初の write 前に固定する。`{RAVEN}` は `include_bodies=false` を明示して呼び、応答に `body` がなく、全ページ完了を示す `pagination.complete=true` があり、minimum output schema を満たすことを確認する。プロジェクト allowlist は固定した base ref の exact file を読み、404 は空集合、schema 不一致や base ref 以外の内容は採用しない。`get_me` を必須条件にしない。
+- `guard`: 明示 binding を優先し、明示がなければ capability・schema・minimum output schema を満たす候補が一つの場合だけ採用する。採用後に read を 1 回成功させ、write route は最初の write 前に固定する。`{RAVEN}` は `include_bodies=false` を明示して呼び、応答に `body` がなく、全ページ完了を示す `pagination.complete=true` があり、minimum output schema を満たすことを確認する。`list_check_runs_for_sha` は任意 capability として有無と schema 一致だけを判定し、不在や schema 不一致を停止条件にしない（CI read 経路を `gh api` fallback に固定する）。プロジェクト allowlist は固定した base ref の exact file を読み、404 は空集合、schema 不一致や base ref 以外の内容は採用しない。`get_me` を必須条件にしない。
 - `fallback`: なし。discovery 失敗時に `gh` CLI、別 server、別認証経路へ自動切り替えない。プロジェクト allowlist もローカル作業ツリーや PR HEAD のファイルで代用しない。
 - `failure / stop`: unresolved / not connected / schema mismatch / read failed / ambiguous、write binding / 投稿 identity の未観測、またはプロジェクト allowlist の読み取り・検証失敗は、それぞれ `termination_status = BLOCKED_MCP_DISCOVERY` または `termination_status = PROJECT_ALLOWLIST_INVALID`、`status = blocked` とし、`writes performed: 0`（probe を除く）で停止する。`include_bodies=false` を利用できない `{RAVEN}` を本文あり read で代用しない。
-- `evidence`: 候補数、採否理由、transport / route、schema snapshot、`include_bodies=false` の minimum read、metadata-only 出力と pagination 完了、固定した base ref SHA / path、allowlist の検証結果、write binding、probe comment ID、PR 上の author.login を記録する（`observed`、秘密情報は除外）。
+- `evidence`: 候補数、採否理由、transport / route、schema snapshot、`include_bodies=false` の minimum read、metadata-only 出力と pagination 完了、固定した CI read 経路（`{RAVEN}:list_check_runs_for_sha` / `gh api`）、固定した base ref SHA / path、allowlist の検証結果、write binding、probe comment ID、PR 上の author.login を記録する（`observed`、秘密情報は除外）。
 
 ### R-01: 必須コメント投稿者ゲート
 
@@ -287,14 +288,14 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 ### R-16: CI と失敗ログ
 
-- `precondition`: 対象 PR の current head が読め、required checks の repository policy が確定している。
-- `primary tool`: `{GH}:get_pr` で head を固定した直後の `list_check_runs_for_sha`（Phase 6.5 の手順 1。SHA を入力に取る MCP capability、無ければ `gh api .../commits/<sha>/check-runs` の read-only）。
-- `input / output`: 固定した reviewedHeadSha を入力し、各 check run の対象 SHA（`head_sha`）、status、conclusion、required / optional、run / job ID を出力する。
+- `precondition`: 対象 PR の current head が読め、R-00 で CI read 経路が固定され、required checks の repository policy が確定している。
+- `primary tool`: `{GH}:get_pr` で head を固定した直後の `{RAVEN}:list_check_runs_for_sha`（Phase 6.5 の手順 1。R-00 でこの任意 capability を解決できなかった場合だけ `gh api .../commits/<sha>/check-runs` の read-only）。
+- `input / output`: `owner`、`repo`、固定した reviewedHeadSha を入力し、応答の `sha`、各 check run の対象 SHA（`head_sha`）、status、conclusion、run ID、GitHub App、`pagination.complete` を出力する。required / optional は tool 出力に含まれないため、リポジトリ方針から別途判定する。
 - `side effect`: read-only。CI の再実行や設定変更は行わない。
-- `guard`: 全 required check が対象 SHA に対して completed / success のときだけ success とする。combined status を使わず、head SHA を確認できない run は success にしない。PR 番号入力で `head_sha` を返さない `{GH}:get_check_runs` は根拠にしない。次 phase 前に head を再読する。
-- `fallback`: failure の場合に client の workflow run / job / log capability があればそれを使い、なければ `gh run view <run-id> --log-failed` を read-only で使う。
-- `failure / stop`: queued / in_progress / pending は `CI: pending`、failure 等は `CI: failure`、対象 SHA や結果を確認できない場合は `CI: unknown` として停止または Phase 4 へ戻る。combined status を成功根拠にしない。
-- `evidence`: reviewedHeadSha、各 run / job、status / conclusion、required 判定、失敗ログ取得経路、head 再確認を記録する（`observed`）。
+- `guard`: 全 required check が対象 SHA に対して completed / success のときだけ success とする。応答の `sha` 一致、`pagination.complete=true`、各 run の `head_sha` 一致を検証する。再実行 run の集約は tool 側（`deduplication.strategy = latest_id_per_app_and_name`）に任せ、skill 側で二重に集約しない。combined status を使わず、head SHA を確認できない run は success にしない。PR 番号入力で `head_sha` を返さない `{GH}:get_check_runs` は根拠にしない。次 phase 前に head を再読する。
+- `fallback`: failure の場合に client の workflow run / job / log capability があればそれを使い、なければ `gh run view <run-id> --log-failed` を read-only で使う。CI 取得経路そのものの切り替えは R-00 の discovery 時点でだけ行い、実行時の tool error や transport failure からは切り替えない（`gh api` は別の認証経路であり、R-00 の「異なる認証経路を自動的に試さない」に反する）。
+- `failure / stop`: queued / in_progress / pending（未完了 run の `conclusion` は `null` になり得る）と `check_runs` が空の場合は `CI: pending`、failure 等は `CI: failure`、対象 SHA・`pagination.complete`・結果を確認できない場合や tool error は `CI: unknown` として停止または Phase 4 へ戻る。combined status を成功根拠にしない。
+- `evidence`: reviewedHeadSha、CI read 経路、応答の `sha`、各 run / job、status / conclusion、`pagination.complete`、`deduplication`、required 判定、失敗ログ取得経路、head 再確認を記録する（`observed`）。
 
 ### R-17: Codecov の確認
 
@@ -871,14 +872,21 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分けて実行する。
 
-1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、`reviewedHeadSha` を入力とする check runs の read（`list_check_runs_for_sha`）を実行し、全ページを取得する。返却された各 check run の `head_sha` が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
-   - 第一選択: SHA を入力に取り、`head_sha` を返す MCP capability が R-00 で一意に解決できればそれを使う。
-   - それが無い場合: `gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
+1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、R-00 で固定した CI read 経路で `reviewedHeadSha` の check runs を取得する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+   - **第一選択**: `{RAVEN}:list_check_runs_for_sha`（`owner`、`repo`、40 桁小文字 hex の `sha` を入力する。branch 名や PR 番号は tool 側で拒否される）。次を検証してから使い、満たさない場合は `CI: unknown` とする。
+     - 応答の `sha` が入力の `reviewedHeadSha` と一致すること
+     - `pagination.complete` が `true` であること（`false` や欠落は取得未完了とする）
+     - 各 check run の `head_sha` が `reviewedHeadSha` と一致すること
+     - 再実行 run の集約は tool 側で行われる（`deduplication.strategy = latest_id_per_app_and_name`）。**skill 側で二重に集約しない**
+     - `check_runs` が空配列でも正常な応答である（push 直後で CI が未開始の場合など）。required check が未返却のときの扱い（手順 2 の `CI: pending`）に従う
+     - tool は合否判定を行わず、required / optional の区別も出力に含まれない。required checks の特定はリポジトリ方針（branch protection / repository policy）から別途行う
+     - 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない
+   - **fallback**: R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い（review-raven v0.5.0 未満）か schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。この経路では**同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は ID が最大のものだけを採用する**。`pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合は `CI: unknown` とする。
+   - **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として扱い、`gh api` へ迂回しない。
    - **`{GH}:get_check_runs`（公式 GitHub MCP の `pull_request_read`）は PR 番号を入力とし `head_sha` を返さないので、CI 判定の根拠にしない。**
-   - 同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は、ID が最大のものだけを採用する。
-2. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却、または `queued` / `in_progress` / `pending` の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
+2. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る）の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
 3. **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` としてユーザーに報告し、修正可能なら Phase 4、修正困難なら停止する。
-4. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
+4. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して同じ経路で手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
 
 ## Phase 6.6: カバレッジ確認
 
@@ -1081,7 +1089,8 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 | `{OWL}:enqueue_review` | レビュー・再レビューを review queue へ登録し、`review://status` を `pending` にリセット（`--mcp-http` では**必須**、`--webhook-mcp-http` では**使用しない**。フォールバックなし） | 共通 |
 | `mcp-resource-subscriber` | Phase W で `review://status/<owner>/<repo>/<prNumber>` の完了通知を待機（`--mcp-http` のみ） | 共通 |
 | `{GH}:create_issue` | フォローアップトラッキング Issue を作成 | 共通 |
-| `list_check_runs_for_sha`（SHA 入力の MCP capability、または `gh api .../commits/<sha>/check-runs`） | 固定した current head SHA の check runs を取得し、`head_sha` を照合して CI を判定 | **第一選択** |
+| `{RAVEN}:list_check_runs_for_sha` | 固定した current head SHA の check runs を取得し、`sha` と各 run の `head_sha` を照合して CI を判定（review-raven v0.5.0 以降） | **第一選択** |
+| `gh api .../commits/<sha>/check-runs` | R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い / schema 不一致の場合だけ使う CI 取得経路 | **フォールバック** |
 | `{GH}:get_check_runs` | PR 番号入力で `head_sha` を返さないため、CI 判定の根拠にしない | **使用しない** |
 | `gh run view <run-id> --log-failed` | MCP に workflow run / job / log capability がない client で失敗ログを取得 | **失敗ログのフォールバック** |
 

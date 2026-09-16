@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔄 変更
+
+- #296 に対応し、両 skill の CI 判定（O-06 / Snapshot Guard / R-16 / Phase 6.5）で使う check runs 取得の第一選択を、review-raven v0.5.0 の `{RAVEN}:list_check_runs_for_sha` に切り替え。`gh api repos/<owner>/<repo>/commits/<sha>/check-runs` は、discovery 時点でこのツールが無い（v0.5.0 未満）か schema 不一致の場合だけ使うフォールバックへ降格した。実行時の tool error / transport failure では経路を切り替えず `CI: unknown` で停止する（`gh api` は実行ユーザー token の別認証経路であり、「異なる認証経路を自動的に試さない」に反するため）
+- 第一選択の出力検証を契約に明記: 応答の `sha` が入力の `reviewedHeadSha` と一致すること、`pagination.complete=true` であること（false / 欠落は `CI: unknown`）、各 run の `head_sha` が一致すること、`conclusion` は未完了 run で `null` になり得るので `status` と併せて `CI: pending` と判定すること、`check_runs` が空配列でも正常応答であること。再実行 run の集約はツール側（`deduplication.strategy = latest_id_per_app_and_name`）に任せ、skill 側の「同 App・同 `name` は ID 最大を採用」は `gh api` フォールバック時だけの手順に限定した。required / optional と合否判定はツール出力に含まれないこと、取得対象が check runs だけで Status API の commit status を含まないことも明記
+- `thread-owl-pr-reviewer` に `{RAVEN}` の logical alias と discovery 手順を追加。用途を CI check runs の read に限定し、review-raven が gateway 経由で実行ユーザーの GitHub token を使う（thread-owl の GitHub App とは別経路の）ことを明記したうえで、O-02 / O-08 の「review-raven で迂回しない」と矛盾しないようにした。`{RAVEN}` は任意 capability であり、未解決でも `BLOCKED_MCP_DISCOVERY` にせず `gh api` フォールバックへ固定する
+- `review-raven-thread-owl-cycle` の R-00 で `list_check_runs_for_sha` を任意 capability として判定・固定するよう変更し、必要な MCP サーバー表・論理 alias 表・ツール対応表の check runs 読み取りの担当を `github` から `review-raven` へ移した
+
 ## [2.22.0] - 2026-09-16
 
 ### ✨ 新機能
