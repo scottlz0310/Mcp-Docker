@@ -1,6 +1,6 @@
 ---
 name: review-raven-thread-owl-cycle
-description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿して cycle を完了する。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）で呼び出す。"
+description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿する。--mcp-http 構成では mcp-resource-subscriber でレビュー完了を待機し、同一セッションでレビュー往復を続ける。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）、または PR を作成・更新した直後に待機を指示して呼び出す。"
 ---
 
 # review-raven-thread-owl-cycle スキル
@@ -9,7 +9,10 @@ description: "thread-owl レビュー用の reviewed-side cycle スキル。thre
 > このスキルは reviewer が **thread-owl** の場合の reviewed-side cycle を担当する。
 > Copilot review 用の `pr-review-cycle` は廃止済みで、reviewed-side cycle はこのスキルだけが担当する。
 
-thread-owl がレビュアーの場合に reviewed-side cycle を実行するスキル。Copilot watch ループはない。エントリーは thread-owl が新しいレビューを投稿した後（PR に unresolved な thread-owl スレッドが存在する状態）に行う。thread-owl review の通知を受け取ったらこのスキルを起動すること。
+thread-owl がレビュアーの場合に reviewed-side cycle を実行するスキル。Copilot watch ループはない。エントリーは次の 2 つ。
+
+- **コールドスタート**: thread-owl が新しいレビューを投稿した後（PR に unresolved な thread-owl スレッドが存在する状態）に起動する。thread-owl review の通知を受け取ったらこのスキルを起動すること。
+- **待機エントリー**: PR を作成・更新した実装側エージェントが、同一セッションのまま依頼文でレビュー完了の待機を指示して起動する。`--mcp-http` 構成でだけ使え、Phase W でレビュー完了を待ってから対応に入る（「Phase W: レビュー完了待機」節を参照）。
 
 再レビュー依頼は `@thread-owl re-review requested` PR コメントとして投稿する。**コメントの投稿だけでは queue に載らない構成があり、その場合は `enqueue_review(reason: "re-review-requested")` の実行までを 1 組**として reviewed-side cycle が完了する。
 
@@ -38,7 +41,13 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 > このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。必須コメント投稿者ゲートでは `get_review_threads` に `include_bodies=false` を渡し、ゲート通過後にだけ `include_bodies=true` で本文を取得します。`gh` CLI は、論理 alias の discovery と read 検証が成功した後に、各手順で明記された read-only の補完経路としてのみ使用します。discovery に失敗した場合、`gh` CLI を別の write 経路として使いません。
 >
-> `thread-owl` は再レビュー依頼を review queue へ登録するためだけに使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
+> `thread-owl` はレビュー依頼を review queue へ登録するため（`enqueue_review`）と、Phase W でレビュー状態を待機するため（`review://status/{owner}/{repo}/{prNumber}` resource。thread-owl v0.4.3 以降）に使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
+
+### 必要な CLI
+
+| CLI | 役割 | 参照 |
+|-----|------|------|
+| `mcp-resource-subscriber`（v0.6.0 以降） | Phase W で `review://status/...` の更新通知を待機する | [README.md](https://github.com/scottlz0310/mcp-resource-subscriber/blob/main/README.md) |
 
 ### 論理 alias
 
@@ -72,7 +81,7 @@ status = blocked
 
 ---
 
-## R-00〜R-21: reviewed-side 実行契約
+## R-00〜R-22: reviewed-side 実行契約
 
 ### Write route と投稿 identity の discovery
 
@@ -245,7 +254,7 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 ### R-13: thread-owl 起動モードの判定
 
-- `precondition`: R-12 で再レビューが必要と判定され、R-00 の `{OWL}` binding が確定している。
+- `precondition`: 待機エントリーで起動された、または R-12 で再レビューが必要と判定され、R-00 の `{OWL}` binding が確定している。
 - `primary tool`: ローカルの `docker compose config` または compose 定義の `thread-owl.command`。
 - `input / output`: 実行環境の compose ファイルを入力し、`--mcp-http` または `--webhook-mcp-http` の mode を出力する。
 - `side effect`: read-only。queue、GitHub コメント、購読状態は変更しない。
@@ -346,12 +355,23 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 - `precondition`: その cycle の termination_status、current / reviewed head、CI、Verdict、thread、queue、残存リスクが確定している。
 - `primary tool`: なし。日本語の固定 Markdown 報告を出力する。
-- `input / output`: R-00〜R-20 の evidence と状態を入力し、termination_status、fix_type、CI、Verdict SHA、未解決数、queue route、次アクションを出力する。
+- `input / output`: R-00〜R-20 と R-22 の evidence と状態を入力し、termination_status、fix_type、CI、Verdict SHA、未解決数、queue route、次アクションを出力する。
 - `side effect`: なし。外部 API、PR、Issue、queue への書き込みは行わない。
 - `guard`: READY_TO_MERGE、ESCALATE、AWAITING_THREAD_OWL_VERDICT、human escalation を混同せず、未確認を成功と書かない。token、Authorization header、秘密情報を含めない。
 - `fallback`: なし。必須 evidence が欠ける場合は unknown / blocked と明記し、推測で補完しない。
 - `failure / stop`: 報告に必要な状態を取得できない場合は `REPORT_EVIDENCE_INCOMPLETE` として停止し、merge ready と報告しない。
 - `evidence`: 実行順、使用した logical alias / schema snapshot、観測結果、未実施項目、次の人手アクションを固定フォーマットで記録する（`observed` / `simulated` / `inferred` を区別）。
+
+### R-22: レビュー完了待機
+
+- `precondition`: R-13 で `--mcp-http` と判定され、待機エントリー（PR の作成・更新直後）または R-14 / R-15 の再レビュー依頼が完了している。対象 PR の current head が remote と一致し、待機中にこの PR へ push・enqueue を行わない。
+- `primary tool`: `{OWL}:enqueue_review`（R-00 の schema snapshot）と、購読・待機用の `mcp-resource-subscriber`。
+- `input / output`: owner、repo、prNumber、reason、小文字化した `review://status/<owner>/<repo>/<prNumber>`、購読 URL、timeout を入力し、subscriber の `route`、`errorCode`、`initialText` / `finalText` の `status` / `headSha` / `summaryCommentId` を出力する。
+- `side effect`: この round の `enqueue_review` を 1 回だけ実行し、`review://status` を `pending` にリセットして queue に載せる。待機自体は read-only。
+- `guard`: subscriber は `enqueue_review` の直後に起動する。`route` が `subscription` / `pre-completion` かつ `finalText` の `status` が `reviewed` / `approved` で、owner / repo / prNumber が対象 PR と一致する場合だけ完了とする。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て Phase U2 でスレッドを実際に取得する。
+- `fallback`: `RESOURCE_NOT_FOUND` は `enqueue_review` からのやり直しを 1 回だけ、`SUBSCRIPTION_NOT_HONORED` は URI の小文字化を確認して 1 回だけ再試行する。`NOTIFICATION_TIMEOUT` で `initialText` の `status` が `reviewed` / `approved` の場合だけ完了扱いにする。ポーリングへ切り替えない。
+- `failure / stop`: timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
+- `evidence`: mode、enqueue の reason と結果、resource URI、timeout、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
 
 ---
 
@@ -359,7 +379,7 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 ```
 Phase 0（エントリー・cycles_done 復元）
-  |
+  |  待機エントリー（--mcp-http）→ Phase W: enqueue_review → レビュー完了待機 → Phase 0 の手順 4〜5 を再実行
   v
 Phase U2: スレッド取得 → Phase 3: 分類 → Phase 4: 修正 → PR HEAD 同期ゲート → Phase U5: 返信/resolve
                                                                                     |
@@ -371,7 +391,9 @@ Phase U2: スレッド取得 → Phase 3: 分類 → Phase 4: 修正 → PR HEAD
                                     ↓ ESCALATE（最大サイクル超過）
                           Phase 6.5 → Phase 7 → Phase 8
                                     ↓ REQUEST_REREVIEW（cycles_done < max_cycles）
-                    @thread-owl コメント投稿 → enqueue_review（--mcp-http では必須）→ 完了
+                    @thread-owl コメント投稿 → 起動モードで分岐
+                        ├ --mcp-http: enqueue_review → Phase W（待機）→ Phase 0 の手順 4〜5 → Phase U2 へ戻る
+                        └ --webhook-mcp-http: enqueue しない → 完了
 ```
 > ※ Phase 6.6 において、ゲート運用で明示閾値を下回り振る舞い・契約テストで解消可能な gap がある場合は、同一サイクル内で最大 1 回かつ `cycles_done < max_cycles` の条件で Phase 4 へ戻る。
 
@@ -501,7 +523,9 @@ GitHub GraphQL では GitHub App の login から REST API の `[bot]` suffix �
    - `handled_comments`: ブロックに列挙されている ID 群を記録してセット（既処理リスト）を作成する。`なし` または見つからない場合は空。
    - `max_cycles`: 復元した値で**上書きしない**。ステップ 3 の固定値を使う。記録された値と食い違う場合は、過去に人の指示で延長された履歴か、規約違反の書き込みである。**どちらであってもエージェントの判断で追随してはならない**ため、食い違いを報告したうえで固定値のまま続行する。
 6. R-00 の minimum read が、必須コメント投稿者ゲートで実施した `{RAVEN}:get_review_threads(include_bodies=false)` と他の binding の read 検証によって成功していることを確認する。失敗した場合は `BLOCKED_MCP_DISCOVERY` として停止し、本文取得・変更・返信・resolve・コメント投稿・enqueue を行わない。
-7. Phase U2 へ進む。
+7. エントリーを振り分ける。
+   - 依頼文で PR 作成・更新直後のレビュー完了待機を指示されている（待機エントリー）→ **Phase W** へ進む。
+   - それ以外（コールドスタート）→ Phase U2 へ進む。未解決スレッドがある状態で起動された場合は待機しない。依頼文に待機の指示がない場合も、推測で Phase W に入らない（完了済みのレビューに対して新しいラウンドを enqueue してしまうため）。
 
 ## Phase U2: レビュー指摘の収集
 
@@ -561,7 +585,7 @@ gh api repos/<owner>/<repo>/pulls/<pr>/reviews --paginate --jq '.[] | select(.bo
 ```bash
 gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate --jq '.[] | {id: .id, body: .body, author: .user.login}'
 ```
-取得したコメントの中から、`actionable` な指摘を抽出します。
+取得したコメントの中から、`actionable` な指摘を抽出します。thread-owl のレビュー完了サマリー（見出し `## @thread-owl Review Result: ...`）では「current diff 外の指摘」節に書かれた項目だけを actionable とし、件数の集計や inline thread の案内は指摘として扱いません。Verdict コメントは actionable ではありません。
 **既処理チェック**: 抽出したコメントの `id` が Phase 0 で復元した `handled_comments` に含まれている場合は、処理済みとしてスキップします。未対応のもののみ、コメントの `id`、`author`、`body` を記録します。
 
 ---
@@ -692,7 +716,7 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 
 - `need_re_review = no` → **Phase 6.5**（`termination_status = READY_TO_MERGE`）
 - `need_re_review = yes` かつ `cycles_done ≥ max_cycles` → 終了分類して **Phase 6.5**
-- `need_re_review = yes` かつ `cycles_done < max_cycles` → `@thread-owl` コメント投稿（下記フォーマット参照）→ **起動モードに応じた queue 登録** → **reviewed-side cycle 完了**
+- `need_re_review = yes` かつ `cycles_done < max_cycles` → `@thread-owl` コメント投稿（下記フォーマット参照）→ **起動モードに応じた queue 登録** → `--mcp-http` では **Phase W** へ進み、`--webhook-mcp-http` では **reviewed-side cycle 完了**
 
 > **上限到達時に止まるのは再レビュー依頼だけである。** `cycles_done ≥ max_cycles` の経路にも、本サイクルの Phase 3〜U5（分類・修正・コミット・push・返信・resolve・処理済み記録）を通常どおり完了させた上で到達する。上限が抑止するのは `@thread-owl re-review requested` の投稿と queue 登録（＝自動継続のトリガー）だけであり、「もう何もしない」という意味ではない。**上限に達したことを理由に `max_cycles` を引き上げてはならない**（「`max_cycles` の扱い」節を参照）。
 
@@ -773,8 +797,62 @@ enqueue は「レビュー対象として queue に載せる」操作であり�
 
 `enqueue_review` が利用できない場合は、cycle を完了扱いにせず、**queue へ登録できなかったことをユーザーに明示して停止する**。Squirrel Notifier の「レビュー開始」（PR の URL と reason を手入力する導線）がフォールバックである旨も伝える。
 
-**reviewed-side cycle はコメント投稿と enqueue の両方を終えて完了する。Phase U2 には戻らない。**
-次の reviewer-side cycle は、queue event を受けた Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> re-review` の明示的な起動指示によって開始される。
+**`--mcp-http` では、コメント投稿と enqueue を終えたら Phase W へ進み、レビュー完了を待ってから Phase U2 へ戻る。** ここでの enqueue は Phase W の手順 2 を兼ねるため、Phase W で重ねて呼ばない。`--webhook-mcp-http` では待機せず、コメント投稿をもって reviewed-side cycle を完了する（`review://status` を `pending` にリセットできるのは `enqueue_review` tool だけで、webhook 経由の enqueue ではリセットされないため、待機の完了判定が成り立たない）。
+次の reviewer-side cycle は、queue event を受けた Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> re-review` の明示的な起動指示によって開始される。待機中の reviewed-side はこの起動を行わない。
+
+---
+
+## Phase W: レビュー完了待機（`--mcp-http` のみ）
+
+R-22 の実行契約に従い、reviewer-side のレビュー完了を `review://status` resource の更新通知で待つ。ポーリングの代替であり、同一セッションのコンテキストを保ったままレビュー対応へ進むためのステップである。
+
+### 前提
+
+- thread-owl v0.4.3 以降（`review://status/{owner}/{repo}/{prNumber}` resource を提供する）。
+- reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に `post_summary_comment` を 1 回呼ぶこと。thread-owl の状態が `reviewed` になるのは `post_summary_comment`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
+- 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
+- `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
+
+### 手順
+
+1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
+2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。
+   - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
+   - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
+3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。`--url` は thread-owl の MCP URL で、`MCP_PROBE_URL` 環境変数でも指定できる。
+
+   ```powershell
+   bunx mcp-resource-subscriber `
+     --url $env:THREAD_OWL_MCP_URL `
+     --uri review://status/<owner>/<repo>/<prNumber> `
+     --timeout-ms 600000 `
+     --json
+   ```
+
+   - CLI の shell tool のタイムアウトは `--timeout-ms` より長くするか、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
+   - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
+   - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
+4. JSON 出力を判定する。
+
+   | 出力 | 扱い |
+   |------|------|
+   | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | 完了。手順 5 へ |
+   | `errorCode = NOTIFICATION_TIMEOUT` で、`initialText` の `status` が `reviewed` / `approved` | 待機前に完了していたとみなし、手順 5 へ |
+   | `errorCode = NOTIFICATION_TIMEOUT`（上記以外） | `REVIEW_WAIT_TIMEOUT` で停止する |
+   | `errorCode = RESOURCE_NOT_FOUND` | `enqueue_review` 前の起動か、thread-owl の再起動による状態消失。手順 2 からのやり直しを 1 回だけ行い、再発したら `REVIEW_STATUS_NOT_FOUND` で停止する |
+   | `errorCode = SUBSCRIPTION_NOT_HONORED` | `--uri` が小文字か確認する。大文字が含まれていた場合だけ小文字にして手順 3 を 1 回だけ再実行し、それ以外は `REVIEW_WAIT_FAILED` で停止する |
+   | 上記以外の `failed` / `timeout`、JSON 不正、対象 PR 不一致 | `REVIEW_WAIT_FAILED` で停止する |
+
+5. 完了したら、Phase 0 の手順 4〜5（必須コメント投稿者ゲートとサイクル状態の復元）を再実行してから **Phase U2** へ進む。`status` だけで指摘の有無を判断しない。
+   - 未解決スレッドや actionable な指摘がある（`reviewed` / `approved` のどちらでも）→ Phase 3 以降の通常手順。
+   - 未解決の指摘が 0 件 → `READY_TO_MERGE` として Phase 6.5 → 6.6 → 7 → 8 へ進む。approve 相当かどうかは Phase 7 の Verdict 照合で判定し、Verdict が無ければ `AWAITING_THREAD_OWL_VERDICT` として報告する。どちらの場合もマージは人の判断を待つ。
+
+### 停止時の報告
+
+`REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
+
+- reviewer が起動されているか確認する（Squirrel Notifier の Recent review events の「レビューする」、または別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review`）。
+- レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
 ---
 
@@ -953,7 +1031,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
    - `VERDICT_HEAD_MISMATCH`: 「thread-owl の Verdict コメント（comment <ID>）の Reviewed HEAD SHA が現在の PR HEAD と不一致です。現在の HEAD に対する再レビューを待機してください。」
 3. thread-owl から新たな Verdict コメントが投稿され次第、Phase 7 の Verdict コメント確認からやり直す。
 
-`termination_status = WAITING_FOR_REVIEW(thread-owl)`（再レビューコメント投稿済み）の場合:
+`termination_status = WAITING_FOR_REVIEW(thread-owl)`（`--webhook-mcp-http` で再レビューコメント投稿済み、または Phase W が停止した）の場合:
 1. マージ準備完了とは報告しない。
 2. 「thread-owl への再レビュー依頼済み。次の review cycle 待機中。」と報告する。
 
@@ -964,6 +1042,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 - `max_cycles` は固定値 3。**エージェントは変更できない**（延長は人の明示指示のみ。「`max_cycles` の扱い」節を参照）。上限が止めるのは `@thread-owl re-review requested` の投稿と queue 登録だけで、指摘への対応・修正・返信・resolve は通常どおり行う。`ESCALATE` は回避すべき失敗ではなく、人のマージ判断へ合流する正常な経路である。
 - `cycles_done` はサーバー状態ではなく、PR コメント本文の `### サイクル状態` ブロックから復元する（「サイクル状態ブロック」節を参照）。旧アノテーション `<!-- review-raven: ... -->` は移行期間中の読み取りフォールバックとしてのみ扱い、新規に書き出さない。
 - 再レビュー依頼で queue に載せる経路は thread-owl の起動モードで決まる。`--mcp-http`（Mcp-Docker の既定）では `@thread-owl` コメントに加えて `{OWL}:enqueue_review(reason: "re-review-requested")` が**必須**（コメントだけでは queue に何も積まれずサイクルが静かに停止する）。`--webhook-mcp-http` では thread-owl 自身が enqueue するため**明示 enqueue は行わない**（通知 listener が二重発火する）。`request_copilot_review` は使用しない。
+- レビュー完了の待機（Phase W）は `--mcp-http` でだけ行い、`enqueue_review` の直後に `mcp-resource-subscriber` で `review://status/...`（owner / repo は小文字）を購読する。ポーリングで代替しない。
 - このスキルは Copilot watch を開始せず、`get_pr_review_cycle_status` を呼ばない。
 - 修正粒度: スレッド単位 atomic（1 スレッド = 1 論理変更単位）。
 - コミット戦略: Phase 4 完了後まとめて 1 コミット（Conventional Commits 形式）。
@@ -984,7 +1063,8 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 | `{RAVEN}:reply_to_review_thread` | レビュースレッドに返信 | **第一選択** |
 | `{RAVEN}:resolve_review_thread` | レビュースレッドを解決済みにする | **第一選択** |
 | `{GH}:add_issue_comment` | PR サマリ・再レビュー依頼コメント投稿 | 共通 |
-| `{OWL}:enqueue_review` | 再レビューを review queue へ登録（`--mcp-http` では**必須**、`--webhook-mcp-http` では**使用しない**。フォールバックなし） | 共通 |
+| `{OWL}:enqueue_review` | レビュー・再レビューを review queue へ登録し、`review://status` を `pending` にリセット（`--mcp-http` では**必須**、`--webhook-mcp-http` では**使用しない**。フォールバックなし） | 共通 |
+| `mcp-resource-subscriber` | Phase W で `review://status/<owner>/<repo>/<prNumber>` の完了通知を待機（`--mcp-http` のみ） | 共通 |
 | `{GH}:create_issue` | フォローアップトラッキング Issue を作成 | 共通 |
 | `{GH}:get_check_runs` | PR 番号で check runs を取得し、current head SHA に対する CI を判定 | **第一選択** |
 | `gh run view <run-id> --log-failed` | MCP に workflow run / job / log capability がない client で失敗ログを取得 | **失敗ログのフォールバック** |
