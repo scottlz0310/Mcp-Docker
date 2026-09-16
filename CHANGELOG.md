@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新機能
 
-- #290 に対応し、`review-raven-thread-owl-cycle` にレビュー完了待機（Phase W / R-22）を追加。`--mcp-http` 構成では、`enqueue_review` の直後に `mcp-resource-subscriber` で thread-owl v0.4.3 の `review://status/{owner}/{repo}/{prNumber}` を購読する。完了後はスレッドを実際に取得してレビュー対応へ進むので、PR 作成・更新後の待機から再レビュー往復まで同一セッションで回せる。`NOTIFICATION_TIMEOUT` / `RESOURCE_NOT_FOUND` / `SUBSCRIPTION_NOT_HONORED` の扱いを定義。`--webhook-mcp-http` では二重 enqueue を避けるため待機しない
+- #290 に対応し、`review-raven-thread-owl-cycle` にレビュー完了待機（Phase W / R-22）を追加。`--mcp-http` 構成では、`enqueue_review` の直後に `mcp-resource-subscriber` で thread-owl v0.4.3 の `review://status/{owner}/{repo}/{prNumber}` を購読する。完了後はスレッドを実際に取得してレビュー対応へ進むので、PR 作成・更新後の待機から再レビュー往復まで同一セッションで回せる。`NOTIFICATION_TIMEOUT` / `RESOURCE_NOT_FOUND` / `SUBSCRIPTION_NOT_HONORED` の扱いを定義。`--webhook-mcp-http` では二重 enqueue を避けるため待機しない。完了判定では `headSha` と current PR head を enqueue 直前に固定した HEAD と照合し、null や不一致は `REVIEW_HEAD_MISMATCH` として fail-closed で停止する。購読 URL は `MCP_PROBE_URL` → `MCP_GATEWAY_PUBLIC_URL` + `/mcp/thread-owl` の順で解決する（reviewer skill の queue 待機例にあった未定義の `THREAD_OWL_MCP_URL` も同じ規則に修正）
 - `thread-owl-pr-reviewer` の `initial-review` / `re-review` は、verdict にかかわらず最後に `post_summary_comment` をちょうど 1 回呼ぶよう変更（approve 以外は `## @thread-owl Review Result` 形式）。`headSha` に reviewed head を渡し、inline 指摘だけのレビューでも待機側が完了を検知できるようにした
 
 ### 🐛 バグ修正

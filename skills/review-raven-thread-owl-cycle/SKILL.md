@@ -366,12 +366,12 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 - `precondition`: R-13 で `--mcp-http` と判定され、待機エントリー（PR の作成・更新直後）または R-14 / R-15 の再レビュー依頼が完了している。対象 PR の current head が remote と一致し、待機中にこの PR へ push・enqueue を行わない。
 - `primary tool`: `{OWL}:enqueue_review`（R-00 の schema snapshot）と、購読・待機用の `mcp-resource-subscriber`。
-- `input / output`: owner、repo、prNumber、reason、小文字化した `review://status/<owner>/<repo>/<prNumber>`、購読 URL、timeout を入力し、subscriber の `route`、`errorCode`、`initialText` / `finalText` の `status` / `headSha` / `summaryCommentId` を出力する。
+- `input / output`: owner、repo、prNumber、reason、enqueue 直前に固定した `expected_head`、小文字化した `review://status/<owner>/<repo>/<prNumber>`、`MCP_PROBE_URL` または `MCP_GATEWAY_PUBLIC_URL` から解決した購読 URL、timeout を入力し、subscriber の `route`、`errorCode`、`initialText` / `finalText` の `status` / `headSha` / `summaryCommentId` を出力する。
 - `side effect`: この round の `enqueue_review` を 1 回だけ実行し、`review://status` を `pending` にリセットして queue に載せる。待機自体は read-only。
-- `guard`: subscriber は `enqueue_review` の直後に起動する。`route` が `subscription` / `pre-completion` かつ `finalText` の `status` が `reviewed` / `approved` で、owner / repo / prNumber が対象 PR と一致する場合だけ完了とする。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て Phase U2 でスレッドを実際に取得する。
+- `guard`: subscriber は `enqueue_review` の直後に起動する。`route` が `subscription` / `pre-completion` かつ `finalText` の `status` が `reviewed` / `approved` で、owner / repo / prNumber が対象 PR と一致し、さらに `headSha` と current PR head がどちらも `expected_head` と一致する場合だけ完了とする。`headSha` が null・不一致の場合は受理しない。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て Phase U2 でスレッドを実際に取得する。
 - `fallback`: `RESOURCE_NOT_FOUND` は `enqueue_review` からのやり直しを 1 回だけ、`SUBSCRIPTION_NOT_HONORED` は URI の小文字化を確認して 1 回だけ再試行する。`NOTIFICATION_TIMEOUT` で `initialText` の `status` が `reviewed` / `approved` の場合だけ完了扱いにする。ポーリングへ切り替えない。
-- `failure / stop`: timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
-- `evidence`: mode、enqueue の reason と結果、resource URI、timeout、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
+- `failure / stop`: timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、`headSha` が null・不一致または current head の移動は `REVIEW_HEAD_MISMATCH`、URL 未解決・`AUTH_LOGIN_REQUIRED`・その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
+- `evidence`: mode、enqueue の reason と結果、expected_head、URL の解決元（環境変数名のみ）、resource URI、timeout、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
 
 ---
 
@@ -816,19 +816,25 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 ### 手順
 
 1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
-2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。
+2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定する。
    - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
    - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
-3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。`--url` は thread-owl の MCP URL で、`MCP_PROBE_URL` 環境変数でも指定できる。
+3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（Mcp-Docker の compose は thread-owl をホストへ公開しないので、mcp-gateway の route を経由する）。
+
+   1. 環境変数 `MCP_PROBE_URL` が設定されていれば、subscriber がそれを `--url` として読むので `--url` を省略する。
+   2. 未設定で `MCP_GATEWAY_PUBLIC_URL` が設定されていれば、`<MCP_GATEWAY_PUBLIC_URL>/mcp/thread-owl`（末尾の `/` は重ねない）を `--url` に渡す。
+   3. どちらも未設定なら URL を推測せず、`REVIEW_WAIT_FAILED`（URL 未解決）として停止し、どちらかの設定をユーザーに依頼する。
 
    ```powershell
+   # MCP_PROBE_URL が設定済みの場合は --url 行を省く
    bunx mcp-resource-subscriber `
-     --url $env:THREAD_OWL_MCP_URL `
+     --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
      --uri review://status/<owner>/<repo>/<prNumber> `
      --timeout-ms 600000 `
      --json
    ```
 
+   - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx mcp-resource-subscriber --login --url <同じ URL>` の実行を依頼する。
    - CLI の shell tool のタイムアウトは `--timeout-ms` より長くするか、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
@@ -836,12 +842,17 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
    | 出力 | 扱い |
    |------|------|
-   | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | 完了。手順 5 へ |
-   | `errorCode = NOTIFICATION_TIMEOUT` で、`initialText` の `status` が `reviewed` / `approved` | 待機前に完了していたとみなし、手順 5 へ |
+   | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | HEAD 照合（下記）へ |
+   | `errorCode = NOTIFICATION_TIMEOUT` で、`initialText` の `status` が `reviewed` / `approved` | 待機前に完了していたとみなし、`initialText` で HEAD 照合（下記）へ |
    | `errorCode = NOTIFICATION_TIMEOUT`（上記以外） | `REVIEW_WAIT_TIMEOUT` で停止する |
    | `errorCode = RESOURCE_NOT_FOUND` | `enqueue_review` 前の起動か、thread-owl の再起動による状態消失。手順 2 からのやり直しを 1 回だけ行い、再発したら `REVIEW_STATUS_NOT_FOUND` で停止する |
    | `errorCode = SUBSCRIPTION_NOT_HONORED` | `--uri` が小文字か確認する。大文字が含まれていた場合だけ小文字にして手順 3 を 1 回だけ再実行し、それ以外は `REVIEW_WAIT_FAILED` で停止する |
+   | `errorCode = AUTH_LOGIN_REQUIRED` | `REVIEW_WAIT_FAILED` で停止し、`--login` の実行を依頼する |
    | 上記以外の `failed` / `timeout`、JSON 不正、対象 PR 不一致 | `REVIEW_WAIT_FAILED` で停止する |
+
+   **HEAD 照合（fail-closed）**: 完了とみなした状態の `headSha` を、手順 2 で固定した `expected_head` と文字列全体で比較する。あわせて `{GH}:get_pr` で current PR head を再取得する。`headSha` と current PR head がどちらも `expected_head` と一致する場合だけ手順 5 へ進む。それ以外は古い HEAD や前 round の結果を受理しないよう `REVIEW_HEAD_MISMATCH` で停止し、自動で再 enqueue しない（無人ループを避けるため）。
+   - `headSha` が null: reviewer-side がレビュー対象 HEAD を渡していない（`headSha` 対応前の `thread-owl-pr-reviewer` か、`post_summary_comment` の呼び出し漏れ）。reviewer skill の更新を依頼する。
+   - `headSha` が `expected_head` と不一致、または current PR head が移動した: 待機中の push か、古い round の完了の混入。current head に対して手順 2 からやり直すか（再 enqueue・再レビュー）をユーザーに確認する。
 
 5. 完了したら、Phase 0 の手順 4〜5（必須コメント投稿者ゲートとサイクル状態の復元）を再実行してから **Phase U2** へ進む。`status` だけで指摘の有無を判断しない。
    - 未解決スレッドや actionable な指摘がある（`reviewed` / `approved` のどちらでも）→ Phase 3 以降の通常手順。
@@ -849,7 +860,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 ### 停止時の報告
 
-`REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
+`REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
 
 - reviewer が起動されているか確認する（Squirrel Notifier の Recent review events の「レビューする」、または別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review`）。
 - レビュー投稿後は、このスキルをコールドスタートで起動し直す。
