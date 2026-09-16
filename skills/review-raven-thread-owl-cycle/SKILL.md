@@ -288,10 +288,10 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 ### R-16: CI と失敗ログ
 
 - `precondition`: 対象 PR の current head が読め、required checks の repository policy が確定している。
-- `primary tool`: `{GH}:get_pr` で head を固定した直後の `{GH}:get_check_runs` 1 call（R-00 の schema snapshot）。
-- `input / output`: PR 番号と固定した reviewedHeadSha を入力し、各 check run の対象 SHA、status、conclusion、required / optional、run / job ID を出力する。
+- `primary tool`: `{GH}:get_pr` で head を固定した直後の `list_check_runs_for_sha`（Phase 6.5 の手順 1。SHA を入力に取る MCP capability、無ければ `gh api .../commits/<sha>/check-runs` の read-only）。
+- `input / output`: 固定した reviewedHeadSha を入力し、各 check run の対象 SHA（`head_sha`）、status、conclusion、required / optional、run / job ID を出力する。
 - `side effect`: read-only。CI の再実行や設定変更は行わない。
-- `guard`: 全 required check が対象 SHA に対して completed / success のときだけ success とする。combined status を使わず、head SHA を確認できない run は success にしない。次 phase 前に head を再読する。
+- `guard`: 全 required check が対象 SHA に対して completed / success のときだけ success とする。combined status を使わず、head SHA を確認できない run は success にしない。PR 番号入力で `head_sha` を返さない `{GH}:get_check_runs` は根拠にしない。次 phase 前に head を再読する。
 - `fallback`: failure の場合に client の workflow run / job / log capability があればそれを使い、なければ `gh run view <run-id> --log-failed` を read-only で使う。
 - `failure / stop`: queued / in_progress / pending は `CI: pending`、failure 等は `CI: failure`、対象 SHA や結果を確認できない場合は `CI: unknown` として停止または Phase 4 へ戻る。combined status を成功根拠にしない。
 - `evidence`: reviewedHeadSha、各 run / job、status / conclusion、required 判定、失敗ログ取得経路、head 再確認を記録する（`observed`）。
@@ -871,7 +871,11 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分けて実行する。
 
-1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に `{GH}:get_check_runs` を PR 番号で **1 call** 実行する。`get_check_runs` は SHA を受け取らないため、返却された各 check run の `head_sha` / `sha`（または同等の対象 SHA）が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、`reviewedHeadSha` を入力とする check runs の read（`list_check_runs_for_sha`）を実行し、全ページを取得する。返却された各 check run の `head_sha` が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+   - 第一選択: SHA を入力に取り、`head_sha` を返す MCP capability が R-00 で一意に解決できればそれを使う。
+   - それが無い場合: `gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
+   - **`{GH}:get_check_runs`（公式 GitHub MCP の `pull_request_read`）は PR 番号を入力とし `head_sha` を返さないので、CI 判定の根拠にしない。**
+   - 同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は、ID が最大のものだけを採用する。
 2. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却、または `queued` / `in_progress` / `pending` の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
 3. **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` としてユーザーに報告し、修正可能なら Phase 4、修正困難なら停止する。
 4. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
@@ -1077,7 +1081,8 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 | `{OWL}:enqueue_review` | レビュー・再レビューを review queue へ登録し、`review://status` を `pending` にリセット（`--mcp-http` では**必須**、`--webhook-mcp-http` では**使用しない**。フォールバックなし） | 共通 |
 | `mcp-resource-subscriber` | Phase W で `review://status/<owner>/<repo>/<prNumber>` の完了通知を待機（`--mcp-http` のみ） | 共通 |
 | `{GH}:create_issue` | フォローアップトラッキング Issue を作成 | 共通 |
-| `{GH}:get_check_runs` | PR 番号で check runs を取得し、current head SHA に対する CI を判定 | **第一選択** |
+| `list_check_runs_for_sha`（SHA 入力の MCP capability、または `gh api .../commits/<sha>/check-runs`） | 固定した current head SHA の check runs を取得し、`head_sha` を照合して CI を判定 | **第一選択** |
+| `{GH}:get_check_runs` | PR 番号入力で `head_sha` を返さないため、CI 判定の根拠にしない | **使用しない** |
 | `gh run view <run-id> --log-failed` | MCP に workflow run / job / log capability がない client で失敗ログを取得 | **失敗ログのフォールバック** |
 
 ---
