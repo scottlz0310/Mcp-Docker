@@ -209,10 +209,10 @@ status = blocked
 - `primary tool`: `{OWL}:post_summary_comment`（R-00 の schema snapshot）。
 - `input / output`: レビュー観点、CI、coverage、残存リスク、`reviewedHeadSha`、Verdict の状態を入力し、PR-level summary / comment ID / URL を出力する。
 - `side effect`: PR conversation へ summary を一件投稿する。コード、thread、queue、merge は変更しない。
-- `guard`: approve のときだけ固定見出し `## @thread-owl Review Verdict: APPROVED`、`Reviewed HEAD SHA`、`Status: READY_TO_MERGE` を正確に含める。summary-only では明示されない投稿を行わない。
-- `fallback`: なし。Verdict を GitHub connector の review や issue comment で代替投稿しない。
-- `failure / stop`: summary の投稿失敗・状態キー欠落・SHA 不一致は `SUMMARY_POST_FAILED` として停止し、マージ可能と報告しない。
-- `evidence`: comment ID / URL、mode、観点、CI SHA、Verdict、Status、投稿結果を記録する（`observed`）。
+- `guard`: approve のときだけ「Verdict コメント投稿」節のテンプレートで本文を作り、固定部分を変えない。投稿前に「Verdict 照合規則」で書式一致と HEAD 行の `reviewedHeadSha` 一致を検証し、投稿後に本文を読み直して同じ検証を行う。summary-only では明示されない投稿を行わない。
+- `fallback`: なし。Verdict を GitHub connector の review や issue comment で代替投稿しない。書式検証に失敗した本文を別の書式で投稿し直さない。
+- `failure / stop`: 投稿前の書式検証の不一致は投稿せず、投稿後の不一致は再投稿せず、いずれも `VERDICT_FORMAT_INVALID` として停止する。summary の投稿失敗・状態キー欠落は `SUMMARY_POST_FAILED` として停止する。いずれもマージ可能と報告しない。
+- `evidence`: comment ID / URL とその特定経路、mode、観点、CI SHA、Verdict、Status、投稿前後の書式検証結果、投稿結果を記録する（`observed`）。
 
 ### O-13: APPROVE 投稿
 
@@ -503,7 +503,7 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 
 - `{OWL}:approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
 - 代わりに `{OWL}:post_summary_comment` でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
-- **reviewed-side 連携の必須要件**: reviewed-side workflow（`review-raven`）は `## @thread-owl Review Verdict: APPROVED`、`Reviewed HEAD SHA`、`Status: READY_TO_MERGE` を機械的に検出してマージゲートを判定する。そのため、**見出し行および末尾のメタデータ行の形式・文言は変更せず、その間にレビューサマリーを記述する**こと。
+- **reviewed-side 連携の必須要件**: reviewed-side workflow（`review-raven`）は後述の「Verdict 照合規則」で見出し行・HEAD 行・Status 行を機械的に照合してマージゲートを判定する。一致しなければ reviewed-side cycle は `AWAITING_THREAD_OWL_VERDICT` で止まる。そのため、**見出し行および末尾のメタデータ行の形式・文言は変更せず、その間にレビューサマリーを記述する**こと。
 
 ```markdown
 ## @thread-owl Review Verdict: APPROVED
@@ -523,9 +523,48 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 - Status: `READY_TO_MERGE`
 ```
 
-- サマリー内容は固定定型文の羅列で済ませず、Independent Stage や Synthesis Stage で実際に確認・評価した PR 固有の観点・根拠を反映すること。
-- `<reviewedHeadSha>` は Snapshot Guard で確認済みの `reviewedHeadSha` と一致させる。
+**固定部分と自由記述部分の境界**
+
+- 固定部分（一字一句変えない）: 見出し行 `## @thread-owl Review Verdict: APPROVED`、`---` 区切り線、`---` 以降のメタデータ 2 行。置き換えてよいのは `<reviewedHeadSha>` だけで、O-10 で固定した `reviewedHeadSha` にする。
+- 自由記述部分: 見出し行と `---` の間（判定文と `### レビューサマリー` の中身）だけ。固定定型文の羅列で済ませず、Independent Stage や Synthesis Stage で実際に確認・評価した PR 固有の観点・根拠をここに反映する。
+- 変更が小さい PR（リリース準備、バージョン番号の更新だけ等）でも、短くしてよいのは自由記述部分だけである。固定部分を省略・短縮・言い換えしない。
+
+NG 例（thread-owl#217 で実際に投稿された逸脱。見出し・HEAD 行・判定行のすべてが「Verdict 照合規則」に一致しない）:
+
+```markdown
+## @thread-owl Review Verdict: READY_TO_MERGE
+
+- Reviewed HEAD: `3bda4f8...`
+- 判定: `READY_TO_MERGE`
+```
+
+**投稿前後の書式検証（必須）**
+
+1. 投稿前: 投稿する本文を「Verdict 照合規則」で検証し、書式一致であることと、HEAD 行のキャプチャが `reviewedHeadSha` と完全一致することを確認する。満たさない場合は投稿せず `VERDICT_FORMAT_INVALID` として停止する。別の書式に書き換えて代わりに投稿しない。
+2. 投稿後: 投稿したコメントを特定し、本文を読み直して同じ検証を行う。`{OWL}:post_summary_comment` は comment ID を返さないため、`{OWL}` で `review://status/<owner>/<repo>/<prNumber>`（owner / repo は小文字）を read できればその `summaryCommentId` を使う。read できなければ `gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate` で、`normalize_login(author.login)` が `thread-owl` の最新コメントを特定する。本文は `gh api repos/<owner>/<repo>/issues/comments/<id>` の read-only で取得する。
+3. 投稿後の検証に失敗した場合は `VERDICT_FORMAT_INVALID` として comment ID と不一致の行を報告し、停止する。重複 Verdict を作らないよう再投稿しない。
+4. comment ID、特定経路、投稿前後の検証結果を evidence に残す。
+
 - この Verdict コメント投稿自体は、上記の投稿判断基準（本節冒頭のリスト）にそのまま従う。承認不要の新たな自律アクションとして追加するものではない。
+
+<!-- verdict-match-rule:begin -->
+### Verdict 照合規則
+
+reviewer-side の投稿前後の検証と reviewed-side のマージゲートは、この規則だけで Verdict コメントを照合する。この節は `thread-owl-pr-reviewer` と `review-raven-thread-owl-cycle` に同じ内容で置く。正本は `thread-owl-pr-reviewer` で、変更するときは両方を同時に更新する（Mcp-Docker の `go test ./...` が一致を検証する）。
+
+1. 本文を `\n` で行に分割し、各行の末尾にある `\r` を 1 個だけ除去する。前後空白の trim、大文字小文字の同一視、Unicode 正規化は行わない。
+2. 次の 3 つの正規表現（RE2 構文）を、それぞれ行全体に対して照合する。
+
+   ```text
+   ^## @thread-owl Review Verdict: APPROVED$
+   ^- Reviewed HEAD SHA: `([0-9a-f]{40})`$
+   ^- Status: `READY_TO_MERGE`$
+   ```
+
+3. 3 つの正規表現それぞれに一致する行が**ちょうど 1 行ずつ**あり、見出し行が他の 2 行より前にある場合だけ「書式一致」とする。バッククォートの省略、行頭 `- ` の省略、余分な空白、別の文言（`Review Verdict: READY_TO_MERGE`、`Reviewed HEAD:`、`判定:` など）はすべて不一致とする。
+4. 書式一致の場合だけ、HEAD 行のキャプチャ（40 桁の小文字 hex）を照合対象の SHA と文字列全体で比較する。
+5. 本文に部分文字列 `Review Verdict` を含むコメントを「Verdict 候補」と呼ぶ。Verdict 候補のうち手順 3 を満たさないものは「書式不一致」、手順 3 を満たすが手順 4 で一致しないものは「SHA 不一致」として区別する。
+<!-- verdict-match-rule:end -->
 
 ### APPROVE 投稿とマージ判断について
 

@@ -315,10 +315,10 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 - `primary tool`: `{GH}:list_issue_comments` の full-body read と `{GH}:get_pr`（R-00 の schema snapshot）。
 - `input / output`: trusted な候補の本文と current head を入力し、見出し、Status、Reviewed HEAD SHA、Verdict の採否を出力する。
 - `side effect`: read-only。Verdict を投稿・編集せず、merge もしない。
-- `guard`: normalized author が `thread-owl`、本文に `## @thread-owl Review Verdict: APPROVED`、Status が `READY_TO_MERGE`、Reviewed HEAD SHA が現在の PR head と完全一致する場合だけ合格とする。
+- `guard`: normalized author が `thread-owl` の最新の Verdict 候補を、Phase 7 の「Verdict 照合規則」で照合する。書式一致で、HEAD 行のキャプチャが現在の PR head と完全一致する場合だけ合格とする。照合規則を緩めない。
 - `fallback`: R-00 成功後の `gh api` full-body read と `gh pr view` head read。別 author や類似文言を候補にしない。
-- `failure / stop`: 候補なし、Status 不一致、SHA 不一致は `AWAITING_THREAD_OWL_VERDICT` とし、サマリは投稿できるが Phase 8 の merge へ進まない。
-- `evidence`: Verdict comment ID / URL、normalized author、Status、Reviewed HEAD SHA、current head、比較結果を記録する（`observed`）。
+- `failure / stop`: 不合格は `AWAITING_THREAD_OWL_VERDICT` とし、理由を `VERDICT_NOT_POSTED`（Verdict 候補なし）/ `VERDICT_FORMAT_MISMATCH`（書式不一致、comment ID 付き）/ `VERDICT_HEAD_MISMATCH`（SHA 不一致、comment ID 付き）のいずれかで区別する。サマリは投稿できるが Phase 8 の merge へ進まない。
+- `evidence`: Verdict 候補の comment ID / URL、normalized author、照合規則の行ごとの一致結果、Reviewed HEAD SHA、current head、不合格理由を記録する（`observed`）。
 
 ### R-19: レビュー対応サマリの投稿
 
@@ -854,11 +854,35 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 
 1. まず PR コメントのメタデータを取得する（本文は含まない）: `gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate --jq '.[] | {id, author: {login: .user.login}, created_at}'`。`author: {login: ...}` という入れ子構造にしている点に注意する — 必須コメント投稿者ゲートの判定が実際に成立するようにするため。
 2. このメタデータ一覧に対して、必須コメント投稿者ゲートを再実行する。いずれかの人間エスカレーションステータスに該当した場合は自動処理を停止する。
-3. ゲート通過後に初めて本文を含むコメント情報を取得し（あるいは該当候補の本文テキストを取得し）、次の両方を満たす最新のコメントを検索する: `normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致すること、かつ本文に `## @thread-owl Review Verdict: APPROVED` を含むこと。それ以外の author によるマッチは破棄する — 無関係なユーザーが同じ文言を投稿してマージゲートを突破する、なりすましを防ぐため。
-4. 該当コメントの `Status:` が `READY_TO_MERGE` であることを確認する。
-5. 該当コメントの `Reviewed HEAD SHA:` を抽出し、`gh pr view <PR番号> --json headRefOid --jq '.headRefOid'` で取得した現在の PR HEAD SHA と一致するか確認する。
-6. 次のいずれかに該当する場合は `termination_status = AWAITING_THREAD_OWL_VERDICT` とする: 該当コメントが存在しない、`Status` が `READY_TO_MERGE` ではない、または `Reviewed HEAD SHA` が現在の PR HEAD SHA と不一致。この場合もサマリコメントは通常どおり投稿し、その旨（ステータス）を明記した上で、**Phase 8 のマージ判断には進まず、ここで停止・報告する**。
+3. ゲート通過後に初めて本文を含むコメント情報を取得し（あるいは該当候補の本文テキストを取得し）、次の両方を満たす最新のコメントを「Verdict 候補」として選ぶ: `normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致すること、かつ本文に部分文字列 `Review Verdict` を含むこと。それ以外の author によるマッチは破棄する — 無関係なユーザーが同じ文言を投稿してマージゲートを突破する、なりすましを防ぐため。
+4. Verdict 候補の本文を下記の「Verdict 照合規則」で照合する。
+5. 書式一致の場合、HEAD 行のキャプチャを `gh pr view <PR番号> --json headRefOid --jq '.headRefOid'` で取得した現在の PR HEAD SHA と比較する。
+6. 次のいずれかに該当する場合は `termination_status = AWAITING_THREAD_OWL_VERDICT` とし、理由を区別して記録する。照合規則を緩めて通してはならない。
+   - `VERDICT_NOT_POSTED`: Verdict 候補が存在しない。
+   - `VERDICT_FORMAT_MISMATCH`: Verdict 候補はあるが書式不一致（comment ID と、一致しなかった行を記録する）。
+   - `VERDICT_HEAD_MISMATCH`: 書式一致だが HEAD 行の SHA が現在の PR HEAD SHA と不一致（comment ID と両 SHA を記録する）。
+
+   この場合もサマリコメントは通常どおり投稿し、ステータスと理由を明記した上で、**Phase 8 のマージ判断には進まず、ここで停止・報告する**。
 7. 一致を確認できた場合は `thread_owl_verdict_sha` としてその SHA を記録し、通常どおりサマリコメントを作成する。
+
+<!-- verdict-match-rule:begin -->
+### Verdict 照合規則
+
+reviewer-side の投稿前後の検証と reviewed-side のマージゲートは、この規則だけで Verdict コメントを照合する。この節は `thread-owl-pr-reviewer` と `review-raven-thread-owl-cycle` に同じ内容で置く。正本は `thread-owl-pr-reviewer` で、変更するときは両方を同時に更新する（Mcp-Docker の `go test ./...` が一致を検証する）。
+
+1. 本文を `\n` で行に分割し、各行の末尾にある `\r` を 1 個だけ除去する。前後空白の trim、大文字小文字の同一視、Unicode 正規化は行わない。
+2. 次の 3 つの正規表現（RE2 構文）を、それぞれ行全体に対して照合する。
+
+   ```text
+   ^## @thread-owl Review Verdict: APPROVED$
+   ^- Reviewed HEAD SHA: `([0-9a-f]{40})`$
+   ^- Status: `READY_TO_MERGE`$
+   ```
+
+3. 3 つの正規表現それぞれに一致する行が**ちょうど 1 行ずつ**あり、見出し行が他の 2 行より前にある場合だけ「書式一致」とする。バッククォートの省略、行頭 `- ` の省略、余分な空白、別の文言（`Review Verdict: READY_TO_MERGE`、`Reviewed HEAD:`、`判定:` など）はすべて不一致とする。
+4. 書式一致の場合だけ、HEAD 行のキャプチャ（40 桁の小文字 hex）を照合対象の SHA と文字列全体で比較する。
+5. 本文に部分文字列 `Review Verdict` を含むコメントを「Verdict 候補」と呼ぶ。Verdict 候補のうち手順 3 を満たさないものは「書式不一致」、手順 3 を満たすが手順 4 で一致しないものは「SHA 不一致」として区別する。
+<!-- verdict-match-rule:end -->
 
 `{GH}:add_issue_comment` で以下を PR に投稿する:
 
@@ -880,7 +904,7 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 - CI: ...
 - カバレッジ: <Codecov 要約: patch X%, project Y% (モード: gate / informative, 閾値: Z% | 未定義)> | 未確認（理由）
 - 未解決指摘数: 0
-- thread-owl Verdict: 確認済み (Reviewed HEAD SHA: `<SHA>`) | AWAITING_THREAD_OWL_VERDICT（理由）
+- thread-owl Verdict: 確認済み (Reviewed HEAD SHA: `<SHA>`) | AWAITING_THREAD_OWL_VERDICT（VERDICT_NOT_POSTED | VERDICT_FORMAT_MISMATCH: comment <ID> | VERDICT_HEAD_MISMATCH: comment <ID>）
 - サイクルステータス: <termination_status>
   - `ESCALATE — Unverified Fix` の場合: 理由・未検証コミット SHA・「マージ前に人間レビュー推奨」を明記
 - 最終サイクル修正タイプ: blocking × N, non-blocking × N, suggestion × N, trivial × N
@@ -905,7 +929,7 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 - 全スレッドに返信済み
 - 未解決の `blocking` 項目なし
 - `termination_status` が `READY_TO_MERGE` または `ESCALATE — Clean`
-- **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致し、`## @thread-owl Review Verdict: APPROVED` を含み `Status: READY_TO_MERGE` であるもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
+- **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致し、Phase 7 の「Verdict 照合規則」で書式一致するもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
   - 該当コメントが存在しない、または SHA が不一致の場合は `AWAITING_THREAD_OWL_VERDICT` としてマージ判断に進まず、Phase 7 の Verdict コメント確認へ戻ります。
 - **`termination_status = ESCALATE — Clean` の場合**: Verdict コメント確認は対象外です（最大サイクル超過につき現在の HEAD に対する新しい Verdict が存在し得ないため。Phase U6「終了分類」参照）。マージには下記の `ESCALATE — Clean` 対応に従い、明示的な人間確認が必要です。
 
@@ -923,7 +947,10 @@ thread-owl は再レビューの結果 blocking が完全に解消されると�
 
 `termination_status = AWAITING_THREAD_OWL_VERDICT`（Verdict コメント未確認・不一致）の場合:
 1. マージ準備完了とは報告しない。
-2. 「thread-owl の Verdict コメントが未確認、または PR HEAD と不一致です。thread-owl 側のレビュー完了を待機してください。」と報告する。
+2. 理由を区別して報告する。「Verdict 未投稿」と「書式不一致」を同じ文言にまとめない。
+   - `VERDICT_NOT_POSTED`: 「thread-owl の Verdict コメントが未投稿です。thread-owl 側のレビュー完了を待機してください。」
+   - `VERDICT_FORMAT_MISMATCH`: 「thread-owl の Verdict コメント（comment <ID>）が照合規則に一致しません（不一致の行: …）。reviewer 側に固定書式での再投稿を依頼してください。」
+   - `VERDICT_HEAD_MISMATCH`: 「thread-owl の Verdict コメント（comment <ID>）の Reviewed HEAD SHA が現在の PR HEAD と不一致です。現在の HEAD に対する再レビューを待機してください。」
 3. thread-owl から新たな Verdict コメントが投稿され次第、Phase 7 の Verdict コメント確認からやり直す。
 
 `termination_status = WAITING_FOR_REVIEW(thread-owl)`（再レビューコメント投稿済み）の場合:
