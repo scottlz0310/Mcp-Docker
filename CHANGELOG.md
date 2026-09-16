@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.22.0] - 2026-09-16
 
 ### ✨ 新機能
 
@@ -792,7 +792,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.4...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.22.0...HEAD
+[2.22.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.4...v2.22.0
 [2.21.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.3...v2.21.4
 [2.21.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.2...v2.21.3
 [2.21.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.1...v2.21.2
