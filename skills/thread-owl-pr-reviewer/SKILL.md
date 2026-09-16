@@ -23,7 +23,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 - style nit、既存コードだけに由来する問題、PR の目的外の大規模改善を投稿しない。
 - 既存レビューへの同意、言い換え、根拠の弱い追従を投稿しない。
 - 再レビューで、初回に出さなかった軽微な指摘を後出ししない。
-- 指摘がない場合はコメントを作らない。ただし `initial-review` / `re-review` で `verdict: approve`（後述の「Verdict」節を参照）と判定した場合は例外とし、「Verdict コメント投稿」節に従ってレビュー観点サマリーを含む Verdict コメントを投稿する。
+- 指摘がない場合は inline comment や thread 返信を作らない。ただし `initial-review` / `re-review` は、verdict にかかわらず最後に `{OWL}:post_summary_comment` を**ちょうど 1 回**呼んで終える（「レビュー完了サマリー」節を参照）。`verdict: approve`（後述の「Verdict」節を参照）の場合は、それが「Verdict コメント投稿」節の Verdict コメントになる。
 - 書き込み失敗が曖昧な場合は、同じ投稿を即時再実行せず thread を再取得して重複を確認する。
 
 ## Thread Owl 契約
@@ -36,7 +36,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | `{OWL}:list_review_threads` | resolved / outdated 状態とコメントを含む review thread 一覧を返す |
 | `{OWL}:post_inline_comment` | `commitId`、`path`、`line`、`body` を指定して current diff に投稿する |
 | `{OWL}:reply_review_thread` | `threadId` へ返信する。thread の所属 repository は server 側でも allowlist 照合される |
-| `{OWL}:post_summary_comment` | PR conversation に issue comment として summary を投稿する。blocking 0件・全 review thread resolved 時の Verdict コメント投稿にも使う（「Verdict コメント投稿」節参照） |
+| `{OWL}:post_summary_comment` | PR conversation に issue comment として summary を投稿する。`headSha` には `reviewedHeadSha` を渡す。呼び出すと `review://status/{owner}/{repo}/{prNumber}` が `reviewed` になり、待機中の reviewed-side へ完了が通知される。blocking 0件・全 review thread resolved 時の Verdict コメント投稿にも使う（「Verdict コメント投稿」節参照） |
 | `{OWL}:approve_pull_request` | `expectedHeadSha` と現在の head が一致する場合だけ APPROVE review を送る |
 
 `{OWL}:get_pr` は CI status、check logs、通常の issue comment 全文を返さない。必要な read-only の補完だけ GitHub connector または `gh` で行う。Thread Owl で提供されない書き込みを別経路へ迂回しない。
@@ -203,16 +203,16 @@ status = blocked
 - `failure / stop`: 投稿失敗または受理結果不明は `INLINE_POST_FAILED` とし、同一投稿を即時再実行せず thread を再取得して重複を確認する。
 - `evidence`: comment / thread ID、URL、commitId、path、line、分類、投稿結果を記録する（`observed`）。
 
-### O-12: Initial / Re-review の summary・Verdict
+### O-12: Initial / Re-review の完了サマリー・Verdict
 
-- `precondition`: initial-review または re-review で Verdict を投稿する条件が確定し、O-10 の SHA guard が成功している。
+- `precondition`: initial-review または re-review で、O-20 の verdict と、inline・thread 返信の投稿がすべて確定し、O-10 の SHA guard が成功している。
 - `primary tool`: `{OWL}:post_summary_comment`（R-00 の schema snapshot）。
-- `input / output`: レビュー観点、CI、coverage、残存リスク、`reviewedHeadSha`、Verdict の状態を入力し、PR-level summary / comment ID / URL を出力する。
-- `side effect`: PR conversation へ summary を一件投稿する。コード、thread、queue、merge は変更しない。
-- `guard`: approve のときだけ「Verdict コメント投稿」節のテンプレートで本文を作り、固定部分を変えない。投稿前に「Verdict 照合規則」で書式一致と HEAD 行の `reviewedHeadSha` 一致を検証し、投稿後に本文を読み直して同じ検証を行う。summary-only では明示されない投稿を行わない。
+- `input / output`: レビュー観点、CI、coverage、残存リスク、投稿件数、current diff 外の指摘、`reviewedHeadSha`、Verdict の状態と、`headSha = reviewedHeadSha` を入力し、PR-level summary / comment ID / URL を出力する。
+- `side effect`: PR conversation へ summary を一件投稿し、thread-owl の `review://status` を `reviewed` にする（待機中の reviewed-side へ完了が通知される）。コード、thread、queue、merge は変更しない。
+- `guard`: この run の最後の GitHub write として 1 回だけ呼ぶ。approve 以外は「レビュー完了サマリー」節の書式で本文を作る。`headSha` は省略しない。approve のときだけ「Verdict コメント投稿」節のテンプレートで本文を作り、固定部分を変えない。投稿前に「Verdict 照合規則」で書式一致と HEAD 行の `reviewedHeadSha` 一致を検証し、投稿後に本文を読み直して同じ検証を行う。summary-only では明示されない投稿を行わない。
 - `fallback`: なし。Verdict を GitHub connector の review や issue comment で代替投稿しない。書式検証に失敗した本文を別の書式で投稿し直さない。
 - `failure / stop`: 投稿前の書式検証の不一致は投稿せず、投稿後の不一致は再投稿せず、いずれも `VERDICT_FORMAT_INVALID` として停止する。summary の投稿失敗・状態キー欠落は `SUMMARY_POST_FAILED` として停止する。いずれもマージ可能と報告しない。
-- `evidence`: comment ID / URL とその特定経路、mode、観点、CI SHA、Verdict、Status、投稿前後の書式検証結果、投稿結果を記録する（`observed`）。
+- `evidence`: comment ID / URL とその特定経路、mode、観点、CI SHA、渡した `headSha`、Verdict、Status、投稿前後の書式検証結果、投稿結果を記録する（`observed`）。
 
 ### O-13: APPROVE 投稿
 
@@ -272,7 +272,7 @@ status = blocked
 ### O-18: Re-review / Follow-up の current diff 外論点
 
 - `precondition`: 残存問題を確認できるが、current diff 上に安全な投稿位置がない。
-- `primary tool`: `{OWL}:post_summary_comment`（R-00 の schema snapshot）。
+- `primary tool`: re-review では O-12 の完了サマリーの「current diff 外の指摘」節に含める（別の `post_summary_comment` を呼ばない。途中で呼ぶと reviewed-side の待機がレビュー完了前に終わるため）。thread-follow-up では `{OWL}:post_summary_comment`（R-00 の schema snapshot）を使う。
 - `input / output`: blocking / 残存条件、影響、再現手順、`reviewedHeadSha` を入力し、PR-level summary の ID / URL を出力する。
 - `side effect`: PR conversation に summary を一件投稿する。stale な inline thread は作成しない。
 - `guard`: 位置がない理由とマージへの影響を明記し、過去の行番号へ投稿しない。blocking なら Verdict approve を抑止する。
@@ -296,7 +296,7 @@ status = blocked
 - `precondition`: initial-review / re-review の独立確認、Filter、Synthesis、必要な投稿、CI、全 thread 状態が確定している。
 - `primary tool`: LLM の verdict 判定。approve 時の summary 投稿だけ O-12 を使う。
 - `input / output`: blocking 数、全 thread の resolved 状態、主要リスクの検証、CI と対象 SHA、残存リスクを入力し、approve / request changes / comment only / needs follow-up を一つ出力する。
-- `side effect`: approve の場合だけ O-12 の Verdict summary を投稿できる。APPROVE、merge、Issue クローズは自動実行しない。
+- `side effect`: O-12 で、approve の場合は Verdict コメント、それ以外は完了サマリーを投稿する。APPROVE、merge、Issue クローズは自動実行しない。
 - `guard`: 新規 blocking 0、全 thread resolved、主要リスクの検証あり、CI success、CI head と `reviewedHeadSha` の一致をすべて満たす場合だけ approve とする。unknown を success としない。
 - `fallback`: CI、thread、SHA、独立検証が unknown の場合は comment only / needs follow-up として報告し、approve へ寄せない。
 - `failure / stop`: 必須 evidence、分類、状態のいずれかが欠ける場合は `VERDICT_INCOMPLETE` として Verdict / APPROVEを停止する。
@@ -324,11 +324,12 @@ PR が明示されず queue 待機を依頼された場合だけ subscription �
 
 再レビュー待機では必ず `queue://review/re-review-requests` を使う。通常 queue では先行する `synchronized` 通知で待機が終了し、直後の再レビュー依頼を見逃す可能性がある。
 
-native `subscriptions/listen` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber`（v0.6.0 以降）を使う。
+native `subscriptions/listen` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber`（v0.6.0 以降）を使う。thread-owl の MCP URL は、環境変数 `MCP_PROBE_URL` があればそれを使って `--url` を省略する。なければ `<MCP_GATEWAY_PUBLIC_URL>/mcp/thread-owl` を渡す。どちらも未設定なら推測せず `QUEUE_WAIT_FAILED` として停止する。
 
 ```powershell
+# MCP_PROBE_URL が設定済みの場合は --url 行を省く
 bunx mcp-resource-subscriber `
-  --url $env:THREAD_OWL_MCP_URL `
+  --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
   --uri queue://review/re-review-requests `
   --timeout-ms 900000 `
   --json
@@ -454,7 +455,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 1. `blocking` / `non-blocking` / `question` / `note` / `praise` に分類する。
 2. 特定 diff 行に直接対応する指摘だけ inline にする。
-3. 複数ファイルにまたがる設計、運用、CI、packaging、release の問題は PR-level summary にする。
+3. 複数ファイルにまたがる設計、運用、CI、packaging、release の問題は PR-level summary にする（「レビュー完了サマリー」節の 1 件にまとめる）。
 4. 再現条件、影響、期待する次の行動を短く書く。
 5. 根拠が弱い、差分価値が薄い、対応方法が不明、コメント過多を招く候補を削除する。
 6. Snapshot Guard を再確認してから投稿する。
@@ -491,6 +492,32 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 - 投稿対象 PR、head、line、thread を確実に特定できない
 - `summary-only` の summary 投稿を明示されていない
 
+### レビュー完了サマリー
+
+`initial-review` / `re-review` は、verdict にかかわらず最後の GitHub write として `{OWL}:post_summary_comment` を**ちょうど 1 回**呼ぶ。thread-owl の `review://status/{owner}/{repo}/{prNumber}` が `reviewed` になるのは `post_summary_comment`（または `approve_pull_request`）を呼んだときだけで、inline の投稿では変わらない。呼ばずに終えると、reviewed-side の待機（`review-raven-thread-owl-cycle` の Phase W）は完了を検知できずタイムアウトする。
+
+- `headSha` には `reviewedHeadSha`（`get_pr` の `pr.head.sha`、`post_inline_comment` の `commitId` と同じ値）を渡す。
+- 途中で呼ばない。current diff 外の指摘や、複数ファイルにまたがる設計・運用・CI・packaging・release の論点（Synthesis Stage の手順 3、O-18）も、別の summary にせずこの 1 件にまとめる。途中で呼ぶと、reviewed-side の待機がレビュー完了前に終わる。
+- `verdict: approve` の場合は、次節の Verdict コメントがこの 1 件になる。
+- それ以外（`request changes` / `comment only` / `needs follow-up`）は次の書式で投稿する。見出しに `Review Verdict` を含めない（reviewed-side が Verdict 候補として照合し、書式不一致と報告するため）。
+- `thread-follow-up` / `summary-only` はこの節の対象外とする。
+
+```markdown
+## @thread-owl Review Result: CHANGES_REQUESTED | COMMENT_ONLY | NEEDS_FOLLOW_UP
+
+（判定の要約）
+
+### 投稿した指摘
+- 新規 inline: N 件（blocking N 件）
+- thread 返信: N 件
+
+### current diff 外の指摘
+- なし | [blocking] …（再現条件・影響・期待する次の行動）
+
+---
+- Reviewed HEAD SHA: `<reviewedHeadSha>`
+```
+
 ### Verdict コメント投稿
 
 reviewed-side workflow は、マージ判断時に「thread-owl から現在の PR HEAD に対するレビュー完了の証拠が GitHub 上に存在するか」を確認する。指摘がなく沈黙すると、この証拠が残らずマージ判断が進まないデッドロックになる。これを避けるため、次の条件でだけ Verdict コメントを投稿する。
@@ -502,7 +529,7 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 **振る舞い**
 
 - `{OWL}:approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
-- 代わりに `{OWL}:post_summary_comment` でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
+- 代わりに `{OWL}:post_summary_comment`（`headSha = reviewedHeadSha`）でレビュー観点・検証結果のサマリーを含む Verdict コメントを、本節冒頭の投稿判断基準に従って投稿する。
 - **reviewed-side 連携の必須要件**: reviewed-side workflow（`review-raven`）は後述の「Verdict 照合規則」で見出し行・HEAD 行・Status 行を機械的に照合してマージゲートを判定する。一致しなければ reviewed-side cycle は `AWAITING_THREAD_OWL_VERDICT` で止まる。そのため、**見出し行および末尾のメタデータ行の形式・文言は変更せず、その間にレビューサマリーを記述する**こと。
 
 ```markdown
@@ -594,7 +621,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 
 新規 inline comment には、以前の指摘の継続であることと、現 head に残る具体的な再現条件を記載する。元 thread への重複返信は行わない。
 
-current diff 上に投稿可能な行がない場合は、無理に stale な位置へ投稿せず PR-level summary に blocking と残存条件を明示する。
+current diff 上に投稿可能な行がない場合は、無理に stale な位置へ投稿せず PR-level summary（「レビュー完了サマリー」節の 1 件）に blocking と残存条件を明示する。
 
 新規 inline を投稿する前に Snapshot Guard を再実行し、現 head SHA と投稿可能行を確認する。
 
@@ -616,7 +643,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 ## Verdict
 
 - `approve`: 新規 `blocking` 指摘がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
-- `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告に留める。
+- `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告、および「レビュー完了サマリー」の投稿に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
 

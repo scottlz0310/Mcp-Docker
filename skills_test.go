@@ -134,6 +134,22 @@ func TestVerdictMatchRule(t *testing.T) {
 			wantOK: false,
 		},
 	}
+	_, afterResult, found := strings.Cut(body, "```markdown\n## @thread-owl Review Result")
+	if !found {
+		t.Fatal("reviewer skill にレビュー完了サマリーのテンプレートが見つかりません")
+	}
+	result, _, _ := strings.Cut(afterResult, "\n```")
+	result = "## @thread-owl Review Result" + strings.ReplaceAll(result, "<reviewedHeadSha>", sha)
+	if strings.Contains(result, "Review Verdict") {
+		t.Error("レビュー完了サマリーが Verdict 候補（部分文字列 Review Verdict）になっています")
+	}
+	tests = append(tests, struct {
+		name    string
+		body    string
+		wantOK  bool
+		wantSHA string
+	}{name: "レビュー完了サマリーのテンプレート", body: result, wantOK: false})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotSHA, gotOK := matchVerdict(patterns, tt.body)
