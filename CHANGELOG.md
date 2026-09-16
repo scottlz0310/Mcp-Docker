@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - #291 に対応し、thread-owl の Verdict コメントの照合規則（行分割と `\r` の扱い、バッククォートを含む 3 行の正規表現、各行ちょうど 1 行）を定義し、`thread-owl-pr-reviewer` と `review-raven-thread-owl-cycle` に同じ内容で配置。両 skill の規則が一致すること、テンプレートが規則に適合し thread-owl#217 の逸脱例が不適合となることを Go テストで検証
 - reviewer 側（O-12）で Verdict 投稿前後の書式検証を必須化し、不一致は `VERDICT_FORMAT_INVALID` として投稿・再投稿せず停止。テンプレートの固定部分と自由記述部分の境界、および逸脱の NG 例を明記
 - reviewed 側（R-18b / Phase 7 / Phase 8）で `AWAITING_THREAD_OWL_VERDICT` の理由を `VERDICT_NOT_POSTED` / `VERDICT_FORMAT_MISMATCH` / `VERDICT_HEAD_MISMATCH` に分けて報告
+- #295 に対応し、両 skill の CI 判定（O-06 / Snapshot Guard / R-16 / Phase 6.5）が使う check runs の取得を、固定した head SHA を入力とする read（`list_check_runs_for_sha`）へ変更。SHA 入力の MCP capability が無い場合は `gh api repos/<owner>/<repo>/commits/<sha>/check-runs` を read-only で使う。公式 GitHub MCP の `get_check_runs` は PR 番号入力で `head_sha` を返さず SHA 照合ができないため、CI 判定の根拠にしないと明記した（この経路に binding した reviewer では CI が unknown になり、Verdict APPROVED を出せなかった）
 
 ## [2.21.4] - 2026-09-11
 

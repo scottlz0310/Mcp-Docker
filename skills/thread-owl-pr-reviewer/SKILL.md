@@ -45,7 +45,15 @@ Thread Owl は `REQUEST_CHANGES`、resolve、unresolve、merge を提供しな�
 
 ### CI read capability
 
-`get_check_runs` は client 固有の tool 名ではなく、PR 番号を入力として check run ごとの `status`、`conclusion`、対象 SHA（`head_sha` / `sha` または同等のフィールド）を返す論理 read capability として扱う。利用可能な client-native capability は schema で discovery し、候補が一つの場合だけこの run に binding する。候補が無い、複数候補を一意に選べない、または対象 SHA を返さない場合は `CI: unknown` とし、combined status や write 経路で代替しない。失敗ログ用の workflow run / job / log capability は任意の補助 capability であり、client ごとに有無が異なる。
+`list_check_runs_for_sha` は client 固有の tool 名ではなく、**固定済みの `reviewedHeadSha` を入力**として、その commit の check run ごとの `name`、`status`、`conclusion`、対象 SHA（`head_sha`）、run ID、GitHub App を返す論理 read capability として扱う。
+
+- 第一選択: この入力・出力 schema を満たす client-native の MCP capability があり、候補が一つならこの run に binding する。
+- それが無い場合: `gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
+- **PR 番号を入力とし、`head_sha` を返さない capability は CI 判定の根拠にしない**（公式 GitHub MCP の `pull_request_read` の `get_check_runs` など。PR の head が動くと対象が黙って変わるうえ、返却値で SHA を照合できない）。
+- 同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は、ID が最大のものだけを採用する。
+- 候補を一意に選べない、read が失敗する、または返却された `head_sha` が `reviewedHeadSha` と一致しない run がある場合は `CI: unknown` とし、combined status や write 経路で代替しない。
+
+失敗ログ用の workflow run / job / log capability は任意の補助 capability であり、client ごとに有無が異なる。
 
 ### O-00: `{OWL}` の discovery と固定
 
@@ -140,8 +148,8 @@ status = blocked
 ### O-06: Independent Stage の CI
 
 - `precondition`: O-02 で `reviewedHeadSha` が固定され、required checks の repository policy を確認できる。
-- `primary tool`: 固定済み `{OWL}:get_pr` の直後に一回だけ実行する check-runs read capability の `get_check_runs`（R-00 の schema snapshot）。
-- `input / output`: PR 番号と `reviewedHeadSha` を入力し、各 check run の対象 SHA、status、conclusion、required / optional、run / job ID を出力する。
+- `primary tool`: 固定済み `{OWL}:get_pr` の直後に実行する、「CI read capability」節の `list_check_runs_for_sha`（SHA 入力の MCP capability、無ければ `gh api .../commits/<sha>/check-runs` の read-only）。
+- `input / output`: `reviewedHeadSha` を入力し、各 check run の対象 SHA（`head_sha`）、status、conclusion、required / optional、run / job ID を出力する。
 - `side effect`: read-only。CI の再実行、設定変更、write 経路への切り替えは行わない。
 - `guard`: 全 required check が対象 SHA に対して completed / success の場合だけ success とする。`combined status` は使用せず、対象 SHA が不明な run は成功扱いにしない。
 - `fallback`: failure 時に workflow run / job / log capability があれば使い、無ければ `gh run view <run-id> --log-failed` を read-only で使う。どちらも同じ SHA を確認する。
@@ -396,11 +404,11 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 （生成物などの untracked file は許容するが、tracked file の変更は厳禁とする）
 
 ### 4. CI 検証の SHA 固定
-- **状態集約**: CI 判定の直前に固定済み `{OWL}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に check-runs read capability の `get_check_runs` を PR 番号で **1 call** 実行する。`get_check_runs` は SHA を受け取らないため、返却された各 check run の `head_sha` / `sha`（または同等の対象 SHA）が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+- **状態集約**: CI 判定の直前に固定済み `{OWL}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に「CI read capability」節の `list_check_runs_for_sha` を `reviewedHeadSha` で実行し、全ページを取得する。返却された各 check run の `head_sha` が `reviewedHeadSha` と一致することを確認する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。PR 番号入力で `head_sha` を返さない `get_check_runs` の応答は根拠にしない。
 - `CI: success` は、`reviewedHeadSha` に対するすべての required checks が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却、または `queued` / `in_progress` / `pending` の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
 - **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` として記録し、Verdict / APPROVE を投稿せず停止する。
 - 最終的な verdict（判定）の根拠とした CI の対象 SHA を確認・記録する。
-- **HEAD 移動時の再確認**: 検証結果の採用または APPROVE 投稿の直前に、`{OWL}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して `get_check_runs` を再実行する。再取得または SHA 照合ができない場合は `CI: unknown` とし、Verdict / APPROVE を停止する。
+- **HEAD 移動時の再確認**: 検証結果の採用または APPROVE 投稿の直前に、`{OWL}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して `list_check_runs_for_sha` を再実行する。再取得または SHA 照合ができない場合は `CI: unknown` とし、Verdict / APPROVE を停止する。
 
 ### 5. 再レビュー依頼の期待 HEAD 照合
 - candidate queue などの再レビュー依頼に `expected_head` が含まれる場合、開始時に `candidate.expected_head` と、固定済み `{OWL}` binding の `get_pr(...).pr.head.sha` を比較する。
@@ -418,7 +426,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 1. PR の owner、repo、番号、title、description、base/head、head SHA を確認する。
 2. diff、変更ファイル、関連実装、テスト差分を読む。
-3. CI は Snapshot Guard の check-runs 契約（current head SHA を先に固定し、`get_check_runs` の対象 SHA を照合する）で確認する。failed/skipped checks、packaging、docs、release への影響も確認し、確認経路がなければ `CI: unknown` と記録する。
+3. CI は Snapshot Guard の check-runs 契約（current head SHA を先に固定し、その SHA を入力にした `list_check_runs_for_sha` の `head_sha` を照合する）で確認する。failed/skipped checks、packaging、docs、release への影響も確認し、確認経路がなければ `CI: unknown` と記録する。
 4. 既存レビューを参照せず、独立した懸念候補を作る。
 5. 次の非主要パスを横断確認する。
    - 空、null、不正値、境界値、巨大入力、重複入力
