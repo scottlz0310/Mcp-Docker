@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-09-17
+
 ### 🔄 変更
 
 - #299 に対応し、`thread-owl-pr-reviewer` の approve 経路を thread-owl v0.5.0 の `{OWL}:post_review_verdict` に切り替え。見出し・`- Reviewed HEAD SHA:` 行・`- Status:` 行は server 側で組み立てられるため、skill から Verdict コメントのテンプレートを削除し、`summary`（自由記述部分）の書き方の指針だけを残した。thread-owl#217 / review-raven#130 のような書式揺れによる `AWAITING_THREAD_OWL_VERDICT` 停止を構造的に防ぐ（thread-owl#218 ステップ 2）
@@ -812,7 +814,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.23.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...HEAD
+[2.24.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.4...v2.22.0
 [2.21.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.3...v2.21.4
