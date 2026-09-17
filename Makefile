@@ -206,6 +206,7 @@ GO_SOURCES   := $(shell find cmd internal -name '*.go' 2>/dev/null) skills.go
 SKILL_SOURCES := $(shell find skills -type f 2>/dev/null)
 REGISTER_FLAGS ?=
 SKILL_FLAGS ?=
+INSTRUCTION_FLAGS ?=
 
 $(MCP_DOCKER): Makefile go.mod go.sum $(GO_SOURCES) $(SKILL_SOURCES)
 	"$(SHELL)" -c "mkdir -p $(BIN_DIR)"
@@ -254,6 +255,26 @@ skill-install: $(MCP_DOCKER) ## Claude / Copilot / Codex / Antigravity CLI に s
 .PHONY: skill-uninstall
 skill-uninstall: $(MCP_DOCKER) ## 配置済みの skill を各 CLI から削除
 	$(MCP_DOCKER) skill uninstall $(SKILL_FLAGS)
+
+# ----------------------------------------
+# instruction source 配置
+# ----------------------------------------
+
+.PHONY: instruction-configure
+instruction-configure: $(MCP_DOCKER) ## ユーザー管理の instruction source を設定
+	$(MCP_DOCKER) instruction configure $(INSTRUCTION_FLAGS)
+
+.PHONY: instruction-status
+instruction-status: $(MCP_DOCKER) ## 各 CLI の instruction source リンク状態を確認
+	$(MCP_DOCKER) instruction status $(INSTRUCTION_FLAGS)
+
+.PHONY: instruction-link
+instruction-link: $(MCP_DOCKER) ## 各 CLI の instruction 入口へ source をリンク
+	$(MCP_DOCKER) instruction link $(INSTRUCTION_FLAGS)
+
+.PHONY: instruction-repair
+instruction-repair: $(MCP_DOCKER) ## instruction 入口の不一致をバックアップして修復
+	$(MCP_DOCKER) instruction repair $(INSTRUCTION_FLAGS)
 
 # ----------------------------------------
 # 開発

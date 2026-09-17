@@ -55,6 +55,7 @@ Mcp-Docker
 - compose profiles による optional component の選択的有効化
 - `mcp-gateway` の upstream route config 生成・配置
 - Claude Code / Claude Desktop / Codex CLI など CLI agent / desktop client 向け MCP 設定生成
+- ユーザー管理の instruction source のパス設定、CLI ごとの入口への symlink 配置、状態確認・バックアップ付き修復
 - environment variable / secrets mount policy の整理
 - local development / semi-local operation の bootstrap scripts / docs
 - health check / status aggregation / logs への導線
@@ -74,6 +75,12 @@ Mcp-Docker
 | resource subscription の待機 CLI | mcp-resource-subscriber |
 | review thread の reply / resolve 実装 | review-raven |
 | LLM / AI review logic | agent skill / LLM client |
+
+### ユーザー instruction source の責務
+
+各 CLI へ共通 instruction を配布する場合も、本文を `Mcp-Docker` や公開リポジトリへ複製しない。ユーザー管理ファイルを source of truth とし、`mcp-docker instruction configure` が source の絶対パスと配置方式だけをユーザー設定へ保存する。`instruction link` / `instruction repair` は Claude、Copilot、Codex、Antigravity / Gemini のユーザー単位の入口から source への symlink を管理する。
+
+既存の通常ファイルや異なるリンクは確認後にバックアップを作成し、配置先を staging へ移して実体を再確認してから作成専用の symlink へ更新する。同一リンクは変更せず、source と配置先が symlink / ハードリンク経由で同じ実体を指す場合は拒否する。配置先を置換直前と staging 後に再検証し、別の通常ファイル・symlink・ディレクトリへ変化した場合は新しい配置を上書きせず、復元または staging に保全して停止する。配置先がディレクトリの場合は停止し、symlink 作成失敗時に本文のコピーへフォールバックしない。`status` は source 消失を状態として表示し、`link` / `repair` は source 不在時に fail-closed で停止する。レビュー完了イベントの購読は `mcp-resource-subscriber`、reviewer の起動は Squirrel Notifier または別 CLI エージェントの責務であり、instruction 配置機能には含めない。
 
 ## 4. mcp-gateway との関係
 
