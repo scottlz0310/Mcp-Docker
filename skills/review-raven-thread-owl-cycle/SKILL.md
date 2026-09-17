@@ -41,7 +41,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 > このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。必須コメント投稿者ゲートでは `get_review_threads` に `include_bodies=false` を渡し、ゲート通過後にだけ `include_bodies=true` で本文を取得します。`gh` CLI は、論理 alias の discovery と read 検証が成功した後に、各手順で明記された read-only の補完経路としてのみ使用します。discovery に失敗した場合、`gh` CLI を別の write 経路として使いません。
 >
-> `thread-owl` はレビュー依頼を review queue へ登録するため（`enqueue_review`）と、Phase W でレビュー状態を待機するため（`review://status/{owner}/{repo}/{prNumber}` resource。thread-owl v0.4.3 以降）に使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
+> `thread-owl` はレビュー依頼を review queue へ登録するため（`enqueue_review`）と、Phase W でレビュー状態を待機するため（`review://status/{owner}/{repo}/{prNumber}` resource。thread-owl v0.5.0 以降。前提は Phase W 参照）に使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
 
 ### 必要な CLI
 
@@ -809,7 +809,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 ### 前提
 
-- thread-owl v0.4.3 以降（`review://status/{owner}/{repo}/{prNumber}` resource を提供する）。
+- thread-owl v0.5.0 以降。`review://status/{owner}/{repo}/{prNumber}` resource は v0.4.3 で、reviewer-side が approve 時に使う `post_review_verdict` は v0.5.0 で追加された。v0.5.0 未満では、approve に至った reviewer-side が `VERDICT_TOOL_UNAVAILABLE` で完了通知を出さずに停止するので、待機は `REVIEW_WAIT_TIMEOUT` になる。
 - reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に完了通知 write を 1 回呼ぶこと（approve なら `post_review_verdict`、それ以外は `post_summary_comment`）。thread-owl の状態が `reviewed` になるのは `post_summary_comment` / `post_review_verdict`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
 - 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
 - `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
@@ -864,6 +864,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 `REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
 
 - reviewer が起動されているか確認する（Squirrel Notifier の Recent review events の「レビューする」、または別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review`）。
+- reviewer が `VERDICT_TOOL_UNAVAILABLE` で停止していた場合は、稼働中の thread-owl が v0.5.0 未満である。PR には Verdict も完了サマリーも投稿されていないので、thread-owl を v0.5.0 以降へ更新してから reviewer を再起動する（`post_summary_comment` での Verdict の代替投稿は依頼しない）。
 - レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
 ---
