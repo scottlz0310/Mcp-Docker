@@ -273,7 +273,7 @@ mcp-docker instruction status
 mcp-docker instruction repair --yes
 ```
 
-`status` は source の正規化済みパス、配置先の状態、`symlink` などの link type、symlink の target を表示します。`link` は、異なる symlink、壊れた symlink、通常ファイルが既にある場合に、確認後 `<配置先>.mcp-docker-backup-<UTC timestamp>` へ移動してから置き換えます。同一リンクは冪等にスキップし、ディレクトリは置き換えません。`repair` は壊れた symlink または別 source への symlink だけを修復し、通常ファイルや未配置の入口は保護します。`--dry-run` はファイルを書き換えません。symlink 作成に失敗した場合の通常ファイルへのコピー・フォールバックも行いません。source へ追加するレビュー完了待機ルールと責務分担は [docs/instruction-source.md](docs/instruction-source.md) を参照してください。
+`status` は source の正規化済みパス、source の存在状態、配置先の状態、`symlink` などの link type、symlink の target を表示します。source が移動・削除されても、`status` は `[見つかりません]` として配置状態を確認できます。`link` は、異なる symlink、壊れた symlink、通常ファイルが既にある場合に、確認後 `<配置先>.mcp-docker-backup-<UTC timestamp>` へバックアップを作成し、一時 symlink で原子的に置き換えます。置換直前にも配置先を再検証し、ディレクトリをバックアップへ移動しません。同一リンクは冪等にスキップし、source と配置先が symlink / ハードリンク経由で同じ実体を指す場合は拒否します。`repair` は壊れた symlink または別 source への symlink だけを修復し、通常ファイルや未配置の入口は保護します。`--dry-run` はファイルを書き換えません。symlink 作成に失敗した場合の通常ファイルへのコピー・フォールバックも行いません。source へ追加するレビュー完了待機ルールと責務分担は [docs/instruction-source.md](docs/instruction-source.md) を参照してください。
 
 ## サービス操作
 

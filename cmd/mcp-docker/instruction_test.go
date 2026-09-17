@@ -59,6 +59,36 @@ func TestInstructionConfigureStatusAndDryRun(t *testing.T) {
 	}
 }
 
+func TestInstructionStatusReportsMissingConfiguredSource(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(t.TempDir(), "instructions.json")
+	source := filepath.Join(t.TempDir(), "user-instructions.md")
+	if err := os.WriteFile(source, []byte("# source\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MCP_DOCKER_INSTRUCTION_HOME", home)
+	t.Setenv("MCP_DOCKER_INSTRUCTION_CONFIG", configPath)
+
+	if err := run(context.Background(), []string{
+		"instruction", "configure", "--source", source,
+	}, &bytes.Buffer{}, &bytes.Buffer{}, strings.NewReader("")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	if err := run(context.Background(), []string{
+		"instruction", "status", "--agent", "claude",
+	}, &stdout, &bytes.Buffer{}, strings.NewReader("")); err != nil {
+		t.Fatalf("missing source の status error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "見つかりません") {
+		t.Fatalf("missing source の status output = %q", stdout.String())
+	}
+}
+
 func TestInstructionLinkRequiresConfirmationForExistingFile(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(t.TempDir(), "instructions.json")

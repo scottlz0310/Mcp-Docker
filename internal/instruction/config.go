@@ -116,8 +116,39 @@ func Resolve(sourceOverride string) (Config, error) {
 	return config, nil
 }
 
-// ValidateSource は source が存在する通常ファイルであることを検証し、絶対パスに正規化する。
-func ValidateSource(source string) (string, error) {
+// ResolveStatus は status 用に source の設定を解決する。
+// source が移動・削除されていても、状態として表示できるよう存在検証は行わない。
+func ResolveStatus(sourceOverride string) (Config, error) {
+	if strings.TrimSpace(sourceOverride) != "" {
+		source, err := NormalizeSource(sourceOverride)
+		if err != nil {
+			return Config{}, err
+		}
+		return Config{Source: source, Mode: ModeSymlink}, nil
+	}
+
+	config, err := LoadConfig()
+	if err != nil {
+		return Config{}, err
+	}
+	if strings.TrimSpace(config.Source) == "" {
+		return Config{}, errors.New("instruction source が未設定です。--source <path> または instruction configure --source <path> を指定してください")
+	}
+	if config.Mode == "" {
+		config.Mode = ModeSymlink
+	}
+	if config.Mode != ModeSymlink {
+		return Config{}, fmt.Errorf("instruction config: 未対応の mode %q です（現在は %q のみ対応）", config.Mode, ModeSymlink)
+	}
+	config.Source, err = NormalizeSource(config.Source)
+	if err != nil {
+		return Config{}, err
+	}
+	return config, nil
+}
+
+// NormalizeSource は source を検証せず、絶対パスに正規化する。
+func NormalizeSource(source string) (string, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return "", errors.New("instruction source: パスが空です")
@@ -126,7 +157,15 @@ func ValidateSource(source string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("instruction source の絶対パスを解決できません: %w", err)
 	}
-	abs = filepath.Clean(abs)
+	return filepath.Clean(abs), nil
+}
+
+// ValidateSource は source が存在する通常ファイルであることを検証し、絶対パスに正規化する。
+func ValidateSource(source string) (string, error) {
+	abs, err := NormalizeSource(source)
+	if err != nil {
+		return "", fmt.Errorf("instruction source の絶対パスを解決できません: %w", err)
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return "", fmt.Errorf("instruction source を読み込めません (%s): %w", abs, err)

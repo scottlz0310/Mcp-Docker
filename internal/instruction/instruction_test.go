@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -237,6 +238,89 @@ func TestLinkCreatesIdempotentSymlinkAndBacksUpExistingFile(t *testing.T) {
 	}
 	if status.State != StateLinked {
 		t.Fatalf("置換後の state = %q, want %q", status.State, StateLinked)
+	}
+}
+
+func TestLinkRejectsSourceSymlinkToPlacementTarget(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "target.md")
+	source := filepath.Join(root, "source.md")
+	if err := os.WriteFile(target, []byte("# existing\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, source); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			t.Skipf("symlink を作成できない環境です: %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	_, err := Link(source, Client{Name: "claude", Path: target}, time.Now())
+	if err == nil || !strings.Contains(err.Error(), "同じ実体") {
+		t.Fatalf("source symlink 経由の同一実体を拒否しませんでした: %v", err)
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("拒否後の配置先種別 = %s, want regular file", info.Mode())
+	}
+}
+
+func TestLinkDoesNotMoveDirectoryWhenItAppearsBeforeRename(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source.md")
+	target := filepath.Join(root, "target.md")
+	if err := os.WriteFile(source, []byte("# source\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("# existing\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := link(source, Client{Name: "claude", Path: target}, time.Now(), func() error {
+		if err := os.Remove(target); err != nil {
+			return err
+		}
+		if err := os.Mkdir(target, 0o700); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(target, "keep.txt"), []byte("keep\n"), 0o600)
+	})
+	if err == nil {
+		t.Fatal("置換直前に現れたディレクトリを置き換えました")
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("競合後の配置先種別 = %s, want directory", info.Mode())
+	}
+	if _, err := os.Stat(filepath.Join(target, "keep.txt")); err != nil {
+		t.Fatalf("競合後のディレクトリ内容を保護できませんでした: %v", err)
+	}
+	matches, err := filepath.Glob(target + ".mcp-docker-backup-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("失敗した置換のバックアップが残っています: %v", matches)
+	}
+}
+
+func TestInspectReportsMissingSourceWithoutError(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "missing.md")
+	status, err := Inspect(source, Client{Name: "claude", Path: filepath.Join(t.TempDir(), "CLAUDE.md")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.SourceStatus != SourceMissing {
+		t.Fatalf("source status = %q, want %q", status.SourceStatus, SourceMissing)
+	}
+	if status.State != StateAbsent {
+		t.Fatalf("missing source の配置状態 = %q, want %q", status.State, StateAbsent)
 	}
 }
 

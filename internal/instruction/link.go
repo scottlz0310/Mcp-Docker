@@ -23,9 +23,18 @@ const (
 	StateUnsupported State = "unsupported"
 )
 
+type SourceStatus string
+
+const (
+	SourceReady   SourceStatus = "ready"
+	SourceMissing SourceStatus = "missing"
+	SourceInvalid SourceStatus = "invalid"
+)
+
 type Status struct {
 	Client        Client
 	Source        string
+	SourceStatus  SourceStatus
 	State         State
 	LinkType      string
 	CurrentTarget string
@@ -46,14 +55,19 @@ type Result struct {
 
 // Inspect は配置先を変更せず、現在のリンク状態だけを調べる。
 func Inspect(source string, client Client) (Status, error) {
-	normalizedSource, err := ValidateSource(source)
+	normalizedSource, err := NormalizeSource(source)
+	if err != nil {
+		return Status{}, err
+	}
+	sourceStatus, err := InspectSource(normalizedSource)
 	if err != nil {
 		return Status{}, err
 	}
 	status := Status{
-		Client: client,
-		Source: normalizedSource,
-		State:  StateAbsent,
+		Client:       client,
+		Source:       normalizedSource,
+		SourceStatus: sourceStatus,
+		State:        StateAbsent,
 	}
 
 	info, err := os.Lstat(client.Path)
@@ -71,8 +85,16 @@ func Inspect(source string, client Client) (Status, error) {
 			return Status{}, err
 		}
 		status.CurrentTarget = currentTarget
-		if samePath(currentTarget, normalizedSource) {
-			status.State = StateLinked
+		targetMatchesSource, err := sameFile(currentTarget, normalizedSource)
+		if err != nil {
+			return Status{}, err
+		}
+		if samePath(currentTarget, normalizedSource) || targetMatchesSource {
+			if sourceStatus == SourceReady {
+				status.State = StateLinked
+			} else {
+				status.State = StateBroken
+			}
 			return status, nil
 		}
 		if _, err := os.Stat(client.Path); errors.Is(err, fs.ErrNotExist) {
@@ -97,6 +119,39 @@ func Inspect(source string, client Client) (Status, error) {
 		status.State = StateUnsupported
 	}
 	return status, nil
+}
+
+// InspectSource は source の存在と種別だけを調べる。source 不在はエラーにしない。
+func InspectSource(source string) (SourceStatus, error) {
+	normalizedSource, err := NormalizeSource(source)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(normalizedSource)
+	if errors.Is(err, fs.ErrNotExist) {
+		return SourceMissing, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("instruction source を調べられません (%s): %w", normalizedSource, err)
+	}
+	if !info.Mode().IsRegular() {
+		return SourceInvalid, nil
+	}
+	return SourceReady, nil
+}
+
+// SourceStatusLabel は CLI 表示用の source 状態名を返す。
+func SourceStatusLabel(status SourceStatus) string {
+	switch status {
+	case SourceReady:
+		return "利用可能"
+	case SourceMissing:
+		return "見つかりません"
+	case SourceInvalid:
+		return "通常ファイルではありません"
+	default:
+		return string(status)
+	}
 }
 
 // NeedsReplacement は、通常ファイルまたは別のリンクをバックアップして置き換えられる状態かを返す。
@@ -163,15 +218,17 @@ func BackupPath(target string, now time.Time) string {
 	}
 }
 
-// Link は source への symlink を作成する。既存の通常ファイル／リンクは、先に backupPath へ移動する。
-// ディレクトリや未対応のファイル種別は置き換えない。
+// Link は source への symlink を作成する。既存の通常ファイル／リンクは backupPath へ保全し、
+// 一時 symlink の原子的な置換で配置先を更新する。ディレクトリや未対応のファイル種別は置き換えない。
 func Link(source string, client Client, now time.Time) (Result, error) {
+	return link(source, client, now, nil)
+}
+
+// link は、競合状態をテストで再現できるよう置換直前のフックを受け取る。
+func link(source string, client Client, now time.Time, beforeReplace func() error) (Result, error) {
 	normalizedSource, err := ValidateSource(source)
 	if err != nil {
 		return Result{}, err
-	}
-	if samePath(normalizedSource, client.Path) {
-		return Result{}, fmt.Errorf("instruction source と配置先が同じです: %s", client.Path)
 	}
 
 	status, err := Inspect(normalizedSource, client)
@@ -180,6 +237,9 @@ func Link(source string, client Client, now time.Time) (Result, error) {
 	}
 	if status.State == StateLinked {
 		return Result{Action: ActionSkip}, nil
+	}
+	if err := rejectSameSourceTarget(normalizedSource, client.Path); err != nil {
+		return Result{}, err
 	}
 	if status.State == StateDirectory {
 		return Result{}, fmt.Errorf("instruction 配置先はディレクトリのため置き換えません: %s", client.Path)
@@ -192,27 +252,139 @@ func Link(source string, client Client, now time.Time) (Result, error) {
 		return Result{}, fmt.Errorf("instruction 配置先の親ディレクトリを作成できません (%s): %w", filepath.Dir(client.Path), err)
 	}
 
-	backupPath := ""
-	if NeedsReplacement(status.State) {
-		backupPath = BackupPath(client.Path, now)
-		if err := os.Rename(client.Path, backupPath); err != nil {
-			return Result{}, fmt.Errorf("既存の instruction 配置をバックアップできません (%s -> %s): %w", client.Path, backupPath, err)
+	if status.State == StateAbsent {
+		if err := os.Symlink(normalizedSource, client.Path); err != nil {
+			return Result{}, fmt.Errorf("instruction の symlink を作成できません (%s -> %s): %w", client.Path, normalizedSource, err)
 		}
-	}
-
-	if err := os.Symlink(normalizedSource, client.Path); err != nil {
-		if backupPath != "" {
-			if restoreErr := os.Rename(backupPath, client.Path); restoreErr != nil {
-				return Result{}, fmt.Errorf("instruction のリンク作成に失敗し、バックアップの復元にも失敗しました (%s): %w", client.Path, errors.Join(err, restoreErr))
-			}
-		}
-		return Result{}, fmt.Errorf("instruction の symlink を作成できません (%s -> %s): %w", client.Path, normalizedSource, err)
-	}
-
-	if backupPath == "" {
 		return Result{Action: ActionLink}, nil
 	}
+
+	backupPath := BackupPath(client.Path, now)
+	linkPath, err := temporaryLinkPath(client.Path, now)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := os.Symlink(normalizedSource, linkPath); err != nil {
+		return Result{}, fmt.Errorf("instruction の一時 symlink を作成できません (%s -> %s): %w", linkPath, normalizedSource, err)
+	}
+
+	expectedInfo, err := backupTarget(client.Path, backupPath)
+	if err != nil {
+		_ = os.Remove(linkPath)
+		return Result{}, err
+	}
+
+	if err := replaceTarget(linkPath, client.Path, expectedInfo, beforeReplace); err != nil {
+		cleanupErr := errors.Join(os.Remove(linkPath), os.Remove(backupPath))
+		if cleanupErr != nil {
+			return Result{}, fmt.Errorf("instruction 配置先の安全な置換に失敗し、作業ファイルの掃除にも失敗しました (%s): %w", client.Path, errors.Join(err, cleanupErr))
+		}
+		return Result{}, err
+	}
+
 	return Result{Action: ActionReplace, BackupPath: backupPath}, nil
+}
+
+func rejectSameSourceTarget(source, target string) error {
+	if samePath(source, target) {
+		return fmt.Errorf("instruction source と配置先が同じです: %s", target)
+	}
+	same, err := sameFile(source, target)
+	if err != nil {
+		return fmt.Errorf("instruction source と配置先の実体を確認できません (%s, %s): %w", source, target, err)
+	}
+	if same {
+		return fmt.Errorf("instruction source と配置先が同じ実体です: %s", target)
+	}
+	return nil
+}
+
+func sameFile(left, right string) (bool, error) {
+	leftInfo, err := os.Stat(left)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("ファイル実体を調べられません (%s): %w", left, err)
+	}
+	rightInfo, err := os.Stat(right)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("ファイル実体を調べられません (%s): %w", right, err)
+	}
+	return os.SameFile(leftInfo, rightInfo), nil
+}
+
+func temporaryLinkPath(target string, now time.Time) (string, error) {
+	base := target + ".mcp-docker-link-" + now.UTC().Format("20060102T150405.000000000Z")
+	candidate := base
+	for suffix := 1; ; suffix++ {
+		_, err := os.Lstat(candidate)
+		if errors.Is(err, fs.ErrNotExist) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("instruction の一時 symlink 配置先を確認できません (%s): %w", candidate, err)
+		}
+		candidate = fmt.Sprintf("%s.%d", base, suffix)
+	}
+}
+
+func backupTarget(target, backupPath string) (fs.FileInfo, error) {
+	info, err := os.Lstat(target)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("instruction 配置先が置換前に消えました: %s", target)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("instruction 配置先を再検証できません (%s): %w", target, err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("instruction 配置先はディレクトリのため置き換えません: %s", target)
+	}
+	switch {
+	case info.Mode()&os.ModeSymlink != 0:
+		linkTarget, err := os.Readlink(target)
+		if err != nil {
+			return nil, fmt.Errorf("既存の instruction symlink をバックアップできません (%s): %w", target, err)
+		}
+		if err := os.Symlink(linkTarget, backupPath); err != nil {
+			return nil, fmt.Errorf("既存の instruction symlink をバックアップできません (%s -> %s): %w", target, backupPath, err)
+		}
+	case info.Mode().IsRegular():
+		if err := os.Link(target, backupPath); err != nil {
+			return nil, fmt.Errorf("既存の instruction ファイルをバックアップできません (%s -> %s): %w", target, backupPath, err)
+		}
+	default:
+		return nil, fmt.Errorf("instruction 配置先は未対応のファイル種別のため置き換えません: %s", target)
+	}
+	return info, nil
+}
+
+func replaceTarget(linkPath, target string, expectedInfo fs.FileInfo, beforeRename func() error) error {
+	currentInfo, err := os.Lstat(target)
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("instruction 配置先が再検証中に消えました: %s", target)
+	}
+	if err != nil {
+		return fmt.Errorf("instruction 配置先を置換直前に再検証できません (%s): %w", target, err)
+	}
+	if currentInfo.IsDir() {
+		return fmt.Errorf("instruction 配置先がディレクトリへ変化したため置き換えません: %s", target)
+	}
+	if currentInfo.Mode() != expectedInfo.Mode() || !os.SameFile(currentInfo, expectedInfo) {
+		return fmt.Errorf("instruction 配置先が検証後に変化したため置き換えません: %s", target)
+	}
+	if beforeRename != nil {
+		if err := beforeRename(); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(linkPath, target); err != nil {
+		return fmt.Errorf("instruction の symlink を原子的に置換できません (%s -> %s): %w", target, linkPath, err)
+	}
+	return nil
 }
 
 func resolvedLinkTarget(path string) (string, error) {

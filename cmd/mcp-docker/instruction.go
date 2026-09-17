@@ -119,7 +119,7 @@ func selectInstructionClients(value string) ([]instruction.Client, error) {
 }
 
 func runInstructionStatus(stdout io.Writer, opts instructionOptions) error {
-	config, err := instruction.Resolve(opts.source)
+	config, err := instruction.ResolveStatus(opts.source)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,11 @@ func runInstructionStatus(stdout io.Writer, opts instructionOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(stdout, "instruction source: %s\n", config.Source)
+	sourceStatus, err := instruction.InspectSource(config.Source)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "instruction source: %s [%s]\n", config.Source, instruction.SourceStatusLabel(sourceStatus))
 	for _, client := range clients {
 		status, err := instruction.Inspect(config.Source, client)
 		if err != nil {
