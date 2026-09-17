@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔄 変更
+
+- #299 に対応し、`thread-owl-pr-reviewer` の approve 経路を thread-owl v0.5.0 の `{OWL}:post_review_verdict` に切り替え。見出し・`- Reviewed HEAD SHA:` 行・`- Status:` 行は server 側で組み立てられるため、skill から Verdict コメントのテンプレートを削除し、`summary`（自由記述部分）の書き方の指針だけを残した。thread-owl#217 / review-raven#130 のような書式揺れによる `AWAITING_THREAD_OWL_VERDICT` 停止を構造的に防ぐ（thread-owl#218 ステップ 2）
+- O-12 の検証を整理: 投稿前は `summary` に部分文字列 `Review Verdict` と照合規則の予約行が無いことを検証し、投稿後は戻り値の `commentId` の本文を読み直して照合規則で検証する（`review://status` や最新コメント探索による特定は不要になった）。不一致は従来どおり `VERDICT_FORMAT_INVALID` で停止し再投稿しない。binding に tool が無い場合の `VERDICT_TOOL_UNAVAILABLE`、head 不一致の `STALE_REVIEW`、その他の投稿失敗の `VERDICT_POST_FAILED` を追加。`post_summary_comment` での Verdict 代替投稿は禁止
+- 「`post_summary_comment` をちょうど 1 回」の契約を「完了通知 write（`post_summary_comment` と `post_review_verdict` の合計）をちょうど 1 回」に改め、approve では `post_review_verdict` だけを呼ぶことを明記。`review-raven-thread-owl-cycle` の Phase W の前提記述も合わせて更新した（Verdict 照合規則は変更なし）
+- `review-raven-thread-owl-cycle` の Phase W の前提を thread-owl v0.5.0 以降に引き上げた。v0.5.0 未満では approve に至った reviewer が `VERDICT_TOOL_UNAVAILABLE` で完了通知を出さずに停止し、待機が `REVIEW_WAIT_TIMEOUT` になるため、停止時の報告にこの原因の確認と thread-owl 更新後に reviewer を再起動する復旧手順を追加した
+- Go テストを、reviewer skill に Verdict テンプレートが残っていないことと、`post_review_verdict` が組み立てる本文構成が照合規則に一致することの検証に変更
+
 ## [2.23.0] - 2026-09-17
 
 ### 🔄 変更
