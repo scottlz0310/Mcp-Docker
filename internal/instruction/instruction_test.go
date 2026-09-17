@@ -98,6 +98,31 @@ func TestLabelsAndPredicates(t *testing.T) {
 		t.Error("未知の操作のラベルがそのまま返っていません")
 	}
 
+	sourceStatusCases := map[SourceStatus]string{
+		SourceReady:   "利用可能",
+		SourceMissing: "見つかりません",
+		SourceInvalid: "通常ファイルではありません",
+	}
+	for status, want := range sourceStatusCases {
+		if got := SourceStatusLabel(status); got != want {
+			t.Errorf("SourceStatusLabel(%q) = %q, want %q", status, got, want)
+		}
+	}
+	if SourceStatusLabel(SourceStatus("other")) != "other" {
+		t.Error("未知の source 状態のラベルがそのまま返っていません")
+	}
+
+	for _, state := range []State{StateBroken, StateWrongTarget, StateRegular} {
+		if !NeedsReplacement(state) {
+			t.Errorf("NeedsReplacement(%q) = false", state)
+		}
+	}
+	for _, state := range []State{StateAbsent, StateLinked, StateDirectory, StateUnsupported} {
+		if NeedsReplacement(state) {
+			t.Errorf("NeedsReplacement(%q) = true", state)
+		}
+	}
+
 	for _, state := range []State{StateBroken, StateWrongTarget} {
 		if !NeedsRepair(state) {
 			t.Errorf("NeedsRepair(%q) = false", state)
@@ -171,6 +196,42 @@ func TestResolveRejectsMissingAndInvalidConfig(t *testing.T) {
 	}
 	if config.Mode != ModeSymlink {
 		t.Fatalf("省略した mode = %q, want %q", config.Mode, ModeSymlink)
+	}
+}
+
+func TestResolveStatusAllowsMissingSource(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "instructions.json")
+	t.Setenv("MCP_DOCKER_INSTRUCTION_CONFIG", configPath)
+	missingSource := filepath.Join(t.TempDir(), "missing.md")
+	data, err := json.Marshal(Config{Source: missingSource})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := ResolveStatus("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Source != missingSource || config.Mode != ModeSymlink {
+		t.Fatalf("ResolveStatus() = %#v, want source=%q mode=%q", config, missingSource, ModeSymlink)
+	}
+	status, err := InspectSource(config.Source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != SourceMissing {
+		t.Fatalf("InspectSource() = %q, want %q", status, SourceMissing)
+	}
+
+	override, err := ResolveStatus(filepath.Join(t.TempDir(), "override.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if override.Mode != ModeSymlink {
+		t.Fatalf("override mode = %q, want %q", override.Mode, ModeSymlink)
 	}
 }
 
@@ -268,6 +329,47 @@ func TestLinkRejectsSourceSymlinkToPlacementTarget(t *testing.T) {
 	}
 }
 
+func TestLinkBacksUpExistingSymlink(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source.md")
+	oldTarget := filepath.Join(root, "old.md")
+	target := filepath.Join(root, "target.md")
+	if err := os.WriteFile(source, []byte("# source\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldTarget, []byte("# old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(oldTarget, target); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			t.Skipf("symlink を作成できない環境です: %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	result, err := Link(source, Client{Name: "claude", Path: target}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Action != ActionReplace || result.BackupPath == "" {
+		t.Fatalf("既存 symlink 置換の結果 = %#v", result)
+	}
+	backupTarget, err := os.Readlink(result.BackupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backupTarget != oldTarget {
+		t.Fatalf("symlink バックアップ target = %q, want %q", backupTarget, oldTarget)
+	}
+	status, err := Inspect(source, Client{Name: "claude", Path: target})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != StateLinked {
+		t.Fatalf("symlink 置換後の state = %q, want %q", status.State, StateLinked)
+	}
+}
+
 func TestLinkDoesNotMoveDirectoryWhenItAppearsBeforeRename(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "source.md")
@@ -305,8 +407,94 @@ func TestLinkDoesNotMoveDirectoryWhenItAppearsBeforeRename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(matches) != 0 {
-		t.Fatalf("失敗した置換のバックアップが残っています: %v", matches)
+	if len(matches) != 1 {
+		t.Fatalf("競合時の元配置バックアップ件数 = %d, want 1", len(matches))
+	}
+	backup, err := os.ReadFile(matches[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(backup) != "# existing\n" {
+		t.Fatalf("競合時の元配置バックアップ = %q", backup)
+	}
+}
+
+func TestLinkPreservesConcurrentRegularFileOrSymlink(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, target string) string
+		assertions func(t *testing.T, target, concurrentTarget string)
+	}{
+		{
+			name: "regular-file",
+			setup: func(t *testing.T, target string) string {
+				return ""
+			},
+			assertions: func(t *testing.T, target, _ string) {
+				content, err := os.ReadFile(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(content) != "# concurrent file\n" {
+					t.Fatalf("競合後の通常ファイル = %q", content)
+				}
+			},
+		},
+		{
+			name: "symlink",
+			setup: func(t *testing.T, target string) string {
+				concurrentTarget := filepath.Join(filepath.Dir(target), "concurrent.md")
+				if err := os.WriteFile(concurrentTarget, []byte("# concurrent target\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				return concurrentTarget
+			},
+			assertions: func(t *testing.T, target, concurrentTarget string) {
+				info, err := os.Lstat(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if info.Mode()&os.ModeSymlink == 0 {
+					t.Fatalf("競合後の配置先が symlink ではありません: %s", info.Mode())
+				}
+				linkTarget, err := os.Readlink(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if linkTarget != concurrentTarget {
+					t.Fatalf("競合後の symlink target = %q, want %q", linkTarget, concurrentTarget)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			source := filepath.Join(root, "source.md")
+			target := filepath.Join(root, "target.md")
+			if err := os.WriteFile(source, []byte("# source\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(target, []byte("# original\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			concurrentTarget := test.setup(t, target)
+
+			_, err := link(source, Client{Name: "claude", Path: target}, time.Now(), func() error {
+				if err := os.Remove(target); err != nil {
+					return err
+				}
+				if test.name == "symlink" {
+					return os.Symlink(concurrentTarget, target)
+				}
+				return os.WriteFile(target, []byte("# concurrent file\n"), 0o600)
+			})
+			if err == nil {
+				t.Fatal("検証後に現れた配置を置換しました")
+			}
+			test.assertions(t, target, concurrentTarget)
+		})
 	}
 }
 

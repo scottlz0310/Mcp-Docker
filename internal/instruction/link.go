@@ -219,7 +219,8 @@ func BackupPath(target string, now time.Time) string {
 }
 
 // Link は source への symlink を作成する。既存の通常ファイル／リンクは backupPath へ保全し、
-// 一時 symlink の原子的な置換で配置先を更新する。ディレクトリや未対応のファイル種別は置き換えない。
+// staging へ移した配置先の実体を再確認してから、作成専用の symlink で更新する。
+// ディレクトリや未対応のファイル種別は置き換えない。
 func Link(source string, client Client, now time.Time) (Result, error) {
 	return link(source, client, now, nil)
 }
@@ -274,8 +275,8 @@ func link(source string, client Client, now time.Time, beforeReplace func() erro
 		return Result{}, err
 	}
 
-	if err := replaceTarget(linkPath, client.Path, expectedInfo, beforeReplace); err != nil {
-		cleanupErr := errors.Join(os.Remove(linkPath), os.Remove(backupPath))
+	if err := replaceTarget(linkPath, client.Path, expectedInfo, now, beforeReplace); err != nil {
+		cleanupErr := os.Remove(linkPath)
 		if cleanupErr != nil {
 			return Result{}, fmt.Errorf("instruction 配置先の安全な置換に失敗し、作業ファイルの掃除にも失敗しました (%s): %w", client.Path, errors.Join(err, cleanupErr))
 		}
@@ -317,19 +318,31 @@ func sameFile(left, right string) (bool, error) {
 	return os.SameFile(leftInfo, rightInfo), nil
 }
 
-func temporaryLinkPath(target string, now time.Time) (string, error) {
-	base := target + ".mcp-docker-link-" + now.UTC().Format("20060102T150405.000000000Z")
+func temporaryPath(target, kind string, now time.Time) (string, error) {
+	base := target + ".mcp-docker-" + kind + "-" + now.UTC().Format("20060102T150405.000000000Z")
 	candidate := base
-	for suffix := 1; ; suffix++ {
+	for attempt := 1; ; attempt++ {
 		_, err := os.Lstat(candidate)
 		if errors.Is(err, fs.ErrNotExist) {
 			return candidate, nil
 		}
 		if err != nil {
-			return "", fmt.Errorf("instruction の一時 symlink 配置先を確認できません (%s): %w", candidate, err)
+			return "", fmt.Errorf("instruction の一時 %s 配置先を確認できません (%s): %w", kind, candidate, err)
 		}
-		candidate = fmt.Sprintf("%s.%d", base, suffix)
+		candidate = fmt.Sprintf("%s.%d", base, attempt)
 	}
+}
+
+func temporaryLinkPath(target string, now time.Time) (string, error) {
+	return temporaryPath(target, "link", now)
+}
+
+func temporaryStagingPath(target string, now time.Time) (string, error) {
+	path, err := temporaryPath(target, "staging", now)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func backupTarget(target, backupPath string) (fs.FileInfo, error) {
@@ -362,7 +375,7 @@ func backupTarget(target, backupPath string) (fs.FileInfo, error) {
 	return info, nil
 }
 
-func replaceTarget(linkPath, target string, expectedInfo fs.FileInfo, beforeRename func() error) error {
+func replaceTarget(linkPath, target string, expectedInfo fs.FileInfo, now time.Time, beforeRename func() error) error {
 	currentInfo, err := os.Lstat(target)
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("instruction 配置先が再検証中に消えました: %s", target)
@@ -381,8 +394,82 @@ func replaceTarget(linkPath, target string, expectedInfo fs.FileInfo, beforeRena
 			return err
 		}
 	}
-	if err := os.Rename(linkPath, target); err != nil {
-		return fmt.Errorf("instruction の symlink を原子的に置換できません (%s -> %s): %w", target, linkPath, err)
+
+	stagingPath, err := temporaryStagingPath(target, now)
+	if err != nil {
+		return err
+	}
+	if err := os.Rename(target, stagingPath); err != nil {
+		return fmt.Errorf("instruction 配置先を staging へ移動できません (%s -> %s): %w", target, stagingPath, err)
+	}
+
+	stagedInfo, err := os.Lstat(stagingPath)
+	if err != nil {
+		return fmt.Errorf("instruction staging の配置を再検証できません (%s): %w", stagingPath, err)
+	}
+	if stagedInfo.IsDir() || stagedInfo.Mode() != expectedInfo.Mode() || !os.SameFile(stagedInfo, expectedInfo) {
+		if restoreErr := restoreStagedEntry(stagingPath, target); restoreErr != nil {
+			return fmt.Errorf("instruction 配置先が検証後に変化し、staging の復元にも失敗しました (%s): %w", stagingPath, errors.Join(
+				fmt.Errorf("expected entry と異なる配置を検出しました"),
+				restoreErr,
+			))
+		}
+		return fmt.Errorf("instruction 配置先が検証後に変化したため置き換えません: %s", target)
+	}
+
+	linkTarget, err := os.Readlink(linkPath)
+	if err != nil {
+		return fmt.Errorf("instruction の一時 symlink を読み込めません (%s): %w", linkPath, err)
+	}
+	if err := os.Symlink(linkTarget, target); err != nil {
+		if restoreErr := restoreStagedEntry(stagingPath, target); restoreErr != nil {
+			return fmt.Errorf("instruction の symlink 作成に失敗し、元の配置の復元にも失敗しました (%s): %w", target, errors.Join(err, restoreErr))
+		}
+		return fmt.Errorf("instruction の symlink を作成できません (%s -> %s): %w", target, linkTarget, err)
+	}
+	if err := os.Remove(linkPath); err != nil {
+		return fmt.Errorf("instruction の一時 symlink を削除できません (%s): %w", linkPath, err)
+	}
+	if err := os.Remove(stagingPath); err != nil {
+		return fmt.Errorf("instruction staging を削除できません (%s): %w", stagingPath, err)
+	}
+	return nil
+}
+
+func restoreStagedEntry(stagingPath, target string) error {
+	if _, err := os.Lstat(target); err == nil {
+		return fmt.Errorf("配置先に別の entry が存在するため staging を残しました: %s", stagingPath)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("staging 復元前に配置先を確認できません (%s): %w", target, err)
+	}
+
+	info, err := os.Lstat(stagingPath)
+	if err != nil {
+		return fmt.Errorf("staging を調べられません (%s): %w", stagingPath, err)
+	}
+	switch {
+	case info.Mode()&os.ModeSymlink != 0:
+		linkTarget, err := os.Readlink(stagingPath)
+		if err != nil {
+			return fmt.Errorf("staging symlink を読み込めません (%s): %w", stagingPath, err)
+		}
+		if err := os.Symlink(linkTarget, target); err != nil {
+			return fmt.Errorf("staging symlink を復元できません (%s -> %s): %w", stagingPath, target, err)
+		}
+	case info.Mode().IsRegular():
+		if err := os.Link(stagingPath, target); err != nil {
+			return fmt.Errorf("staging ファイルを復元できません (%s -> %s): %w", stagingPath, target, err)
+		}
+	case info.IsDir():
+		if err := os.Rename(stagingPath, target); err != nil {
+			return fmt.Errorf("staging ディレクトリを復元できません (%s -> %s): %w", stagingPath, target, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("staging は未対応のファイル種別のため復元できません: %s", stagingPath)
+	}
+	if err := os.Remove(stagingPath); err != nil {
+		return fmt.Errorf("復元済み staging を削除できません (%s): %w", stagingPath, err)
 	}
 	return nil
 }
