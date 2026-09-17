@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- #302 に対応し、ユーザー管理の instruction source を `mcp-docker instruction` で設定し、Claude / Copilot / Codex / Antigravity・Gemini のユーザー単位入口へ symlink 配置・状態確認・修復できるようにした。本文はリポジトリへコピーせず、既存の通常ファイルや異なるリンクは確認後にバックアップして置き換える。
+
 ## [2.24.0] - 2026-09-17
 
 ### 🔄 変更

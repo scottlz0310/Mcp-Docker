@@ -249,6 +249,32 @@ make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-revie
 
 skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`skills/catalog.json` の revision を上げてから、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
 
+### ユーザー instruction source の配置（`mcp-docker instruction`）
+
+各 CLI に共通の instruction 本文は、リポジトリへコピーせずユーザー管理の source of truth から参照できます。`mcp-docker instruction` は source のパスと `symlink` 方式だけをユーザー設定へ保存し、各 CLI のユーザー単位の入口へリンクします。
+
+| クライアント | instruction 入口 |
+|---|---|
+| Claude CLI | `~/.claude/CLAUDE.md` |
+| GitHub Copilot CLI | `~/.copilot/copilot-instructions.md` |
+| Codex CLI | `~/.codex/AGENTS.md` |
+| Antigravity / Gemini CLI | `~/.gemini/GEMINI.md` |
+
+```bash
+# source を設定（本文は読み込まず、パスだけを保存）
+mcp-docker instruction configure --source "C:\path\to\user-instructions.md"
+
+# 配置計画を確認してからリンクを作成
+mcp-docker instruction link --dry-run
+mcp-docker instruction link --yes
+
+# 状態確認と修復
+mcp-docker instruction status
+mcp-docker instruction repair --yes
+```
+
+`status` は source の正規化済みパス、配置先の状態、`symlink` などの link type、symlink の target を表示します。`link` は、異なる symlink、壊れた symlink、通常ファイルが既にある場合に、確認後 `<配置先>.mcp-docker-backup-<UTC timestamp>` へ移動してから置き換えます。同一リンクは冪等にスキップし、ディレクトリは置き換えません。`repair` は壊れた symlink または別 source への symlink だけを修復し、通常ファイルや未配置の入口は保護します。`--dry-run` はファイルを書き換えません。symlink 作成に失敗した場合の通常ファイルへのコピー・フォールバックも行いません。source へ追加するレビュー完了待機ルールと責務分担は [docs/instruction-source.md](docs/instruction-source.md) を参照してください。
+
 ## サービス操作
 
 ### Makefile コマンド
@@ -279,6 +305,10 @@ skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`sk
 | `make skill-status` | 各 CLI に配置済みの skill が最新かを確認 |
 | `make skill-install` | Claude / Copilot / Codex / Antigravity CLI に skill を配置 |
 | `make skill-uninstall` | 配置済みの skill を各 CLI から削除 |
+| `make instruction-configure` | ユーザー管理の instruction source を設定（`INSTRUCTION_FLAGS` で `--source` を指定） |
+| `make instruction-status` | 各 CLI の instruction source リンク状態を確認 |
+| `make instruction-link` | 各 CLI の instruction 入口へ source をリンク |
+| `make instruction-repair` | instruction 入口の不一致をバックアップして修復 |
 | `make lint` | シェルスクリプト Lint |
 | `make test-go` | Go CLI テスト |
 | `make test-shell` | シェルスクリプトテスト（BATS） |
