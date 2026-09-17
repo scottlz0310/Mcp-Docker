@@ -1,6 +1,7 @@
 package instruction
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -28,6 +29,86 @@ func TestClients(t *testing.T) {
 	}
 }
 
+func TestClientNamesSelectAndUserHome(t *testing.T) {
+	wantNames := []string{"claude", "copilot", "codex", "antigravity"}
+	if got := ClientNames(); !equalStrings(got, wantNames) {
+		t.Fatalf("ClientNames() = %v, want %v", got, wantNames)
+	}
+
+	clients := Clients(t.TempDir())
+	selected, err := Select(clients, []string{"codex", "claude", "codex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 2 || selected[0].Name != "codex" || selected[1].Name != "claude" {
+		t.Fatalf("Select() = %#v, want codex and claude", selected)
+	}
+	if _, err := Select(clients, []string{"unknown"}); err == nil {
+		t.Fatal("未知のクライアントを受け入れました")
+	}
+	if _, err := Select(clients, nil); err == nil {
+		t.Fatal("空のクライアント選択を受け入れました")
+	}
+
+	t.Setenv("MCP_DOCKER_INSTRUCTION_HOME", filepath.Join("relative", "home"))
+	home, err := UserHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantHome, err := filepath.Abs(filepath.Join("relative", "home"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if home != wantHome {
+		t.Fatalf("UserHome() = %q, want %q", home, wantHome)
+	}
+}
+
+func TestLabelsAndPredicates(t *testing.T) {
+	stateCases := map[State]string{
+		StateAbsent:      "未配置",
+		StateLinked:      "リンク済み",
+		StateBroken:      "壊れたリンク",
+		StateWrongTarget: "別の source へのリンク",
+		StateRegular:     "通常ファイル",
+		StateDirectory:   "ディレクトリ",
+		StateUnsupported: "未対応の配置",
+	}
+	for state, want := range stateCases {
+		if got := StateLabel(state); got != want {
+			t.Errorf("StateLabel(%q) = %q, want %q", state, got, want)
+		}
+	}
+	if StateLabel(State("other")) != "other" {
+		t.Error("未知の状態のラベルがそのまま返っていません")
+	}
+
+	actionCases := map[Action]string{
+		ActionSkip:    "変更なし",
+		ActionLink:    "リンク作成",
+		ActionReplace: "バックアップ後にリンク置換",
+	}
+	for action, want := range actionCases {
+		if got := ActionLabel(action); got != want {
+			t.Errorf("ActionLabel(%q) = %q, want %q", action, got, want)
+		}
+	}
+	if ActionLabel(Action("other")) != "other" {
+		t.Error("未知の操作のラベルがそのまま返っていません")
+	}
+
+	for _, state := range []State{StateBroken, StateWrongTarget} {
+		if !NeedsRepair(state) {
+			t.Errorf("NeedsRepair(%q) = false", state)
+		}
+	}
+	for _, state := range []State{StateAbsent, StateLinked, StateRegular, StateDirectory, StateUnsupported} {
+		if NeedsRepair(state) {
+			t.Errorf("NeedsRepair(%q) = true", state)
+		}
+	}
+}
+
 func TestConfigRoundTrip(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "nested", "instructions.json")
 	t.Setenv("MCP_DOCKER_INSTRUCTION_CONFIG", configPath)
@@ -49,6 +130,46 @@ func TestConfigRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("設定ファイルが作成されていません: %v", err)
+	}
+}
+
+func TestResolveRejectsMissingAndInvalidConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "instructions.json")
+	t.Setenv("MCP_DOCKER_INSTRUCTION_CONFIG", configPath)
+	if _, err := Resolve(""); err == nil {
+		t.Fatal("設定がない状態を受け入れました")
+	}
+
+	if err := os.WriteFile(configPath, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadConfig(); err == nil {
+		t.Fatal("不正なJSONを受け入れました")
+	}
+
+	source := filepath.Join(t.TempDir(), "CLAUDE.md")
+	if err := os.WriteFile(source, []byte("# source\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	invalidConfig, err := json.Marshal(Config{Source: source, Mode: "copy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, invalidConfig, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(""); err == nil {
+		t.Fatal("未対応の mode を受け入れました")
+	}
+	if err := SaveConfig(Config{Source: source}); err != nil {
+		t.Fatal(err)
+	}
+	config, err := Resolve("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Mode != ModeSymlink {
+		t.Fatalf("省略した mode = %q, want %q", config.Mode, ModeSymlink)
 	}
 }
 
@@ -164,4 +285,19 @@ func TestValidateSourceRejectsDirectory(t *testing.T) {
 	if _, err := ValidateSource(t.TempDir()); err == nil {
 		t.Fatal("ディレクトリを source として受け入れました")
 	}
+	if _, err := ValidateSource(filepath.Join(t.TempDir(), "missing.md")); err == nil {
+		t.Fatal("存在しないファイルを source として受け入れました")
+	}
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
