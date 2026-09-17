@@ -99,13 +99,12 @@ func TestVerdictMatchRule(t *testing.T) {
 	const sha = "66ff8c6a1b2c3d4e5f60718293a4b5c6d7e8f901"
 
 	body := readSkill(t, "thread-owl-pr-reviewer")
-	_, afterFence, found := strings.Cut(body, "```markdown\n## @thread-owl Review Verdict: APPROVED")
-	if !found {
-		t.Fatal("reviewer skill に Verdict テンプレートが見つかりません")
+	// 固定部分は thread-owl の post_review_verdict が組み立てるので、skill 側に手組み用テンプレートを残さない。
+	if strings.Contains(body, "```markdown\n## @thread-owl Review Verdict") {
+		t.Error("reviewer skill に Verdict コメントのテンプレートが残っています")
 	}
-	template, _, _ := strings.Cut(afterFence, "\n```")
-	template = "## @thread-owl Review Verdict: APPROVED" + strings.ReplaceAll(template, "<reviewedHeadSha>", sha)
 
+	// thread-owl の buildVerdictBody と同じ構成（見出し・summary・区切り線・HEAD 行・Status 行）。
 	valid := "## @thread-owl Review Verdict: APPROVED\n\nサマリー\n\n---\n- Reviewed HEAD SHA: `" + sha + "`\n- Status: `READY_TO_MERGE`\n"
 
 	tests := []struct {
@@ -114,8 +113,7 @@ func TestVerdictMatchRule(t *testing.T) {
 		wantOK  bool
 		wantSHA string
 	}{
-		{name: "reviewer skill のテンプレート", body: template, wantOK: true, wantSHA: sha},
-		{name: "準拠した本文", body: valid, wantOK: true, wantSHA: sha},
+		{name: "post_review_verdict が組み立てる本文", body: valid, wantOK: true, wantSHA: sha},
 		{name: "CRLF 改行", body: strings.ReplaceAll(valid, "\n", "\r\n"), wantOK: true, wantSHA: sha},
 		{
 			name:   "thread-owl#217 の逸脱",

@@ -810,7 +810,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 ### 前提
 
 - thread-owl v0.4.3 以降（`review://status/{owner}/{repo}/{prNumber}` resource を提供する）。
-- reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に `post_summary_comment` を 1 回呼ぶこと。thread-owl の状態が `reviewed` になるのは `post_summary_comment`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
+- reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に完了通知 write を 1 回呼ぶこと（approve なら `post_review_verdict`、それ以外は `post_summary_comment`）。thread-owl の状態が `reviewed` になるのは `post_summary_comment` / `post_review_verdict`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
 - 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
 - `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
 
@@ -852,7 +852,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    | 上記以外の `failed` / `timeout`、JSON 不正、対象 PR 不一致 | `REVIEW_WAIT_FAILED` で停止する |
 
    **HEAD 照合（fail-closed）**: 完了とみなした状態の `headSha` を、手順 2 で固定した `expected_head` と文字列全体で比較する。あわせて `{GH}:get_pr` で current PR head を再取得する。`headSha` と current PR head がどちらも `expected_head` と一致する場合だけ手順 5 へ進む。それ以外は古い HEAD や前 round の結果を受理しないよう `REVIEW_HEAD_MISMATCH` で停止し、自動で再 enqueue しない（無人ループを避けるため）。
-   - `headSha` が null: reviewer-side がレビュー対象 HEAD を渡していない（`headSha` 対応前の `thread-owl-pr-reviewer` か、`post_summary_comment` の呼び出し漏れ）。reviewer skill の更新を依頼する。
+   - `headSha` が null: reviewer-side がレビュー対象 HEAD を渡していない（`headSha` 対応前の `thread-owl-pr-reviewer` か、完了通知 write の呼び出し漏れ）。reviewer skill の更新を依頼する。
    - `headSha` が `expected_head` と不一致、または current PR head が移動した: 待機中の push か、古い round の完了の混入。current head に対して手順 2 からやり直すか（再 enqueue・再レビュー）をユーザーに確認する。
 
 5. 完了したら、Phase 0 の手順 4〜5（必須コメント投稿者ゲートとサイクル状態の復元）を再実行してから **Phase U2** へ進む。`status` だけで指摘の有無を判断しない。
