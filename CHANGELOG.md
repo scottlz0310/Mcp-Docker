@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-09-17
+
 ### ✨ 新機能
 
 - #302 に対応し、ユーザー管理の instruction source を `mcp-docker instruction` で設定し、Claude / Copilot / Codex / Antigravity・Gemini のユーザー単位入口へ symlink 配置・状態確認・修復できるようにした。本文はリポジトリへコピーせず、source 消失を status で表示し、同一実体の誤配置と通常ファイル・symlink・ディレクトリの配置競合を保護しながら既存配置をバックアップして置き換える。
@@ -818,7 +820,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...HEAD
+[2.25.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.21.4...v2.22.0
