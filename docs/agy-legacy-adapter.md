@@ -17,9 +17,24 @@
 
 未対応または未確認の route が残る場合は無効を維持する。thread-owl / review-raven だけで先に利用する場合は、未確認の `ROUTE_GITHUB` / `ROUTE_PLAYWRIGHT` などを Compose の環境変数定義から除外し、gateway 設定ファイルにも同じ route が残っていない構成を用意する。コンテナ停止や agy の登録対象の限定だけでは route の除外にならない。全有効 route の対応確認後に、次の有効化手順へ進む。
 
+### agy 検証時の route 構成
+
+標準の `docker-compose.yml` は `github`、`review-raven`、`playwright`、`thread-owl` の 4 route を定義する。agy の legacy adapter 検証では、MCP `2026-07-28` 対応を確認していない Playwright route を除外し、`github`、`review-raven`、`thread-owl` の 3 route だけを gateway に登録する。
+
+ローカル検証では、Git 管理外の `docker-compose.override.yml` で route の環境変数を空にする。サービスを停止するだけ、または agy の登録対象から外すだけでは gateway の route は除外されない。
+
+```yaml
+services:
+  mcp-gateway:
+    environment:
+      ROUTE_PLAYWRIGHT: ""
+```
+
+再作成前に `docker compose config` の `ROUTE_PLAYWRIGHT` が空であること、再作成後の gateway 起動ログの `routes` が `3` であることを確認する。4 route のまま `GATEWAY_LEGACY_ADAPTER_ENABLED=true` にしてはならない。Playwright の対応確認が完了した後に 4 route へ戻す場合も、全 route の `server/discover` 応答を再確認する。
+
 ## 有効化と登録
 
-以下はマージ後の運用手順。実構成 E2E は未実施。
+以下はマージ後の運用手順。2026-09-06 に Issue [#240](https://github.com/scottlz0310/Mcp-Docker/issues/240) の実構成 E2E を、上記の 3 route 構成（gateway revision `b19e00a4d2fbdd4f55fa9d08c467776a81257c4a`、agy v1.1.27）で完了している。再実行時は route 数、gateway revision、agy のバージョン、起動ログの `legacy_adapter_enabled` を記録する。
 
 1. `.env` に `GATEWAY_LEGACY_ADAPTER_ENABLED=true` を設定する。
 2. 対応イメージを取得し、環境変数を反映するため gateway コンテナを再作成する。
