@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-09-20
+
 ### ✨ 新機能
 
 - reviewed-side の完了記録を固定した repository・PR・HEAD・埋め込みskill revisionへ結び付けて検証する `mcp-docker reviewgate validate` を追加
@@ -830,7 +832,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...HEAD
+[2.26.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.22.0...v2.23.0
