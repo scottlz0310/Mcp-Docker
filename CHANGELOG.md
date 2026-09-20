@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📚 ドキュメント
 
 - agy legacy adapter の検証用 3 route 構成（`ROUTE_PLAYWRIGHT` の除外）と、実構成 E2E 済みの revision / 確認条件を `docs/agy-legacy-adapter.md` に反映
+- #305 の第1スライスとして、reviewed-side の正本 skill、配置状態、完了記録の必須項目、fail-closed 停止コードを `docs/reviewed-side-completion-contract.md` に定義
 
 ## [2.25.0] - 2026-09-17
 
