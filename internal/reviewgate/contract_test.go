@@ -94,6 +94,24 @@ func TestDecodeCompletionRecordRejectsAmbiguousJSON(t *testing.T) {
 		{name: "multiple values", data: string(data) + " {}"},
 		{name: "invalid json", data: "{"},
 	}
+	topLevelDuplicate := strings.Replace(string(data), `"skillCompleted":true`, `"skillCompleted":false,"skillCompleted":true`, 1)
+	if topLevelDuplicate == string(data) {
+		t.Fatal("failed to construct top-level duplicate-key test input")
+	}
+	nestedDuplicate := strings.Replace(string(data), `"headSha":"`+testHeadSHA+`","complete"`, `"headSha":"`+testHeadSHA+`","headSha":"`+strings.Repeat("f", 40)+`","complete"`, 1)
+	if nestedDuplicate == string(data) {
+		t.Fatal("failed to construct nested duplicate-key test input")
+	}
+	tests = append(tests,
+		struct {
+			name string
+			data string
+		}{name: "top-level duplicate key", data: topLevelDuplicate},
+		struct {
+			name string
+			data string
+		}{name: "nested duplicate key", data: nestedDuplicate},
+	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := DecodeCompletionRecord([]byte(tt.data))

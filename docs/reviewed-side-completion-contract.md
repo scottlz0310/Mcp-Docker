@@ -59,7 +59,7 @@
 - skill 実行済み、全返信済み、未解決スレッド数が0件であること
 - CI の HEAD と完了記録の HEAD が一致すること
 - 必須 check run が1件以上あり、すべて同一 HEAD 上で `completed / success` であること
-- 未知の JSON フィールド、連結された複数 JSON、重複した check 名を拒否すること
+- 未知の JSON フィールド、同一オブジェクト内の重複キー、連結された複数 JSON、重複した check 名を拒否すること
 
 この記録自体は自己申告可能な証跡であり、merge の唯一の根拠ではない。後続の gate は、現在の PR HEAD、購読 URI、review thread、GitHub の required checks を再取得し、同一値であることを確認する。
 

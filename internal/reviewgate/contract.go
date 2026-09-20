@@ -107,8 +107,17 @@ type CheckRun struct {
 }
 
 // DecodeCompletionRecord は厳格な JSON として完了記録を読み込む。
-// 未知フィールドと JSON の連結を拒否し、曖昧な証跡を後続処理へ渡さない。
+// 未知フィールド、重複キー、JSON の連結を拒否し、曖昧な証跡を後続処理へ渡さない。
 func DecodeCompletionRecord(data []byte) (CompletionRecord, error) {
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return CompletionRecord{}, &StopError{
+			Code:    StopCompletionRecordInvalid,
+			Field:   "json",
+			Message: "重複キーまたは不正な JSON を検出しました",
+			Cause:   err,
+		}
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
@@ -139,6 +148,81 @@ func DecodeCompletionRecord(data []byte) (CompletionRecord, error) {
 		return CompletionRecord{}, err
 	}
 	return record, nil
+}
+
+func rejectDuplicateJSONKeys(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	if err := walkJSONValue(decoder, "$"); err != nil {
+		return err
+	}
+
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("JSON 値が複数あります")
+		}
+		return fmt.Errorf("末尾の JSON を解析できません: %w", err)
+	}
+	return nil
+}
+
+func walkJSONValue(decoder *json.Decoder, path string) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+
+	delimiter, ok := token.(json.Delim)
+	if !ok {
+		return nil
+	}
+
+	switch delimiter {
+	case '{':
+		seen := make(map[string]struct{})
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return errors.New("JSON オブジェクトのキーを解析できません")
+			}
+			if _, exists := seen[key]; exists {
+				return fmt.Errorf("JSON オブジェクト %s に重複キー %q があります", path, key)
+			}
+			seen[key] = struct{}{}
+			if err := walkJSONValue(decoder, path+"."+key); err != nil {
+				return err
+			}
+		}
+		end, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if end != json.Delim('}') {
+			return errors.New("JSON オブジェクトの終端を解析できません")
+		}
+	case '[':
+		index := 0
+		for decoder.More() {
+			if err := walkJSONValue(decoder, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+				return err
+			}
+			index++
+		}
+		end, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if end != json.Delim(']') {
+			return errors.New("JSON 配列の終端を解析できません")
+		}
+	default:
+		return fmt.Errorf("予期しない JSON delimiter %q", delimiter)
+	}
+	return nil
 }
 
 // Validate は完了記録が reviewed-side merge gate の入力契約を満たすか検証する。
