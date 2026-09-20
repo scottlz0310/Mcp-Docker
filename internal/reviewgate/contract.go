@@ -36,6 +36,8 @@ const (
 	StopReviewIncomplete StopCode = "REVIEW_INCOMPLETE"
 	// StopCINotGreen は固定 HEAD の必須 CI が完了・成功していないことを表す。
 	StopCINotGreen StopCode = "CI_NOT_GREEN"
+	// StopReviewGateUnavailable は完了記録のローカル検証コマンドを実行できないことを表す。
+	StopReviewGateUnavailable StopCode = "REVIEW_GATE_UNAVAILABLE"
 )
 
 var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -96,6 +98,17 @@ type FixedHeadCI struct {
 	HeadSHA        string     `json:"headSha"`
 	Complete       bool       `json:"complete"`
 	RequiredChecks []CheckRun `json:"requiredChecks"`
+}
+
+// ValidationTarget は完了記録を検証する直前に固定した外部状態を表す。
+//
+// 記録自身に含まれる値の整合性だけでなく、現在の PR と埋め込み skill の
+// revision に結び付けることで、古い記録の再利用を防ぐ。
+type ValidationTarget struct {
+	Repo          string
+	PRNumber      int
+	HeadSHA       string
+	SkillRevision int
 }
 
 // CheckRun は固定 HEAD 上の 1 件の必須 check run である。
@@ -277,6 +290,43 @@ func (r CompletionRecord) Validate() error {
 		if check.Status != "completed" || check.Conclusion != "success" {
 			return stop(StopCINotGreen, field, "status=completed かつ conclusion=success が必要です")
 		}
+	}
+	return nil
+}
+
+// ValidateFor は完了記録を、直前に固定した PR と埋め込み skill に結び付けて検証する。
+func (r CompletionRecord) ValidateFor(target ValidationTarget) error {
+	if err := target.Validate(); err != nil {
+		return err
+	}
+	if err := r.Validate(); err != nil {
+		return err
+	}
+	if r.Repo != target.Repo || r.PRNumber != target.PRNumber {
+		return stop(StopReviewStatusMismatch, "target", "完了記録の repository または PR が現在の対象と一致しません")
+	}
+	if r.HeadSHA != target.HeadSHA {
+		return stop(StopHeadMismatch, "headSha", "完了記録の HEAD が現在の PR HEAD と一致しません")
+	}
+	if r.SkillRevision != target.SkillRevision {
+		return stop(StopSkillUnavailable, "skillRevision", "完了記録の revision が埋め込み skill と一致しません")
+	}
+	return nil
+}
+
+// Validate は完了記録を結び付ける対象の値を検証する。
+func (t ValidationTarget) Validate() error {
+	if !validRepo(t.Repo) {
+		return invalid("target.repo", "owner/repository 形式が必要です")
+	}
+	if t.PRNumber < 1 {
+		return invalid("target.prNumber", "1 以上が必要です")
+	}
+	if !shaPattern.MatchString(t.HeadSHA) {
+		return invalid("target.headSha", "40 桁の小文字 hexadecimal が必要です")
+	}
+	if t.SkillRevision < 1 {
+		return invalid("target.skillRevision", "1 以上が必要です")
 	}
 	return nil
 }

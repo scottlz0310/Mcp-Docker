@@ -1,6 +1,6 @@
 ---
 name: review-raven-thread-owl-cycle
-description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿する。--mcp-http 構成では mcp-resource-subscriber でレビュー完了を待機し、同一セッションでレビュー往復を続ける。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）、または PR を作成・更新した直後に待機を指示して呼び出す。"
+description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿する。完了時は固定HEADの完了記録を作成し、mcp-docker reviewgate validate で検証する。--mcp-http 構成では mcp-resource-subscriber でレビュー完了を待機し、同一セッションでレビュー往復を続ける。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）、または PR を作成・更新した直後に待機を指示して呼び出す。"
 ---
 
 # review-raven-thread-owl-cycle スキル
@@ -48,6 +48,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | CLI | 役割 | 参照 |
 |-----|------|------|
 | `mcp-resource-subscriber`（v0.6.0 以降） | Phase W で `review://status/...` の更新通知を待機する | [README.md](https://github.com/scottlz0310/mcp-resource-subscriber/blob/main/README.md) |
+| `mcp-docker`（reviewgate 対応版） | Phase 7.5 で完了記録を固定したPR・HEAD・埋め込みskillへ結び付けて検証する | [Mcp-Docker](https://github.com/scottlz0310/Mcp-Docker) |
 
 ### 論理 alias
 
@@ -56,6 +57,8 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | `{GH}` | GitHub の PR / Issue 読み取り・コメント・Issue 操作 |
 | `{RAVEN}` | review-raven のレビュー thread 読み取り・返信・resolve、固定した head SHA の check runs 読み取り |
 | `{OWL}` | thread-owl の queue 読み取り・再レビュー enqueue |
+
+`mcp-docker reviewgate validate` は、レビュー完了の通知やskill実行だけではマージ可能と判断しないためのローカル検証コマンドです。完了記録のJSON、直前に再取得したPRのrepository・番号・HEAD SHAを入力し、実行中バイナリに埋め込まれた `review-raven-thread-owl-cycle` のrevisionとも照合します。このコマンドが存在しない、または埋め込みskillを解決できない場合は、完了扱いにせず停止します。
 
 ### R-00: 論理 alias の discovery と固定
 
@@ -388,9 +391,9 @@ Phase U2: スレッド取得 → Phase 3: 分類 → Phase 4: 修正 → PR HEAD
                                                                                     |
                                     ┌───────────────────────────────┘
                                     ↓ READY_TO_MERGE（再レビュー不要）
-                          Phase 6.5 → Phase 6.6 → Phase 7 → Phase 8
+                          Phase 6.5 → Phase 6.6 → Phase 7 → Phase 7.5 → Phase 8
                                     ↓ ESCALATE（最大サイクル超過）
-                          Phase 6.5 → Phase 7 → Phase 8
+                          Phase 6.5 → Phase 7 → Phase 7.5 → Phase 8
                                     ↓ REQUEST_REREVIEW（cycles_done < max_cycles）
                     @thread-owl コメント投稿 → 起動モードで分岐
                         ├ --mcp-http: enqueue_review → Phase W（待機）→ Phase 0 の手順 4〜5 → Phase U2 へ戻る
@@ -464,7 +467,7 @@ GitHub GraphQL では GitHub App の login から REST API の `[bot]` suffix �
 - **例外を作らない。** 「今回は人が毎サイクル起動している（Human in the loop）だから安全」「あと 1 サイクルで収束する」といった判断で引き上げてはならない。skill の内側から起動元が自動サイクルか人の手動起動かは判別できず、誤判定は警告も痕跡も残さずに起きる。上限がもっとも要る状況（同じ根本原因の修正を繰り返している状況）ほど、エージェントは「自分は例外だ」と判断しやすい。
 - **延長は人の明示指示によってのみ発生する。** `ESCALATE` に到達した後、人が「続行」と明示的に指示した場合に限り、次サイクルで上限を延長する。エージェントは延長を**提案**できるが、**実行はできない**。
 - **上限が止めるのは「再レビュー依頼コメントの投稿」だけである。** `@thread-owl re-review requested` の投稿（＝ webhook → queue → reviewed-side agent と連鎖する自動継続のトリガー）を止めるのであって、指摘への対応を止めるものではない。上限に達していても、**指摘の分類・修正・コミット・push・返信・resolve・処理済み記録は通常どおり実行する**。
-- **`ESCALATE` は回避すべき失敗状態ではない。** Phase 6.5 → Phase 7 → Phase 8 へ進み、サマリを投稿して人がマージ可否を判断する**正常な合流点**である。行き止まりではないため、`ESCALATE` を避けることを理由に上限を動かす必要はない。
+- **`ESCALATE` は回避すべき失敗状態ではない。** Phase 6.5 → Phase 7 → Phase 7.5 → Phase 8 へ進み、サマリと完了記録を投稿して人がマージ可否を判断する**正常な合流点**である。行き止まりではないため、`ESCALATE` を避けることを理由に上限を動かす必要はない。
 - **カバレッジ修正によるループも上限の管理下にある。** `max_cycles = 3` は再レビュー要求の上限であるが、Phase 6.6 から Phase 4 へのカバレッジ起因の戻りも同一サイクル内で最大 1 回に制限される。カバレッジ数値を上げるためだけにサイクルを無制限に消費したり、`max_cycles` を引き上げてはならない。
 - **`max_cycles` 到達後にカバレッジギャップが残った場合の扱い。** `cycles_done ≥ max_cycles` に達している場合、未カバー行やカバレッジ未達が存在しても自動でテスト追加（Phase 4）へ戻ってはならない。残存 gap の内容・理由（設計上カバー不要か、テスト困難か）とカバレッジ数値をサマリコメントに明記し、`ESCALATE` の正常合流点として人のマージ判断・確認に委ねる。
 - **適用した上限は PR に残す。** 再レビュー依頼コメントとサマリコメントの「サイクル状態」ブロックに `max_cycles` を記録する（「サイクル状態ブロック」節を参照）。上限がどこにも残らないと、値が正しかったかを後から誰も検証できない。
@@ -524,7 +527,8 @@ GitHub GraphQL では GitHub App の login から REST API の `[bot]` suffix �
    - `handled_comments`: ブロックに列挙されている ID 群を記録してセット（既処理リスト）を作成する。`なし` または見つからない場合は空。
    - `max_cycles`: 復元した値で**上書きしない**。ステップ 3 の固定値を使う。記録された値と食い違う場合は、過去に人の指示で延長された履歴か、規約違反の書き込みである。**どちらであってもエージェントの判断で追随してはならない**ため、食い違いを報告したうえで固定値のまま続行する。
 6. R-00 の minimum read が、必須コメント投稿者ゲートで実施した `{RAVEN}:get_review_threads(include_bodies=false)` と他の binding の read 検証によって成功していることを確認する。失敗した場合は `BLOCKED_MCP_DISCOVERY` として停止し、本文取得・変更・返信・resolve・コメント投稿・enqueue を行わない。
-7. エントリーを振り分ける。
+7. `mcp-docker skill list --skill review-raven-thread-owl-cycle` を read-only で実行し、正本 skill の存在と catalog revision を確認する。出力を取得できない、対象skillがない、revisionを取得できない場合は `SKILL_UNAVAILABLE` として停止する。このrevisionを完了記録の `skillRevision` に使い、実行中バイナリの埋め込み内容を正本として扱う。
+8. エントリーを振り分ける。
    - 依頼文で PR 作成・更新直後のレビュー完了待機を指示されている（待機エントリー）→ **Phase W** へ進む。
    - それ以外（コールドスタート）→ Phase U2 へ進む。未解決スレッドがある状態で起動された場合は待機しない。依頼文に待機の指示がない場合も、推測で Phase W に入らない（完了済みのレビューに対して新しいラウンドを enqueue してしまうため）。
 
@@ -731,7 +735,7 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 
 **`ESCALATE` で Verdict 確認を対象外とする理由**: 最大サイクルを超過しているため、最終サイクルの修正コミットが thread-owl に再レビューされていない可能性があり、その場合現在の HEAD に対する新しい Verdict コメントは存在し得ない。ここで Verdict 確認を必須にすると恒久的なデッドロックになる。`ESCALATE` は Phase 8 で既に人間による明示的な確認を必須としており、これが自動 Verdict 確認の代替として機能する。
 
-**`ESCALATE` は正常な合流点であり、回避対象ではない。** Phase 6.5 → Phase 7 → Phase 8 へ通常どおり進み、サマリを投稿して人のマージ判断を待つ経路である。行き止まりではないため、`ESCALATE` を避けるために `max_cycles` を引き上げてはならない。
+**`ESCALATE` は正常な合流点であり、回避対象ではない。** Phase 6.5 → Phase 7 → Phase 7.5 → Phase 8 へ通常どおり進み、サマリと完了記録を残して人のマージ判断を待つ経路である。行き止まりではないため、`ESCALATE` を避けるために `max_cycles` を引き上げてはならない。
 
 Phase 7 用に記録する: `termination_status`、`final_cycle_fix_types`、`unverified_blocking_commits`。
 
@@ -857,7 +861,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 5. 完了したら、Phase 0 の手順 4〜5（必須コメント投稿者ゲートとサイクル状態の復元）を再実行してから **Phase U2** へ進む。`status` だけで指摘の有無を判断しない。
    - 未解決スレッドや actionable な指摘がある（`reviewed` / `approved` のどちらでも）→ Phase 3 以降の通常手順。
-   - 未解決の指摘が 0 件 → `READY_TO_MERGE` として Phase 6.5 → 6.6 → 7 → 8 へ進む。approve 相当かどうかは Phase 7 の Verdict 照合で判定し、Verdict が無ければ `AWAITING_THREAD_OWL_VERDICT` として報告する。どちらの場合もマージは人の判断を待つ。
+   - 未解決の指摘が 0 件 → `READY_TO_MERGE` として Phase 6.5 → 6.6 → 7 → 7.5 → 8 へ進む。approve 相当かどうかは Phase 7 の Verdict 照合で判定し、Verdict が無ければ `AWAITING_THREAD_OWL_VERDICT` として報告する。どちらの場合もマージは人の判断を待つ。
 
 ### 停止時の報告
 
@@ -1021,6 +1025,51 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 
 **`先送り・スコープ外項目` ルール**: `out-of-scope` / `deferred` / `follow-up` を理由とする全 reject をフォローアップ Issue 番号付きでリストしなければならない。「なし」は該当 reject が 0 件かつ Phase U5 ステップ 4 で未解決スレッドがない場合のみ許容。
 
+## Phase 7.5: 完了記録とローカル契約検証
+
+Phase 8 のマージ判断へ進む前に、レビュー完了通知だけに依存せず、今回の reviewed-side cycle の完了記録を作成して `mcp-docker` で検証します。完了記録はマージの唯一の根拠ではなく、現在のPR・スレッド・required checksと再照合するための証跡です。
+
+1. Phase 7 のサマリ投稿と投稿者確認が成功した直後に、最終スナップショットを取り直します。
+   - `{GH}:get_pr` で現在のPR HEADを取得し、`final_head` として固定する。Phase 6.5 の `reviewedHeadSha` と異なる場合は、古いCI結果を破棄して Phase 6.5 からやり直す。
+   - `{RAVEN}:get_review_threads` に `include_bodies=false` を明示して全ページを取得し、`pagination.complete=true` と `summary.unresolved=0` を確認する。未解決が残る場合は `REVIEW_INCOMPLETE` として停止する。
+   - `all_replied=true` は、今回のサイクルで対象にした全スレッドの返信・resolve結果、および review body / PR comment の全 actionable 指摘に対する返信・処理済み記録を確認できた場合だけ設定する。未確認を `true` にしてはならない。
+   - Phase 6.5 と同じCI read bindingで `final_head` の全ページを取得し、`sha`、各 `head_sha`、`pagination.complete` を再確認する。repository policyから確定した全 required check を `requiredChecks` に列挙し、すべて `status=completed` かつ `conclusion=success` であることを確認する。
+2. 作業ツリー外の一時ファイルへ、次のJSONを1つだけ書き出します。`skillRevision` は Phase 0 で取得した埋め込みskillのrevision、`unresolved_count` は最終スナップショットの値、`ci.requiredChecks` はrequired checkだけを使います。
+
+```json
+{
+  "contractVersion": 1,
+  "repo": "owner/repository",
+  "prNumber": 123,
+  "headSha": "<final_head>",
+  "skillId": "review-raven-thread-owl-cycle",
+  "skillRevision": 17,
+  "skillCompleted": true,
+  "all_replied": true,
+  "unresolved_count": 0,
+  "ci": {
+    "headSha": "<final_head>",
+    "complete": true,
+    "requiredChecks": [
+      {
+        "name": "<required check name>",
+        "headSha": "<final_head>",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+}
+```
+
+3. 次のコマンドを、最終PR HEADを再取得した値で実行します。`--record` は作業ツリー外の一時ファイルを指定し、記録をリポジトリへコミットしません。
+
+```text
+mcp-docker reviewgate validate --record <record-path> --repo <owner/repository> --pr <number> --head-sha <final_head>
+```
+
+4. `reviewgate: valid` の出力を得た場合だけ、完了記録のパス、対象HEAD、skill revision、required check数、検証結果を Phase 8 の証跡へ記録します。コマンドが見つからない、埋め込みskillを解決できない、revisionが一致しない場合は、それぞれ `REVIEW_GATE_UNAVAILABLE` または `SKILL_UNAVAILABLE` として停止します。完了記録の他の契約違反は返された停止コードのまま扱い、マージ準備完了とは報告しません。
+
 ## Phase 8: マージ判断
 
 **自律的にマージしない。** ユーザーからの明示的な指示を待つ。
@@ -1031,6 +1080,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 - 全スレッドに返信済み
 - 未解決の `blocking` 項目なし
 - `termination_status` が `READY_TO_MERGE` または `ESCALATE — Clean`
+- Phase 7.5 の完了記録が `mcp-docker reviewgate validate` を通過していること。`reviewed` 通知、CIグリーン、未解決0件だけでは代用しない。
 - **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致し、Phase 7 の「Verdict 照合規則」で書式一致するもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
   - 該当コメントが存在しない、または SHA が不一致の場合は `AWAITING_THREAD_OWL_VERDICT` としてマージ判断に進まず、Phase 7 の Verdict コメント確認へ戻ります。
 - **`termination_status = ESCALATE — Clean` の場合**: Verdict コメント確認は対象外です（最大サイクル超過につき現在の HEAD に対する新しい Verdict が存在し得ないため。Phase U6「終了分類」参照）。マージには下記の `ESCALATE — Clean` 対応に従い、明示的な人間確認が必要です。

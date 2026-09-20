@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- reviewed-side の完了記録を固定した repository・PR・HEAD・埋め込みskill revisionへ結び付けて検証する `mcp-docker reviewgate validate` を追加
+
 ### 📚 ドキュメント
 
+- `review-raven-thread-owl-cycle` revision 17 の完了記録手順と、固定HEAD・review-raven API・skill revisionの照合条件を追加
 - agy legacy adapter の検証用 3 route 構成（`ROUTE_PLAYWRIGHT` の除外）と、実構成 E2E 済みの revision / 確認条件を `docs/agy-legacy-adapter.md` に反映
 - #305 の第1スライスとして、reviewed-side の正本 skill、配置状態、完了記録の必須項目、fail-closed 停止コードを `docs/reviewed-side-completion-contract.md` に定義
 
