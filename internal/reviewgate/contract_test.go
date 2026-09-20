@@ -76,6 +76,44 @@ func TestCompletionRecordValidate(t *testing.T) {
 	}
 }
 
+func TestCompletionRecordValidateFor(t *testing.T) {
+	record := validRecord()
+	target := ValidationTarget{
+		Repo:          record.Repo,
+		PRNumber:      record.PRNumber,
+		HeadSHA:       record.HeadSHA,
+		SkillRevision: record.SkillRevision,
+	}
+	if err := record.ValidateFor(target); err != nil {
+		t.Fatalf("ValidateFor returned error: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*ValidationTarget)
+		code   StopCode
+	}{
+		{name: "repository mismatch", mutate: func(target *ValidationTarget) { target.Repo = "scottlz0310/other" }, code: StopReviewStatusMismatch},
+		{name: "pr mismatch", mutate: func(target *ValidationTarget) { target.PRNumber++ }, code: StopReviewStatusMismatch},
+		{name: "head mismatch", mutate: func(target *ValidationTarget) { target.HeadSHA = strings.Repeat("f", 40) }, code: StopHeadMismatch},
+		{name: "skill revision mismatch", mutate: func(target *ValidationTarget) { target.SkillRevision++ }, code: StopSkillUnavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mismatched := target
+			tt.mutate(&mismatched)
+			err := record.ValidateFor(mismatched)
+			var stopErr *StopError
+			if !errors.As(err, &stopErr) {
+				t.Fatalf("ValidateFor error = %v, want *StopError", err)
+			}
+			if stopErr.Code != tt.code {
+				t.Fatalf("StopError.Code = %q, want %q", stopErr.Code, tt.code)
+			}
+		})
+	}
+}
+
 func TestDecodeCompletionRecordRejectsAmbiguousJSON(t *testing.T) {
 	data, err := json.Marshal(validRecord())
 	if err != nil {

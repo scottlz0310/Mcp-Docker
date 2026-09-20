@@ -249,6 +249,18 @@ make skill-install SKILL_FLAGS="--agent claude,codex --skill thread-owl-pr-revie
 
 skill 本体を変更する場合は `skills/<name>/SKILL.md` を編集し、`skills/catalog.json` の revision を上げてから、`make skill-install SKILL_FLAGS=--yes` で再配置してください。
 
+#### reviewed-side 完了記録の検証
+
+レビュー完了後の `review-raven-thread-owl-cycle` は、固定したPR・HEAD・skill revision・required checksを含む完了記録を作成し、次のコマンドで検証します。`--head-sha` には直前に再取得した現在のPR HEADを渡してください。これはマージ操作を行わず、記録と埋め込みskillの整合性だけを検証します。
+
+```bash
+mcp-docker reviewgate validate \
+  --record <completion-record.json> \
+  --repo <owner/repository> \
+  --pr <number> \
+  --head-sha <sha>
+```
+
 ### ユーザー instruction source の配置（`mcp-docker instruction`）
 
 各 CLI に共通の instruction 本文は、リポジトリへコピーせずユーザー管理の source of truth から参照できます。`mcp-docker instruction` は source のパスと `symlink` 方式だけをユーザー設定へ保存し、各 CLI のユーザー単位の入口へリンクします。
