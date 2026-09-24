@@ -26,7 +26,7 @@ var clientLayouts = []clientLayout{
 	{name: "claude", rel: []string{".claude", "skills"}},
 	{name: "copilot", rel: []string{".copilot", "skills"}},
 	{name: "codex", rel: []string{".codex", "skills"}},
-	{name: "antigravity", rel: []string{".gemini", "antigravity-cli", "skills"}},
+	{name: "antigravity", rel: []string{".gemini", "config", "skills"}},
 }
 
 // ClientNames は配置対象クライアント名の一覧を宣言順で返す。

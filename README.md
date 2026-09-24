@@ -195,7 +195,7 @@ mcp-docker register --agent all --yes
 | Claude CLI | `~/.claude/skills/` |
 | GitHub Copilot CLI | `~/.copilot/skills/` |
 | Codex CLI | `~/.codex/skills/` |
-| Antigravity CLI | `~/.gemini/antigravity-cli/skills/` |
+| Antigravity CLI | `~/.gemini/config/skills/` |
 
 ```bash
 # 収蔵している skill の一覧

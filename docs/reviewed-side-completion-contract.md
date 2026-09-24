@@ -19,7 +19,7 @@
 | Claude | `~/.claude/skills/` |
 | Copilot | `~/.copilot/skills/` |
 | Codex | `~/.codex/skills/` |
-| Antigravity | `~/.gemini/antigravity-cli/skills/` |
+| Antigravity | `~/.gemini/config/skills/` |
 
 各配置先には `.mcp-docker-skill.json` を置き、`content_hash` と `revision` で正本との差分・方向を確認する。手動コピーや別リポジトリからの読み込みは、正本解決の経路として扱わない。
 
