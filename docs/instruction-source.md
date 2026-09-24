@@ -69,10 +69,11 @@ mcp-docker instruction repair --agent claude,copilot --yes
 +
 +1. `--mcp-http` 構成では thread-owl の `enqueue_review` を、PR作成時は `reason: opened`、既存PRへのpush後は `reason: synchronized`、修正対応後の再レビューは `reason: re-review-requested` で呼ぶ。
 +2. enqueue の直後に `mcp-resource-subscriber` で、owner / repo を小文字にした `review://status/<owner>/<repo>/<prNumber>` を購読する。
-+3. `listenAcknowledged`、要求URIの受理、対象PR、最終 `status`（`reviewed` または `approved`）、`headSha` と待機開始時のPR HEAD一致を確認してからレビュー結果を取得する。
-+4. timeout、resource消失、URI不一致、HEAD不一致、認証・URL解決失敗は完了扱いにせず、原因と再実行条件を報告して停止する。
-+5. webhook構成では自動enqueueとの二重登録を行わない。queue登録は reviewer の起動ではなく、マージも自律実行しない。
-+6. レビュー完了後は status だけで指摘なしと判断せず、未解決スレッドを取得してから、明示されたレビュー対応手順またはハンドオフへ進む。
++3. 購読を続けながら、同じ Windows ホストの Squirrel Notifier のローカルサイクル記録（`%LocalAppData%\SquirrelNotifier\review-cycles.json`）と Recent activity で、対象 PR・reason・今回のラウンドの reviewer 起動記録を確認する。確認できなければ未起動と断定せず、「レビュー自動開始」設定、保留理由、手動起動の有無を確認するよう案内する。再 enqueue や実装側セッションでの reviewer 起動はしない。記録はレビュー完了の根拠にしない。
++4. `listenAcknowledged`、要求URIの受理、対象PR、最終 `status`（`reviewed` または `approved`）、`headSha` と待機開始時のPR HEAD一致を確認してからレビュー結果を取得する。
++5. timeout、resource消失、URI不一致、HEAD不一致、認証・URL解決失敗は完了扱いにせず、原因と再実行条件を報告して停止する。
++6. webhook構成では自動enqueueとの二重登録を行わない。queue登録は reviewer の起動ではなく、マージも自律実行しない。
++7. レビュー完了後は status だけで指摘なしと判断せず、未解決スレッドを取得してから、明示されたレビュー対応手順またはハンドオフへ進む。
 +
 +レビュー開始は Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの reviewer 起動指示で行う。購読はレビュー完了を待つためのものであり、登録・購読だけでレビュー開始済みとは扱わない。
 +
