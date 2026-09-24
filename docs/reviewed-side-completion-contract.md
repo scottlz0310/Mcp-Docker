@@ -10,7 +10,7 @@
 - 配置コマンド: `mcp-docker skill install`
 - 配置状態の確認: `mcp-docker skill status`
 - 完了記録の検証: `mcp-docker reviewgate validate --record <path> --repo <owner/repository> --pr <number> --head-sha <sha>`
-- 現在の reviewed-side skill revision: `17`
+- 現在の reviewed-side skill revision: `18`
 
 配置先は次の4種類であり、skill 本体を各クライアントへ二重管理しない。
 
@@ -34,7 +34,7 @@
   "prNumber": 123,
   "headSha": "0123456789abcdef0123456789abcdef01234567",
   "skillId": "review-raven-thread-owl-cycle",
-  "skillRevision": 17,
+  "skillRevision": 18,
   "skillCompleted": true,
   "all_replied": true,
   "unresolved_count": 0,

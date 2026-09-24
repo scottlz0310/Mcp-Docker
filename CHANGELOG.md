@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📚 ドキュメント
+
+- #312: reviewed-side skill の Phase W に、enqueue 後の Squirrel Notifier ローカル起動記録の確認と、起動状態が不明な場合の案内を追加。確認は読み取り専用とし、レビュー完了は従来どおり `review://status` と HEAD で判定する。
+
 ## [2.26.0] - 2026-09-20
 
 ### ✨ 新機能

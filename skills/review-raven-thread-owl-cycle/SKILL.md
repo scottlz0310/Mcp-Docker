@@ -373,9 +373,10 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 - `input / output`: owner、repo、prNumber、reason、enqueue 直前に固定した `expected_head`、小文字化した `review://status/<owner>/<repo>/<prNumber>`、`MCP_PROBE_URL` または `MCP_GATEWAY_PUBLIC_URL` から解決した購読 URL、timeout を入力し、subscriber の `route`、`errorCode`、`initialText` / `finalText` の `status` / `headSha` / `summaryCommentId` を出力する。
 - `side effect`: この round の `enqueue_review` を 1 回だけ実行し、`review://status` を `pending` にリセットして queue に載せる。待機自体は read-only。
 - `guard`: subscriber は `enqueue_review` の直後に起動する。`route` が `subscription` / `pre-completion` かつ `finalText` の `status` が `reviewed` / `approved` で、owner / repo / prNumber が対象 PR と一致し、さらに `headSha` と current PR head がどちらも `expected_head` と一致する場合だけ完了とする。`headSha` が null・不一致の場合は受理しない。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て Phase U2 でスレッドを実際に取得する。
+- `reviewer 起動の観測`: subscriber を開始した後、Phase W の「reviewer 起動状態の確認」に従い、Squirrel Notifier の対象 PR・今回の reason / ラウンドに対応するローカル状態を読み取り専用で確認する。観測できない場合も reviewer 未起動と断定せず、案内を出して完了通知の待機を続ける。ローカル状態を完了判定に使わない。
 - `fallback`: `RESOURCE_NOT_FOUND` は `enqueue_review` からのやり直しを 1 回だけ、`SUBSCRIPTION_NOT_HONORED` は URI の小文字化を確認して 1 回だけ再試行する。`NOTIFICATION_TIMEOUT` で `initialText` の `status` が `reviewed` / `approved` の場合だけ完了扱いにする。ポーリングへ切り替えない。
 - `failure / stop`: timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、`headSha` が null・不一致または current head の移動は `REVIEW_HEAD_MISMATCH`、URL 未解決・`AUTH_LOGIN_REQUIRED`・その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
-- `evidence`: mode、enqueue の reason と結果、expected_head、URL の解決元（環境変数名のみ）、resource URI、timeout、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
+- `evidence`: mode、enqueue の reason と結果、expected_head、URL の解決元（環境変数名のみ）、resource URI、timeout、reviewer のローカル起動記録の照合結果または観測不能の理由、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
 
 ---
 
@@ -803,6 +804,7 @@ enqueue は「レビュー対象として queue に載せる」操作であり�
 `enqueue_review` が利用できない場合は、cycle を完了扱いにせず、**queue へ登録できなかったことをユーザーに明示して停止する**。Squirrel Notifier の「レビュー開始」（PR の URL と reason を手入力する導線）がフォールバックである旨も伝える。
 
 **`--mcp-http` では、コメント投稿と enqueue を終えたら Phase W へ進み、レビュー完了を待ってから Phase U2 へ戻る。** ここでの enqueue は Phase W の手順 2 を兼ねるため、Phase W で重ねて呼ばない。`--webhook-mcp-http` では待機せず、コメント投稿をもって reviewed-side cycle を完了する（`review://status` を `pending` にリセットできるのは `enqueue_review` tool だけで、webhook 経由の enqueue ではリセットされないため、待機の完了判定が成り立たない）。
+`--webhook-mcp-http` でも Squirrel Notifier の対象 PR の起動記録を読み取り専用で確認できる場合は、Phase W の「reviewer 起動状態の確認」と同じ区別で報告する。webhook 配送は非同期なので、記録が無い時点で未起動・配送失敗と断定せず、明示 enqueue もしない。
 次の reviewer-side cycle は、queue event を受けた Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> re-review` の明示的な起動指示によって開始される。待機中の reviewed-side はこの起動を行わない。
 
 ---
@@ -843,6 +845,22 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    - CLI の shell tool のタイムアウトは `--timeout-ms` より長くするか、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
+
+
+   **reviewer 起動状態の確認**: subscriber を待機させたまま、同じ Windows ホストの `%LocalAppData%\SquirrelNotifier\review-cycles.json` を読み取り専用で確認する。`cycles` のキーは大文字化した `<owner>/<repo>#<prNumber>`。`repository` / `prNumber`、今回の `reason`、enqueue 後の `updatedAt`、`round` / `lastEventId` を照合する。queue event ID を別途取得できる場合は `lastEventId` との一致も確認する。状態は次のように扱う。
+
+   | `status` | ローカル記録の意味 | 扱い |
+   |---|---|---|
+   | `2` (`ReviewerRunning`) | reviewer 起動記録 | `activeEventId = lastEventId`、`activeRound = round` も一致したときだけ、対象ラウンドの起動**記録**として報告する。プロセスの現在の生存は断定しない |
+   | `3` (`ReviewerCompleted`) | プロセス終了 | レビュー結果は `review://status` で確認する |
+   | `4` (`ReviewerFailed`) | プロセス失敗 | Recent activity の失敗理由を案内する |
+   | `1` (`AwaitingReviewer`) | 起動待ち | 自動起動 off、保留、手動運用などの可能性を案内する。未起動とは断定しない |
+
+   このファイルは UI 表示用の短期記録で、HEAD、プロセスの生存確認、Auto-Pause による保留、起動処理中、自動起動設定の値を含まない。アプリ停止後の古い `ReviewerRunning` もあり得る。ファイルが無い・読めない・対象ラウンドを特定できない場合、または CLI が別ホストにいる場合は `起動状態を確認できない` と記録する。`pending` や queue 登録だけで起動済みとは言わない。
+
+   Squirrel Notifier の Recent review events と Recent activity で、対象 PR と時刻を合わせて「レビュー自動開始」の設定、起動 / 失敗、別レビュー実行中または Auto-Pause による保留、購読状態を確認するよう案内する。保留中なら解除後の再評価を待つ。自動起動が off の場合、または手動運用の場合は「レビューする」か別 CLI の `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。手動起動済みでもローカルファイルには反映されない可能性があるので、利用者に起動状況を確認してもらう。
+
+   確認できた事実と推測を分けてユーザーへ短く伝え、subscriber の待機を続ける。未確認を理由に再 enqueue したり、この実装側セッションで reviewer skill を起動したりしない。Squirrel Notifier に CLI 向けの live status 読み取り口がないため、起動の確証には別途読み取り専用インターフェースが必要になる。
 4. JSON 出力を判定する。
 
    | 出力 | 扱い |
@@ -867,7 +885,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 `REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
 
-- reviewer が起動されているか確認する（Squirrel Notifier の Recent review events の「レビューする」、または別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review`）。
+- 上記のローカル起動記録と Recent activity を再確認し、未起動・保留・手動起動・観測不能を区別して報告する。自動起動 off または手動運用なら、Squirrel Notifier の「レビューする」か別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。既に起動中の reviewer を重複起動しない。
 - reviewer が `VERDICT_TOOL_UNAVAILABLE` で停止していた場合は、稼働中の thread-owl が v0.5.0 未満である。PR には Verdict も完了サマリーも投稿されていないので、thread-owl を v0.5.0 以降へ更新してから reviewer を再起動する（`post_summary_comment` での Verdict の代替投稿は依頼しない）。
 - レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
@@ -1043,7 +1061,7 @@ Phase 8 のマージ判断へ進む前に、レビュー完了通知だけに依
   "prNumber": 123,
   "headSha": "<final_head>",
   "skillId": "review-raven-thread-owl-cycle",
-  "skillRevision": 17,
+  "skillRevision": 18,
   "skillCompleted": true,
   "all_replied": true,
   "unresolved_count": 0,
