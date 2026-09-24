@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- #315: Antigravity CLI（agy）のスキル配置先パスを、公式仕様・バイナリ実装と合致する `~/.gemini/config/skills` に修正。あわせて agy バイナリ静的解析による探索パス自動検証テスト（CI対応・無認証）と、実 agy 呼び出し E2E 回帰テスト（`//go:build e2e`）を追加。
+
 ## [2.27.0] - 2026-09-24
 
 ### ✨ 新機能

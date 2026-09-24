@@ -12,7 +12,7 @@ func TestClientsResolveSkillDirectories(t *testing.T) {
 		"claude":      filepath.Join(home, ".claude", "skills"),
 		"copilot":     filepath.Join(home, ".copilot", "skills"),
 		"codex":       filepath.Join(home, ".codex", "skills"),
-		"antigravity": filepath.Join(home, ".gemini", "antigravity-cli", "skills"),
+		"antigravity": filepath.Join(home, ".gemini", "config", "skills"),
 	}
 
 	clients := Clients(home)
