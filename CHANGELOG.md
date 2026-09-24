@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - #310: `thread-owl-pr-reviewer`（revision 10）に環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` による隔離検証用スクラッチ領域の指定機能を追加。ランチャー指定領域への worktree / clone 配置、絶対パスおよび実在検証、不正値時の安全なスキップ（フォールバック禁止）、片付けのランチャー責務化を規定。
 
+### 🐛 バグ修正
+
+- #311: `thread-owl-pr-reviewer`（revision 11）および `review-raven-thread-owl-cycle`（revision 19）において、Won't fix（実装者による不対応判断）で resolve された指摘が再レビュー時に新規 inline コメントとして再掲され続け、Verdict に到達しないデッドロックを解消。thread follow-up / re-review に第 5 分類 `declined-by-implementer` を追加し、同一論点の再掲を抑止して完了サマリー（残存リスク欄）に記録するよう改定。
+
 ## [2.27.1] - 2026-09-24
 
 ### 🐛 バグ修正

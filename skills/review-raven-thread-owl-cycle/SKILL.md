@@ -697,6 +697,7 @@ Issue 作成・リンクが不可能な場合を除き常に resolve します�
 
 #### 3. 明示的な `Won't fix`
 `Won't fix` と具体的な理由を書く。「後で対応」「フォローアップ予定」という表現は禁止。
+`Won't fix` として resolve された指摘は、再レビュー時に thread-owl 側で `declined-by-implementer` と分類され、新規 thread は再掲されず残存リスクとしてサマリーに記録される。全指摘が対応または Won't fix で resolve されていれば、thread-owl は Verdict コメント（APPROVED）を投稿するため、通常どおり Phase 7 の Verdict コメント確認を通過して Phase 8 のマージ判断に進むことができる。
 
 #### 4. Issue 作成・リンクが不可能な場合
 スレッドを resolve しない。Phase 7 に `untracked — needs follow-up issue` として記録する。
@@ -974,7 +975,7 @@ R-17 のカバレッジ確認では、Codecov 等のカバレッジ PR コメン
 
 **thread-owl Verdict コメント確認（`termination_status = READY_TO_MERGE` の場合のみ実施。`ESCALATE — *` はスキップ）**:
 
-thread-owl は再レビューの結果 blocking が完全に解消されると、追加の指摘コメント自体は省略することがあるが、そのレビュー完了時には必ず固定フォーマットの Verdict コメントを投稿する。この確認は `READY_TO_MERGE` 経路でのみ実施する。`ESCALATE — Clean` / `ESCALATE — Unverified Fix` の場合はこの確認を全面的にスキップし（理由は上記「終了分類」表を参照）、そのままサマリ投稿に進む。
+thread-owl は再レビューの結果 blocking が完全に解消されると、追加の指摘コメント自体は省略することがあるが、そのレビュー完了時には必ず固定フォーマットの Verdict コメントを投稿する（Won't fix で resolve された指摘がある場合も、thread-owl 側で残存リスクがサマリーに記録された上で Verdict コメントが投稿される）。この確認は `READY_TO_MERGE` 経路でのみ実施する。`ESCALATE — Clean` / `ESCALATE — Unverified Fix` の場合はこの確認を全面的にスキップし（理由は上記「終了分類」表を参照）、そのままサマリ投稿に進む。
 
 1. まず PR コメントのメタデータを取得する（本文は含まない）: `gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate --jq '.[] | {id, author: {login: .user.login}, created_at}'`。`author: {login: ...}` という入れ子構造にしている点に注意する — 必須コメント投稿者ゲートの判定が実際に成立するようにするため。
 2. このメタデータ一覧に対して、必須コメント投稿者ゲートを再実行する。いずれかの人間エスカレーションステータスに該当した場合は自動処理を停止する。
