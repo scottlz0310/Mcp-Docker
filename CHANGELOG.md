@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 📚 ドキュメント
+## [2.27.0] - 2026-09-24
+
+### ✨ 新機能
 
 - #312: reviewed-side skill の Phase W に、enqueue 後の Squirrel Notifier ローカル起動記録の確認と、起動状態が不明な場合の案内を追加。確認は読み取り専用とし、レビュー完了は従来どおり `review://status` と HEAD で判定する。
 
@@ -836,7 +838,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.0...HEAD
+[2.27.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.23.0...v2.24.0
