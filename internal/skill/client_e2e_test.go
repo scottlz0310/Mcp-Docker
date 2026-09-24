@@ -1,3 +1,5 @@
+//go:build e2e
+
 package skill_test
 
 import (
@@ -96,7 +98,11 @@ description: E2E Test Skill for Antigravity discovery
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("agy command failed: %v, output: %s", err, string(out))
+		outStr := string(out)
+		if strings.Contains(outStr, "Waiting for authentication") || strings.Contains(outStr, "accounts.google.com") {
+			t.Skipf("agy is unauthenticated; skipping E2E test in non-interactive environment")
+		}
+		t.Fatalf("agy command failed: %v, output: %s", err, outStr)
 	}
 
 	var resp agySkillsResponse
