@@ -156,12 +156,12 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: O-02 の `reviewedHeadSha` が固定され、ローカル検証を行う必要がある。
 - `primary tool`: `git status --porcelain --untracked-files=no`、`git rev-parse HEAD`、必要な `git fetch origin` / `git worktree add --detach`。
-- `input / output`: 現在の worktree と reviewed head を入力し、clean 状態、HEAD 一致、隔離 worktree の有無を出力する。
-- `side effect`: 必要な場合だけ一時 detached worktree を作成する。stash、discard、既存 worktree の上書きは行わない。
-- `guard`: tracked file の dirty または HEAD mismatch はレビュー根拠にせず、元 worktree を破壊せずに reviewed head を隔離して検証する。
-- `fallback`: 隔離環境を作成できない場合は `local verification: not performed` と明記する。未検証を success とせず、remote snapshot の SHA は維持する。
+- `input / output`: 現在の worktree、reviewed head、および環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` を入力し、clean 状態、HEAD 一致、隔離 worktree / clone の有無と配置先を出力する。
+- `side effect`: 必要な場合だけ一時 detached worktree または一時 clone を作成する。`SQUIRREL_REVIEW_SCRATCH_DIR` が指定されている場合はその配下に作成する。片付けはランチャーの責務とし、skill 側の削除失敗・未実施をレビュー失敗としない。stash、discard、既存 worktree の上書きは行わない。
+- `guard`: tracked file の dirty または HEAD mismatch はレビュー根拠にせず、元 worktree を破壊せずに reviewed head を隔離して検証する。`SQUIRREL_REVIEW_SCRATCH_DIR` が設定されている場合は絶対パスかつ実在ディレクトリであることを確認し、不正な値なら既定パスへフォールバックせず `local verification: not performed` とする。
+- `fallback`: 隔離環境を作成できない、またはスクラッチパスが不正な場合は `local verification: not performed` と明記する。未検証を success とせず、remote snapshot の SHA は維持する。
 - `failure / stop`: dirty / mismatch を隔離できず、かつ必要な remote evidence も取得できない場合は `REPOSITORY_STATE_UNSAFE` として停止する。
-- `evidence`: status、local HEAD、reviewedHeadSha、worktree path、実行時刻、local verification の扱いを記録する（`observed`）。
+- `evidence`: status、local HEAD、reviewedHeadSha、worktree path（出所: `env: SQUIRREL_REVIEW_SCRATCH_DIR` / `default`）、実行時刻、local verification の扱いを記録する（`observed`）。
 
 ### O-05: Independent Stage の実装・テスト確認
 
@@ -412,14 +412,25 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 - **dirty/mismatched な状態の扱い:**
   - 未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。
   - detached worktree または一時的な clone を作成し、`reviewedHeadSha` を checkout して検証する。
+  - **一時領域（スクラッチディレクトリ）の解決**:
+    - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が設定されている場合：
+      - パスが**絶対パス**であり、かつ**実在するディレクトリ**であることを確認する。
+      - 有効な場合、隔離 worktree / clone、およびビルド成果物やテストログ等の一時ファイルをすべてその配下に作成する（例: `$SQUIRREL_REVIEW_SCRATCH_DIR/<reviewedHeadSha>-worktree`）。
+      - 相対パス、存在しないパス、ファイルパスなど不正な値の場合は、**既定パスへフォールバックしてはならない**（不正な指定を黙って無視しないため）。この場合は隔離環境を作成せず、`local verification: not performed` としてレビューを進行する。
+    - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が未設定または空の場合：
+      - 従来どおり既定の一時パス（OS の一時ディレクトリなど）を使用する（CLI 直接起動の互換性を維持）。
+  - **片付け（クリーンアップ）の責務境界**:
+    - 一時領域の削除・片付けはランチャー（Squirrel Notifier 等）の責務とする。
+    - skill は検証完了後に `git worktree remove <temporary-path>` などの片付けをベストエフォートで行ってよいが、失敗や未実施であってもレビュー失敗としない。
     - 推奨例:
       ```bash
       git fetch origin <reviewedHeadSha>
       git worktree add --detach <temporary-path> <reviewedHeadSha>
-      # 検証完了後
-      git worktree remove <temporary-path>
+      # 検証完了後（ベストエフォートで実行。片付けの担保はランチャーが行う）
+      git worktree remove <temporary-path> || true
       ```
   - 隔離検証環境を作成できない場合は、ローカル検証を行わず `local verification: not performed` としてレビューを進行する。
+  - **証跡**: evidence やユーザー報告の `worktree path` に、使用した一時領域の出所を記録する（例: `<path> (env: SQUIRREL_REVIEW_SCRATCH_DIR)` または `<path> (default)`）。
 
 ### 3. 検証後の再確認ゲート
 ビルドやテストが完了した後、かつ投稿処理（Snapshot Guard）の直前に、以下を再確認する。
