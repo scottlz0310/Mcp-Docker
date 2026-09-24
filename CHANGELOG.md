@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.1] - 2026-09-24
+
 ### 🐛 バグ修正
 
 - #315: Antigravity CLI（agy）のスキル配置先パスを、公式仕様・バイナリ実装と合致する `~/.gemini/config/skills` に修正。あわせて agy バイナリ静的解析による探索パス自動検証テスト（CI対応・無認証）と、実 agy 呼び出し E2E 回帰テスト（`//go:build e2e`）を追加。
@@ -842,7 +844,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.1...HEAD
+[2.27.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.24.0...v2.25.0
