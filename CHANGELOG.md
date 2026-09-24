@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-09-24
+
 ### ✨ 新機能
 
 - #310: `thread-owl-pr-reviewer`（revision 10）に環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` による隔離検証用スクラッチ領域の指定機能を追加。ランチャー指定領域への worktree / clone 配置、絶対パスおよび実在検証、不正値時の安全なスキップ（フォールバック禁止）、片付けのランチャー責務化を規定。
@@ -852,7 +854,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.28.0...HEAD
+[2.28.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.25.0...v2.26.0
