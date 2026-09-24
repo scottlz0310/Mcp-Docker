@@ -321,7 +321,7 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: 指定 thread、対象 PR、current `reviewedHeadSha` が確定し、指定された文脈だけを確認する。
 - `primary tool`: `{OWL}:get_pr`、`{OWL}:list_review_threads` と O-16〜O-18 の適切な write tool（R-00 の schema snapshot）。
-- `input / output`: root comment、全返信、thread 状態、対応差分を入力し、resolved in code / partially resolved / not resolved / needs clarification と投稿結果を出力する。
+- `input / output`: root comment、全返信、thread 状態、対応差分を入力し、resolved in code / partially resolved / not resolved / needs clarification / declined-by-implementer と投稿結果を出力する。
 - `side effect`: 状態に応じて元 thread への返信、新規 inline、または summary を一件投稿する。resolve / unresolve / merge は行わない。
 - `guard`: current head と指定 thread を再確認し、独立論点を同じ thread に混ぜない。unresolved は O-16、current diff 位置ありは O-17、位置なしは O-18 に固定する。
 - `fallback`: current diff の位置が失われた場合だけ O-18 summary に分岐する。別 route や stale line への write は行わない。
@@ -334,7 +334,7 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 - `primary tool`: LLM の verdict 判定。判定後の投稿は O-12 を使う。
 - `input / output`: blocking 数、全 thread の resolved 状態、主要リスクの検証、CI と対象 SHA、残存リスクを入力し、approve / request changes / comment only / needs follow-up を一つ出力する。
 - `side effect`: O-12 で、approve の場合は `{OWL}:post_review_verdict` で Verdict コメント、それ以外は `{OWL}:post_summary_comment` で完了サマリーを投稿する。APPROVE、merge、Issue クローズは自動実行しない。
-- `guard`: 新規 blocking 0、全 thread resolved、主要リスクの検証あり、CI success、CI head と `reviewedHeadSha` の一致をすべて満たす場合だけ approve とする。unknown を success としない。
+- `guard`: 新規 blocking 0、全 thread resolved（declined-by-implementer はサマリーに残存リスクを記録した上で resolved として扱い、新規 blocking から除外する）、主要リスクの検証あり、CI success、CI head と `reviewedHeadSha` の一致をすべて満たす場合だけ approve とする。unknown を success としない。
 - `fallback`: CI、thread、SHA、独立検証が unknown の場合は comment only / needs follow-up として報告し、approve へ寄せない。
 - `failure / stop`: 必須 evidence、分類、状態のいずれかが欠ける場合は `VERDICT_INCOMPLETE` として Verdict / APPROVEを停止する。
 - `evidence`: 判定表、条件、CI SHA、thread 数、残存リスク、O-12 の投稿結果を記録する（事実は `observed`、判定は `inferred`）。
@@ -587,6 +587,7 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 - 判定文: 技術的・品質的にマージ可能な状態である（マージ推奨）と判定したこと。
 - 主な確認観点: Independent Stage や Synthesis Stage で実際に確認・評価した PR 固有の観点（境界値・異常系、後方互換性、テストによる仕様の固定、CI の成否と対象 SHA の一致など）。固定定型文の羅列で済ませない。
 - 判定根拠: なぜ問題なし・マージ可能と判断したかの具体的要約。再レビューの場合は前回指摘事項の解消確認を含む。
+- 実装者判断による不対応（declined-by-implementer）がある場合: 指摘内容と残存リスク（「実装者判断により不対応。残存リスクは〈内容〉」）を明記する。
 
 見出しは `### レビューサマリー` など `##` 未満のレベルにする。変更が小さい PR（リリース準備、バージョン番号の更新だけ等）では短くしてよい。
 
@@ -647,8 +648,12 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 | --- | --- | --- |
 | unresolved | resolved in code | 元 thread へ簡潔に返信する。thread 自体は resolve しない |
 | unresolved | partially resolved / not resolved / needs clarification | 元 thread へ残存再現条件を具体的に返信する |
+| unresolved | declined-by-implementer | 元 thread へ実装者の判断を確認した旨と残存リスクを簡潔に返信する |
 | resolved / outdated | resolved in code | 新規コメントを投稿しない。必要なら PR summary のみで解消を報告する |
 | resolved / outdated | partially resolved / not resolved / needs clarification | current diff 上の関連行へ `{OWL}:post_inline_comment` で新規 unresolved thread を作る |
+| resolved / outdated | declined-by-implementer | 新規コメントを投稿しない。実装者による不対応判断と残存リスクを完了サマリー（`residual risk` 欄）および Verdict の summary に記録する |
+
+実装者が返信で理由（Won't fix、仕様上の意図、別 Issue での対応方針など）を明示して thread を resolve している場合は、コード上の条件が残っていても `not resolved` と判定せず `declined-by-implementer` とする。同一論点の新規 thread を再作成してはならない（再掲ループ・デッドロックを防ぐため）。残存リスクは完了サマリー（`residual risk` 欄）および Verdict の summary に記録し、マージ判断を行う人間に明示する。
 
 新規 inline comment には、以前の指摘の継続であることと、現 head に残る具体的な再現条件を記載する。元 thread への重複返信は行わない。
 
@@ -664,7 +669,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 1. 指定 thread と current head を特定する。
 2. thread の `isResolved` / `isOutdated` 状態を確認する。
 3. thread の root comment、全返信、対応差分だけを読む。
-4. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` を判断する。
+4. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` / `declined-by-implementer` を判断する。
 5. 新しい独立論点を同じ thread に混ぜない。
 6. Re-review の投稿経路表と同じルールを適用する。
    - thread が unresolved なら `{OWL}:reply_review_thread` で返信する。resolve は行わない。
@@ -673,7 +678,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 ## Verdict
 
-- `approve`: 新規 `blocking` 指摘がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
+- `approve`: 新規 `blocking` 指摘がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。実装者が明示的な理由（Won't fix、スコープ外、仕様意図など）をもって resolve した指摘（`declined-by-implementer`）は新規 blocking とみなさず、残存リスクを完了サマリー（および Verdict の summary）に明記した上で `approve` を妨げない。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告、および「レビュー完了サマリー」の投稿に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
