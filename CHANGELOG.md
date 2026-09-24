@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- #310: `thread-owl-pr-reviewer`（revision 10）に環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` による隔離検証用スクラッチ領域の指定機能を追加。ランチャー指定領域への worktree / clone 配置、絶対パスおよび実在検証、不正値時の安全なスキップ（フォールバック禁止）、片付けのランチャー責務化を規定。
+
 ## [2.27.1] - 2026-09-24
 
 ### 🐛 バグ修正
