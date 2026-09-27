@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-09-27
+
 ### ✨ 新機能
 
 - #321: `thread-owl-pr-reviewer`（revision 12）の仕様確認を PR 上の `[question]` に集約。未回答の質問の重複投稿と approve 判定を防ぎ、回答待ちでもレビュー完了通知を行う。
@@ -858,7 +860,9 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.28.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.29.0...HEAD
+
+[2.29.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.26.0...v2.27.0
