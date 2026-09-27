@@ -20,6 +20,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 ## レビュー原則
 
 - 推測を事実として断定しない。仕様意図や実行条件が不足する場合は `question` にする。
+- PR の挙動・仕様意図に関する確認は `AskUserQuestion` で尋ねず、対象 PR の `[question]` コメントへ記録する。投稿先を確定できない場合は既存の停止 status で報告する。
 - style nit、既存コードだけに由来する問題、PR の目的外の大規模改善を投稿しない。
 - 既存レビューへの同意、言い換え、根拠の弱い追従を投稿しない。
 - 再レビューで、初回に出さなかった軽微な指摘を後出ししない。
@@ -200,11 +201,11 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: O-07 の独立候補生成が完了し、current `reviewedHeadSha` が固定されている。
 - `primary tool`: `{OWL}:list_review_threads`（R-00 の schema snapshot）。
-- `input / output`: PR の全 review thread、resolved / outdated 状態、root / reply comment を入力し、既存範囲、重複候補、残す候補を出力する。
+- `input / output`: PR の全 review thread、resolved / outdated 状態、root / reply comment と、read-only で取得した PR conversation の既存 question・作成者返信を入力し、既存範囲、重複候補、残す候補を出力する。
 - `side effect`: read-only。既存 thread の resolve / unresolve、返信、summary 投稿は行わない。
-- `guard`: Independent Stage 終了後に初めて本文を読み、取得結果の全件性と current diff を確認する。allowlist は read にも適用される。
+- `guard`: Independent Stage 終了後に初めて本文を読み、取得結果の全件性と current diff を確認する。PR-level question の履歴は `gh api repos/<owner>/<repo>/issues/<prNumber>/comments --paginate` などの read-only 経路で取得する。既存 question と回答を照合し、未回答の同一質問を重複投稿しない。allowlist は Thread Owl の read にも適用される。
 - `fallback`: なし。allowlist 拒否、未接続、schema 不一致を review-raven や GitHub route の read で迂回しない（`{RAVEN}` の使用は O-06 の CI check runs read に限定され、review thread の read には使わない）。読み取れない状態を「既存指摘なし」と解釈しない。
-- `failure / stop`: allowlist denied は `BLOCKED_MCP_READ`、列挙・schema・接続失敗は `REVIEW_THREADS_READ_FAILED` として停止し、Filter、投稿、Verdictへ進まない。
+- `failure / stop`: allowlist denied は `BLOCKED_MCP_READ`、thread または PR conversation の列挙・schema・接続失敗は `REVIEW_THREADS_READ_FAILED` として停止し、Filter、投稿、Verdictへ進まない。
 - `evidence`: thread 数、comment 数、状態、取得範囲、allowlist 結果、重複除外理由を記録する（本文引用は必要最小限、`observed`）。
 
 ### O-09: Synthesis Stage
@@ -213,7 +214,7 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 - `primary tool`: LLM の分類・投稿位置・再現条件の判断。外部 tool は使用しない。
 - `input / output`: 独立候補と既存範囲を入力し、accept / reject、`blocking` 等の分類、inline / summary の投稿経路を出力する。
 - `side effect`: なし。投稿前の draft 判断に限定する。
-- `guard`: 同じ条件・結論・修正方針の重複を落とし、inline は current diff の有効行、横断論点は summary にする。
+- `guard`: 同じ条件・結論・修正方針の重複を落とし、inline は current diff の有効行、横断論点は summary にする。仕様確認の候補は観測事実、判断できない点、作成者に確認する期待動作を含む `[question]` とし、既存 question の回答を根拠として再評価する。
 - `fallback`: なし。位置や重大度を推測で補わず、根拠が弱い候補は reject または question として残す。
 - `failure / stop`: 分類、採否、位置、reject 理由のいずれかが未確定なら `SYNTHESIS_INCOMPLETE` として投稿を停止する。
 - `evidence`: candidate ID、分類、採否、重複判断、投稿経路、reject 理由を記録する（判断は `inferred`）。
@@ -231,11 +232,11 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 ### O-11: Initial Review の inline 投稿
 
-- `precondition`: O-09 で根拠の固い投稿候補があり、O-10 の Snapshot Guard が成功している。
+- `precondition`: O-09 で根拠の固い指摘または観測事実に基づく `[question]` があり、O-10 の Snapshot Guard が成功している。
 - `primary tool`: `{OWL}:post_inline_comment`（R-00 の schema snapshot）。
 - `input / output`: owner、repo、prNumber、`commitId = reviewedHeadSha`、path、line、body を入力し、comment / thread ID と URL を出力する。
 - `side effect`: current diff の一行へ review comment を一件投稿する。resolve、APPROVE、merge は行わない。
-- `guard`: blocking 等の分類、current diff 上の位置、同一候補の未投稿を確認し、本文に再現条件・影響・次の行動を含める。
+- `guard`: blocking 等の分類、current diff 上の位置、同一候補の未投稿を確認する。指摘には再現条件・影響・次の行動を、`[question]` には観測事実・判断できない点・確認したい期待動作を含める。
 - `fallback`: なし。Thread Owl の allowlist・head guard を GitHub connector や `gh` の write で迂回しない。
 - `failure / stop`: 投稿失敗または受理結果不明は `INLINE_POST_FAILED` とし、同一投稿を即時再実行せず thread を再取得して重複を確認する。
 - `evidence`: comment / thread ID、URL、commitId、path、line、分類、投稿結果を記録する（`observed`）。
@@ -246,7 +247,7 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 - `primary tool`: approve のときは `{OWL}:post_review_verdict`、それ以外は `{OWL}:post_summary_comment`（R-00 の schema snapshot）。
 - `input / output`: レビュー観点、CI、coverage、残存リスク、投稿件数、current diff 外の指摘、Verdict の状態と、`headSha = reviewedHeadSha` を入力し、PR-level comment の ID / URL を出力する。approve のときは自由記述部分だけを `summary` に渡し、戻り値の `commentId` を記録する。
 - `side effect`: PR conversation へ comment を一件投稿し、thread-owl の `review://status` を `reviewed` にする（待機中の reviewed-side へ完了が通知される）。コード、thread、queue、merge は変更しない。
-- `guard`: この run の最後の GitHub write として、どちらか一方の tool を 1 回だけ呼ぶ。`headSha` は省略しない。approve 以外は「レビュー完了サマリー」節の書式で本文を作る。approve のときは「Verdict コメント投稿」節に従い、見出し・HEAD 行・Status 行を skill 側で書かず、投稿前に `summary` を、投稿後に戻り値の `commentId` の本文を検証する。summary-only では明示されない投稿を行わない。
+- `guard`: この run の最後の GitHub write として、どちらか一方の tool を 1 回だけ呼ぶ。`headSha` は省略しない。approve 以外は「レビュー完了サマリー」節の書式で本文を作り、current diff 外・横断論点の `[question]` もこの 1 件へ含める。質問への回答を待たずに独立して確認できる範囲を完了し、通知する。approve のときは「Verdict コメント投稿」節に従い、見出し・HEAD 行・Status 行を skill 側で書かず、投稿前に `summary` を、投稿後に戻り値の `commentId` の本文を検証する。summary-only では明示されない投稿を行わない。
 - `fallback`: なし。Verdict を `{OWL}:post_summary_comment`、GitHub connector の review や issue comment で代替投稿しない。投稿後の検証に失敗したコメントを再投稿しない。
 - `failure / stop`: approve で `{OWL}:post_review_verdict` が binding に無ければ `VERDICT_TOOL_UNAVAILABLE`、投稿前の `summary` 検証の不一致・投稿後の書式検証の不一致は `VERDICT_FORMAT_INVALID`、head 不一致の error は `STALE_REVIEW`、それ以外の投稿失敗は `VERDICT_POST_FAILED` として停止する。summary の投稿失敗・状態キー欠落は `SUMMARY_POST_FAILED` として停止する。いずれもマージ可能と報告しない。
 - `evidence`: comment ID / URL、mode、観点、CI SHA、渡した `headSha`、Verdict、使用した tool、投稿前後の検証結果、投稿結果を記録する（`observed`）。
@@ -277,11 +278,11 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: O-14 で re-review 対象と current `reviewedHeadSha` が固定されている。
 - `primary tool`: `{OWL}:get_pr`、`{OWL}:list_review_threads`、「`{RAVEN}` の discovery と固定」で固定した CI read 経路（O-00 の schema snapshot）。
-- `input / output`: 前回 thread、現 head の差分、CI、実装者対応を入力し、resolved / outdated / unresolved と残存回帰を出力する。
+- `input / output`: 前回 thread と全返信、PR-level question と作成者の後続コメント、現 head の差分、CI、実装者対応を入力し、resolved / outdated / unresolved と残存回帰を出力する。
 - `side effect`: read-only。返信、inline、summary、APPROVEはこの行では行わない。
-- `guard`: candidate の expected head、current diff、全 thread 状態、CI 対象 SHA を突合し、未解決 thread と対応差分が導入した重大回帰だけを次の候補にする。
+- `guard`: candidate の expected head、current diff、全 thread 状態、CI 対象 SHA を突合する。PR-level question は read-only の PR conversation も取得し、作成者の回答を根拠として再評価する。未回答の同一質問・同内容の返信を繰り返さず、未解決 thread と対応差分が導入した重大回帰だけを次の候補にする。
 - `fallback`: O-00 で固定した `{OWL}` の read capability と CI read 経路のみを使う。allowlist、current head、列挙失敗を別 route で隠さない。
-- `failure / stop`: thread / CI の状態または SHA を確認できない場合は `REREVIEW_STATE_UNKNOWN` として投稿・Verdict・APPROVEを停止する。
+- `failure / stop`: thread / PR conversation / CI の状態または SHA を確認できない場合は `REREVIEW_STATE_UNKNOWN` として投稿・Verdict・APPROVEを停止する。
 - `evidence`: current head、前回 head、thread ID / 状態、CI run、対応差分、残存候補を記録する（`observed`）。
 
 ### O-16: Re-review の unresolved thread への返信
@@ -290,7 +291,7 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 - `primary tool`: `{OWL}:reply_review_thread`（R-00 の schema snapshot）。
 - `input / output`: threadId、返信本文、current head の根拠を入力し、返信 comment ID / URL / 結果を出力する。
 - `side effect`: 元 thread への返信だけを行う。thread の resolve / unresolve、new thread、APPROVEは行わない。
-- `guard`: thread の owner / repo / ID と残存再現条件を確認し、resolve は reviewed-side に任せる。独立した新論点を混ぜない。
+- `guard`: thread の owner / repo / ID と残存再現条件を確認し、作成者の回答を反映する。同内容の返信や未回答の `[question]` を繰り返さず、resolve は reviewed-side に任せる。独立した新論点を混ぜない。
 - `fallback`: なし。GitHub connector や `gh` の comment write で返信を代替しない。
 - `failure / stop`: 投稿失敗または受理結果不明は `THREAD_REPLY_FAILED` とし、同じ返信を再実行せず再取得で重複を確認する。
 - `evidence`: thread ID、current head、返信 ID / URL、本文要約、resolve=false、結果を記録する（`observed`）。
@@ -321,9 +322,9 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: 指定 thread、対象 PR、current `reviewedHeadSha` が確定し、指定された文脈だけを確認する。
 - `primary tool`: `{OWL}:get_pr`、`{OWL}:list_review_threads` と O-16〜O-18 の適切な write tool（R-00 の schema snapshot）。
-- `input / output`: root comment、全返信、thread 状態、対応差分を入力し、resolved in code / partially resolved / not resolved / needs clarification / declined-by-implementer と投稿結果を出力する。
-- `side effect`: 状態に応じて元 thread への返信、新規 inline、または summary を一件投稿する。resolve / unresolve / merge は行わない。
-- `guard`: current head と指定 thread を再確認し、独立論点を同じ thread に混ぜない。unresolved は O-16、current diff 位置ありは O-17、位置なしは O-18 に固定する。
+- `input / output`: root comment、全返信、thread 状態、対応差分を入力し、question への回答を根拠として resolved in code / partially resolved / not resolved / needs clarification / declined-by-implementer と投稿結果を出力する。
+- `side effect`: 必要な場合だけ元 thread への返信、新規 inline、または summary を一件投稿する。未回答の同一質問なら投稿しない。resolve / unresolve / merge は行わない。
+- `guard`: current head と指定 thread を再確認し、独立論点を同じ thread に混ぜない。回答のない既存 question と同内容の返信は投稿しない。回答があれば再評価し、必要な返信または残る確認事項だけを扱う。unresolved は O-16、current diff 位置ありは O-17、位置なしは O-18 に固定する。
 - `fallback`: current diff の位置が失われた場合だけ O-18 summary に分岐する。別 route や stale line への write は行わない。
 - `failure / stop`: thread read、状態判定、選択した write のいずれかが不確実なら `THREAD_FOLLOWUP_INCOMPLETE` として停止する。
 - `evidence`: thread ID、current head、読んだ返信範囲、判定、選択経路、投稿結果を記録する（`observed` / `inferred`）。
@@ -332,9 +333,9 @@ review-raven は gateway 経由で**実行ユーザーの GitHub token** を使�
 
 - `precondition`: initial-review / re-review の独立確認、Filter、Synthesis、必要な投稿、CI、全 thread 状態が確定している。
 - `primary tool`: LLM の verdict 判定。判定後の投稿は O-12 を使う。
-- `input / output`: blocking 数、全 thread の resolved 状態、主要リスクの検証、CI と対象 SHA、残存リスクを入力し、approve / request changes / comment only / needs follow-up を一つ出力する。
+- `input / output`: blocking 数、全 thread の resolved 状態、未回答の question、主要リスクの検証、CI と対象 SHA、残存リスクを入力し、approve / request changes / comment only / needs follow-up を一つ出力する。
 - `side effect`: O-12 で、approve の場合は `{OWL}:post_review_verdict` で Verdict コメント、それ以外は `{OWL}:post_summary_comment` で完了サマリーを投稿する。APPROVE、merge、Issue クローズは自動実行しない。
-- `guard`: 新規 blocking 0、全 thread resolved（declined-by-implementer はサマリーに残存リスクを記録した上で resolved として扱い、新規 blocking から除外する）、主要リスクの検証あり、CI success、CI head と `reviewedHeadSha` の一致をすべて満たす場合だけ approve とする。unknown を success としない。
+- `guard`: 新規 blocking 0、未回答の question 0、全 thread resolved（declined-by-implementer はサマリーに残存リスクを記録した上で resolved として扱い、新規 blocking から除外する）、主要リスクの検証あり、CI success、CI head と `reviewedHeadSha` の一致をすべて満たす場合だけ approve とする。question が未回答なら `comment only` / `needs follow-up` の区別を維持し、approve にしない。unknown を success としない。
 - `fallback`: CI、thread、SHA、独立検証が unknown の場合は comment only / needs follow-up として報告し、approve へ寄せない。
 - `failure / stop`: 必須 evidence、分類、状態のいずれかが欠ける場合は `VERDICT_INCOMPLETE` として Verdict / APPROVEを停止する。
 - `evidence`: 判定表、条件、CI SHA、thread 数、残存リスク、O-12 の投稿結果を記録する（事実は `observed`、判定は `inferred`）。
@@ -502,8 +503,8 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 各候補について、根拠、重大度、投稿位置、対応可能性を確認する。
 
 1. `blocking` / `non-blocking` / `question` / `note` / `praise` に分類する。
-2. 特定 diff 行に直接対応する指摘だけ inline にする。
-3. 複数ファイルにまたがる設計、運用、CI、packaging、release の問題は PR-level summary にする（「レビュー完了サマリー」節の 1 件にまとめる）。
+2. 特定 diff 行に直接対応する指摘・質問だけ inline にする。
+3. 複数ファイルにまたがる設計、運用、CI、packaging、release の問題・質問と current diff 外の質問は PR-level summary にする（「レビュー完了サマリー」節の 1 件にまとめる）。
 4. 再現条件、影響、期待する次の行動を短く書く。
 5. 根拠が弱い、差分価値が薄い、対応方法が不明、コメント過多を招く候補を削除する。
 6. Snapshot Guard を再確認してから投稿する。
@@ -512,7 +513,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 
 - `blocking`: correctness、security、privacy、data loss、主要ユースケース、CI、packaging、release の明確な問題。
 - `non-blocking`: merge を止めない保守性、テスト、UX、DX 改善。後続対応可能であることを明記する。
-- `question`: 仕様意図や既存仕様を確認しないと断定できない論点。
+- `question`: PR の挙動・仕様意図や既存仕様を確認しないと断定できない論点。`AskUserQuestion` では尋ねず、対象 PR に `[question]` として投稿する。観測した事実、判断できない点、作成者に確認する期待動作を分けて書き、推測を事実として断定しない。
 - `note`: docs、release note、follow-up issue で追う価値がある論点。
 - `praise`: 回帰リスク低減、責務分離、テスト容易性など明確な価値がある判断。過剰に投稿しない。
 
@@ -524,20 +525,17 @@ AAA のケースをテストで固定し、BBB の処理を見直してくださ
 ```
 
 ```markdown
-[question] この分岐は AAA も対象にする意図でしょうか？
-既存仕様では BBB と読めるため、期待する挙動を確認したいです。
+[question] 現在の差分では AAA の分岐に BBB が含まれています。既存仕様では CCC と読め、AAA でも BBB を適用する意図か判断できません。AAA の場合に期待する動作を確認したいです。
 ```
 
 ## 投稿判断
 
-PR URL を示してレビューと投稿を依頼された場合、根拠が固い inline comment と通常の review comment は投稿まで行う。次は投稿前にユーザーへ確認する。
+PR URL を示してレビューと投稿を依頼された場合、根拠が固い inline comment と通常の review comment、および仕様意図の `[question]` は投稿まで行う。内容の曖昧さを PR 作成者に確認できる場合は `[question]` にする。回答待ちでレビュー実行を止めず、独立して確認できる範囲を進めて既定の完了通知を行う。次の条件は内容質問で解決できないため、投稿前にユーザーへ確認するか、既定の停止 status で報告する。
 
-- PR 全体方針を覆す大きな指摘
-- blocking 判定が微妙
-- release / operation の意思決定を含む
-- 既存コメントとの重複が疑わしい
+- ユーザーの承認を要する release / operation などの操作
+- 既存コメントを取得できず、重複を判定できない
 - コメント候補が 5 件を超える
-- 投稿対象 PR、head、line、thread を確実に特定できない
+- 投稿対象 PR、mode、Thread Owl binding、reviewed HEAD を確定できない、または投稿先の line / thread を安全に特定できない（既存の fail-closed status を使い、推測で投稿しない）
 - `summary-only` の summary 投稿を明示されていない
 
 ### レビュー完了サマリー
@@ -545,7 +543,7 @@ PR URL を示してレビューと投稿を依頼された場合、根拠が固�
 `initial-review` / `re-review` は、verdict にかかわらず最後の GitHub write として完了通知 write を**ちょうど 1 回**呼ぶ。完了通知 write とは `{OWL}:post_summary_comment` と `{OWL}:post_review_verdict` の呼び出しの合計であり、run 全体でこの合計が 1 回になる（approve で両方を呼ぶと 2 回になるので違反する）。thread-owl の `review://status/{owner}/{repo}/{prNumber}` が `reviewed` になるのはこの 2 つ（または `approve_pull_request`）を呼んだときだけで、inline の投稿では変わらない。呼ばずに終えると、reviewed-side の待機（`review-raven-thread-owl-cycle` の Phase W）は完了を検知できずタイムアウトする。
 
 - `headSha` には `reviewedHeadSha`（`get_pr` の `pr.head.sha`、`post_inline_comment` の `commitId` と同じ値）を渡す。
-- 途中で呼ばない。current diff 外の指摘や、複数ファイルにまたがる設計・運用・CI・packaging・release の論点（Synthesis Stage の手順 3、O-18）も、別の summary にせずこの 1 件にまとめる。途中で呼ぶと、reviewed-side の待機がレビュー完了前に終わる。
+- 途中で呼ばない。current diff 外の指摘・質問や、複数ファイルにまたがる設計・運用・CI・packaging・release の論点（Synthesis Stage の手順 3、O-18）も、別の summary にせずこの 1 件にまとめる。途中で呼ぶと、reviewed-side の待機がレビュー完了前に終わる。
 - `verdict: approve` の場合は、次節の `{OWL}:post_review_verdict` がこの 1 回になる。`{OWL}:post_summary_comment` は呼ばない。
 - それ以外（`request changes` / `comment only` / `needs follow-up`）は `{OWL}:post_summary_comment` で次の書式で投稿する。見出しに `Review Verdict` を含めない（reviewed-side が Verdict 候補として照合し、書式不一致と報告するため）。
 - `thread-follow-up` / `summary-only` はこの節の対象外とする。
@@ -638,7 +636,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 ## Re-review
 
 1. queue 起点なら `reason = re-review-requested` と対象 PR を確認する。
-2. 前回 thread、実装者返信、現 head、前回レビュー後の差分を読む。
+2. 前回 thread と全返信、PR-level の question と作成者の後続コメント、現 head、前回レビュー後の差分を読む。回答は根拠として再評価し、未回答の同じ質問を再投稿しない。
 3. 各 thread の `isResolved` / `isOutdated` 状態と、現 head での対応状況を確認する。
 4. 未解決 thread と、対応差分が導入した重大な回帰だけを確認する。
 5. CI の変化を確認する。
@@ -647,7 +645,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 | 元 thread の状態 | 現 head での状態 | 投稿方法 |
 | --- | --- | --- |
 | unresolved | resolved in code | 元 thread へ簡潔に返信する。thread 自体は resolve しない |
-| unresolved | partially resolved / not resolved / needs clarification | 元 thread へ残存再現条件を具体的に返信する |
+| unresolved | partially resolved / not resolved / needs clarification | 元 thread へ残存再現条件を具体的に返信する。ただし未回答の `[question]` と同じ確認は再投稿しない |
 | unresolved | declined-by-implementer | 元 thread へ実装者の判断を確認した旨と残存リスクを簡潔に返信する |
 | resolved / outdated | resolved in code | 新規コメントを投稿しない。必要なら PR summary のみで解消を報告する |
 | resolved / outdated | partially resolved / not resolved / needs clarification | current diff 上の関連行へ `{OWL}:post_inline_comment` で新規 unresolved thread を作る |
@@ -668,7 +666,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 1. 指定 thread と current head を特定する。
 2. thread の `isResolved` / `isOutdated` 状態を確認する。
-3. thread の root comment、全返信、対応差分だけを読む。
+3. thread の root comment、全返信、対応差分だけを読む。question なら作成者の回答を根拠として再評価し、未回答の同じ質問を再投稿しない。
 4. `resolved in code` / `partially resolved` / `not resolved` / `needs clarification` / `declined-by-implementer` を判断する。
 5. 新しい独立論点を同じ thread に混ぜない。
 6. Re-review の投稿経路表と同じルールを適用する。
@@ -678,7 +676,7 @@ current diff 上に投稿可能な行がない場合は、無理に stale な位
 
 ## Verdict
 
-- `approve`: 新規 `blocking` 指摘がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。実装者が明示的な理由（Won't fix、スコープ外、仕様意図など）をもって resolve した指摘（`declined-by-implementer`）は新規 blocking とみなさず、残存リスクを完了サマリー（および Verdict の summary）に明記した上で `approve` を妨げない。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
+- `approve`: 新規 `blocking` 指摘と未回答の `[question]` がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。実装者が明示的な理由（Won't fix、スコープ外、仕様意図など）をもって resolve した指摘（`declined-by-implementer`）は新規 blocking とみなさず、残存リスクを完了サマリー（および Verdict の summary）に明記した上で `approve` を妨げない。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告、および「レビュー完了サマリー」の投稿に留める。
 - `comment only`: 判断材料が不足し、question が中心。
 - `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
