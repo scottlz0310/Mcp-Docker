@@ -170,7 +170,7 @@ var skillSizeBudgets = []struct {
 	maxLines int
 	maxRunes int
 }{
-	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79005},
+	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79125}, // #325: Phase W の待機 timeout の理由の注記で +120 文字
 	{skill: "thread-owl-pr-reviewer", maxLines: 740, maxRunes: 48190},
 }
 

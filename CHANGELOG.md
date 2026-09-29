@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 改善
+
+- #325: `review-raven-thread-owl-cycle`（revision 20）の Phase W で、reviewer のレビュー完了を待つ subscriber の timeout の例示を 10 分（`600000`）から 20 分（`1200000`）へ引き上げ。reviewer の起動前に Squirrel Notifier が CI の確定を待つ場合（最大 12 分。squirrel-notifier#456）と、reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まる待機の内側に入るため。あわせて、20 分が多くの CLI の shell tool のタイムアウトを超えるため、バックグラウンド実行で待つことを明記。
+
 ### 🧪 テスト
 
 - #326: `SKILL.md` のサイズ上限（行数・文字数）を検査するテストを追加。skill は起動のたびに本文全体がコンテキストへ載るため、肥大化を PR の段階で検知する。上限は計測時点の値（`review-raven-thread-owl-cycle` 1,171 行 / 79,005 文字、`thread-owl-pr-reviewer` 740 行 / 48,190 文字）に固定し、本文を削減する PR ごとに下げる。skill の内容は変更しないため revision は据え置き。
