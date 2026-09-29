@@ -1,0 +1,61 @@
+# CI check runs の読み取りと判定
+
+この文書が、`thread-owl-pr-reviewer` における CI 判定の**唯一の定義**である。SKILL.md の O-06、O-15、Snapshot Guard の手順 4 は、この規則に従う。同じ規則を SKILL.md に書き足さない。
+
+## 1. 経路の固定
+
+CI 判定に使う check runs は、**固定済みの `reviewedHeadSha` を入力**として、その commit の check run ごとの `name`、`status`、`conclusion`、対象 SHA（`head_sha`）、run ID、GitHub App を返す論理 read capability から取得する。
+
+- **第一選択**: `{RAVEN}:list_check_runs_for_sha`。
+- **fallback**: `{RAVEN}` の discovery 時点でこの capability が無い（review-raven v0.5.0 未満）、または schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
+- **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として停止する。`gh api` は実行ユーザーの token を使う別の認証経路なので、O-00 の「異なる認証経路を自動的に試さない」に反する。
+- **PR 番号を入力とし、`head_sha` を返さない capability は CI 判定の根拠にしない**（公式 GitHub MCP の `pull_request_read` の `get_check_runs` など。PR の head が動くと対象が黙って変わるうえ、返却値で SHA を照合できない）。
+
+`{RAVEN}` の discovery は、O-00 の `{OWL}` binding が成功した後に、次の手順で行う。
+
+1. `owner`、`repo`、`sha`（40 桁の小文字 hex）を入力し、`sha`、`check_runs[].head_sha` / `name` / `status` / `conclusion` / `app`、`pagination.complete`、`deduplication.strategy` を返す候補を、表示名ではなく capability と input / output schema で列挙する。
+2. host / client の設定に明示 binding があれば優先する。無ければ schema を満たす候補が一つだけの場合に限り採用する。複数候補が残る場合は `{RAVEN}` を未解決として扱う。
+3. 採用候補で `reviewedHeadSha` を入力にした read を **1 回成功** させ、「3. 応答の検証」を満たすことを確認する。成功したら binding を run の状態に固定し、以後の CI read はすべて同じ binding を使う。
+4. 候補が無い、複数候補を一意に選べない、schema 不一致、read 検証失敗の場合は、`{RAVEN}` を使わないことを run の状態に固定し、上記の `gh api` fallback へ切り替える。この場合も `BLOCKED_MCP_DISCOVERY` にはしない（`{RAVEN}` は任意 capability であり、`{OWL}` と違ってレビュー継続の必須条件ではない）。
+
+どちらの経路を使うかは discovery 時点で決め、run の状態として固定する。
+
+## 2. 読み取り
+
+CI 判定の直前に固定済み `{OWL}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、「1. 経路の固定」で固定した経路を `reviewedHeadSha` で実行する。入力 `sha` には 40 桁の小文字 hex の `reviewedHeadSha` を渡す（branch 名や PR 番号は tool 側で拒否される）。
+
+## 3. 応答の検証
+
+第一選択の応答は次を検証してから使う。満たさない場合は `CI: unknown` とし、combined status や write 経路で代替しない。
+
+- 出力の `sha` が入力の `reviewedHeadSha` と一致すること。
+- `pagination.complete` が `true` であること。`false` または欠落は取得未完了として扱う。
+- 各 run の `head_sha` が `reviewedHeadSha` と一致すること。対象 SHA を確認できない run は成功扱いにしない。
+- 再実行 run の集約は tool 側で行われる（`deduplication.strategy = latest_id_per_app_and_name`）。skill 側で二重に集約しない。**「同じ GitHub App・同じ `name` の run は ID が最大のものだけを採用する」は `gh api` fallback を使うときだけの手順とする**。`gh api` には `pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合も `CI: unknown` とする。
+- `check_runs` が空配列でも正常な応答である（push 直後で CI が未開始の場合など）。required check が未返却のときの扱い（`CI: pending`）に従う。
+- 未完了の run では `conclusion` が `null` になり得る。`status` と併せて `CI: pending` と判定する。
+- tool は合否判定を行わない。required / optional の区別も出力に含まれないため、required checks の特定はリポジトリ方針（branch protection / repository policy）から別途行う。
+- 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
+
+## 4. 判定
+
+- `CI: success`: `reviewedHeadSha` に対するすべての required checks が `status: completed` かつ `conclusion: success` の場合だけ。
+- `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る）の場合。
+- `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合。
+- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required checks を repository policy から確定できない、結果不明を含む。
+
+optional check の結果は別途記録する。`CI: unknown` のまま Verdict / APPROVE を投稿しない。
+
+## 5. 失敗ログ
+
+`CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。どちらも同じ SHA を確認する。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` として記録し、Verdict / APPROVE を投稿せず停止する。
+
+## 6. HEAD 移動時の再確認
+
+検証結果の採用または APPROVE 投稿の直前に、`{OWL}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して同じ経路で「2. 読み取り」から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` とし、Verdict / APPROVE を停止する。
+
+re-review（O-15）では、current head を固定し直して、この文書の手順で CI を再確認する。
+
+## 7. 記録
+
+evidence に次を記録する（`observed`）: `reviewedHeadSha`、CI read 経路（`{RAVEN}` / `gh api`）と `{RAVEN}` の解決可否、応答の `sha`、全 check run、status / conclusion、`pagination.complete`、`deduplication`、SHA 比較、required の判定、失敗ログ経路、最終 head 再確認。最終的な verdict の根拠とした CI の対象 SHA を確認・記録する。
