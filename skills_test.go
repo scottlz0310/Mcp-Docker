@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const (
@@ -155,5 +156,57 @@ func TestVerdictMatchRule(t *testing.T) {
 				t.Errorf("matchVerdict() = (%q, %v), want (%q, %v)", gotSHA, gotOK, tt.wantSHA, tt.wantOK)
 			}
 		})
+	}
+}
+
+// skillSizeBudget は SKILL.md の大きさの上限。skill は起動のたびに本文全体がコンテキストへ載るため、
+// 肥大化を PR の段階で検知する。
+//
+// 上限は計測時点（#326、main = eda2621）の値に固定した「これ以上増やさない」天井であり、
+// 本文を分割・削減する PR ごとに下げる。最終目標は Anthropic の Skill authoring best practices が
+// 示す「本文 500 行以内」。増やす場合は、上限を引き上げる差分そのものを理由付きでレビューさせる。
+var skillSizeBudgets = []struct {
+	skill    string
+	maxLines int
+	maxRunes int
+}{
+	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79005},
+	{skill: "thread-owl-pr-reviewer", maxLines: 740, maxRunes: 48190},
+}
+
+func TestSkillSizeBudget(t *testing.T) {
+	for _, b := range skillSizeBudgets {
+		t.Run(b.skill, func(t *testing.T) {
+			body := readSkill(t, b.skill)
+			lines := strings.Count(body, "\n")
+			runes := utf8.RuneCountInString(body)
+			t.Logf("SKILL.md の大きさ: %d/%d 行, %d/%d 文字", lines, b.maxLines, runes, b.maxRunes)
+			if lines > b.maxLines {
+				t.Errorf("skill %q の行数 = %d, 上限 %d を超えています", b.skill, lines, b.maxLines)
+			}
+			if runes > b.maxRunes {
+				t.Errorf("skill %q の文字数 = %d, 上限 %d を超えています", b.skill, runes, b.maxRunes)
+			}
+		})
+	}
+}
+
+// 上限の登録漏れで、新しい skill が計測の対象外になることを防ぐ。
+func TestSkillSizeBudgetCoversAllSkills(t *testing.T) {
+	entries, err := fs.ReadDir(SkillsFS, SkillsRoot)
+	if err != nil {
+		t.Fatalf("skill カタログを読めません: %v", err)
+	}
+	budgeted := make(map[string]bool, len(skillSizeBudgets))
+	for _, b := range skillSizeBudgets {
+		budgeted[b.skill] = true
+	}
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if !budgeted[e.Name()] {
+			t.Errorf("skill %q の SKILL.md サイズ上限が skillSizeBudgets にありません", e.Name())
+		}
 	}
 }
