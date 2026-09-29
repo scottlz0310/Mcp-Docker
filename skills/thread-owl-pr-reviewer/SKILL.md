@@ -53,10 +53,10 @@ CI 判定の根拠は、**固定済みの `reviewedHeadSha` を入力とする c
 
 不変条件（詳細は上記の参照先）:
 
-- `CI: success` は、`reviewedHeadSha` に対するすべての required checks（required 未定義のときは、報告済みの check run すべて）が `status: completed` かつ `conclusion: success` の場合だけである。unknown を success としない。
+- `CI: success` は、`reviewedHeadSha` に対するすべての required checks（check run は `completed` かつ `success`、commit status は `success`。required 未定義のときは、報告済みの check run すべて）が成功の場合だけである。unknown を success としない。
 - PR 番号を入力とし `head_sha` を返さない capability（公式 GitHub MCP の `get_check_runs` など）と `combined status` は、判定の根拠にしない。
 - 取得経路は discovery 時点で固定し、実行時の tool error・transport failure・schema 不一致では切り替えず、`CI: unknown` として停止する（`gh api` は実行ユーザーの token を使う別の認証経路である）。
-- 取得できない、SHA を照合できない、`pagination.complete` が `true` でない、required の集合を確定できない場合は `CI: unknown` とする。
+- 取得できない、SHA を照合できない、`pagination.complete` が `true` でない、required の集合を確定できない（App 指定や `workflows` などの未対応の rule を含む）場合は `CI: unknown` とする。
 
 ### O-00: `{OWL}` の discovery と固定
 

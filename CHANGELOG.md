@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🐛 バグ修正
 
-- #331: `thread-owl-pr-reviewer`（revision 14）の CI 判定（`references/ci-check.md`）に、required checks の集合の解決を明記。reviewer が admin 権限の要る `branches/<base>/protection` を読んで 403 になり、CI が全件 success でも `CI: unknown` で Verdict が出ない run があった（同じ repository で run ごとに判断がぶれていた）。required の集合は、ruleset（`rules/branches/<base>`）と classic の要約（`branches/<base>` の `protection`）の和集合とし、admin 専用の endpoint は使わない。両方取得できて空なら「required 未定義」として報告済みの check run すべてを対象にし、check run が 1 件もなければ `CI: pending`、どちらかの取得に失敗したら `CI: unknown`。required 未定義のときは後から現れる check を検知できない限界を、完了サマリー・Verdict の `summary` の残存リスクに書く。判定の規則そのもの（success / pending / failure の条件）は変更しない。
+- #331: `thread-owl-pr-reviewer`（revision 14）の CI 判定（`references/ci-check.md`）に、required checks の集合の解決を明記。reviewer が admin 権限の要る `branches/<base>/protection` を読んで 403 になり、CI が全件 success でも `CI: unknown` で Verdict が出ない run があった（同じ repository で run ごとに判断がぶれていた）。required の集合は、ruleset（`rules/branches/<base>`）と classic の要約（`branches/<base>` の `protection`）の和集合とし、admin 専用の endpoint は使わない。両方取得できて空なら「required 未定義」として報告済みの check run すべてを対象にし、check run が 1 件もなければ `CI: pending`、どちらかの取得に失敗したら `CI: unknown`。required 未定義のときは後から現れる check を検知できない限界を、完了サマリー・Verdict の `summary` の残存リスクに書く。required の context は、check run と commit status（Codecov など）の両方で照合し、同名が併存する場合は両方の成功を要求する。App が指定された required（`integration_id` / `app_id`）と、ruleset の `workflows` / `code_scanning` の rule は、判定できないため `CI: unknown` とする。判定の規則そのもの（success / pending / failure の条件）は変更しない。
 
 ### 🔧 改善
 

@@ -35,7 +35,7 @@ CI 判定の直前に固定済み `{OWL}:get_pr` を read し、現在の PR HEA
 - `check_runs` が空配列でも正常な応答である（push 直後で CI が未開始の場合など）。required check が未返却のときの扱い（`CI: pending`）に従う。
 - 未完了の run では `conclusion` が `null` になり得る。`status` と併せて `CI: pending` と判定する。
 - tool は合否判定を行わない。required / optional の区別も出力に含まれないため、required の集合は「4. required checks の集合」で別途確定する。
-- 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
+- この応答に含まれるのは check runs だけで、commit status（Codecov など、一部の外部 CI が使う）は含まれない。required の context の照合では、個別の commit status を「4. required checks の集合」で別に読む。`combined status`（`commits/<sha>/status`）は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
 
 ## 4. required checks の集合
 
@@ -44,29 +44,48 @@ required の集合は、リポジトリの設定から確定する。`<base>` �
 - ruleset（組織レベルとリポジトリの両方を含む）:
 
   ```text
-  gh api "repos/<owner>/<repo>/rules/branches/<base>" --paginate --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context]'
+  gh api "repos/<owner>/<repo>/rules/branches/<base>" --paginate --jq '.[] | select(.type == "required_status_checks" or .type == "workflows" or .type == "code_scanning") | {type, checks: (.parameters.required_status_checks // [] | map({context, integration_id}))}'
   ```
 
-- classic の branch protection の要約（`protection.enabled` が true のときだけ）:
+- classic の branch protection の要約:
 
   ```text
-  gh api "repos/<owner>/<repo>/branches/<base>" --jq '[if .protection.enabled then (.protection.required_status_checks.contexts[]?, .protection.required_status_checks.checks[]?.context) else empty end] | unique'
+  gh api "repos/<owner>/<repo>/branches/<base>" --jq 'if .protection.enabled then .protection.required_status_checks else null end | {contexts: (.contexts // []), checks: (.checks // [] | map({context, app_id}))}'
   ```
 
 **admin 権限が要る `branches/<base>/protection` は使わない**。保護がなければ 404、権限がなければ 403 になり、「未定義」と「取得不能」を区別できなくなる。
 
-- 2 つとも取得できた: 和集合が required の集合になる。
-- どちらかが取得できない（403 などの失敗）: required の集合を確定できないため、`CI: unknown`。
-- 2 つとも取得できて、和集合が**空**: **required 未定義**。報告済みの check run をすべて required とみなし、「5. 判定」の規則をその集合に適用する。**check run が 1 件も報告されていなければ `CI: pending`**。
+required の要素は、ruleset の `required_status_checks` の `checks[]`（`context`、`integration_id`）と、classic の `checks[]`（`context`、`app_id`）と `contexts[]`（`context` のみ）である。同じ `context` はまとめる。次のいずれかに当たる場合は、**この規則では判定できないため `CI: unknown`** とする。
 
-required 未定義のときは、まだ報告されていない check（後から現れる check）を検知できない。すべて成功に見えても、後から現れた check が赤になり得る。この限界を、完了サマリー（approve の場合は Verdict の `summary`）の残存リスクに書く（例: 「required checks が未定義のため、報告済みの check run すべてを対象にした。後から現れる check は検知できない」）。
+- どちらかの読み取りに失敗した（403 などの失敗）。
+- ruleset に `workflows`（required workflow）または `code_scanning` の rule がある。必須の結果を、この規則では判定できない。
+- required の要素に、**App が指定されたもの**がある（`integration_id` / `app_id` が、`null` でも `-1` でもない）。run の App の照合には対応しない。`null` と `-1` は「どの App でもよい」を表す。
+
+上記に当たらず、和集合が**空**なら **required 未定義**とする。報告済みの check run をすべて required とみなし、「5. 判定」の規則をその集合に適用する。**check run が 1 件も報告されていなければ `CI: pending`**。この場合、commit status は対象にしない。
+
+和集合が空でなければ、required の各 `context` を、check run と commit status の**両方**で照合する。
+
+- check run: 名前が一致する run（再実行は集約した後）。
+- commit status: 個別の status の一覧を読み、同じ `context` のうち最新のもの（新しい順に返るため、最初に現れるもの）。
+
+  ```text
+  gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/statuses" --paginate --jq '.[] | {context, state}'
+  ```
+
+  `combined status` は使わない。
+- どちらにも該当がない: 未返却として `CI: pending`。
+- 該当のうち 1 つでも失敗（check run の失敗系の結論、status の `failure` / `error`）: その `context` は失敗。
+- 未完了（check run の `queued` / `in_progress`、status の `pending`）: その `context` は未完了。
+- すべて成功（check run は `completed` かつ `success`、status は `success`）の場合だけ、その `context` は成功。**同名の check run と commit status が併存する場合は、両方が成功のときだけ**成功とする。
+
+required 未定義のときは、まだ報告されていない check（後から現れる check）を検知できず、commit status も見ない。すべて成功に見えても、後から現れた check が赤になり得る。この限界を、完了サマリー（approve の場合は Verdict の `summary`）の残存リスクに書く（例: 「required checks が未定義のため、報告済みの check run すべてを対象にした。後から現れる check と commit status は検知できない」）。
 
 ## 5. 判定
 
-- `CI: success`: `reviewedHeadSha` に対するすべての required checks（required 未定義のときは、報告済みの check run すべて。「4」）が `status: completed` かつ `conclusion: success` の場合だけ。
-- `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る）の場合。
-- `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合。
-- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」）、結果不明を含む。
+- `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功の場合だけ。
+- `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る。commit status は `pending`）の場合。
+- `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合、または required の commit status が `failure` / `error` の場合。
+- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。App 指定、`workflows` / `code_scanning` の rule を含む）、結果不明を含む。
 
 optional check の結果は別途記録する。`CI: unknown` のまま Verdict / APPROVE を投稿しない。
 
