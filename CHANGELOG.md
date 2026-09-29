@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 改善
 
+- #326: `thread-owl-pr-reviewer`（revision 13）の CI 判定の規則（check runs の経路の固定、読み取り、応答の検証、`CI: success` / `pending` / `failure` / `unknown` の判定、失敗ログ、HEAD 移動時の再確認、記録）を、SKILL.md の 5 か所から `references/ci-check.md` の 1 か所へ集約。SKILL.md には不変条件と参照の指示だけを残す。判定の規則は変更しない。参照先を読めない場合は `CI: unknown` として Verdict / APPROVE を投稿しない。SKILL.md は 740 行 / 48,190 文字から 721 行 / 44,575 文字へ縮小（`references/` を含む合計は 49,181 文字）。あわせて、サイズ上限のテストに、`references/` を含む合計の上限を追加。
 - #325: `review-raven-thread-owl-cycle`（revision 20）の Phase W で、reviewer のレビュー完了を待つ subscriber の timeout の例示を 10 分（`600000`）から 20 分（`1200000`）へ引き上げ。reviewer の起動前に Squirrel Notifier が CI の確定を待つ場合（最大 12 分。squirrel-notifier#456）と、reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まる待機の内側に入るため。あわせて、20 分が多くの CLI の shell tool のタイムアウトを超えるため、バックグラウンド実行で待つことを明記。
 
 ### 🧪 テスト

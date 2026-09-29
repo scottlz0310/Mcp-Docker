@@ -159,19 +159,47 @@ func TestVerdictMatchRule(t *testing.T) {
 	}
 }
 
-// skillSizeBudget は SKILL.md の大きさの上限。skill は起動のたびに本文全体がコンテキストへ載るため、
-// 肥大化を PR の段階で検知する。
+// skillSizeBudget は skill の大きさの上限。skill は起動のたびに SKILL.md の全文がコンテキストへ載るため、
+// 肥大化を PR の段階で検知する。references/ は該当する手順に入るときだけ読まれるが、本文を移して
+// 総量を隠せないよう、SKILL.md と references/ の合計（maxTotalRunes）にも上限を置く。
 //
-// 上限は計測時点（#326、main = eda2621）の値に固定した「これ以上増やさない」天井であり、
-// 本文を分割・削減する PR ごとに下げる。最終目標は Anthropic の Skill authoring best practices が
-// 示す「本文 500 行以内」。増やす場合は、上限を引き上げる差分そのものを理由付きでレビューさせる。
+// 上限は「これ以上増やさない」ための天井であり、本文を分割・削減する PR ごとに下げる。
+// 最終目標は Anthropic の Skill authoring best practices が示す「本文 500 行以内」。
+// 増やす場合は、上限を引き上げる差分そのものを理由付きでレビューさせる。
 var skillSizeBudgets = []struct {
-	skill    string
-	maxLines int
-	maxRunes int
+	skill         string
+	maxLines      int // SKILL.md の行数
+	maxRunes      int // SKILL.md の文字数
+	maxTotalRunes int // SKILL.md と references/ 配下の .md の合計文字数
 }{
-	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79125}, // #325: Phase W の待機 timeout の理由の注記で +120 文字
-	{skill: "thread-owl-pr-reviewer", maxLines: 740, maxRunes: 48190},
+	// #325: Phase W の待機 timeout の理由の注記で +120 文字
+	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79125, maxTotalRunes: 79125},
+	// #326: CI 判定の規則を references/ci-check.md へ集約
+	{skill: "thread-owl-pr-reviewer", maxLines: 721, maxRunes: 44575, maxTotalRunes: 49181},
+}
+
+// skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
+func skillMarkdownRunes(t *testing.T, name string) int {
+	t.Helper()
+	total := 0
+	err := fs.WalkDir(SkillsFS, SkillsRoot+"/"+name, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(p, ".md") {
+			return nil
+		}
+		data, err := fs.ReadFile(SkillsFS, p)
+		if err != nil {
+			return err
+		}
+		total += utf8.RuneCount(data)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("skill %q の .md を集計できません: %v", name, err)
+	}
+	return total
 }
 
 func TestSkillSizeBudget(t *testing.T) {
@@ -180,12 +208,17 @@ func TestSkillSizeBudget(t *testing.T) {
 			body := readSkill(t, b.skill)
 			lines := strings.Count(body, "\n")
 			runes := utf8.RuneCountInString(body)
-			t.Logf("SKILL.md の大きさ: %d/%d 行, %d/%d 文字", lines, b.maxLines, runes, b.maxRunes)
+			total := skillMarkdownRunes(t, b.skill)
+			t.Logf("SKILL.md の大きさ: %d/%d 行, %d/%d 文字。references を含む合計: %d/%d 文字",
+				lines, b.maxLines, runes, b.maxRunes, total, b.maxTotalRunes)
 			if lines > b.maxLines {
 				t.Errorf("skill %q の行数 = %d, 上限 %d を超えています", b.skill, lines, b.maxLines)
 			}
 			if runes > b.maxRunes {
 				t.Errorf("skill %q の文字数 = %d, 上限 %d を超えています", b.skill, runes, b.maxRunes)
+			}
+			if total > b.maxTotalRunes {
+				t.Errorf("skill %q の合計文字数（references を含む）= %d, 上限 %d を超えています", b.skill, total, b.maxTotalRunes)
 			}
 		})
 	}
