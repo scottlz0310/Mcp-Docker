@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧪 テスト
+
+- #326: `SKILL.md` のサイズ上限（行数・文字数）を検査するテストを追加。skill は起動のたびに本文全体がコンテキストへ載るため、肥大化を PR の段階で検知する。上限は計測時点の値（`review-raven-thread-owl-cycle` 1,171 行 / 79,005 文字、`thread-owl-pr-reviewer` 740 行 / 48,190 文字）に固定し、本文を削減する PR ごとに下げる。skill の内容は変更しないため revision は据え置き。
+
 ## [2.29.0] - 2026-09-27
 
 ### ✨ 新機能
