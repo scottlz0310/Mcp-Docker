@@ -838,12 +838,12 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    bunx mcp-resource-subscriber `
      --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
      --uri review://status/<owner>/<repo>/<prNumber> `
-     --timeout-ms 600000 `
+     --timeout-ms 1200000 `
      --json
    ```
 
    - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx mcp-resource-subscriber --login --url <同じ URL>` の実行を依頼する。
-   - CLI の shell tool のタイムアウトは `--timeout-ms` より長くするか、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
+   - `--timeout-ms` は 20 分。reviewer の起動前の CI 確定待ち（Squirrel Notifier。最大 12 分）と reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まるこの待機の内側に入るため。20 分は多くの CLI の shell tool のタイムアウトを超えるので、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
 
