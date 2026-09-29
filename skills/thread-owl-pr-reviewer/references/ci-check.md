@@ -55,11 +55,13 @@ required の集合は、リポジトリの設定から確定する。`<base>` �
 
 **admin 権限が要る `branches/<base>/protection` は使わない**。保護がなければ 404、権限がなければ 403 になり、「未定義」と「取得不能」を区別できなくなる。
 
-required の要素は、ruleset の `required_status_checks` の `checks[]`（`context`、`integration_id`）と、classic の `checks[]`（`context`、`app_id`）と `contexts[]`（`context` のみ）である。同じ `context` はまとめる。次のいずれかに当たる場合は、**この規則では判定できないため `CI: unknown`** とする。
+required の要素は、ruleset の `required_status_checks` の `checks[]`（`context`、`integration_id`）と、classic の `checks[]`（`context`、`app_id`）と `contexts[]`（`context` のみ）である。同じ `context` はまとめる。classic の `checks[]` は provider を一意に解釈できる場合だけ使う。GitHub REST API では `app_id` の省略時、最近その check を提供した GitHub App が自動選択される場合があり、App が提供元に設定されていなければ任意の App が許容される。`-1` は任意の App を明示する。legacy `contexts[]` も最近特定 App から報告された check をその App に制約し得る。したがって、`contexts[]` の各 context は、同じ context を持つ `checks[]` に `app_id: -1` が明示されている場合だけ照合対象にできる。それ以外は、**この規則では判定できないため `CI: unknown`** とする。詳細は[保護ブランチの REST API](https://docs.github.com/en/rest/branches/branch-protection)を参照。
 
 - どちらかの読み取りに失敗した（403 などの失敗）。
 - ruleset に `workflows`（required workflow）または `code_scanning` の rule がある。必須の結果を、この規則では判定できない。
-- required の要素に、**App が指定されたもの**がある（`integration_id` / `app_id` が、`null` でも `-1` でもない）。run の App の照合には対応しない。`null` と `-1` は「どの App でもよい」を表す。
+- ruleset required に App が指定されている（`integration_id` が `null` でも `-1` でもない）、または classic の `checks[]` に App ID が指定されている（`app_id` が `-1` 以外の数値）。run の App の照合には対応しない。
+- classic の `checks[].app_id` が `null` または欠落している。省略時に自動選択される App を、この規則では特定できない。classic の `app_id: -1` だけを「どの App でもよい」と扱う。
+- classic の `contexts[]` に、同じ `context` を持ち `app_id: -1` が明示された `checks[]` がない項目がある。legacy context の暗黙の App 制約を、この規則では解決できない。
 
 上記に当たらず、和集合が**空**なら **required 未定義**とする。報告済みの check run をすべて required とみなし、「5. 判定」の規則をその集合に適用する。**check run が 1 件も報告されていなければ `CI: pending`**。この場合、commit status は対象にしない。
 
@@ -85,7 +87,7 @@ required 未定義のときは、まだ報告されていない check（後か�
 - `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功の場合だけ。
 - `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る。commit status は `pending`）の場合。
 - `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合、または required の commit status が `failure` / `error` の場合。
-- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。App 指定、`workflows` / `code_scanning` の rule を含む）、結果不明を含む。
+- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。App 指定・provider が曖昧な classic 設定、`workflows` / `code_scanning` の rule を含む）、結果不明を含む。
 
 optional check の結果は別途記録する。`CI: unknown` のまま Verdict / APPROVE を投稿しない。
 
