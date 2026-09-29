@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- #331: `thread-owl-pr-reviewer`（revision 14）の CI 判定（`references/ci-check.md`）に、required checks の集合の解決を明記。reviewer が admin 権限の要る `branches/<base>/protection` を読んで 403 になり、CI が全件 success でも `CI: unknown` で Verdict が出ない run があった（同じ repository で run ごとに判断がぶれていた）。required の集合は、ruleset（`rules/branches/<base>`）と classic の要約（`branches/<base>` の `protection`）の和集合とし、admin 専用の endpoint は使わない。両方取得できて空なら「required 未定義」として報告済みの check run すべてを対象にし、check run が 1 件もなければ `CI: pending`、どちらかの取得に失敗したら `CI: unknown`。required 未定義のときは後から現れる check を検知できない限界を、完了サマリー・Verdict の `summary` の残存リスクに書く。判定の規則そのもの（success / pending / failure の条件）は変更しない。
+
 ### 🔧 改善
 
 - #326: `thread-owl-pr-reviewer`（revision 13）の CI 判定の規則（check runs の経路の固定、読み取り、応答の検証、`CI: success` / `pending` / `failure` / `unknown` の判定、失敗ログ、HEAD 移動時の再確認、記録）を、SKILL.md の 5 か所から `references/ci-check.md` の 1 か所へ集約。SKILL.md には不変条件と参照の指示だけを残す。判定の規則は変更しない。参照先を読めない場合は `CI: unknown` として Verdict / APPROVE を投稿しない。SKILL.md は 740 行 / 48,190 文字から 721 行 / 44,575 文字へ縮小（`references/` を含む合計は 49,181 文字）。あわせて、サイズ上限のテストに、`references/` を含む合計の上限を追加。

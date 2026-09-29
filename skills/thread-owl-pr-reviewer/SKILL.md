@@ -53,10 +53,10 @@ CI 判定の根拠は、**固定済みの `reviewedHeadSha` を入力とする c
 
 不変条件（詳細は上記の参照先）:
 
-- `CI: success` は、`reviewedHeadSha` に対するすべての required checks が `status: completed` かつ `conclusion: success` の場合だけである。unknown を success としない。
+- `CI: success` は、`reviewedHeadSha` に対するすべての required checks（required 未定義のときは、報告済みの check run すべて）が `status: completed` かつ `conclusion: success` の場合だけである。unknown を success としない。
 - PR 番号を入力とし `head_sha` を返さない capability（公式 GitHub MCP の `get_check_runs` など）と `combined status` は、判定の根拠にしない。
 - 取得経路は discovery 時点で固定し、実行時の tool error・transport failure・schema 不一致では切り替えず、`CI: unknown` として停止する（`gh api` は実行ユーザーの token を使う別の認証経路である）。
-- 取得できない、SHA を照合できない、`pagination.complete` が `true` でない場合は `CI: unknown` とする。
+- 取得できない、SHA を照合できない、`pagination.complete` が `true` でない、required の集合を確定できない場合は `CI: unknown` とする。
 
 ### O-00: `{OWL}` の discovery と固定
 
@@ -160,14 +160,14 @@ CI read の経路の固定（候補の列挙、binding、read の検証、`gh ap
 
 ### O-06: Independent Stage の CI
 
-- `precondition`: O-02 で `reviewedHeadSha` が固定され、CI read の経路が決まり、required checks の repository policy を確認できる。
+- `precondition`: O-02 で `reviewedHeadSha` が固定され、CI read の経路が決まっている。
 - `primary tool`: `{OWL}:get_pr` の直後に実行する、固定した経路の check runs read（`references/ci-check.md`）。
 - `input / output`: `owner`、`repo`、`reviewedHeadSha` を入力し、`CI: success` / `pending` / `failure` / `unknown` の判定と根拠を出力する。
 - `side effect`: read-only。CI の再実行、設定変更、write 経路への切り替えは行わない。
 - `guard`: 読み取り・応答の検証・判定は `references/ci-check.md` の規則だけに従い、unknown を success としない。
-- `fallback`: 失敗ログは `references/ci-check.md` の「5. 失敗ログ」。取得経路の切り替えは discovery 時点でだけ行う。
-- `failure / stop`: pending / failure / unknown（対象 SHA 不一致、`pagination.complete` 未達、tool error、結果不明、`references/ci-check.md` を読めない場合を含む）として記録し、unknown のまま Verdict / APPROVE を投稿しない。
-- `evidence`: `references/ci-check.md` の「7. 記録」に従う（`observed`）。
+- `fallback`: 失敗ログは `references/ci-check.md` の「6. 失敗ログ」。取得経路の切り替えは discovery 時点でだけ行う。
+- `failure / stop`: pending / failure / unknown（対象 SHA 不一致、`pagination.complete` 未達、tool error、required の集合を確定できない、結果不明、`references/ci-check.md` を読めない場合を含む）として記録し、unknown のまま Verdict / APPROVE を投稿しない。
+- `evidence`: `references/ci-check.md` の「8. 記録」に従う（`observed`）。
 
 ### O-07: Independent Stage の候補生成
 
