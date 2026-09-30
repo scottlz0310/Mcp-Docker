@@ -173,7 +173,8 @@ var skillSizeBudgets = []struct {
 	maxTotalRunes int // SKILL.md と references/ 配下の .md の合計文字数
 }{
 	// #325: Phase W の待機 timeout の理由の注記で +120 文字
-	{skill: "review-raven-thread-owl-cycle", maxLines: 1171, maxRunes: 79125, maxTotalRunes: 79125},
+	// #326 PR3: Phase 6.6（カバレッジ）と Phase 7.5（完了記録）を references/ へ移動（SKILL.md は -92 行。合計は入口の注記と見出し分で +841 文字）
+	{skill: "review-raven-thread-owl-cycle", maxLines: 1079, maxRunes: 75484, maxTotalRunes: 79966},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
