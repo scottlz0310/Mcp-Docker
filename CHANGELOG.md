@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 改善
 
+- #326（PR2a）: `thread-owl-pr-reviewer`（revision 17）の queue 待機（「Queue 契約」の resource の選択、subscriber の起動、`json.route` の確認）と、ローカル検証の隔離手順（dirty / mismatched な場合の worktree / clone、一時領域 `SQUIRREL_REVIEW_SCRATCH_DIR` の解決、片付けの責務境界、証跡）を、内容を変えずに `references/queue-wait.md` と `references/local-verification.md` へ移動。SKILL.md には、必読の指示と、読めない場合の安全側（queue 待機は `QUEUE_WAIT_FAILED` で停止、ローカル検証は `local verification: not performed`）、および未 commit 変更を stash / discard しない不変条件だけを残す。規則は変更しない。SKILL.md は 721 行 / 44,993 文字から 682 行 / 43,738 文字へ縮小（`references/` を含む合計は 53,380 文字から 54,782 文字。入口の注記と見出し分の増加）。`skillSizeBudgets` の上限を実測値へ更新。
 - #326: `thread-owl-pr-reviewer`（revision 13）の CI 判定の規則（check runs の経路の固定、読み取り、応答の検証、`CI: success` / `pending` / `failure` / `unknown` の判定、失敗ログ、HEAD 移動時の再確認、記録）を、SKILL.md の 5 か所から `references/ci-check.md` の 1 か所へ集約。SKILL.md には不変条件と参照の指示だけを残す。判定の規則は変更しない。参照先を読めない場合は `CI: unknown` として Verdict / APPROVE を投稿しない。SKILL.md は 740 行 / 48,190 文字から 721 行 / 44,575 文字へ縮小（`references/` を含む合計は 49,181 文字）。あわせて、サイズ上限のテストに、`references/` を含む合計の上限を追加。
 - #325: `review-raven-thread-owl-cycle`（revision 20）の Phase W で、reviewer のレビュー完了を待つ subscriber の timeout の例示を 10 分（`600000`）から 20 分（`1200000`）へ引き上げ。reviewer の起動前に Squirrel Notifier が CI の確定を待つ場合（最大 12 分。squirrel-notifier#456）と、reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まる待機の内側に入るため。あわせて、20 分が多くの CLI の shell tool のタイムアウトを超えるため、バックグラウンド実行で待つことを明記。
 
