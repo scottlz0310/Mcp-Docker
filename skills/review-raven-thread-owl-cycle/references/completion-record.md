@@ -16,7 +16,7 @@ SKILL.md の「Phase 7.5: 完了記録とローカル契約検証」から移し
   "prNumber": 123,
   "headSha": "<final_head>",
   "skillId": "review-raven-thread-owl-cycle",
-  "skillRevision": 18,
+  "skillRevision": <Phase 0 で取得した埋め込み skill の revision（整数）>,
   "skillCompleted": true,
   "all_replied": true,
   "unresolved_count": 0,
