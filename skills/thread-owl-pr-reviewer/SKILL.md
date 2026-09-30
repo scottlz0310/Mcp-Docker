@@ -338,25 +338,7 @@ CI read の経路の固定（候補の列挙、binding、read の検証、`gh ap
 
 PR が明示されず queue 待機を依頼された場合だけ subscription を使う。
 
-| Resource | 用途 |
-| --- | --- |
-| `queue://review/queue` | `opened` / `synchronized` / `re-review-requested` を含む通常レビュー起動 |
-| `queue://review/re-review-requests` | `re-review-requested` だけを受ける reviewer-side handoff |
-
-再レビュー待機では必ず `queue://review/re-review-requests` を使う。通常 queue では先行する `synchronized` 通知で待機が終了し、直後の再レビュー依頼を見逃す可能性がある。
-
-native `subscriptions/listen` が使えなければ、repository の運用ガイドに従って `mcp-resource-subscriber`（v0.6.0 以降）を使う。thread-owl の MCP URL は、環境変数 `MCP_PROBE_URL` があればそれを使って `--url` を省略する。なければ `<MCP_GATEWAY_PUBLIC_URL>/mcp/thread-owl` を渡す。どちらも未設定なら推測せず `QUEUE_WAIT_FAILED` として停止する。
-
-```powershell
-# MCP_PROBE_URL が設定済みの場合は --url 行を省く
-bunx mcp-resource-subscriber `
-  --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
-  --uri queue://review/re-review-requests `
-  --timeout-ms 900000 `
-  --json
-```
-
-`json.route` が `"subscription"` または `"pre-completion"` であることを確認し、`json.finalText` をパースして `owner`、`repo`、`prNumber`、`reason` を取得する。`route` が `"timeout"` または `"failed"` の場合はレビュー完了として扱わない。
+この手順に入るときは、`references/queue-wait.md` を必ず読み、その規則に従う（resource の選択、subscriber の起動、`json.route` の確認）。読めない場合は、推測せず `QUEUE_WAIT_FAILED` として停止する。
 
 ## モード選択
 
@@ -393,28 +375,7 @@ PR 全体を初回レビューする。queue candidate の `reason` が `opened`
 2. `git rev-parse HEAD` が `reviewedHeadSha` と一致すること
 いずれかを満たさない場合、現在の worktree をレビュー根拠として使用してはならない。
 
-- **dirty/mismatched な状態の扱い:**
-  - 未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。
-  - detached worktree または一時的な clone を作成し、`reviewedHeadSha` を checkout して検証する。
-  - **一時領域（スクラッチディレクトリ）の解決**:
-    - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が設定されている場合：
-      - パスが**絶対パス**であり、かつ**実在するディレクトリ**であることを確認する。
-      - 有効な場合、隔離 worktree / clone、およびビルド成果物やテストログ等の一時ファイルをすべてその配下に作成する（例: `$SQUIRREL_REVIEW_SCRATCH_DIR/<reviewedHeadSha>-worktree`）。
-      - 相対パス、存在しないパス、ファイルパスなど不正な値の場合は、**既定パスへフォールバックしてはならない**（不正な指定を黙って無視しないため）。この場合は隔離環境を作成せず、`local verification: not performed` としてレビューを進行する。
-    - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が未設定または空の場合：
-      - 従来どおり既定の一時パス（OS の一時ディレクトリなど）を使用する（CLI 直接起動の互換性を維持）。
-  - **片付け（クリーンアップ）の責務境界**:
-    - 一時領域の削除・片付けはランチャー（Squirrel Notifier 等）の責務とする。
-    - skill は検証完了後に `git worktree remove <temporary-path>` などの片付けをベストエフォートで行ってよいが、失敗や未実施であってもレビュー失敗としない。
-    - 推奨例:
-      ```bash
-      git fetch origin <reviewedHeadSha>
-      git worktree add --detach <temporary-path> <reviewedHeadSha>
-      # 検証完了後（ベストエフォートで実行。片付けの担保はランチャーが行う）
-      git worktree remove <temporary-path> || true
-      ```
-  - 隔離検証環境を作成できない場合は、ローカル検証を行わず `local verification: not performed` としてレビューを進行する。
-  - **証跡**: evidence やユーザー報告の `worktree path` に、使用した一時領域の出所を記録する（例: `<path> (env: SQUIRREL_REVIEW_SCRATCH_DIR)` または `<path> (default)`）。
+未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。dirty / mismatched な場合の隔離検証（detached worktree / 一時的な clone の作成、一時領域の解決、片付けの責務境界、証跡）は、`references/local-verification.md` を必ず読み、その規則に従う。読めない場合、または隔離検証環境を作成できない場合は、ローカル検証を行わず `local verification: not performed` としてレビューを進行する。
 
 ### 3. 検証後の再確認ゲート
 ビルドやテストが完了した後、かつ投稿処理（Snapshot Guard）の直前に、以下を再確認する。
