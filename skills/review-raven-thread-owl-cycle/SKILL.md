@@ -916,60 +916,7 @@ R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分け�
 
 R-17 のカバレッジ確認では、Codecov 等のカバレッジ PR コメントを評価し、テスト追加の要否を判断する。**patch coverage 100% を暗黙の必須条件・ゲートにしてはならず、Codecov コメントの存在や 100% 未満であることを理由に機械的にテスト追加へ戻ってはならない。**
 
-### 1. レポートの特定と HEAD SHA 検証
-
-1. R-01 投稿者ゲートを通過したコメントの中から、`normalize_login(author.login)` が `codecov` と一致する最新コメントを特定する（該当コメントが存在しない場合はカバレッジ評価をスキップし、Phase 7 へ進む）。
-2. レポート本文に含まれる対象コミット SHA が、Phase 6.5 で固定した `reviewedHeadSha` と完全一致することを確認する。
-   - 一致しない場合（過去コミットに対する古いレポートの場合や、最新 HEAD のレポートが未生成の場合）：そのレポートに基づく合否判定は行わず、カバレッジ結果を「評価待ち（pending / stale）」として記録する。古いレポートの未カバー行を理由とするテスト追加（Phase 4）へは戻らない。
-3. レポートから **patch coverage**（今回の変更行に対するカバレッジ）と **project coverage**（リポジトリ全体に対するカバレッジ）を明確に区別して読み取る。
-
-### 2. 運用モードの判定（ゲート運用 vs 情報提供運用）
-
-リポジトリにおけるカバレッジの運用モードを次のように判定する：
-
-- **ゲート運用（Gate Mode）**:
-  - リポジトリ設定ファイル（`.codecov.yml`, `codecov.yml` の `coverage.status.patch` 等）またはリポジトリの開発規約ドキュメントで、合格閾値（target / threshold）が明示されている場合。
-  - 明示された閾値との比較により合否を判定する。
-- **情報提供運用（Informative Mode）**:
-  - リポジトリに明示的なカバレッジ閾値が定義されていない場合。
-  - **Codecov レポートは情報提供（informative）として扱い、coverage の数値や未カバー行の存在だけを理由に自動でテスト追加（Phase 4）へ戻してはならない。** カバレッジ結果をサマリ用に記録した上で、Phase 7 へ進む。
-
-### 3. テスト方針と「テストで解消可能な gap」の判定基準
-
-ゲート運用で閾値を下回っている場合、またはテスト追加を検討する場合、次のテスト方針に従って gap を評価する：
-
-1. **振る舞い・契約テストの優先**:
-   - 行単位の実行網羅（line coverage の数値向上）を目的にテストを書いてはならない。
-   - テストはソフトウェアの仕様・振る舞いを保護するために追加する。次の検証を優先する：
-     - **入力と応答の対応**: 主要なユースケース、期待される出力値
-     - **正常系・異常系の境界**: 境界値、バリデーションエラー、エラーハンドリング
-     - **状態遷移の整合性**: 状態変化を伴う操作の前後関係
-     - **重要な副作用やデータ整合性**: ファイル書き込み、外部通知、永続化データの正確性
-2. **既存外部挙動の保護（回帰テストの独立性）**:
-   - 既存の外部から観測可能な振る舞いを保護する回帰テストは、line coverage の代替ではなく**独立した品質要件**として扱う。
-   - 変更によって既存の外部契約が壊れていないことを確認することを最優先とする。
-3. **設計上カバー不要な例外行（テスト対象外）**:
-   以下の未カバー行は「テストで解消すべき gap」から除外し、カバレッジ未達の正当な例外として扱う：
-   - **防御的分岐**: 「起こりえないシナリオへのフォールバック」やフェイルセーフのための分岐で、通常の入力・モックでは到達不能なもの
-   - **環境・プラットフォーム依存コード**: 特定の OS やハードウェア、実行環境でのみ動作する分岐
-   - **外部サービスの致命的障害・低レイヤエラーハンドラ**: ネットワーク切断、メモリ枯渇、ファイルシステム破損など、現実的にテスト環境で安全にシミュレート困難な極限エラー
-   - **自動生成コード・定数宣言・型定義**: ロジックを含まないボイラープレートコード
-   - **診断・デバッグ用補助コード**: 通常の実行パスで呼ばれない補助ログや診断情報
-
-### 4. ルーティングと停止条件
-
-- **通常進行（Phase 7 へ）**:
-  - 情報提供運用である場合。
-  - ゲート運用で明示閾値を満たしている場合。
-  - ゲート運用で閾値未達であっても、未カバー行がすべて設計上カバー不要な例外行である場合。
-- **テスト追加（Phase 4 へ戻る）**:
-  - ゲート運用で明示閾値を下回っており、かつ「振る舞い・契約テストとして追加すべき gap」が存在する場合。
-  - ただし、**同一サイクル内でのカバレッジ起因の Phase 4 戻りは最大 1 回**とし、かつ `cycles_done < max_cycles` の場合のみ Phase 4 へ戻る（`fix_type = logic`）。
-- **人手エスカレーション（Phase 7 へ進みサマリで報告）**:
-  - 同一サイクルで既に 1 回カバレッジ修正を行っても閾値未達の場合。
-  - `cycles_done ≥ max_cycles` に達している場合。
-  - 残存 gap の解消に設計上の不合理（過度な実装詳細への結合テスト等）が必要と判断される場合。
-  - この場合は自律的に無理なテスト追加を繰り返さず、未カバー箇所の理由と現状数値をサマリコメントの検証欄に記録し、人の判断を仰ぐために **Phase 7 へ進む**。
+この確認に入るときは、`references/coverage.md`（レポートの特定と HEAD SHA 検証、運用モードの判定、テスト方針、ルーティングと停止条件）を必ず読み、その規則に従う。読めない場合は、カバレッジを `COVERAGE_UNKNOWN` として記録し、Phase 4 へ戻らずに Phase 7 へ進む。ゲート運用か情報提供運用かを判定できない旨をサマリに書き、人の判断を仰ぐ（自律的にテストを追加しない）。
 
 ## Phase 7: サマリコメント投稿
 
@@ -1048,46 +995,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 
 Phase 8 のマージ判断へ進む前に、レビュー完了通知だけに依存せず、今回の reviewed-side cycle の完了記録を作成して `mcp-docker` で検証します。完了記録はマージの唯一の根拠ではなく、現在のPR・スレッド・required checksと再照合するための証跡です。
 
-1. Phase 7 のサマリ投稿と投稿者確認が成功した直後に、最終スナップショットを取り直します。
-   - `{GH}:get_pr` で現在のPR HEADを取得し、`final_head` として固定する。Phase 6.5 の `reviewedHeadSha` と異なる場合は、古いCI結果を破棄して Phase 6.5 からやり直す。
-   - `{RAVEN}:get_review_threads` に `include_bodies=false` を明示して全ページを取得し、`pagination.complete=true` と `summary.unresolved=0` を確認する。未解決が残る場合は `REVIEW_INCOMPLETE` として停止する。
-   - `all_replied=true` は、今回のサイクルで対象にした全スレッドの返信・resolve結果、および review body / PR comment の全 actionable 指摘に対する返信・処理済み記録を確認できた場合だけ設定する。未確認を `true` にしてはならない。
-   - Phase 6.5 と同じCI read bindingで `final_head` の全ページを取得し、`sha`、各 `head_sha`、`pagination.complete` を再確認する。repository policyから確定した全 required check を `requiredChecks` に列挙し、すべて `status=completed` かつ `conclusion=success` であることを確認する。
-2. 作業ツリー外の一時ファイルへ、次のJSONを1つだけ書き出します。`skillRevision` は Phase 0 で取得した埋め込みskillのrevision、`unresolved_count` は最終スナップショットの値、`ci.requiredChecks` はrequired checkだけを使います。
-
-```json
-{
-  "contractVersion": 1,
-  "repo": "owner/repository",
-  "prNumber": 123,
-  "headSha": "<final_head>",
-  "skillId": "review-raven-thread-owl-cycle",
-  "skillRevision": 18,
-  "skillCompleted": true,
-  "all_replied": true,
-  "unresolved_count": 0,
-  "ci": {
-    "headSha": "<final_head>",
-    "complete": true,
-    "requiredChecks": [
-      {
-        "name": "<required check name>",
-        "headSha": "<final_head>",
-        "status": "completed",
-        "conclusion": "success"
-      }
-    ]
-  }
-}
-```
-
-3. 次のコマンドを、最終PR HEADを再取得した値で実行します。`--record` は作業ツリー外の一時ファイルを指定し、記録をリポジトリへコミットしません。
-
-```text
-mcp-docker reviewgate validate --record <record-path> --repo <owner/repository> --pr <number> --head-sha <final_head>
-```
-
-4. `reviewgate: valid` の出力を得た場合だけ、完了記録のパス、対象HEAD、skill revision、required check数、検証結果を Phase 8 の証跡へ記録します。コマンドが見つからない、埋め込みskillを解決できない、revisionが一致しない場合は、それぞれ `REVIEW_GATE_UNAVAILABLE` または `SKILL_UNAVAILABLE` として停止します。完了記録の他の契約違反は返された停止コードのまま扱い、マージ準備完了とは報告しません。
+この手順に入るときは、`references/completion-record.md`（最終スナップショット、完了記録の JSON、`mcp-docker reviewgate validate` の実行）を必ず読み、その規則に従う。`reviewgate: valid` を得るまで Phase 8 へ進まず、マージ準備完了と報告しない。停止コード: 最終スナップショットで未解決が残る場合は `REVIEW_INCOMPLETE`、`mcp-docker` が見つからない場合は `REVIEW_GATE_UNAVAILABLE`、埋め込み skill を解決できない・revision が一致しない場合は `SKILL_UNAVAILABLE` として停止する（完了記録の他の契約違反は、`reviewgate validate` が返した停止コードのまま扱う）。`references/completion-record.md` を読めない場合は、完了記録を作成・検証できないため `REVIEW_GATE_UNAVAILABLE` として停止する。
 
 ## Phase 8: マージ判断
 
