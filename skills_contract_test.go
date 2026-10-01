@@ -145,15 +145,29 @@ func TestSkillContractIsWellFormed(t *testing.T) {
 	}
 }
 
-// 契約表の行 ID は、見出し（### R-09: …）または表の行（| R-09 | …）として、SKILL.md に残す。
-func TestSkillContractRowIDsRemain(t *testing.T) {
+// 行 ID（R-09 など）の見出し（### R-09: …）または表の行（| R-09 | …）。
+var rowIDLine = regexp.MustCompile(`(?m)^(?:#{3} |\| )([A-Z]-\d+[ab]?)\b`)
+
+// 契約表の行 ID は、SKILL.md の見出し（### R-09: …）または表の行（| R-09 | …）と、双方向に一致させる。
+// 契約にある ID が SKILL.md から消えた場合と、SKILL.md に新しい ID を足して契約への登録を忘れた場合の、どちらも検出する。
+func TestSkillContractRowIDsMatch(t *testing.T) {
 	for name, c := range loadSkillContracts(t) {
 		t.Run(name, func(t *testing.T) {
-			body := skillTexts(t, name)["SKILL.md"]
+			found := map[string]struct{}{}
+			for _, m := range rowIDLine.FindAllStringSubmatch(skillTexts(t, name)["SKILL.md"], -1) {
+				found[m[1]] = struct{}{}
+			}
+
+			registered := map[string]struct{}{}
 			for _, id := range c.RowIDs {
-				re := regexp.MustCompile(`(?m)^(?:#{3} |\| )` + regexp.QuoteMeta(id) + `\b`)
-				if !re.MatchString(body) {
+				registered[id] = struct{}{}
+				if _, ok := found[id]; !ok {
 					t.Errorf("行 ID %q が SKILL.md に無い（見出し「### %s: …」または表の行「| %s | …」として残す）", id, id, id)
+				}
+			}
+			for _, id := range sortedKeys(found) {
+				if _, ok := registered[id]; !ok {
+					t.Errorf("SKILL.md の行 ID %q が契約に無い。意図した追加なら、%s の rowIDs に追加してください", id, skillContractPath)
 				}
 			}
 		})

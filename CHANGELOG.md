@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 改善
 
-- #326（PR4-0）: skill の「契約」（契約表の行 ID と、停止コード・ラベル・外部の語）を `testdata/skill-contract.json` に固定し、skill 本文の再構成で、停止の定義や行 ID を気づかずに失わないための検査（`skills_contract_test.go`）を追加した。契約表の圧縮と `references/` への移動（#326 の PR4-1 以降）の安全網で、skill 自体は変えない（revision は変わらない）。検査するのは、(1) 行 ID が SKILL.md に残っていること（見出し `### R-09: …` または表の行 `| R-09 | …`）、(2) skill 内の UPPER_SNAKE の語が、すべて停止コード・ラベル・外部のいずれかに分類されていること、(3) 契約にある語が、skill から消えていないこと。意図した追加・削除・改名は、`testdata/skill-contract.json` の差分としてレビューする。
+- #326（PR4-0）: skill の「契約」（契約表の行 ID と、停止コード・ラベル・外部の語）を `testdata/skill-contract.json` に固定し、skill 本文の再構成で、停止の定義や行 ID を気づかずに失わないための検査（`skills_contract_test.go`）を追加した。契約表の圧縮と `references/` への移動（#326 の PR4-1 以降）の安全網で、skill 自体は変えない（revision は変わらない）。検査するのは、(1) 行 ID が、SKILL.md（見出し `### R-09: …` または表の行 `| R-09 | …`）と契約で、双方向に一致すること（消えた ID と、契約に登録されていない新しい ID の、両方を検出する）、(2) skill 内の UPPER_SNAKE の語が、すべて停止コード・ラベル・外部のいずれかに分類されていること、(3) 契約にある語が、skill から消えていないこと。意図した追加・削除・改名は、`testdata/skill-contract.json` の差分としてレビューする。
 
 ## [2.30.2] - 2026-10-01
 
