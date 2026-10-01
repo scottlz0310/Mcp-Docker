@@ -23,6 +23,25 @@ redesign_targets:
 
 # #258 skill のツール棚卸し
 
+> **注記（2026-10-02。#326）**: この文書は、2026-09-10 の時点（skill revision: reviewed 3 / reviewer 1）の調査記録で、本文は変更しない。以降の #326 で、両 skill の本文を再構成した。**ID（R-xx / O-xx）は変わらず、各 SKILL.md の契約表（「R-00〜R-22」「O-00〜O-21」）の行 ID として残っている**。8 項目（`precondition` など）の定型は、「共通規則 + 1 行 1 操作の表」（操作と tool・入力 → 出力・既定との差分・停止コード）に変わり、停止コードの定義は、各 SKILL.md の「停止コード」の表に集めた（`testdata/skill-contract.json` が行 ID と停止コードを固定し、テストが検査する）。手順の詳細は `references/` へ移った。この文書の ID・節から、現在の所在を引くには、次の表を使う。
+>
+> | この文書の ID・節 | 現在の所在（`skills/<skill>/` の下） |
+> |---|---|
+> | R-00 / O-00（alias の discovery と固定、write route・投稿 identity の観測） | reviewed・reviewer の `references/discovery.md`。契約表の行には、不変条件だけを残した |
+> | O-00（queue 起点の待機） | reviewer の `references/queue-wait.md` |
+> | R-01（必須コメント投稿者ゲート）、プロジェクト固有の追加許可リスト | reviewed の SKILL.md「必須コメント投稿者ゲート」と `references/author-gate.md` |
+> | R-13〜R-15（起動モードの判定、再レビュー依頼コメント、queue への登録） | reviewed の `references/re-review-request.md`（コメントのフォーマットは SKILL.md の Phase U6） |
+> | R-16 / Phase 6.5（CI と失敗ログ）、O-06・O-15（CI） | reviewed・reviewer の `references/ci-check.md` |
+> | R-17 / Phase 6.6（Codecov） | reviewed の `references/coverage.md` |
+> | R-20 / Phase 8（merge の人手境界） | reviewed の `references/merge-decision.md` |
+> | R-22 / Phase W（レビュー完了待機） | reviewed の `references/review-wait.md` |
+> | Phase 7.5（完了記録） | reviewed の `references/completion-record.md` |
+> | Phase 7 の対応サマリ | reviewed の `references/summary-template.md` |
+> | O-04（ローカル検証の隔離） | reviewer の `references/local-verification.md` |
+> | O-12（完了サマリー・Verdict の投稿） | reviewer の `references/verdict.md`（Verdict 照合規則は、両 SKILL.md に同一の内容で置く） |
+> | O-14〜O-19（再レビュー、thread follow-up） | reviewer の `references/re-review.md` |
+> | reviewed の「ツール対応表」、「旧アノテーションからの移行」 | 削除した（前者は契約表の `primary tool` に統合。後者は、旧形式のコメントが残っていないことを確認した） |
+
 ## 結論
 
 この環境での推奨経路は次のとおりです。
