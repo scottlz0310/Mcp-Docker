@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 改善
+
+- #344: CI（`lint-test.yml`）の Antigravity CLI のセットアップを、`curl -fsSL .../install.sh | bash`（検証なしで実行）から、取得（`--retry 3 --retry-all-errors`。1 回ごとに `--connect-timeout 10 --max-time 60`）、検証（先頭が `#!` のシェルスクリプトであること）、実行（`timeout 180`）の順に分けた。応答が接続後に止まっても、job の timeout まで滞留しない。外部の一時的な失敗（2026-10-01 に 2 回、壊れた応答で構文エラーになり、Go CLI チェックが落ちた）で CI を落とさない: 取得・検証・実行のどれかに失敗したときは、警告（annotation）を出して `agy` なしで続行する（`agy` を使うバイナリ仕様検証のテストは、PATH に無ければ `t.Skip` する）。成功した場合は従来どおり、仕様乖離を検出する。
+
 ## [2.30.1] - 2026-10-01
 
 ### 🔧 改善

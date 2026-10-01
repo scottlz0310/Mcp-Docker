@@ -78,10 +78,38 @@ jobs:
         with:
           version: v2.14.0
 
+      # 外部のスクリプトを、検証せずに実行しない（curl | bash は、壊れた応答や、意図しない内容もそのまま実行する）。
+      # 取得（再試行つき）、検証（シェルスクリプトであること）、実行の順に行う。
+      # 外部の一時的な失敗で CI を落とさない: agy を使うテストは、PATH に無ければ t.Skip する。
+      # ただし、仕様乖離の検出が黙って無くならないよう、失敗は警告（annotation）で見えるようにする（#344）。
+      # 応答が接続後に止まる場合は、curl が --retry の対象のエラーを返さず待ち続けるため、取得と実行の両方に時間の上限を置く
+      # （上限に達したら、取得・実行の失敗として警告し、続行する。job の timeout まで滞留させない）。
       - name: Antigravity CLI セットアップ（バイナリ仕様検証用）
         run: |
-          curl -fsSL https://antigravity.google/cli/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          set -uo pipefail
+          script="$RUNNER_TEMP/antigravity-install.sh"
+
+          warn() {
+            echo "::warning title=Antigravity CLI::$1。agy に依存するテスト（バイナリ仕様検証）はこの回 skip されます"
+          }
+
+          if ! curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 --connect-timeout 10 --max-time 60 -o "$script" https://antigravity.google/cli/install.sh; then
+            warn "install.sh を取得できませんでした"
+            exit 0
+          fi
+          if [ "$(head -c 2 "$script")" != '#!' ]; then
+            warn "取得した install.sh がシェルスクリプトではありません（先頭が #! ではない）"
+            exit 0
+          fi
+          if ! timeout 180 bash "$script"; then
+            warn "install.sh の実行に失敗しました（または 180 秒で終わりませんでした）"
+            exit 0
+          fi
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          if ! PATH="$HOME/.local/bin:$PATH" command -v agy >/dev/null; then
+            warn "install.sh は成功しましたが、agy が $HOME/.local/bin にありません"
+          fi
 
       - name: Go テスト
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
