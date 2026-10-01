@@ -209,6 +209,11 @@ services:
       # volumes に ${THREAD_OWL_PEM_PATH}:/data/github-app.pem:ro を追加してください。
       - GITHUB_APP_PRIVATE_KEY_B64=${THREAD_OWL_GITHUB_APP_PRIVATE_KEY_B64}
       - ALLOWED_REPOS=${THREAD_OWL_ALLOWED_REPOS}
+      # PR の作成者として信頼する GitHub の login（カンマ区切り。bot は name でも name[bot] でもよい）。
+      # 自分の login と、再レビューを依頼する bot 名義（mcp-gateway-authentication-app）を指定する。
+      # 設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せる（fork は常に拒否）。
+      # 未設定の間は作成者・fork を検証しない（暫定。thread-owl の将来のリリースで未設定を拒否に変更する）。
+      - ALLOWED_AUTHORS=${THREAD_OWL_ALLOWED_AUTHORS:-}
       - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}

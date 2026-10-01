@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ 新機能
+
+- thread-owl#236: `docker-compose.yml` の `thread-owl` サービスへ、`ALLOWED_AUTHORS`（PR の作成者として信頼する GitHub の login）を渡す `THREAD_OWL_ALLOWED_AUTHORS` を追加。thread-owl は、設定されると、許可された作成者の同一リポジトリの PR だけを review queue に載せ、fork からの PR は常に拒否する。自分の login と、再レビューを依頼する bot 名義（`mcp-gateway-authentication-app`）を、カンマ区切りで指定する。**既定は空（未設定）で、作成者・fork を検証しない（従来どおり）**。thread-owl の将来のリリースで、未設定を fail-closed（全拒否）に変更する予定（thread-owl#244）のため、先に設定しておく。この機能には、`ALLOWED_AUTHORS` に対応した thread-owl のイメージが要る（未対応のイメージでは無視される）。
+
 ## [2.29.1] - 2026-10-01
 
 ### 🐛 バグ修正
