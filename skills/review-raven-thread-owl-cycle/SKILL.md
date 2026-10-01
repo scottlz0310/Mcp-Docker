@@ -16,7 +16,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 再レビュー依頼は `@thread-owl re-review requested` PR コメントとして投稿する。**コメントの投稿だけでは queue に載らない構成があり、その場合は `enqueue_review(reason: "re-review-requested")` の実行までを 1 組**として reviewed-side cycle が完了する。
 
-> **どちらが必要かは thread-owl の起動モードで決まる。** 手順に入る前に「起動モードの判定」節を読むこと。
+> **どちらが必要かは thread-owl の起動モードで決まる。** 手順に入る前に「起動モードの判定」節（`references/re-review-request.md`）を読むこと。
 > `--mcp-http`（webhook 受信なし）では、コメントを投稿しても review queue には何も積まれない。queue に event が載らない限り、Squirrel Notifier の Recent review events にも通知ポップアップにも「レビューする」ボタンは現れず、**サイクルが静かに停止する**。この構成では `enqueue_review` は省略可能な手順ではない。
 
 > **このファイルについて**
@@ -41,7 +41,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 > このスキルでは、第一選択として `review-raven` MCP ツールを使用してスレッドの取得・返信・解決を行います。必須コメント投稿者ゲートでは `get_review_threads` に `include_bodies=false` を渡し、ゲート通過後にだけ `include_bodies=true` で本文を取得します。`gh` CLI は、論理 alias の discovery と read 検証が成功した後に、各手順で明記された read-only の補完経路としてのみ使用します。discovery に失敗した場合、`gh` CLI を別の write 経路として使いません。
 >
-> `thread-owl` はレビュー依頼を review queue へ登録するため（`enqueue_review`）と、Phase W でレビュー状態を待機するため（`review://status/{owner}/{repo}/{prNumber}` resource。thread-owl v0.5.0 以降。前提は Phase W 参照）に使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節を参照してください。
+> `thread-owl` はレビュー依頼を review queue へ登録するため（`enqueue_review`）と、Phase W でレビュー状態を待機するため（`review://status/{owner}/{repo}/{prNumber}` resource。thread-owl v0.5.0 以降。前提は Phase W 参照）に使用します。**フォールバック経路はありません**（`gh` CLI から queue へは登録できません）。使用要否は thread-owl の起動モードによって決まります。「起動モードの判定」節（`references/re-review-request.md`）を参照してください。
 
 ### 必要な CLI
 
@@ -60,28 +60,9 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 `mcp-docker reviewgate validate` は、レビュー完了の通知やskill実行だけではマージ可能と判断しないためのローカル検証コマンドです。完了記録のJSON、直前に再取得したPRのrepository・番号・HEAD SHAを入力し、実行中バイナリに埋め込まれた `review-raven-thread-owl-cycle` のrevisionとも照合します。このコマンドが存在しない、または埋め込みskillを解決できない場合は、完了扱いにせず停止します。
 
-### R-00: 論理 alias の discovery と固定
+### 論理 alias の discovery と固定（R-00）
 
-`{GH}` / `{RAVEN}` / `{OWL}` は論理 alias であり、MCP client が割り当てた server 名・tool 名・namespace を skill 本文に書かない。各 alias の実体は、対象 PR と起動モードが確定した時点で、実行中の client の discovery 結果から解決する。
-
-1. client-native の server / tool / resource discovery を実行し、候補ごとに server の識別情報、transport / route、tool または resource の opaque handle、input / output schema を記録する。server 一覧の `Connected` 表示や tool 名の存在だけでは、利用可能と判定しない。
-2. 候補は文字列の prefix / namespace ではなく、論理 alias に必要な capability と schema で分類する。method 引数で操作を切り替える tool と操作ごとに分かれた tool は、schema が契約を満たす限り同じ論理候補として扱う。
-3. 選択規則は次のとおりとする。
-   - host / client の設定で alias に明示的な server binding が指定されている場合は、それを優先する。
-   - 明示指定がない場合は、必要な capability・input schema・minimum output schema を満たす候補が一つだけのときに限り採用する。同一 server 内の操作別 tool は、その server binding に属する操作候補として扱う。
-   - 複数の server / route が残る場合、discovery 順や表示名だけで選ばず、`BLOCKED_MCP_DISCOVERY` として停止する。異なる認証経路を自動的に試してはならない。
-4. 採用した各 binding について、write ではない最小の read を **1 回成功** させる。成功とは transport が応答しただけでなく、tool error がなく、論理契約の minimum output schema を満たすことをいう。server 一覧、schema の取得、resource の存在確認だけでは read 成功とみなさない。`{RAVEN}` の minimum read は `get_review_threads` に `include_bodies=false` を明示した metadata-only 呼び出しとし、`include_bodies` の入力 schema、本文を含まない出力、`pagination.complete=true` を検証する。本文ありの read は必須コメント投稿者ゲートが成功するまで実行しない。
-5. alias から選択済み binding への対応表と、各論理操作に使う tool / resource handle をこの run の状態として固定する。以後は同じ binding を使い、途中の再 discovery、候補の切り替え、失敗した write の別経路への迂回を行わない。後続の transport failure は新しい候補を探す理由にせず、停止・報告する。
-6. `{RAVEN}` の `list_check_runs_for_sha`（R-16 / Phase 6.5 の CI read）は**任意 capability**として扱う。採用した `{RAVEN}` binding にこの tool があり、input（`owner` / `repo` / 40 桁小文字 hex の `sha`）と output（`sha`、`check_runs[].head_sha` / `name` / `status` / `conclusion` / `app`、`pagination.complete`、`deduplication.strategy`）の schema が一致する場合に CI read の第一選択として固定する。無い（review-raven v0.5.0 未満）または schema 不一致の場合だけ、Phase 6.5 の `gh api` fallback を CI read 経路として固定する。**この任意 capability の不在を `BLOCKED_MCP_DISCOVERY` にしない。**どちらの経路を使うかは discovery 時点で決め、実行時の tool error や transport failure から切り替えない。
-
-候補を解決できない、未接続、schema 不一致、read 検証失敗、または複数候補を一意に選べない場合は、次の状態で停止する。
-
-```text
-termination_status = BLOCKED_MCP_DISCOVERY
-status = blocked
-```
-
-この場合は、対象 PR（確定済みの場合）、logical alias、必要 capability、候補数、失敗分類（unresolved / not connected / schema mismatch / read failed / ambiguous）、read 検証の結果、`writes performed: 0`、再実行に必要な設定変更を報告する。token・Authorization header・秘密情報は報告しない。`gh` CLI、別の MCP candidate、別の write 経路へ進まず、Phase 3 以降の変更・返信・resolve・コメント投稿・enqueue を実行しない。
+`{GH}` / `{RAVEN}` / `{OWL}` は論理 alias であり、MCP client が割り当てた server 名・tool 名・namespace を skill 本文に書かない。各 alias の実体は、対象 PR と起動モードが確定した時点で、実行中の client の discovery 結果から解決し、binding を固定する。候補を一意に解決できない場合は `BLOCKED_MCP_DISCOVERY` として停止する。この手順（alias の discovery、write route と投稿 identity の観測を含む）に入るときは、`references/discovery.md` を必ず読み、その規則に従う。読めない場合は、規則を推測で補わず、`REFERENCE_UNREADABLE` として停止し、Phase 3 以降の変更・返信・resolve・コメント投稿・enqueue を実行しない。
 
 ---
 
@@ -89,16 +70,7 @@ status = blocked
 
 ### Write route と投稿 identity の discovery
 
-R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub write binding も固定する。投稿 identity は route / server instance / 認証経路に依存して変わり得るため、`get_me` の成功や token 種別から推測しない。
-
-1. `{GH}` の issue-comment write capability について、server instance / route / opaque handle、input / output schema、想定される fallback を候補ごとに列挙する。
-2. 明示 binding があれば優先し、なければ capability・schema・repository 対象が一意な候補だけを `write_binding` として採用する。R-00 完了後は R-10、R-14、R-19 の全 write で同じ binding を使う。
-3. `get_me` は診断補助にとどめ、失敗しても停止条件にしない。write capability の結果で comment ID を得た後、同じ PR の issue-comment metadata を comment ID で再取得し、実際の `author.login` を `write_author_login` として観測する。
-4. route の投稿 identity が未観測の場合は、実装対象とは分離した、明示的に許可された probe PR へラベル付きコメントを一件だけ投稿して identity を確認する。comment ID と author.login を紐付けられない場合は、実質的な PR write を開始しない。
-5. `write_binding` と `write_author_login` を run の状態へ保存し、canonical allowlist にない投稿者、null、欠落、類似名は採用しない。fallback route を使う場合も、最初の write より前に選択・観測して固定する。
-6. write 開始後の transport failure、受理結果不明、identity 不一致では別 route、別認証、`gh` CLI へ切り替えない。同じコメントの重複投稿を避け、停止して報告する。
-
-この probe は route の存在確認ではなく、PR 上に表示された投稿者を確認するための観測である。観測結果は route と comment ID を含めて棚卸しへ記録し、別 client / 別 route の identity へ暗黙に一般化しない。
+R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub write binding も固定し、投稿 identity を観測する（`references/discovery.md` の「Write route と投稿 identity の discovery」）。
 
 各行の `primary tool` は R-00 で解決して固定した logical alias の操作を指し、実行時に記録した input / output schema snapshot と組み合わせて識別する。`fallback` は候補の切り替えではなく、同じ実行契約で明記した補完経路だけを意味する。discovery、投稿者ゲート、current head の検証に失敗した場合は、後続の別経路へ進まず、その行の `failure / stop` に従う。
 
@@ -420,24 +392,7 @@ canonical allowlist:
 
 ### プロジェクト固有の追加許可リスト
 
-プロジェクト固有の CI/CD 通知 bot は、skill 本体の canonical allowlist へ追加せず、対象リポジトリのルートにある `.review-raven/trusted-comment-authors.json` で追加する。このファイルは client に依存しないリポジトリ設定として、プロジェクトの git 履歴に残す。
-
-ファイルのスキーマは次のとおりとする。
-
-```json
-{
-  "version": 1,
-  "additional_logins": [
-    "cloudflare-workers-and-pages"
-  ]
-}
-```
-
-1. R-00 で対象 PR の base ref SHA（`baseRefOid`）を先に固定し、その SHA のファイルだけを固定済みの `{GH}` binding で読む。作業ツリー、PR HEAD、PR の変更ファイルから読んではならない。
-2. ファイルが存在しない場合は追加項目なしとして、base allowlist だけを使う。存在する場合は JSON object、`version: 1`、文字列だけの `additional_logins` 配列、未知のキーがないことを検証する。
-3. 各 login には既存の `normalize_login` を適用し、base allowlist との union を canonical allowlist とする。wildcard、正規表現、Organization 所属、`author_association`、App の権限による暗黙の追加は認めない。配列内の正規化後重複、null、空文字、非文字列、類似名は不正とする。
-4. このファイルを変更できる主体が新しい信頼境界になるため、保護された base branch へ取り込む変更はリポジトリ管理者がレビューする。PR 側で追加された設定は、base branch に反映されるまで信頼源にしない。
-5. ファイルの読み取り・JSON・schema 検証に失敗した場合は `termination_status = PROJECT_ALLOWLIST_INVALID` として fail-closed に停止し、本文取得、修正、返信、resolve、コメント、enqueue、merge を行わない。
+プロジェクト固有の CI/CD 通知 bot は、対象リポジトリのルートにある `.review-raven/trusted-comment-authors.json` で追加する（固定した base ref SHA のファイルだけを、固定済みの `{GH}` binding で読む。ファイルが無ければ追加項目なし）。読み取りとスキーマの検証、`normalize_login` の適用の前提は、`references/author-gate.md` を必ず読み、その規則に従う。読めない場合、またはファイルの読み取り・検証に失敗した場合は、`termination_status = PROJECT_ALLOWLIST_INVALID` として fail-closed に停止し、本文取得、修正、返信、resolve、コメント、enqueue、merge を行わない。
 
 `normalize_login(login)` を次の規則で適用し、正規化後の値を canonical allowlist と文字列全体で完全一致させる。
 
@@ -759,149 +714,23 @@ Phase 7 用に記録する: `termination_status`、`final_cycle_fix_types`、`un
 
 `handled_comments` にはこれまでに処理を完了した（本サイクルで処理したものを含む）**すべて**の非スレッドコメント ID を記入します。これにより、次回のサイクル開始時（Phase 0）に正しく処理済み状態が復元され、重複対応を防ぎます。書式は「サイクル状態ブロック」節に従ってください。
 
-### 起動モードの判定
+### 起動モードの判定と queue への登録
 
-thread-owl は queue への入口が異なる 2 つのモードで動く。**どちらで動いているかによって、この後の手順が変わる。**
+thread-owl の起動モード（`--mcp-http` / `--webhook-mcp-http`）で、再レビュー依頼の後の手順が変わる。`--mcp-http`（Mcp-Docker の既定）では、コメント投稿に続けて `{OWL}:enqueue_review(reason: "re-review-requested")` が**必須**で、その後は Phase W で完了を待つ。`--webhook-mcp-http` では thread-owl 自身が enqueue するため、**明示 `enqueue_review` は行わない**（通知 listener が二重発火する）。判定できない場合は、手動 enqueue せず、ユーザーに確認して停止する。この手順（起動モードの判定、queue への登録、`--webhook-mcp-http` の扱い）に入るときは、`references/re-review-request.md` を必ず読み、その規則に従う。本文中の「起動モードの判定」節・「queue への登録」節は、その文書の節を指す。読めない場合は、起動モードを推測せず、enqueue もせずに `REFERENCE_UNREADABLE` として停止する。
 
-| 起動モード | `POST /webhook` | `@thread-owl` コメントによる自動 enqueue | 明示 `enqueue_review` |
-|---|---|---|---|
-| `--mcp-http` | 提供しない | **されない** | **必須** |
-| `--webhook-mcp-http` | 提供する | される | **行わない** |
-
-判定方法:
-
-1. thread-owl を Docker で運用している場合は compose 定義の `command` を見る。`docker compose config` または `docker-compose.yml` の `thread-owl` サービスを確認する。
-2. **判定できない場合は手動 enqueue せず、ユーザーに確認して停止する。推測で投げない。** 誤って `--webhook-mcp-http` で手動 enqueue すると通知 listener が二重発火し、reviewer が二重起動し得る。逆に誤って `--mcp-http` で enqueue を省くとサイクルが静かに停止する。どちらも安全側ではないため、**判定を飛ばして先へ進んではならない。**
-
-queue の観測結果から起動モードを推定してはならない。webhook はリトライを伴う非同期配送であり、ある時点で queue に載っていないことは `--mcp-http` である証拠にならない。
-
-**Mcp-Docker の既定構成は `--mcp-http`**（`docker-compose.yml` の `thread-owl` サービスが `command: ["--mcp-http"]`）であり、この場合は次節の enqueue が必須である。
-
-### queue への登録（`--mcp-http` では必須）
-
-コメント投稿に続けて、**同一サイクル内で必ず** `{OWL}:enqueue_review` を実行する。ユーザーの指示を待たない。
-
-- `owner`: `<owner>`
-- `repo`: `<repo>`
-- `prNumber`: `<pr>`
-- `reason`: `"re-review-requested"`
-
-**この手順を省略すると、レビューサイクルはここで静かに停止する。** `--mcp-http` は `POST /webhook` を提供しないため、`@thread-owl` コメントを投稿しても review queue には何も積まれない。queue に event が載って初めて Squirrel Notifier の Recent review events と通知ポップアップに「レビューする」ボタンが現れ、次の reviewer-side cycle を起動できる。
-
-### `--webhook-mcp-http` の場合は enqueue しない
-
-このモードでは `issue_comment.created` を受けて thread-owl 自身が `reason: "re-review-requested"` で enqueue する。コメント投稿だけでサイクルが進むため、**明示 `enqueue_review` を重ねて呼んではならない。**
-
-同一 PR を二重に enqueue しても queue の中身は PR キーで dedup されるが、**enqueue のたびに購読者への通知 listener が発火する**。結果として `notifications/resources/updated` が 2 回飛び、自動レビュー開始が有効な環境では reviewer が二重起動し得る。webhook の delivery-id による重複排除は webhook 受信経路にしか効かず、MCP tool 呼び出しには効かない。
-
-コメント投稿後に queue へ載ったことを確認できない場合でも、**手動 enqueue へ切り替えてはならない。** webhook はリトライを伴う非同期配送であり、ある時点で queue に無いことは「今後も到達しない」ことを意味しない。確認した直後に手動 enqueue し、その後で webhook 側の enqueue が届けば、結局 listener が二重発火する。thread-owl は配送結果を MCP に公開していないため、**未到達を確実に判定する手段は skill 側にない**。
-
-この場合は cycle を完了扱いにせず、**queue に載ったことを確認できない旨をユーザーに報告して停止する**。webhook 経路の疎通（エンドポイントの公開状況、GitHub App 側の配送履歴）の確認と、`--mcp-http` へ切り替えるか webhook を疎通させるかの判断は、ユーザーに委ねる。
-
-`reason` は `opened`（PR 新規作成）/ `synchronized`（既存 PR への push）/ `re-review-requested`（修正対応後の再レビュー）の 3 値である。reviewer 側 skill の起動モード（`initial-review` / `re-review`）とは別物なので混同しない。本スキルが使うのは常に `re-review-requested`。
-
-enqueue は「レビュー対象として queue に載せる」操作であり、**それ自体は reviewer エージェントを起動しない**。したがって「PR を実装したエージェントは自己レビューしてはならない」という規約には抵触しない。自分が更新した PR に対する enqueue は破壊的操作の事前確認の対象外とし、確認なしで実行する。
-
-`enqueue_review` が利用できない場合は、cycle を完了扱いにせず、**queue へ登録できなかったことをユーザーに明示して停止する**。Squirrel Notifier の「レビュー開始」（PR の URL と reason を手入力する導線）がフォールバックである旨も伝える。
-
-**`--mcp-http` では、コメント投稿と enqueue を終えたら Phase W へ進み、レビュー完了を待ってから Phase U2 へ戻る。** ここでの enqueue は Phase W の手順 2 を兼ねるため、Phase W で重ねて呼ばない。`--webhook-mcp-http` では待機せず、コメント投稿をもって reviewed-side cycle を完了する（`review://status` を `pending` にリセットできるのは `enqueue_review` tool だけで、webhook 経由の enqueue ではリセットされないため、待機の完了判定が成り立たない）。
-`--webhook-mcp-http` でも Squirrel Notifier の対象 PR の起動記録を読み取り専用で確認できる場合は、Phase W の「reviewer 起動状態の確認」と同じ区別で報告する。webhook 配送は非同期なので、記録が無い時点で未起動・配送失敗と断定せず、明示 enqueue もしない。
-次の reviewer-side cycle は、queue event を受けた Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> re-review` の明示的な起動指示によって開始される。待機中の reviewed-side はこの起動を行わない。
 
 ---
 
 ## Phase W: レビュー完了待機（`--mcp-http` のみ）
 
-R-22 の実行契約に従い、reviewer-side のレビュー完了を `review://status` resource の更新通知で待つ。ポーリングの代替であり、同一セッションのコンテキストを保ったままレビュー対応へ進むためのステップである。
+R-22 の実行契約に従い、reviewer-side のレビュー完了を `review://status` resource の更新通知で待つ（ポーリングで代替しない）。この手順（前提、`enqueue_review` と購読の起動、reviewer 起動状態の確認、出力の判定、HEAD 照合、停止時の報告）に入るときは、`references/review-wait.md` の「Phase W」を必ず読み、その規則に従う。HEAD 照合は fail-closed で、完了とみなした状態の `headSha` と current PR head のどちらも、enqueue 前に固定した `expected_head` と一致する場合だけ先へ進む。読めない場合は、待機を始めず `REFERENCE_UNREADABLE` として停止する。
 
-### 前提
-
-- thread-owl v0.5.0 以降。`review://status/{owner}/{repo}/{prNumber}` resource は v0.4.3 で、reviewer-side が approve 時に使う `post_review_verdict` は v0.5.0 で追加された。v0.5.0 未満では、approve に至った reviewer-side が `VERDICT_TOOL_UNAVAILABLE` で完了通知を出さずに停止するので、待機は `REVIEW_WAIT_TIMEOUT` になる。
-- reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に完了通知 write を 1 回呼ぶこと（approve なら `post_review_verdict`、それ以外は `post_summary_comment`）。thread-owl の状態が `reviewed` になるのは `post_summary_comment` / `post_review_verdict`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
-- 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
-- `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
-
-### 手順
-
-1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
-2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を `enqueued_after` として控える。
-   - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
-   - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
-3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（Mcp-Docker の compose は thread-owl をホストへ公開しないので、mcp-gateway の route を経由する）。
-
-   1. 環境変数 `MCP_PROBE_URL` が設定されていれば、subscriber がそれを `--url` として読むので `--url` を省略する。
-   2. 未設定で `MCP_GATEWAY_PUBLIC_URL` が設定されていれば、`<MCP_GATEWAY_PUBLIC_URL>/mcp/thread-owl`（末尾の `/` は重ねない）を `--url` に渡す。
-   3. どちらも未設定なら URL を推測せず、`REVIEW_WAIT_FAILED`（URL 未解決）として停止し、どちらかの設定をユーザーに依頼する。
-
-   ```powershell
-   # MCP_PROBE_URL が設定済みの場合は --url 行を省く
-   bunx mcp-resource-subscriber `
-     --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
-     --uri review://status/<owner>/<repo>/<prNumber> `
-     --timeout-ms 1200000 `
-     --json
-   ```
-
-   - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx mcp-resource-subscriber --login --url <同じ URL>` の実行を依頼する。
-   - `--timeout-ms` は 20 分。reviewer の起動前の CI 確定待ち（Squirrel Notifier。最大 12 分）と reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まるこの待機の内側に入るため。20 分は多くの CLI の shell tool のタイムアウトを超えるので、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。この値は **1 回の購読の上限で、合計の待機の上限ではない**（待ち行列や reviewer の実行時間で 20 分を超える。タイムアウト後は手順 4 の表）。
-   - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
-   - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
-
-
-   **reviewer 起動状態の確認**: subscriber を待機させたまま、同じ Windows ホストの `%LocalAppData%\SquirrelNotifier\review-status.json`（Squirrel Notifier v0.16.0 以降の公開契約）を読み取り専用で読み、`references/review-wait.md` の表で、対象 PR（小文字の `owner/repo#N`。`receivedAt` が `enqueued_after` より後のもの）の状態を判断する。起動待ち（`holdReason` を添える）、実行中、終了（`exitCode`）、受信していない、観測不能を、確認できた事実だけ、1 行で伝える。`pending` や queue 登録だけで起動済みとは言わない。`outcome` / `exitCode` はプロセスの終了結果で、Verdict ではない。
-
-   `holdReason = manual`（自動起動が off、または手動運用）は利用者の操作待ちなので、Squirrel Notifier の「レビューする」か、別 CLI の `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。別 CLI の直接起動は Squirrel Notifier が観測しないため、`review-status.json` には出ない。既に起動中の reviewer を重複起動しない。
-
-   確認できた事実と推測を分けてユーザーへ短く伝え、subscriber の待機を続ける。未確認を理由に再 enqueue したり、この実装側セッションで reviewer skill を起動したりしない。
-4. JSON 出力を判定する。
-
-   | 出力 | 扱い |
-   |------|------|
-   | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | HEAD 照合（下記）へ |
-   | `errorCode = NOTIFICATION_TIMEOUT` で、`initialText` の `status` が `reviewed` / `approved` | 待機前に完了していたとみなし、`initialText` で HEAD 照合（下記）へ |
-   | `errorCode = NOTIFICATION_TIMEOUT`（上記以外） | `references/review-wait.md`（現在値の再取得、Squirrel Notifier の公開状態の確認、再購読）を必ず読み、その規則に従う。読めない場合は `REVIEW_WAIT_TIMEOUT` で停止する |
-   | `errorCode = RESOURCE_NOT_FOUND` | `enqueue_review` 前の起動か、thread-owl の再起動による状態消失。手順 2 からのやり直しを 1 回だけ行い、再発したら `REVIEW_STATUS_NOT_FOUND` で停止する |
-   | `errorCode = SUBSCRIPTION_NOT_HONORED` | `--uri` が小文字か確認する。大文字が含まれていた場合だけ小文字にして手順 3 を 1 回だけ再実行し、それ以外は `REVIEW_WAIT_FAILED` で停止する |
-   | `errorCode = AUTH_LOGIN_REQUIRED` | `REVIEW_WAIT_FAILED` で停止し、`--login` の実行を依頼する |
-   | 上記以外の `failed` / `timeout`、JSON 不正、対象 PR 不一致 | `REVIEW_WAIT_FAILED` で停止する |
-
-   **HEAD 照合（fail-closed）**: 完了とみなした状態の `headSha` を、手順 2 で固定した `expected_head` と文字列全体で比較する。あわせて `{GH}:get_pr` で current PR head を再取得する。`headSha` と current PR head がどちらも `expected_head` と一致する場合だけ手順 5 へ進む。それ以外は古い HEAD や前 round の結果を受理しないよう `REVIEW_HEAD_MISMATCH` で停止し、自動で再 enqueue しない（無人ループを避けるため）。
-   - `headSha` が null: reviewer-side がレビュー対象 HEAD を渡していない（`headSha` 対応前の `thread-owl-pr-reviewer` か、完了通知 write の呼び出し漏れ）。reviewer skill の更新を依頼する。
-   - `headSha` が `expected_head` と不一致、または current PR head が移動した: 待機中の push か、古い round の完了の混入。current head に対して手順 2 からやり直すか（再 enqueue・再レビュー）をユーザーに確認する。
-
-5. 完了したら、Phase 0 の手順 4〜5（必須コメント投稿者ゲートとサイクル状態の復元）を再実行してから **Phase U2** へ進む。`status` だけで指摘の有無を判断しない。
-   - 未解決スレッドや actionable な指摘がある（`reviewed` / `approved` のどちらでも）→ Phase 3 以降の通常手順。
-   - 未解決の指摘が 0 件 → `READY_TO_MERGE` として Phase 6.5 → 6.6 → 7 → 7.5 → 8 へ進む。approve 相当かどうかは Phase 7 の Verdict 照合で判定し、Verdict が無ければ `AWAITING_THREAD_OWL_VERDICT` として報告する。どちらの場合もマージは人の判断を待つ。
-
-### 停止時の報告
-
-`REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
-
-- `review-status.json` を再確認し、起動待ち（`holdReason`）・実行中・Verdict なしの終了（`exitCode`）・受信していない・観測不能を区別して報告する。`holdReason = manual`（自動起動 off または手動運用）なら、Squirrel Notifier の「レビューする」か別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。既に起動中の reviewer を重複起動しない。
-- reviewer が `VERDICT_TOOL_UNAVAILABLE` で停止していた場合は、稼働中の thread-owl が v0.5.0 未満である。PR には Verdict も完了サマリーも投稿されていないので、thread-owl を v0.5.0 以降へ更新してから reviewer を再起動する（`post_summary_comment` での Verdict の代替投稿は依頼しない）。
-- レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
 ---
 
 ## Phase 6.5: CI 確認
 
-R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分けて実行する。
-
-1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、R-00 で固定した CI read 経路で `reviewedHeadSha` の check runs を取得する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
-   - **第一選択**: `{RAVEN}:list_check_runs_for_sha`（`owner`、`repo`、40 桁小文字 hex の `sha` を入力する。branch 名や PR 番号は tool 側で拒否される）。次を検証してから使い、満たさない場合は `CI: unknown` とする。
-     - 応答の `sha` が入力の `reviewedHeadSha` と一致すること
-     - `pagination.complete` が `true` であること（`false` や欠落は取得未完了とする）
-     - 各 check run の `head_sha` が `reviewedHeadSha` と一致すること
-     - 再実行 run の集約は tool 側で行われる（`deduplication.strategy = latest_id_per_app_and_name`）。**skill 側で二重に集約しない**
-     - `check_runs` が空配列でも正常な応答である（push 直後で CI が未開始の場合など）。required check が未返却のときの扱い（手順 2 の `CI: pending`）に従う
-     - tool は合否判定を行わず、required / optional の区別も出力に含まれない。required checks の特定はリポジトリ方針（branch protection / repository policy）から別途行う
-     - 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない
-   - **fallback**: R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い（review-raven v0.5.0 未満）か schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。この経路では**同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は ID が最大のものだけを採用する**。`pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合は `CI: unknown` とする。
-   - **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として扱い、`gh api` へ迂回しない。
-   - **`{GH}:get_check_runs`（公式 GitHub MCP の `pull_request_read`）は PR 番号を入力とし `head_sha` を返さないので、CI 判定の根拠にしない。**
-2. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success` の場合だけにする。required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る）の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論があれば `CI: failure` とする。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
-3. **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` としてユーザーに報告し、修正可能なら Phase 4、修正困難なら停止する。
-4. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して同じ経路で手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
+R-16 の CI 判定（状態集約・SHA 固定・失敗ログ取得・HEAD 移動時の再確認）に入るときは、`references/ci-check.md` を必ず読み、その規則に従う。`CI: success` は、`reviewedHeadSha` に対するすべての required check が成功の場合だけで、取得できない・SHA を照合できない場合は `CI: unknown` とし、成功扱いにしない。読めない場合は、規則を推測せず `CI: unknown` として停止する。
 
 ## Phase 6.6: カバレッジ確認
 
@@ -990,42 +819,8 @@ Phase 8 のマージ判断へ進む前に、レビュー完了通知だけに依
 
 ## Phase 8: マージ判断
 
-**自律的にマージしない。** ユーザーからの明示的な指示を待つ。
+**自律的にマージしない。** ユーザーからの明示的な指示を待つ。この手順（マージ条件、`ESCALATE — Clean` / `ESCALATE — Unverified Fix` / `AWAITING_THREAD_OWL_VERDICT` / `WAITING_FOR_REVIEW(thread-owl)` の扱い、`ESCALATE` からのサイクル続行）に入るときは、`references/merge-decision.md` を必ず読み、その規則に従う。読めない場合は、マージ準備完了と報告せず、`REFERENCE_UNREADABLE` として停止する。
 
-マージ条件（ユーザー指示時に満たすこと）:
-- CI 全ジョブ SUCCESS
-- 未解決の review 指摘 = 0 件
-- 全スレッドに返信済み
-- 未解決の `blocking` 項目なし
-- `termination_status` が `READY_TO_MERGE` または `ESCALATE — Clean`
-- Phase 7.5 の完了記録が `mcp-docker reviewgate validate` を通過していること。`reviewed` 通知、CIグリーン、未解決0件だけでは代用しない。
-- **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致し、Phase 7 の「Verdict 照合規則」で書式一致するもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
-  - 該当コメントが存在しない、または SHA が不一致の場合は `AWAITING_THREAD_OWL_VERDICT` としてマージ判断に進まず、Phase 7 の Verdict コメント確認へ戻ります。
-- **`termination_status = ESCALATE — Clean` の場合**: Verdict コメント確認は対象外です（最大サイクル超過につき現在の HEAD に対する新しい Verdict が存在し得ないため。Phase U6「終了分類」参照）。マージには下記の `ESCALATE — Clean` 対応に従い、明示的な人間確認が必要です。
-
-`termination_status = ESCALATE — Clean` の場合:
-1. 無条件に「マージ準備完了」とは報告しない。
-2. 最終修正サイクルが thread-owl に再レビューされていない旨（Verdict コメント確認は対象外である旨）を明記する。
-3. ユーザーがそれでもマージを要求する場合は、thread-owl の最終再レビューなしでのマージを許容することを明示的に確認する。
-
-`termination_status = ESCALATE — Unverified Fix` の場合:
-1. CI グリーン・未解決 0 件でも **マージ準備完了とは報告しない**。
-2. 未検証コミット SHA を付けて警告を明確に提示する。
-3. ユーザーがそれでもマージを要求する場合は、未検証 blocking 修正を手動レビュー済みであることを明示的に確認してから進める。
-
-**`ESCALATE — *` からのサイクル続行**: ユーザーが「続行」（レビューサイクルを継続する）と明示的に指示した場合に限り、指示された分だけ `max_cycles` を延長し、Phase U6 のステップ 3 に戻って `@thread-owl re-review requested` の投稿と起動モードに応じた queue 登録を行う。**エージェントの判断で延長して続行してはならない。** 延長が妥当と考える場合は、理由（未収束の根本原因・残る blocking など）を添えてユーザーに提案するにとどめ、指示を待つ。
-
-`termination_status = AWAITING_THREAD_OWL_VERDICT`（Verdict コメント未確認・不一致）の場合:
-1. マージ準備完了とは報告しない。
-2. 理由を区別して報告する。「Verdict 未投稿」と「書式不一致」を同じ文言にまとめない。
-   - `VERDICT_NOT_POSTED`: 「thread-owl の Verdict コメントが未投稿です。thread-owl 側のレビュー完了を待機してください。」
-   - `VERDICT_FORMAT_MISMATCH`: 「thread-owl の Verdict コメント（comment <ID>）が照合規則に一致しません（不一致の行: …）。reviewer 側に固定書式での再投稿を依頼してください。」
-   - `VERDICT_HEAD_MISMATCH`: 「thread-owl の Verdict コメント（comment <ID>）の Reviewed HEAD SHA が現在の PR HEAD と不一致です。現在の HEAD に対する再レビューを待機してください。」
-3. thread-owl から新たな Verdict コメントが投稿され次第、Phase 7 の Verdict コメント確認からやり直す。
-
-`termination_status = WAITING_FOR_REVIEW(thread-owl)`（`--webhook-mcp-http` で再レビューコメント投稿済み、または Phase W が停止した）の場合:
-1. マージ準備完了とは報告しない。
-2. 「thread-owl への再レビュー依頼済み。次の review cycle 待機中。」と報告する。
 
 ---
 
