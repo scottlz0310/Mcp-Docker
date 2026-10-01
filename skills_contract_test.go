@@ -215,7 +215,7 @@ func TestSkillContractTokensAreClassified(t *testing.T) {
 // 停止コードの表（SKILL.md の「## 停止コード」節）を持つ skill。この表が、停止コードの定義の正本である。
 // 表のコードは、契約の stopCodes と双方向に一致させる（表にない停止コードも、表だけにあるコードも検出する）。
 // 本文を圧縮して表を置いた skill から追加する（#326）。
-var stopCodeRegistrySkills = []string{"thread-owl-pr-reviewer"}
+var stopCodeRegistrySkills = []string{"thread-owl-pr-reviewer", "review-raven-thread-owl-cycle"}
 
 // 停止コードの表の行（| `CODE` | …）。
 var stopCodeRow = regexp.MustCompile("(?m)^\\| `([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)` \\|")
