@@ -4,7 +4,7 @@
 
 ## 正本と配置
 
-- 正本 skill: `skills/review-raven-thread-owl-cycle/SKILL.md`
+- 正本 skill: `skills/review-raven-thread-owl-cycle/SKILL.md`（手順の詳細は、同じ skill の `references/` にある。完了記録の作成と検証は `references/completion-record.md`、停止コードの定義は SKILL.md の「停止コード」の表）
 - カタログ: `skills/catalog.json`
 - バイナリへの埋め込み: `SkillsFS` (`skills.go`)
 - 配置コマンド: `mcp-docker skill install`
