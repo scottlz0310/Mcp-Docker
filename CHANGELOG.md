@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-10-01
+
 ### ⚠️ 破壊的変更
 
 - #328（P3）: playwright-mcp を、既定の起動・公開・登録の対象から外し、**任意**にした。MCP サーバーは、登録数が増えるほど攻撃面が広がり、tool 定義を常時ロードする CLI ではコンテキストも消費するため、必要なときだけ有効にする。`docker-compose.yml` で、`playwright-mcp` サービスを profile `playwright` に入れ、`mcp-gateway` の `depends_on` を `required: false` にし、`ROUTE_PLAYWRIGHT` を `${PLAYWRIGHT_MCP_ENABLED:+...}` にした（未設定の間は、ルートが空になり、gateway は公開せず、`mcp-docker register` も登録対象にしない）。Makefile の `start-gateway`・`pull-gateway`・`pull-main`・`start-main` は、`PLAYWRIGHT_MCP_ENABLED` が設定されているときだけ playwright-mcp を扱い、`stop-gateway`・`rotate-secret`・`clean-docker` の `docker compose down` は `--profile "*"` を付けて、無効にした playwright-mcp が残っていても止める。`mcp-docker register` が読む ROUTE の変数展開を、入れ子の `${...}`（`${A:+...${B:-8931}...}`）に対応させた。**移行**: 引き続き使う場合は、`.env` に `PLAYWRIGHT_MCP_ENABLED=1` を設定する（`docker compose` を直接使う場合は `COMPOSE_PROFILES=playwright` も）。使わない場合は、`make stop-gateway` で停止してから `make start-gateway` で起動し直す。登録済みの `playwright` は、`--prune` を併用した登録で削除候補になる。手元の `docker-compose.override.yml` の `ROUTE_PLAYWRIGHT: ""` は不要になる。詳細は README の「playwright-mcp」。
@@ -889,8 +891,9 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.29.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.0...HEAD
 
+[2.30.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.29.1...v2.30.0
 [2.29.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.29.0...v2.29.1
 [2.29.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.27.1...v2.28.0
