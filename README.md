@@ -114,16 +114,43 @@ make register-antigravity  REGISTER_FLAGS=--yes
 make register-all          REGISTER_FLAGS=--yes
 ```
 
-`make register` は引数なしで `mcp-docker register` を呼び出し、TTY であれば agent と MCP サーバーを番号入力で複数選択できます。`--interactive`, `--agent`, `--server`, `--yes`, `--dry-run` のいずれかを `REGISTER_FLAGS` で渡した場合は **暗黙的な対話モードには入らず**、従来通りフラグの内容に従って実行します（`--interactive` 明示時はそのまま対話モードに入ります）。
+`make register` は引数なしで `mcp-docker register` を呼び出し、TTY であれば agent と MCP サーバーを番号入力で複数選択できます。`--interactive`, `--agent`, `--server`, `--profile`, `--yes`, `--dry-run` のいずれかを `REGISTER_FLAGS` で渡した場合は **暗黙的な対話モードには入らず**、従来通りフラグの内容に従って実行します（`--interactive` 明示時はそのまま対話モードに入ります）。
 
 ```bash
 # 例: claude と antigravity に github / playwright だけ登録（非対話）
 make register REGISTER_FLAGS="--agent claude,antigravity --server github,playwright --yes"
 ```
 
+#### 登録プロファイル（agent ごとに登録するサーバーを宣言する）
+
+MCP サーバーは、登録数が増えるほど攻撃面が広がり、tool 定義を常時ロードする CLI ではコンテキストも消費します。役割（reviewer / reviewed など）ごとに、必要な MCP だけを載せるために、[`config/mcp-profiles.yml`](config/mcp-profiles.yml) で、agent ごとに登録するサーバーを宣言できます。手作業で外した登録が、次の `make register-all` で戻ることもなくなります。
+
+```yaml
+version: 1
+agents:
+  codex: [thread-owl, review-raven]
+  claude: [review-raven, thread-owl, github]
+```
+
+| 場面 | 動作 |
+|---|---|
+| `--server` を指定しない（`make register-all` など） | 宣言のある agent には、**宣言されたサーバーだけ**を登録する。宣言のない agent は、従来どおり定義の全サーバー |
+| `--server` を指定する、または対話モードで選ぶ | その指定が優先され、プロファイルは使わない（全 agent に同じサーバーを登録する） |
+| プロファイルのファイルが無い | 従来どおり（全 agent × 全サーバー）。`--profile <path>` で明示したファイルが無い場合はエラー |
+| 定義にない名前、不明な agent 名、形式の誤り | 登録や prune の前に、エラーで止まる（誤記で、意図しない登録や削除をしないため） |
+
+サーバー名は、定義（`docker-compose.yml` の `ROUTE_<NAME>` を小文字にしたもの、`config/mcp-external.yml` の `name`）にある名前を指定します。何も登録しない agent は `<agent>: []` と書きます（値を空にしただけの `<agent>:` はエラーです）。`--profile <path>` で、別のファイルを使えます。
+
+```bash
+# プロファイルどおりの登録計画を確認（実行しない）
+make register-all REGISTER_FLAGS="--dry-run"
+```
+
 #### stale エントリの削除（prune）
 
 route の削除や `${VAR:+...}` の変数未設定スキップなどで定義ファイル（compose/external）から外れたエントリは、登録だけでは agent 設定に残り続けます。`--prune` を指定すると、**gateway 配下（`http://127.0.0.1:<port>/...`）の URL を持ち、かつ定義ファイル（compose/external）に含まれない**既存登録を削除候補として提示・削除します。なお、`--server` で特定のサーバーのみに絞り込んで登録を実行した場合でも、定義ファイルに存在するサーバーであれば削除候補にはなりません（誤削除を防ぐための安全側の設計です）。gateway 配下以外の URL や URL を特定できないエントリ（mcp-docker 管理外の可能性があるもの）は候補に含めません。
+
+**プロファイルに宣言された agent** では、`--prune` の候補が広がります。**gateway 配下で、プロファイルにない登録**（定義にはあるが、その agent には載せないと宣言したサーバーを含む）も、削除候補になります。今回の実行で登録するサーバー（`--server` の指定）は、同じ実行の prune で消しません。宣言のない agent と、プロファイルが無い場合は、従来どおりです。gateway 配下ではない登録（stdio のサーバー、claude.ai のコネクタ、他の URL）は、どの場合も削除せず、`--dry-run` で「管理対象外の登録」として**名前だけ**一覧します（URL は、認証情報を含み得るため、表示しません）。
 
 ```bash
 # 候補の確認だけ（削除しない）

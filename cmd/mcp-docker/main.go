@@ -22,7 +22,7 @@ import (
 const usage = `mcp-docker は MCP Docker の補助ワークフローを管理します。
 
 使い方:
-  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--interactive] [--yes] [--dry-run] [--prune]
+  mcp-docker register [--agent <csv>|all] [--server <csv>|all] [--compose path] [--external path] [--profile path] [--interactive] [--yes] [--dry-run] [--prune]
   mcp-docker skill <list|status|install|uninstall> [--agent <csv>|all] [--skill <csv>|all] [--dry-run] [--yes] [--force]
   mcp-docker instruction <configure|status|link|repair> [options]
   mcp-docker reviewgate validate --record <path> --repo <owner/repository> --pr <number> --head-sha <sha>
@@ -33,6 +33,10 @@ const usage = `mcp-docker は MCP Docker の補助ワークフローを管理し
 
 register に何も引数を指定せず TTY から実行した場合は対話モードで起動します
 （agent と MCP サーバーを番号入力で複数選択できます）。
+
+--server を指定しない場合、プロファイル（既定は config/mcp-profiles.yml）に宣言された agent には、
+宣言されたサーバーだけを登録します（宣言のない agent、プロファイルが無い場合は全サーバー）。
+--prune は、プロファイルに宣言された agent で、gateway 配下のプロファイルにない登録も削除候補にします。
 `
 
 var allAgentNames = []string{"claude", "copilot", "codex", "antigravity"}
@@ -165,6 +169,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	fs.StringVar(&opts.server, "server", "all", "登録対象 MCP サーバー（カンマ区切り可）: <name>, all")
 	fs.StringVar(&opts.composePath, "compose", "docker-compose.yml", "読み込む docker compose ファイル")
 	fs.StringVar(&opts.externalPath, "external", "config/mcp-external.yml", "外部 MCP サーバー定義ファイル")
+	fs.StringVar(&opts.profilePath, "profile", defaultProfilePath, "agent ごとに登録する MCP サーバーを宣言するプロファイル（既定のパスは、無ければ使わない）")
 	fs.BoolVar(&opts.yes, "yes", false, "サジェスト名を確認なしで採用")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "実行せず、登録時に使うコマンドと条件を表示")
 	fs.BoolVar(&opts.interactive, "interactive", false, "agent/server を対話的に選択")
@@ -188,7 +193,7 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 
 	useInteractive := opts.interactive
 	if !explicit["interactive"] && !explicit["yes"] && !explicit["dry-run"] &&
-		!explicit["agent"] && !explicit["server"] &&
+		!explicit["agent"] && !explicit["server"] && !explicit["profile"] &&
 		stdinIsTTY && stdoutIsTTY {
 		useInteractive = true
 	}
@@ -202,6 +207,10 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	availableServerNames := serverNames(servers)
+	prof, err := resolveProfile(opts.profilePath, explicit["profile"], allAgentNames, availableServerNames)
+	if err != nil {
+		return err
+	}
 	stdinReader := bufio.NewReader(stdin)
 
 	var agentNames, selectedServerNames []string
@@ -240,6 +249,8 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	}
 
 	selectedServers := pickServers(servers, selectedIndices)
+	// --server の指定と対話選択は、全 agent に同じサーバーを登録する。指定がなければ、agent ごとにプロファイルに従う。
+	explicitServers := useInteractive || explicit["server"]
 
 	selected, err := selectAgentsByNames(agentNames)
 	if err != nil {
@@ -259,6 +270,8 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	execRunner := register.ExecRunner{}
 	for _, spec := range selected {
 		agent := spec.newAgent(execRunner)
+		agentServers := serversForAgent(spec.name, servers, selectedServers, explicitServers, prof)
+		_, declared := prof.Servers(spec.name)
 		var existing []register.Entry
 		if pruneEnabled || (!opts.dryRun && !agent.OverwritesOnAdd()) {
 			var err error
@@ -274,10 +287,10 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		}
 
 		if opts.dryRun {
-			register.PrintPlan(stdout, agent, selectedServers)
+			register.PrintPlan(stdout, agent, agentServers)
 		} else {
 			regCtx, cancel := context.WithTimeout(ctx, timeout)
-			err := register.Register(regCtx, stdout, agent, selectedServers, existing)
+			err := register.Register(regCtx, stdout, agent, agentServers, existing)
 			cancel()
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
@@ -289,7 +302,11 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 		if !pruneEnabled {
 			continue
 		}
-		err := pruneAgent(ctx, stdinReader, stdout, agent, existing, servers, gatewayOrigins, opts, useInteractive)
+		keep := keepForAgent(spec.name, servers, agentServers, prof)
+		if declared && opts.dryRun {
+			register.PrintUnmanaged(stdout, agent, register.UnmanagedEntries(existing, gatewayOrigins))
+		}
+		err := pruneAgent(ctx, stdinReader, stdout, agent, existing, keep, gatewayOrigins, opts, useInteractive)
 		if err != nil {
 			return err
 		}
@@ -297,11 +314,12 @@ func runRegister(ctx context.Context, args []string, stdout, stderr io.Writer, s
 	return nil
 }
 
-// pruneAgent は agent に登録済みで定義ファイルに含まれない gateway 配下のエントリを削除する。
+// pruneAgent は agent に登録済みで、keep に含まれない gateway 配下のエントリを削除する。
+// keep は、プロファイルのない agent では定義ファイルの全サーバー、プロファイルのある agent ではその宣言と今回登録するサーバー。
 // interactive では候補を個別選択（既定は削除しない）し、削除前に必ず最終確認を行う。
 // 非対話では --yes 指定時のみ確認を省略する。
-func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, existing []register.Entry, available []register.Server, gatewayOrigins []string, opts registerOptions, interactive bool) error {
-	stale := register.StaleEntries(existing, available, gatewayOrigins)
+func pruneAgent(ctx context.Context, reader *bufio.Reader, stdout io.Writer, agent register.Agent, existing []register.Entry, keep []register.Server, gatewayOrigins []string, opts registerOptions, interactive bool) error {
+	stale := register.StaleEntries(existing, keep, gatewayOrigins)
 	if len(stale) == 0 {
 		fmt.Fprintf(stdout, "%s: 削除対象の stale エントリはありません\n", agent.Name())
 		return nil
@@ -349,6 +367,7 @@ type registerOptions struct {
 	server       string
 	composePath  string
 	externalPath string
+	profilePath  string
 	yes          bool
 	dryRun       bool
 	interactive  bool

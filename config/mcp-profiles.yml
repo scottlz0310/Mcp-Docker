@@ -1,0 +1,21 @@
+# エージェント（CLI）ごとに、mcp-docker register が登録する MCP サーバーを宣言するプロファイル。
+#
+# - register は、--server を指定しなければ、ここに宣言された agent には宣言されたサーバーだけを登録する。
+#   --server を指定した場合は、その指定が優先される（対話選択も同じ）。
+# - ここに宣言のない agent は、従来どおり定義（docker-compose.yml の ROUTE_* と config/mcp-external.yml）の
+#   全サーバーを登録する。このファイルが無い場合も同じ。
+# - --prune は、ここに宣言された agent で、gateway 配下の「宣言にない」登録も削除候補にする。
+#   gateway 配下ではない登録（stdio のサーバー、claude.ai のコネクタ、他の URL）は、削除しない。
+# - サーバー名は、定義にある名前（ROUTE_<NAME> の <NAME> を小文字にしたもの、external の name）。
+#   定義にない名前、不明な agent 名、形式の誤りは、register が実行前にエラーにする。
+# - 何も登録しない agent は、`<agent>: []` と書く（値を空にしただけの `<agent>:` はエラー）。
+#
+# agent 名: claude / copilot / codex / antigravity
+#
+# 方針（reviewers-forest のハンドオフ review-operation-mcp-boundary）: 役割に必要な最小限の MCP だけを載せる。
+# reviewer は Squirrel Notifier から自律的に起動されるため、強力な補助サーバー（github など）を載せない。
+# review-raven は、reviewer が CI を読む経路が決まるまで残す。
+version: 1
+agents:
+  codex: [thread-owl, review-raven]
+  claude: [review-raven, thread-owl, github]
