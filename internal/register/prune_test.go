@@ -144,3 +144,98 @@ func TestPrintPrunePlan(t *testing.T) {
 		t.Fatalf("plan must not remove entries, removed = %v", agent.removed)
 	}
 }
+
+// keep が定義の全サーバーより小さくても（プロファイルの宣言）、keep に無い gateway 配下の登録だけが候補になる。
+func TestStaleEntriesWithSubsetKeep(t *testing.T) {
+	keep := []Server{{Name: "thread-owl", URL: "http://127.0.0.1:8080/mcp/thread-owl"}}
+	origins := []string{"http://127.0.0.1:8080/"}
+	entries := []Entry{
+		{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"},
+		{Name: "thread-owl", URL: "http://127.0.0.1:8080/mcp/thread-owl"},
+		{Name: "playwright", URL: ""},
+		{Name: "other", URL: "https://mcp.example.com/mcp"},
+	}
+
+	stale := StaleEntries(entries, keep, origins)
+
+	if len(stale) != 1 || stale[0].Name != "github" {
+		t.Fatalf("stale = %v, want [github]", stale)
+	}
+}
+
+func TestUnmanagedEntries(t *testing.T) {
+	origins := []string{"http://127.0.0.1:8080/"}
+	cases := []struct {
+		name    string
+		entries []Entry
+		want    []string
+	}{
+		{
+			name: "gateway 配下ではない登録と、URL を特定できない登録",
+			entries: []Entry{
+				{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"},
+				{Name: "stdio-server", URL: ""},
+				{Name: "connector", URL: "https://mcp.example.com/mcp"},
+			},
+			want: []string{"stdio-server", "connector"},
+		},
+		{
+			name:    "すべて gateway 配下なら、空",
+			entries: []Entry{{Name: "github", URL: "http://127.0.0.1:8080/mcp/github"}},
+			want:    nil,
+		},
+		{name: "登録なし", entries: nil, want: nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []string
+			for _, entry := range UnmanagedEntries(tc.entries, origins) {
+				got = append(got, entry.Name)
+			}
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("UnmanagedEntries() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPrintUnmanaged(t *testing.T) {
+	cases := []struct {
+		name    string
+		entries []Entry
+		want    []string
+		wantNot string
+	}{
+		{
+			name:    "URL の有無にかかわらず一覧し、削除しないと明記する",
+			entries: []Entry{{Name: "stdio-server"}, {Name: "connector", URL: "https://mcp.example.com/mcp"}},
+			want: []string{
+				"claude の管理対象外の登録（gateway 配下ではないため、削除しません）:",
+				"- stdio-server",
+				"- connector (https://mcp.example.com/mcp)",
+			},
+		},
+		{name: "登録がなければ、何も表示しない", entries: nil, wantNot: "管理対象外"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			agent := &fakeAgent{name: "claude"}
+			var out bytes.Buffer
+
+			PrintUnmanaged(&out, agent, tc.entries)
+
+			got := out.String()
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Fatalf("output =\n%s\nmissing %q", got, want)
+				}
+			}
+			if tc.wantNot != "" && strings.Contains(got, tc.wantNot) {
+				t.Fatalf("output = %q, must not contain %q", got, tc.wantNot)
+			}
+			if len(agent.removed) != 0 {
+				t.Fatalf("must not remove entries, removed = %v", agent.removed)
+			}
+		})
+	}
+}

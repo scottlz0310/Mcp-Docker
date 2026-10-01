@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新機能
 
+- #328（P1・P2）: 登録プロファイル `config/mcp-profiles.yml` を追加し、`mcp-docker register` が、agent ごとに宣言されたサーバーだけを登録するようにした。`--server` を指定しない（`make register-all` など）とき、宣言のある agent には宣言されたサーバーだけを登録する（宣言のない agent と、ファイルが無い場合は、従来どおり全サーバー）。`--server` の指定と対話選択は、プロファイルより優先する。`--profile <path>` で別のファイルを指定でき、明示したファイルが無ければエラーにする。定義にない名前、不明な agent 名、`version` の不一致、値の無い agent（`claude:`。何も登録しない場合は `[]`）は、登録や prune の前にエラーにする。同梱のプロファイルは、codex に `thread-owl` と `review-raven`、claude に `review-raven`・`thread-owl`・`github` を宣言する（役割に必要な最小限）。手作業で外した登録が、次の `make register-all` で戻らなくなる。
+- #328（P2）: プロファイルに宣言された agent では、`--prune` の削除候補を、**gateway 配下で、プロファイルにない登録**（定義にはあるが、その agent には載せないと宣言したサーバーを含む）へ広げた。今回の実行で登録するサーバーは、同じ実行の prune で消さない。**既定の挙動は変えない**: 宣言のない agent と、プロファイルが無い場合は、従来どおり、定義にない gateway 配下の登録だけが候補になる。gateway 配下ではない登録（stdio のサーバー、claude.ai のコネクタ、他の URL）は、どの場合も削除せず、`--dry-run` で「管理対象外の登録」として一覧する。
 - thread-owl#236: `docker-compose.yml` の `thread-owl` サービスへ、`ALLOWED_AUTHORS`（PR の作成者として信頼する GitHub の login）を渡す `THREAD_OWL_ALLOWED_AUTHORS` を追加。thread-owl は、設定されると、許可された作成者の同一リポジトリの PR だけを review queue に載せ、fork からの PR は常に拒否する。自分の login と、再レビューを依頼する bot 名義（`mcp-gateway-authentication-app`）を、カンマ区切りで指定する。**既定は空（未設定）で、作成者・fork を検証しない（従来どおり）**。thread-owl の将来のリリースで、未設定を fail-closed（全拒否）に変更する予定（thread-owl#244）のため、先に設定しておく。この機能には、`ALLOWED_AUTHORS` に対応した thread-owl のイメージが要る（未対応のイメージでは無視される）。
 
 ## [2.29.1] - 2026-10-01

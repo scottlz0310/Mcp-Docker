@@ -70,18 +70,20 @@ func Register(ctx context.Context, out io.Writer, agent Agent, servers []Server,
 }
 
 // StaleEntries は agent に登録済みのエントリのうち、gateway 配下の URL を持ち、
-// かつ定義ファイル（available）に含まれないものを返す。
+// かつ keep に含まれないものを返す。
+// keep は、プロファイルのない agent では定義ファイルの全サーバー、
+// プロファイルのある agent ではその宣言（と今回登録するサーバー）である。
 // gatewayOrigins には現在の origin に加え、TLS 切替前のデフォルト origin など
 // 既知の gateway origin を複数渡せる。
 // URL が特定できないエントリは mcp-docker 管理外の可能性があるため候補にしない。
-func StaleEntries(entries []Entry, available []Server, gatewayOrigins []string) []Entry {
-	availableNames := make(map[string]struct{}, len(available))
-	for _, server := range available {
-		availableNames[server.Name] = struct{}{}
+func StaleEntries(entries []Entry, keep []Server, gatewayOrigins []string) []Entry {
+	keepNames := make(map[string]struct{}, len(keep))
+	for _, server := range keep {
+		keepNames[server.Name] = struct{}{}
 	}
 	var stale []Entry
 	for _, entry := range entries {
-		if _, ok := availableNames[entry.Name]; ok {
+		if _, ok := keepNames[entry.Name]; ok {
 			continue
 		}
 		if entry.URL == "" || !hasAnyPrefix(entry.URL, gatewayOrigins) {
@@ -90,6 +92,18 @@ func StaleEntries(entries []Entry, available []Server, gatewayOrigins []string) 
 		stale = append(stale, entry)
 	}
 	return stale
+}
+
+// UnmanagedEntries は agent に登録済みのエントリのうち、gateway 配下と特定できないものを返す
+// （stdio のサーバー、claude.ai のコネクタ、他の URL など）。mcp-docker は登録も削除もしない。
+func UnmanagedEntries(entries []Entry, gatewayOrigins []string) []Entry {
+	var unmanaged []Entry
+	for _, entry := range entries {
+		if entry.URL == "" || !hasAnyPrefix(entry.URL, gatewayOrigins) {
+			unmanaged = append(unmanaged, entry)
+		}
+	}
+	return unmanaged
 }
 
 func hasAnyPrefix(url string, prefixes []string) bool {
@@ -116,6 +130,21 @@ func PrintPrunePlan(out io.Writer, agent Agent, entries []Entry) {
 	for _, entry := range entries {
 		fmt.Fprintf(out, "- %s (%s):\n", entry.Name, entry.URL)
 		fmt.Fprintf(out, "  - 削除: %s\n", shellish(agent.RemoveCommand(entry.Name)))
+	}
+}
+
+// PrintUnmanaged は、prune の対象にならない登録を、dry-run で一覧する。
+func PrintUnmanaged(out io.Writer, agent Agent, entries []Entry) {
+	if len(entries) == 0 {
+		return
+	}
+	fmt.Fprintf(out, "%s の管理対象外の登録（gateway 配下ではないため、削除しません）:\n", agent.Name())
+	for _, entry := range entries {
+		if entry.URL == "" {
+			fmt.Fprintf(out, "- %s\n", entry.Name)
+			continue
+		}
+		fmt.Fprintf(out, "- %s (%s)\n", entry.Name, entry.URL)
 	}
 }
 
