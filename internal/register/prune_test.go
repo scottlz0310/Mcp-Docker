@@ -207,13 +207,21 @@ func TestPrintUnmanaged(t *testing.T) {
 		wantNot string
 	}{
 		{
-			name:    "URL の有無にかかわらず一覧し、削除しないと明記する",
+			name:    "名前だけを一覧し、削除しないと明記する",
 			entries: []Entry{{Name: "stdio-server"}, {Name: "connector", URL: "https://mcp.example.com/mcp"}},
 			want: []string{
-				"claude の管理対象外の登録（gateway 配下ではないため、削除しません）:",
+				"claude の管理対象外の登録（gateway 配下ではないため、削除しません。URL は表示しません）:",
 				"- stdio-server",
-				"- connector (https://mcp.example.com/mcp)",
+				"- connector",
 			},
+			wantNot: "mcp.example.com",
+		},
+		{
+			// 認証情報（userinfo、クエリのトークン）を含む URL が、出力に残らないこと
+			name:    "認証情報を含む URL は、出力しない",
+			entries: []Entry{{Name: "connector", URL: "https://user:secret@mcp.example.com/mcp?access_token=abc123"}},
+			want:    []string{"- connector"},
+			wantNot: "secret",
 		},
 		{name: "登録がなければ、何も表示しない", entries: nil, wantNot: "管理対象外"},
 	}

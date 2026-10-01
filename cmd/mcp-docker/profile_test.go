@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -325,5 +326,72 @@ func TestRegisterExplicitMissingProfileFails(t *testing.T) {
 	}, &stdout, &stderr, errorReader{})
 	if err == nil || !strings.Contains(err.Error(), "プロファイル:") {
 		t.Fatalf("run() error = %v, want プロファイルのエラー", err)
+	}
+}
+
+// fake の claude CLI を PATH に置く。list の出力として lines を返す（引数は見ない）。
+func installFakeClaude(t *testing.T, lines []string) {
+	t.Helper()
+	dir := t.TempDir()
+	var name, content string
+	if runtime.GOOS == "windows" {
+		name = "claude.bat"
+		content = "@echo off\r\n"
+		for _, line := range lines {
+			content += "echo " + line + "\r\n"
+		}
+	} else {
+		name = "claude"
+		content = "#!/bin/sh\n"
+		for _, line := range lines {
+			content += "echo '" + line + "'\n"
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(filepath.ListSeparator)+os.Getenv("PATH"))
+}
+
+// プロファイルのある agent の prune の dry-run は、プロファイルにない gateway 配下の登録を候補にし、
+// gateway 配下ではない登録は、名前だけを一覧する。URL（認証情報を含み得る）は出力しない。
+func TestRegisterDryRunPruneWithProfile(t *testing.T) {
+	composePath, externalPath, profilePath := writeRegisterFixtures(t, "version: 1\nagents:\n  claude: [thread-owl]\n")
+	installFakeClaude(t, []string{
+		"github: http://127.0.0.1:8080/mcp/github - Connected",
+		"thread-owl: http://127.0.0.1:8080/mcp/thread-owl - Connected",
+		"connector: https://user:secret@mcp.example.com/mcp?access_token=abc123 - Connected",
+		"stdio-srv: npx some-package - Connected",
+	})
+
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{
+		"register", "--agent", "claude", "--dry-run", "--prune",
+		"--compose", composePath, "--external", externalPath, "--profile", profilePath,
+	}, &stdout, &stderr, errorReader{})
+	if err != nil {
+		t.Fatalf("run() error = %v\nstderr=%s", err, stderr.String())
+	}
+
+	got := stdout.String()
+	_, prunePlan, ok := strings.Cut(got, "claude の stale エントリ削除計画:")
+	if !ok {
+		t.Fatalf("prune の計画がありません: %s", got)
+	}
+	if !strings.Contains(prunePlan, "- github (") {
+		t.Errorf("プロファイルにない gateway 配下の github が、削除候補になっていません: %s", prunePlan)
+	}
+	if strings.Contains(prunePlan, "thread-owl") {
+		t.Errorf("プロファイルにある thread-owl が、削除候補になっています: %s", prunePlan)
+	}
+	for _, want := range []string{"claude の管理対象外の登録", "- connector", "- stdio-srv"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("出力に %q がありません: %s", want, got)
+		}
+	}
+	for _, secret := range []string{"secret", "access_token", "mcp.example.com"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("出力に、管理対象外の登録の URL（認証情報を含み得る）の一部 %q が出ています: %s", secret, got)
+		}
 	}
 }

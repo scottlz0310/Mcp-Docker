@@ -134,17 +134,15 @@ func PrintPrunePlan(out io.Writer, agent Agent, entries []Entry) {
 }
 
 // PrintUnmanaged は、prune の対象にならない登録を、dry-run で一覧する。
+// 管理対象外の登録の URL は、userinfo やクエリに認証情報を含み得る（mcp-docker が登録したものではない）。
+// CI のログなどに残さないよう、名前だけを表示する。
 func PrintUnmanaged(out io.Writer, agent Agent, entries []Entry) {
 	if len(entries) == 0 {
 		return
 	}
-	fmt.Fprintf(out, "%s の管理対象外の登録（gateway 配下ではないため、削除しません）:\n", agent.Name())
+	fmt.Fprintf(out, "%s の管理対象外の登録（gateway 配下ではないため、削除しません。URL は表示しません）:\n", agent.Name())
 	for _, entry := range entries {
-		if entry.URL == "" {
-			fmt.Fprintf(out, "- %s\n", entry.Name)
-			continue
-		}
-		fmt.Fprintf(out, "- %s (%s)\n", entry.Name, entry.URL)
+		fmt.Fprintf(out, "- %s\n", entry.Name)
 	}
 }
 
