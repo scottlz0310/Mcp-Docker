@@ -78,10 +78,36 @@ jobs:
         with:
           version: v2.14.0
 
+      # 外部のスクリプトを、検証せずに実行しない（curl | bash は、壊れた応答や、意図しない内容もそのまま実行する）。
+      # 取得（再試行つき）、検証（シェルスクリプトであること）、実行の順に行う。
+      # 外部の一時的な失敗で CI を落とさない: agy を使うテストは、PATH に無ければ t.Skip する。
+      # ただし、仕様乖離の検出が黙って無くならないよう、失敗は警告（annotation）で見えるようにする（#344）。
       - name: Antigravity CLI セットアップ（バイナリ仕様検証用）
         run: |
-          curl -fsSL https://antigravity.google/cli/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          set -uo pipefail
+          script="$RUNNER_TEMP/antigravity-install.sh"
+
+          warn() {
+            echo "::warning title=Antigravity CLI::$1。agy に依存するテスト（バイナリ仕様検証）はこの回 skip されます"
+          }
+
+          if ! curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 -o "$script" https://antigravity.google/cli/install.sh; then
+            warn "install.sh を取得できませんでした"
+            exit 0
+          fi
+          if [ "$(head -c 2 "$script")" != '#!' ]; then
+            warn "取得した install.sh がシェルスクリプトではありません（先頭が #! ではない）"
+            exit 0
+          fi
+          if ! bash "$script"; then
+            warn "install.sh の実行に失敗しました"
+            exit 0
+          fi
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          if ! PATH="$HOME/.local/bin:$PATH" command -v agy >/dev/null; then
+            warn "install.sh は成功しましたが、agy が $HOME/.local/bin にありません"
+          fi
 
       - name: Go テスト
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
