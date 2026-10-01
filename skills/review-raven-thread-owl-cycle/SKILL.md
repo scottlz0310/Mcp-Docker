@@ -374,9 +374,9 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 - `side effect`: この round の `enqueue_review` を 1 回だけ実行し、`review://status` を `pending` にリセットして queue に載せる。待機自体は read-only。
 - `guard`: subscriber は `enqueue_review` の直後に起動する。`route` が `subscription` / `pre-completion` かつ `finalText` の `status` が `reviewed` / `approved` で、owner / repo / prNumber が対象 PR と一致し、さらに `headSha` と current PR head がどちらも `expected_head` と一致する場合だけ完了とする。`headSha` が null・不一致の場合は受理しない。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て Phase U2 でスレッドを実際に取得する。
 - `reviewer 起動の観測`: subscriber を開始した後、Phase W の「reviewer 起動状態の確認」に従い、Squirrel Notifier の対象 PR・今回の reason / ラウンドに対応するローカル状態を読み取り専用で確認する。観測できない場合も reviewer 未起動と断定せず、案内を出して完了通知の待機を続ける。ローカル状態を完了判定に使わない。
-- `fallback`: `RESOURCE_NOT_FOUND` は `enqueue_review` からのやり直しを 1 回だけ、`SUBSCRIPTION_NOT_HONORED` は URI の小文字化を確認して 1 回だけ再試行する。`NOTIFICATION_TIMEOUT` で `initialText` の `status` が `reviewed` / `approved` の場合だけ完了扱いにする。ポーリングへ切り替えない。
-- `failure / stop`: timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、`headSha` が null・不一致または current head の移動は `REVIEW_HEAD_MISMATCH`、URL 未解決・`AUTH_LOGIN_REQUIRED`・その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
-- `evidence`: mode、enqueue の reason と結果、expected_head、URL の解決元（環境変数名のみ）、resource URI、timeout、reviewer のローカル起動記録の照合結果または観測不能の理由、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、終了理由を記録する（`observed`、token は除外）。
+- `fallback`: `RESOURCE_NOT_FOUND` は `enqueue_review` からのやり直しを 1 回だけ、`SUBSCRIPTION_NOT_HONORED` は URI の小文字化を確認して 1 回だけ再試行する。`NOTIFICATION_TIMEOUT` で `initialText` の `status` が `reviewed` / `approved` の場合だけ完了扱いにする。ポーリングへ切り替えない。それ以外の `NOTIFICATION_TIMEOUT` は、`initialText` が購読の開始時点の値で、待機中の完了を反映しないため、`references/review-wait.md` に従って現在値を再取得し、Squirrel Notifier の公開状態で待ち続けるかを決める。
+- `failure / stop`: 公開状態に対象 PR が無い、観測できない、または再購読の上限（最大 6 回）に達した timeout は `REVIEW_WAIT_TIMEOUT`、再試行後も resource が無い場合は `REVIEW_STATUS_NOT_FOUND`、`headSha` が null・不一致または current head の移動は `REVIEW_HEAD_MISMATCH`、URL 未解決・`AUTH_LOGIN_REQUIRED`・その他の `failed` route・JSON 不正・対象 PR 不一致は `REVIEW_WAIT_FAILED` として停止し、フォールバック手順を報告する。修正・返信・enqueue の追加実行は行わない。
+- `evidence`: mode、enqueue の reason と結果、expected_head、URL の解決元（環境変数名のみ）、resource URI、timeout、reviewer のローカル起動記録の照合結果または観測不能の理由、route、errorCode、initial / final の status・headSha・summaryCommentId、再試行の有無、再購読の回数と Squirrel Notifier の公開状態の確認結果、終了理由を記録する（`observed`、token は除外）。
 
 ---
 
@@ -843,7 +843,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    ```
 
    - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx mcp-resource-subscriber --login --url <同じ URL>` の実行を依頼する。
-   - `--timeout-ms` は 20 分。reviewer の起動前の CI 確定待ち（Squirrel Notifier。最大 12 分）と reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まるこの待機の内側に入るため。20 分は多くの CLI の shell tool のタイムアウトを超えるので、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。
+   - `--timeout-ms` は 20 分。reviewer の起動前の CI 確定待ち（Squirrel Notifier。最大 12 分）と reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まるこの待機の内側に入るため。20 分は多くの CLI の shell tool のタイムアウトを超えるので、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。この値は **1 回の購読の上限で、合計の待機の上限ではない**（待ち行列や reviewer の実行時間で 20 分を超える。タイムアウト後は手順 4 の表）。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
 
@@ -868,7 +868,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    |------|------|
    | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | HEAD 照合（下記）へ |
    | `errorCode = NOTIFICATION_TIMEOUT` で、`initialText` の `status` が `reviewed` / `approved` | 待機前に完了していたとみなし、`initialText` で HEAD 照合（下記）へ |
-   | `errorCode = NOTIFICATION_TIMEOUT`（上記以外） | `REVIEW_WAIT_TIMEOUT` で停止する |
+   | `errorCode = NOTIFICATION_TIMEOUT`（上記以外） | `references/review-wait.md`（現在値の再取得、Squirrel Notifier の公開状態の確認、再購読）を必ず読み、その規則に従う。読めない場合は `REVIEW_WAIT_TIMEOUT` で停止する |
    | `errorCode = RESOURCE_NOT_FOUND` | `enqueue_review` 前の起動か、thread-owl の再起動による状態消失。手順 2 からのやり直しを 1 回だけ行い、再発したら `REVIEW_STATUS_NOT_FOUND` で停止する |
    | `errorCode = SUBSCRIPTION_NOT_HONORED` | `--uri` が小文字か確認する。大文字が含まれていた場合だけ小文字にして手順 3 を 1 回だけ再実行し、それ以外は `REVIEW_WAIT_FAILED` で停止する |
    | `errorCode = AUTH_LOGIN_REQUIRED` | `REVIEW_WAIT_FAILED` で停止し、`--login` の実行を依頼する |
