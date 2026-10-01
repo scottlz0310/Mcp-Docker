@@ -180,7 +180,9 @@ var skillSizeBudgets = []struct {
 	// 打ち切る前に review://status をもう一度取得する手順 2a を含む）
 	// #326 PR4-2: 条件付きの節（論理 alias の discovery、プロジェクト固有の追加許可リスト、起動モードの判定と queue への登録、Phase W、Phase 6.5、Phase 8）を、内容を変えずに references/ へ移動
 	// （SKILL.md は -206 行・-16,851 文字。合計は、入口の記述 6 か所と新しい reference の見出し・案内で +3,359 文字。PR4-3 の圧縮で、合計も下げる）
-	{skill: "review-raven-thread-owl-cycle", maxLines: 865, maxRunes: 58616, maxTotalRunes: 86547},
+	// #326 PR4-3: 契約表を共通規則 + 1 行 1 操作の表へ、停止コードを 1 つの表へ圧縮。ツール対応表と旧アノテーションからの移行を削除し、gh CLI の補完経路（GraphQL）と対応サマリの template を references/ へ移動
+	// （SKILL.md は -365 行・-15,426 文字。合計は 86,547 -> 73,493 文字。目標 40,000 文字には届かず、残りは契約表 25 行と停止コード表 40 行）
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43190, maxTotalRunes: 73493},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
