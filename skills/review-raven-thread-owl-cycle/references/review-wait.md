@@ -11,7 +11,7 @@ SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`
 
 同じ Windows ホストの `%LocalAppData%\SquirrelNotifier\review-status.json`（公開契約。`schemaVersion: 1`。Squirrel Notifier の `docs/review-status-contract.md`）を、読み取り専用で、開いてすぐ閉じて読む。内部ストアの `review-cycles.json` と `statusline-summary.json` は、この判断に使わない。知らないフィールドは無視する。
 
-- **観測不能**: ファイルが無い（Squirrel Notifier が起動していない、または v0.16.0 未満）、読めない、CLI が別ホストにいる、`updatedAt` が現在時刻より 3 分以上古い（アプリは状態が変わらなくても 60 秒ごとに更新するので、止まっている）のいずれか。
+- **観測不能**: ファイルが無い（Squirrel Notifier が起動していない、または v0.16.0 未満）、読めない、CLI が別ホストにいる、`schemaVersion` が 1 ではない（互換性のない版は、この表で読まない）、`updatedAt` が現在時刻より 3 分以上古い（アプリは 60 秒ごとに更新するので、止まっている）のいずれか。
 - 対象 PR の `key` は、**小文字**の `owner/repo#N`（`review://status` の URI と同じ表記）。`items[]`（`waiting` / `running`）と `recent[]`（`finished`）から探す。`recent[]` は、`receivedAt` が `enqueued_after`（Phase W 手順 2 で控えた時刻）より後のものだけを、今回の分とみなす。前の round の `finished` を拾わない。
 
 | 対象 PR の状態 | 扱い |
