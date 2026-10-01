@@ -1,6 +1,6 @@
 # ローカル検証の隔離手順（Repository State Guard）
 
-SKILL.md の「2. ローカル検証時の Repository State Guard」から移した手順（worktree が dirty または `reviewedHeadSha` と不一致の場合）。
+SKILL.md の O-04 と「Snapshot Guard」の手順 2 の手順（worktree が dirty または `reviewedHeadSha` と不一致の場合）。
 
 - **dirty/mismatched な状態の扱い:**
   - 未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。
