@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - #344: CI（`lint-test.yml`）の Antigravity CLI のセットアップを、`curl -fsSL .../install.sh | bash`（検証なしで実行）から、取得（`--retry 3 --retry-all-errors`。1 回ごとに `--connect-timeout 10 --max-time 60`）、検証（先頭が `#!` のシェルスクリプトであること）、実行（`timeout 180`）の順に分けた。応答が接続後に止まっても、job の timeout まで滞留しない。外部の一時的な失敗（2026-10-01 に 2 回、壊れた応答で構文エラーになり、Go CLI チェックが落ちた）で CI を落とさない: 取得・検証・実行のどれかに失敗したときは、警告（annotation）を出して `agy` なしで続行する（`agy` を使うバイナリ仕様検証のテストは、PATH に無ければ `t.Skip` する）。成功した場合は従来どおり、仕様乖離を検出する。
 
+### 📝 ドキュメント
+
+- `.env.template` に、thread-owl の設定の節（`THREAD_OWL_GITHUB_APP_ID` / `THREAD_OWL_GITHUB_APP_PRIVATE_KEY_B64` / `THREAD_OWL_ALLOWED_REPOS` / `THREAD_OWL_ALLOWED_AUTHORS` / `THREAD_OWL_PORT` / `THREAD_OWL_IMAGE`）を追加した。これらの説明は、リポジトリのどこにも無かった。`THREAD_OWL_ALLOWED_AUTHORS`（PR の作成者の allowlist。thread-owl#236。将来のリリースで未設定を拒否に変更するため、事前に設定する）と、`THREAD_OWL_ALLOWED_REPOS`（リポジトリ）の取り違えで、全リポジトリが許可外になってレビューが止まる事例（2026-10-01）を、注意として明記した。
+
 ## [2.30.1] - 2026-10-01
 
 ### 🔧 改善
