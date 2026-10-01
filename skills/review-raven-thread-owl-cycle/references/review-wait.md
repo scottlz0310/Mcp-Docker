@@ -19,10 +19,11 @@ SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`
    |---|---|
    | `activeReviews[]` にある | reviewer が実行中。**待ち続ける** |
    | `queue.items[]` にある | 起動待ち。**待ち続ける**（保留の理由は、この契約では分からない。自動起動が off の場合も含まれ得る） |
-   | どちらにもない | **打ち切る**（`REVIEW_WAIT_TIMEOUT`）。理由は「公開状態に対象 PR が無い（reviewer が Verdict を投稿せずに終了した、または queue event を受信していない）」 |
-   | ファイルが無い・読めない・CLI が別ホストにいる | 観測できない。**打ち切る**（`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」 |
+   | どちらにもない | **打ち切る前に、手順 2a を行う**。それでも `pending` なら打ち切る（`REVIEW_WAIT_TIMEOUT`）。理由は「公開状態に対象 PR が無い（reviewer が Verdict を投稿せずに終了した、または queue event を受信していない）」 |
+   | ファイルが無い・読めない・CLI が別ホストにいる | 観測できない。**打ち切る前に、手順 2a を行う**。それでも `pending` なら打ち切る（`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」 |
 
    - このファイルは、状態が変わったときだけ更新される。`updatedAt` は最後の状態変化の時刻なので、古いことだけで異常とは判断しない。アプリが異常終了すると、ファイルが残る場合があるため、手順 3 の再購読の上限を置く。
+2a. **打ち切る前に、現在値をもう一度取得する。** 手順 1 の再取得から、手順 2 の確認までの間に、reviewer が完了して、公開状態から消えた場合がある（実行中の PR は、終了すると `queue` と `activeReviews` のどちらからも消える）。公開状態の確認の**後**に、手順 1 と同じ `--timeout-ms 10000` の購読で `review://status` の現在値を読み、`reviewed` / `approved` なら HEAD 照合へ進む。`pending` のままなら、打ち切る。
 3. **待ち続ける場合は、購読を起動し直す。** Phase W 手順 3 の購読（`--timeout-ms 1200000`）を、**`enqueue_review` をやり直さずに**起動する。再購読は、最初の購読を含めて最大 6 回まで（合計で最大約 2 時間）。上限に達したら、`REVIEW_WAIT_TIMEOUT` で停止し、公開状態の確認結果を報告する。
 4. 待機中は、対象 PR へ push も `enqueue_review` もしない（Phase W 手順 3 と同じ）。
 
