@@ -25,7 +25,7 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 | `mcp-gateway` | `ghcr.io/scottlz0310/mcp-gateway:latest` | 8080（ホスト公開） | OAuth ゲートウェイ |
 | `github-mcp` | `ghcr.io/github/github-mcp-server:main` | 8082（内部のみ） | GitHub MCP サーバー |
 | `review-raven` | `ghcr.io/scottlz0310/review-raven:latest` | 8083（内部のみ） | レビュー対応自動化（reviewed-side） |
-| `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none）。**任意で、既定では起動しない**（[有効にする手順](#playwright-mcpauth-none任意)） |
+| `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none）。**任意で、既定では起動しない**（[有効にする手順](#playwright-mcpauthnone任意)） |
 
 `github-mcp`・`review-raven`・`playwright-mcp` はホストに直接公開されません。
 すべて mcp-gateway（ポート 8080）経由でアクセスします。
