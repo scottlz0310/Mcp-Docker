@@ -241,12 +241,67 @@ EOF
     [ "$(wc -l <"$mock_log")" -eq 1 ]
 }
 
-@test "Makefile: pull-main は Playwright の main/fallback resolver を呼び出す" {
-    run make -C "${PROJECT_ROOT}" --dry-run pull-main
+@test "Makefile: pull-main は PLAYWRIGHT_MCP_ENABLED があれば Playwright の main/fallback resolver を呼び出す" {
+    run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" --dry-run pull-main
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"pull-playwright-main.sh"* ]]
     [[ "$output" == *"mcr.microsoft.com/playwright/mcp:main"* ]]
+}
+
+@test "Makefile: pull-main は PLAYWRIGHT_MCP_ENABLED が未設定なら Playwright を取得しない" {
+    run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" --dry-run pull-main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"docker compose pull mcp-gateway review-raven thread-owl"* ]]
+    [[ "$output" != *"playwright"* ]]
+}
+
+# check-github-app-config は秘密情報（.env、秘密鍵）を要求するため、-o で再生成の対象から外して dry-run する
+@test "Makefile: start-gateway は PLAYWRIGHT_MCP_ENABLED が未設定なら playwright-mcp を起動しない" {
+    run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-gateway
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway"* ]]
+    [[ "$output" != *"playwright-mcp"* ]]
+}
+
+@test "Makefile: start-gateway は PLAYWRIGHT_MCP_ENABLED があれば playwright-mcp も起動する" {
+    run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-gateway
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp"* ]]
+}
+
+@test "Makefile: start-main は PLAYWRIGHT_MCP_ENABLED が未設定なら Playwright のイメージ選択も起動もしない" {
+    run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--pull never"* ]]
+    [[ "$output" != *"playwright"* ]]
+}
+
+@test "Makefile: start-main は PLAYWRIGHT_MCP_ENABLED があればローカルイメージ選択を経て playwright-mcp も起動する" {
+    run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-main
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"select-playwright-main-image.sh"* ]]
+    [[ "$output" == *"--pull never"* ]]
+    [[ "$output" == *"mcp-gateway playwright-mcp"* ]]
+}
+
+# 無効にした（profile が非アクティブな）playwright-mcp が起動したまま残っていても、停止・削除の対象にする
+@test "Makefile: stop-gateway・rotate-secret・clean-docker の down は全 profile を対象にする" {
+    run make -C "${PROJECT_ROOT}" --dry-run stop-gateway
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'docker compose --profile "*" down'* ]]
+
+    run sed -n '/^rotate-secret:/,/^\.PHONY/p;/^clean-docker:/,/^\.PHONY/p' "${PROJECT_ROOT}/Makefile"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'docker compose --profile "*" down'* ]]
+    [[ "$output" != *"docker compose down"* ]]
 }
 
 @test "Makefile: start-main は pull せずローカルイメージ選択を呼び出す" {

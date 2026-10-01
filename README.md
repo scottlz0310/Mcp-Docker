@@ -10,7 +10,7 @@ CLI（Claude CLI / GitHub Copilot CLI / Codex CLI / Antigravity CLI）
 mcp-gateway  ← OAuth 2.0 認証・ルーティング
   ├── /mcp/github          → github-mcp-server   [OAuth 必須]
   ├── /mcp/review-raven    → review-raven        [OAuth 必須]
-  └── /mcp/playwright      → playwright-mcp      [auth=none]
+  └── /mcp/playwright      → playwright-mcp      [auth=none・任意。既定では無効]
 ```
 
 ### 設計思想：認証の一元化
@@ -25,7 +25,7 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 | `mcp-gateway` | `ghcr.io/scottlz0310/mcp-gateway:latest` | 8080（ホスト公開） | OAuth ゲートウェイ |
 | `github-mcp` | `ghcr.io/github/github-mcp-server:main` | 8082（内部のみ） | GitHub MCP サーバー |
 | `review-raven` | `ghcr.io/scottlz0310/review-raven:latest` | 8083（内部のみ） | レビュー対応自動化（reviewed-side） |
-| `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none） |
+| `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none）。**任意で、既定では起動しない**（[有効にする手順](#playwright-mcpauthnone任意)） |
 
 `github-mcp`・`review-raven`・`playwright-mcp` はホストに直接公開されません。
 すべて mcp-gateway（ポート 8080）経由でアクセスします。
@@ -326,7 +326,7 @@ mcp-docker instruction repair --yes
 | `make status` / `make status-gateway` | 全コンテナ状態一覧 |
 | `make logs` / `make logs-gateway` | mcp-gateway ログ表示 |
 | `make pull` / `make pull-gateway` | 全イメージ更新 |
-| `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` と、playwright-mcp の `:main`（未公開時は `:latest`）を取得 |
+| `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` と、（`PLAYWRIGHT_MCP_ENABLED` 設定時のみ）playwright-mcp の `:main`（未公開時は `:latest`）を取得 |
 | `make start-main` | `make pull-main` で取得済みの開発版イメージで全サービス起動（pull なし） |
 | `make restart-main` | `make pull-main` で取得済みの開発版イメージで全サービス再起動（pull なし） |
 | `make health-check` | サービスのヘルスチェック（GitHub App credential 診断込み） |
@@ -361,7 +361,7 @@ mcp-docker instruction repair --yes
 |---|---|---|
 | `http://127.0.0.1:8080/mcp/github` | github-mcp-server | OAuth 必須 |
 | `http://127.0.0.1:8080/mcp/review-raven` | review-raven | OAuth 必須 |
-| `http://127.0.0.1:8080/mcp/playwright` | playwright-mcp | なし |
+| `http://127.0.0.1:8080/mcp/playwright` | playwright-mcp（`PLAYWRIGHT_MCP_ENABLED=1` のときだけ公開） | なし |
 | `http://127.0.0.1:8080/health` | mcp-gateway | なし |
 
 疎通確認：
@@ -397,10 +397,19 @@ make start-gateway
 ```
 
 
-## playwright-mcp（auth=none）
+## playwright-mcp（auth=none。任意）
 
-playwright-mcp は認証なしで利用できるブラウザ操作サービスです。
-`docker-compose.yml` でデフォルト有効。`/mcp/playwright` から直接接続できます：
+playwright-mcp は認証なしで利用できるブラウザ操作サービスです。MCP サーバーは、登録数が増えるほど攻撃面が広がり、tool 定義を常時ロードする CLI ではコンテキストも消費するため、**既定では起動せず、公開も登録もしません**。必要なときだけ有効にします。
+
+有効にするには、`.env` に次を設定します。
+
+```bash
+PLAYWRIGHT_MCP_ENABLED=1
+# make を使わずに docker compose を直接使う場合は、あわせて次も設定する（profile "playwright" を有効にする）
+COMPOSE_PROFILES=playwright
+```
+
+`PLAYWRIGHT_MCP_ENABLED` が設定されていると、`make start-gateway`・`make pull-gateway`・`make pull-main`・`make start-main` が playwright-mcp も扱い、mcp-gateway が `/mcp/playwright` を公開し、`mcp-docker register` が `playwright` を登録対象にします。**既定の登録プロファイル（`config/mcp-profiles.yml`）には載っていない**ため、載せたい agent を追記するか、`--server playwright` で指定してください。`/mcp/playwright` から直接接続できます：
 
 ```json
 {
@@ -409,6 +418,13 @@ playwright-mcp は認証なしで利用できるブラウザ操作サービス�
   }
 }
 ```
+
+**以前の環境（既定で起動していた）からの移行**:
+
+- 引き続き playwright-mcp を使う場合は、`.env` に `PLAYWRIGHT_MCP_ENABLED=1` を設定します。それ以外の操作は要りません。
+- 使わない場合は、`make stop-gateway` で停止してから `make start-gateway` で起動し直します。`make stop-gateway` は `--profile "*"` で停止するので、起動したままの playwright-mcp も止まります（`make start-gateway` だけでは止まりません）。
+- すでに agent に登録済みの `playwright` は、`--prune` を併用した登録で、削除候補になります（`ROUTE_PLAYWRIGHT` が空になり、定義から外れるため）。
+- 手元の `docker-compose.override.yml` に `ROUTE_PLAYWRIGHT: ""` を書いていた場合は、不要になります（残っていても害はありません）。
 
 ## Cloudflare Remote MCP（直接接続）
 

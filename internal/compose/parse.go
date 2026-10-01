@@ -175,28 +175,71 @@ func routeName(key string) string {
 	return strings.ReplaceAll(name, "_", "-")
 }
 
-var composeVarExpr = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([-+])([^}]*))?\}`)
+var composeVarName = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)(?::([-+])(.*))?$`)
 
 // expandComposeVars は Compose 互換の変数展開
-// （${VAR} / ${VAR:-default} / ${VAR:+alternative}）を raw 全体に適用する。
+// （${VAR} / ${VAR:-default} / ${VAR:+alternative}。default と alternative の中の入れ子の ${...} を含む）
+// を raw 全体に適用する。
+// 解釈できない書式（${VAR-default} など）と、閉じていない ${ は、そのまま残す。
+// 呼び出し側が、展開後に ${ が残っていれば、未対応の書式として警告する。
+// 展開した変数の値は、再展開しない（Compose と同じ）。
 func expandComposeVars(raw string, lookup func(string) (string, bool)) string {
-	return composeVarExpr.ReplaceAllStringFunc(raw, func(expr string) string {
-		match := composeVarExpr.FindStringSubmatch(expr)
-		val, ok := lookup(match[1])
-		hasValue := ok && val != ""
-		switch match[2] {
-		case "-":
-			if hasValue {
-				return val
+	var out strings.Builder
+	for i := 0; i < len(raw); {
+		if !strings.HasPrefix(raw[i:], "${") {
+			out.WriteByte(raw[i])
+			i++
+			continue
+		}
+		end := closingBrace(raw, i+2)
+		if end < 0 {
+			out.WriteString(raw[i:])
+			break
+		}
+		out.WriteString(expandComposeVar(raw[i:end+1], raw[i+2:end], lookup))
+		i = end + 1
+	}
+	return out.String()
+}
+
+// closingBrace は、start（"${" の直後）から見て、対応する "}" の位置を返す。入れ子の "${" を数える。無ければ -1。
+func closingBrace(s string, start int) int {
+	depth := 1
+	for i := start; i < len(s); i++ {
+		switch {
+		case strings.HasPrefix(s[i:], "${"):
+			depth++
+			i++
+		case s[i] == '}':
+			depth--
+			if depth == 0 {
+				return i
 			}
-			return match[3]
-		case "+":
-			if hasValue {
-				return match[3]
-			}
-			return ""
-		default:
+		}
+	}
+	return -1
+}
+
+// expandComposeVar は 1 つの ${...} を展開する。original は ${...} 全体、body は波括弧の中身。
+func expandComposeVar(original, body string, lookup func(string) (string, bool)) string {
+	match := composeVarName.FindStringSubmatch(body)
+	if match == nil {
+		return original
+	}
+	val, ok := lookup(match[1])
+	hasValue := ok && val != ""
+	switch match[2] {
+	case "-":
+		if hasValue {
 			return val
 		}
-	})
+		return expandComposeVars(match[3], lookup)
+	case "+":
+		if hasValue {
+			return expandComposeVars(match[3], lookup)
+		}
+		return ""
+	default:
+		return val
+	}
 }
