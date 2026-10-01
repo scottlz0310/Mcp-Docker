@@ -178,7 +178,7 @@ var skillSizeBudgets = []struct {
 	// Phase W: タイムアウト後の確認（現在値の再取得、Squirrel Notifier の公開状態、再購読）を references/review-wait.md へ置く
 	// （SKILL.md は行数を変えず入口の記述だけで +399 文字。合計は新しい reference の分で +3,196 文字。暫定で、D4 で待機をエージェントから外す際に整理する。
 	// 打ち切る前に review://status をもう一度取得する手順 2a を含む）
-	{skill: "review-raven-thread-owl-cycle", maxLines: 1079, maxRunes: 75883, maxTotalRunes: 83200},
+	{skill: "review-raven-thread-owl-cycle", maxLines: 1070, maxRunes: 75467, maxTotalRunes: 83154},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
