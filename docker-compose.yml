@@ -50,10 +50,11 @@ services:
         condition: service_started
       review-raven:
         condition: service_started
-      # playwright-mcp はデフォルトで有効化済み。不要な場合はこの行と
-      # ROUTE_PLAYWRIGHT 環境変数・playwright-mcp サービス定義を削除してください。
+      # playwright-mcp は任意（既定では起動しない。有効化の手順は playwright-mcp サービスの
+      # コメントを参照）。required: false により、起動していなくても gateway は起動できる。
       playwright-mcp:
         condition: service_started
+        required: false
       thread-owl:
         condition: service_started
 
@@ -78,7 +79,9 @@ services:
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true
-      - ROUTE_PLAYWRIGHT=/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none
+      # playwright は任意。PLAYWRIGHT_MCP_ENABLED が未設定の間は、ルートが空になり、
+      # gateway は公開せず、mcp-docker register も登録対象にしない（#167 の ${VAR:+...} の仕組み）。
+      - ROUTE_PLAYWRIGHT=${PLAYWRIGHT_MCP_ENABLED:+/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none}
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
       - OAUTH_SCOPES=${OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -240,17 +243,26 @@ services:
           memory: 256M
 
   # =============================================================================
-  # auth=none ルートの例: 認証不要な MCP サーバを追加するパターン（上記が有効化済み）
+  # auth=none ルートの例: 認証不要な MCP サーバを追加するパターン（任意。既定では起動しない）
   # =============================================================================
   # 上記 playwright-mcp サービスが auth=none ルートパターンの実装例です。
+  #
+  # playwright-mcp を有効にする手順（MCP サーバーは、登録数が増えるほど攻撃面が広がるため、既定では無効）:
+  #   1. .env に PLAYWRIGHT_MCP_ENABLED=1 を設定（mcp-gateway が /mcp/playwright を公開し、
+  #      mcp-docker register が登録対象にする）
+  #   2. make start-gateway（PLAYWRIGHT_MCP_ENABLED が設定されていれば playwright-mcp も起動する）。
+  #      make を使わずに docker compose を直接使う場合は、.env に COMPOSE_PROFILES=playwright も設定する
+  #   3. make register-all などで登録（config/mcp-profiles.yml に playwright を加えた agent にだけ載せる）
+  #
   # 新たな認証不要 MCP サーバを追加する場合は同様の手順で追加してください:
   #   1. サービス定義を追加（image, command に --port/--host, expose, networks を指定）
   #   2. mcp-gateway の ROUTE_<NAME>=/<path>|http://<service>:<port>|auth=none を追加
-  #   3. mcp-gateway の depends_on に新サービスを追加
+  #   3. mcp-gateway の depends_on に新サービスを追加（任意のサービスなら required: false）
   #   4. IDE 設定に "url": "http://127.0.0.1:8080/<path>" を追加
   #   5. make restart
   #
   playwright-mcp:
+    profiles: ["playwright"]
     image: ${PLAYWRIGHT_MCP_IMAGE:-mcr.microsoft.com/playwright/mcp:latest}
     container_name: playwright-mcp
     restart: unless-stopped

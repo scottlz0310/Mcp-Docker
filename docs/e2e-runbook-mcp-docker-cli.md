@@ -12,6 +12,8 @@
 | Docker Compose スタック起動済み | `make status` |
 | 確認したい CLI のインストール | 各セクション参照 |
 
+> **登録されるサーバーについて**: 既定では `playwright` は起動も登録もされない（任意。`.env` の `PLAYWRIGHT_MCP_ENABLED=1` で有効になる。#328）。以降の「`github`、`review-raven`、`playwright` が一覧に表示される」は、`PLAYWRIGHT_MCP_ENABLED=1` の場合の期待値である。既定のままなら、`github`、`review-raven`、`thread-owl` と読み替える。また、`--server` を指定しない場合の agent ごとの登録先は、`config/mcp-profiles.yml` に宣言がある agent では宣言に従う。
+
 ---
 
 ## ステップ 0: バイナリビルド

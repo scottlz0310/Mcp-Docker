@@ -36,7 +36,7 @@ Mcp-Docker
   └─ generated client config
 ```
 
-> **現状**: 上図は目標構成。現行 compose が起動するのは `github-mcp` / `review-raven` / `playwright-mcp` / `thread-owl` / `mcp-gateway`。`mcp-resource-subscriber` は常駐コンテナではなく CLI bridge として扱う。
+> **現状**: 上図は目標構成。現行 compose が既定で起動するのは `github-mcp` / `review-raven` / `thread-owl` / `mcp-gateway`（`playwright-mcp` は任意で、`PLAYWRIGHT_MCP_ENABLED=1` のときだけ起動する）。`mcp-resource-subscriber` は常駐コンテナではなく CLI bridge として扱う。
 
 ## 2. Mcp-Docker の定義
 
@@ -127,7 +127,7 @@ mcp-gateway
 - optional component（github-mcp / playwright / Remote MCP プロバイダー等）は profile により選択的に有効化する
 - profile 単位で「最小構成」「フル構成」を切り替えられるようにし、運用者が必要なものだけ起動できるようにする
 
-> **現状**: compose profiles は未導入で、optional service（`playwright-mcp` 等）も既定で起動する。profile 化は本節の目標。
+> **現状**: optional service のうち、`playwright-mcp` だけが profile `playwright` で任意になっている（既定では起動しない。#328）。ほかの optional service の profile 化は本節の目標。
 
 ## 7. Bootstrap フロー
 

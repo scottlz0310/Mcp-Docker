@@ -19,18 +19,11 @@
 
 ### agy 検証時の route 構成
 
-標準の `docker-compose.yml` は `github`、`review-raven`、`playwright`、`thread-owl` の 4 route を定義する。agy の legacy adapter 検証では、MCP `2026-07-28` 対応を確認していない Playwright route を除外し、`github`、`review-raven`、`thread-owl` の 3 route だけを gateway に登録する。
+標準の `docker-compose.yml` は、既定では `github`、`review-raven`、`thread-owl` の 3 route を公開する。`playwright` の route は任意で、`.env` の `PLAYWRIGHT_MCP_ENABLED` を設定したときだけ、4 route になる（#328）。agy の legacy adapter 検証では、MCP `2026-07-28` 対応を確認していない Playwright route を除外し、3 route だけを gateway に登録する。**`PLAYWRIGHT_MCP_ENABLED` を設定しないこと**。
 
-ローカル検証では、Git 管理外の `docker-compose.override.yml` で route の環境変数を空にする。サービスを停止するだけ、または agy の登録対象から外すだけでは gateway の route は除外されない。
+route の環境変数が空であることは、サービスを停止するだけ、または agy の登録対象から外すだけでは満たせない。再作成前に `docker compose config` の `ROUTE_PLAYWRIGHT` が空であること、再作成後の gateway 起動ログの `routes` が `3` であることを確認する。4 route のまま `GATEWAY_LEGACY_ADAPTER_ENABLED=true` にしてはならない。Playwright の対応確認が完了した後に 4 route へ戻す（`PLAYWRIGHT_MCP_ENABLED` を設定する）場合も、全 route の `server/discover` 応答を再確認する。
 
-```yaml
-services:
-  mcp-gateway:
-    environment:
-      ROUTE_PLAYWRIGHT: ""
-```
-
-再作成前に `docker compose config` の `ROUTE_PLAYWRIGHT` が空であること、再作成後の gateway 起動ログの `routes` が `3` であることを確認する。4 route のまま `GATEWAY_LEGACY_ADAPTER_ENABLED=true` にしてはならない。Playwright の対応確認が完了した後に 4 route へ戻す場合も、全 route の `server/discover` 応答を再確認する。
+以前は、Git 管理外の `docker-compose.override.yml` に `ROUTE_PLAYWRIGHT: ""` を書いて除外していた。既定で空になったため不要だが、残っていても害はない（`PLAYWRIGHT_MCP_ENABLED` を設定しても、空のままになる点に注意する）。
 
 ## 有効化と登録
 

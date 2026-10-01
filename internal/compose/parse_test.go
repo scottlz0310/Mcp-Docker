@@ -377,3 +377,100 @@ services:
 		t.Fatalf("URL = %q, want %q", got, want)
 	}
 }
+
+func TestExpandComposeVars(t *testing.T) {
+	const playwrightRoute = "${PLAYWRIGHT_MCP_ENABLED:+/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none}"
+
+	tests := []struct {
+		name string
+		raw  string
+		env  map[string]string
+		want string
+	}{
+		{name: "変数なし", raw: "/mcp/github|http://github-mcp:8082", want: "/mcp/github|http://github-mcp:8082"},
+		{name: "${VAR} は値に置き換わる", raw: "pre-${A}-post", env: map[string]string{"A": "x"}, want: "pre-x-post"},
+		{name: "${VAR} は未設定なら空", raw: "pre-${A}-post", want: "pre--post"},
+		{name: "${VAR:-default} は設定済みなら値", raw: "${A:-d}", env: map[string]string{"A": "x"}, want: "x"},
+		{name: "${VAR:-default} は未設定なら default", raw: "${A:-d}", want: "d"},
+		{name: "${VAR:-default} は空文字なら default", raw: "${A:-d}", env: map[string]string{"A": ""}, want: "d"},
+		{name: "${VAR:+alt} は設定済みなら alt", raw: "${A:+alt}", env: map[string]string{"A": "x"}, want: "alt"},
+		{name: "${VAR:+alt} は未設定なら空", raw: "${A:+alt}", want: ""},
+		{name: "default の中の入れ子（外側が設定済み）", raw: "${A:-${B:-c}}", env: map[string]string{"A": "a", "B": "b"}, want: "a"},
+		{name: "default の中の入れ子（内側が設定済み）", raw: "${A:-${B:-c}}", env: map[string]string{"B": "b"}, want: "b"},
+		{name: "default の中の入れ子（どちらも未設定）", raw: "${A:-${B:-c}}", want: "c"},
+		{
+			name: "alt の中の入れ子（無効の間は、ルートが空になる）",
+			raw:  playwrightRoute,
+			want: "",
+		},
+		{
+			name: "alt の中の入れ子（有効、ポートは既定）",
+			raw:  playwrightRoute,
+			env:  map[string]string{"PLAYWRIGHT_MCP_ENABLED": "1"},
+			want: "/mcp/playwright|http://playwright-mcp:8931|auth=none",
+		},
+		{
+			name: "alt の中の入れ子（有効、ポートを指定）",
+			raw:  playwrightRoute,
+			env:  map[string]string{"PLAYWRIGHT_MCP_ENABLED": "1", "PLAYWRIGHT_MCP_PORT": "9000"},
+			want: "/mcp/playwright|http://playwright-mcp:9000|auth=none",
+		},
+		{
+			name: "1 つの文字列に複数の変数",
+			raw:  "${A:-a}/${B:+b}/${C}",
+			env:  map[string]string{"B": "1", "C": "c"},
+			want: "a/b/c",
+		},
+		{name: "未対応の書式はそのまま残す", raw: "${A-d}", want: "${A-d}"},
+		{name: "閉じていない ${ はそのまま残す", raw: "pre-${A:-x", want: "pre-${A:-x"},
+		{name: "展開した値は再展開しない", raw: "${A}", env: map[string]string{"A": "${B}", "B": "b"}, want: "${B}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := expandComposeVars(tt.raw, func(key string) (string, bool) {
+				val, ok := tt.env[key]
+				return val, ok
+			})
+			if got != tt.want {
+				t.Fatalf("expandComposeVars(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+// 入れ子の alt を持つ ROUTE_PLAYWRIGHT は、無効の間は登録対象外で、有効なら path 以降が壊れずに登録される。
+func TestParsePlaywrightRouteIsOptional(t *testing.T) {
+	data := []byte(`services:
+  mcp-gateway:
+    environment:
+      - ROUTE_GITHUB=/mcp/github|http://github-mcp:8082
+      - ROUTE_PLAYWRIGHT=${PLAYWRIGHT_MCP_ENABLED:+/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none}
+`)
+
+	tests := []struct {
+		name string
+		env  map[string]string
+		want []string
+	}{
+		{name: "無効なら、playwright は登録対象外", env: map[string]string{}, want: []string{"github"}},
+		{name: "有効なら、playwright も登録対象", env: map[string]string{"PLAYWRIGHT_MCP_ENABLED": "1"}, want: []string{"github", "playwright"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			servers, err := Parse(data, func(key string) (string, bool) {
+				val, ok := tt.env[key]
+				return val, ok
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, server := range servers {
+				got = append(got, server.Name)
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("servers = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

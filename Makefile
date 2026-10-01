@@ -49,6 +49,7 @@ ifneq (,$(wildcard .env))
   MCP_GATEWAY_PUBLIC_URL       ?= $(call ENV_GET,MCP_GATEWAY_PUBLIC_URL)
   MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
   PLAYWRIGHT_MCP_IMAGE         ?= $(call ENV_GET,PLAYWRIGHT_MCP_IMAGE)
+  PLAYWRIGHT_MCP_ENABLED       ?= $(call ENV_GET,PLAYWRIGHT_MCP_ENABLED)
 endif
 
 # OAUTH_* → GITHUB_MCP_* → GITHUB_* の優先順位でフォールバック解決
@@ -59,7 +60,12 @@ ifeq ($(strip $(OAUTH_CLIENT_SECRET)),)
   OAUTH_CLIENT_SECRET := $(or $(GITHUB_MCP_CLIENT_SECRET),$(GITHUB_CLIENT_SECRET))
 endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL PLAYWRIGHT_MCP_ENABLED
+
+# playwright-mcp は任意（既定では起動しない。.env の PLAYWRIGHT_MCP_ENABLED=1 で有効にする）。
+# 有効なときだけ、サービス名を明示して起動し、pull の対象にも加える（docker-compose.yml の profile "playwright"）。
+PLAYWRIGHT_SERVICE := $(if $(strip $(PLAYWRIGHT_MCP_ENABLED)),playwright-mcp)
+PLAYWRIGHT_PROFILE := $(if $(strip $(PLAYWRIGHT_MCP_ENABLED)),--profile playwright)
 
 .DEFAULT_GOAL := help
 
@@ -82,12 +88,13 @@ check-github-app-config:
 .PHONY: start-gateway
 start-gateway: check-github-app-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
-	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
+	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway $(PLAYWRIGHT_SERVICE)
 	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: stop-gateway
 stop-gateway: ## 全サービスを停止
-	docker compose down
+	# --profile "*": 無効にした（profile が非アクティブな）playwright-mcp が残っていても、あわせて停止する
+	docker compose --profile "*" down
 
 .PHONY: restart-gateway
 restart-gateway: stop-gateway start-gateway ## 全サービスを再起動
@@ -135,7 +142,7 @@ mcp-conformance-review-raven: $(MCP_DOCKER) ## review-raven route のdiscovery/s
 
 .PHONY: pull-gateway
 pull-gateway: ## 全サービスの Docker イメージを取得
-	docker compose pull
+	docker compose $(PLAYWRIGHT_PROFILE) pull
 
 # 後方互換エイリアス
 .PHONY: stop
@@ -174,7 +181,9 @@ pull-main: ## 最新開発版イメージを取得（リリース前 main ブラ
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	docker compose pull mcp-gateway review-raven thread-owl
+ifneq ($(strip $(PLAYWRIGHT_MCP_ENABLED)),)
 	"$(BASH_CMD)" ./scripts/pull-playwright-main.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)"
+endif
 ifeq ($(OS),Windows_NT)
 	@echo $$'\u2713 \u958b\u767a\u7248\u30a4\u30e1\u30fc\u30b8\u3092\u53d6\u5f97\u3057\u307e\u3057\u305f\u3002\u8d77\u52d5: make start-main'
 else
@@ -183,12 +192,19 @@ endif
 
 .PHONY: start-main
 start-main: check-github-app-config ## pull-main で取得済みの開発版イメージで全サービスを起動
+ifneq ($(strip $(PLAYWRIGHT_MCP_ENABLED)),)
 	@playwright_image=$$("$(BASH_CMD)" ./scripts/select-playwright-main-image.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)") || { status=$$?; exit "$$status"; }; \
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	PLAYWRIGHT_MCP_IMAGE="$$playwright_image" \
 	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
+else
+	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
+	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
+	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
+	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway
+endif
 	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: restart-main
@@ -328,7 +344,7 @@ setup-tls: ## Windows ホスト上に TLS 証明書と CA をセットアップ�
 
 .PHONY: rotate-secret
 rotate-secret: ## credential ローテーション後に永続 config を消去して再起動（tokens.db は保持）
-	docker compose down
+	docker compose --profile "*" down
 	"$(BASH_CMD)" ./scripts/rotate-secret.sh
 	$(MAKE) start-gateway
 
@@ -357,7 +373,7 @@ ifeq ($(OS),Windows_NT)
 else
 	@echo "Dockerリソースをクリーンアップ中..."
 endif
-	docker compose down -v
+	docker compose --profile "*" down -v
 	docker system prune -f
 ifeq ($(OS),Windows_NT)
 	@echo $$'Docker\u30af\u30ea\u30fc\u30f3\u30a2\u30c3\u30d7\u5b8c\u4e86'
