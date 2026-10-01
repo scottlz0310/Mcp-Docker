@@ -1,6 +1,6 @@
 # Queue 待機（queue resource の subscription）
 
-SKILL.md の「Queue 契約」から移した手順（PR が明示されず queue 待機を依頼された場合）。
+SKILL.md の O-00（queue 起点の待機）の手順（PR が明示されず queue 待機を依頼された場合）。
 
 | Resource | 用途 |
 | --- | --- |

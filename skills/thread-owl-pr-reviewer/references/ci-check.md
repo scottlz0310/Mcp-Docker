@@ -8,7 +8,7 @@ CI 判定に使う check runs は、**固定済みの `reviewedHeadSha` を入�
 
 - **第一選択**: `{RAVEN}:list_check_runs_for_sha`。
 - **fallback**: `{RAVEN}` の discovery 時点でこの capability が無い（review-raven v0.5.0 未満）、または schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
-- **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として停止する。`gh api` は実行ユーザーの token を使う別の認証経路なので、O-00 の「異なる認証経路を自動的に試さない」に反する。
+- **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として停止する。`gh api` は実行ユーザーの token を使う別の認証経路なので、SKILL.md の契約表の既定（別経路へ切り替えない）に反する。
 - **PR 番号を入力とし、`head_sha` を返さない capability は CI 判定の根拠にしない**（公式 GitHub MCP の `pull_request_read` の `get_check_runs` など。PR の head が動くと対象が黙って変わるうえ、返却値で SHA を照合できない）。
 
 `{RAVEN}` の discovery は、O-00 の `{OWL}` binding が成功した後に、次の手順で行う。

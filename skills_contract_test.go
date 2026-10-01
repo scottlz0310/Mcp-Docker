@@ -211,3 +211,51 @@ func TestSkillContractTokensAreClassified(t *testing.T) {
 		})
 	}
 }
+
+// 停止コードの表（SKILL.md の「## 停止コード」節）を持つ skill。この表が、停止コードの定義の正本である。
+// 表のコードは、契約の stopCodes と双方向に一致させる（表にない停止コードも、表だけにあるコードも検出する）。
+// 本文を圧縮して表を置いた skill から追加する（#326）。
+var stopCodeRegistrySkills = []string{"thread-owl-pr-reviewer"}
+
+// 停止コードの表の行（| `CODE` | …）。
+var stopCodeRow = regexp.MustCompile("(?m)^\\| `([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)` \\|")
+
+func TestSkillStopCodeRegistry(t *testing.T) {
+	contracts := loadSkillContracts(t)
+	for _, name := range stopCodeRegistrySkills {
+		t.Run(name, func(t *testing.T) {
+			c, ok := contracts[name]
+			if !ok {
+				t.Fatalf("skill %q の契約が %s に無い", name, skillContractPath)
+			}
+			_, section, found := strings.Cut(skillTexts(t, name)["SKILL.md"], "\n## 停止コード\n")
+			if !found {
+				t.Fatalf("skill %q の SKILL.md に「## 停止コード」節が無い", name)
+			}
+			if end := strings.Index(section, "\n## "); end >= 0 {
+				section = section[:end]
+			}
+
+			listed := map[string]struct{}{}
+			for _, m := range stopCodeRow.FindAllStringSubmatch(section, -1) {
+				if _, dup := listed[m[1]]; dup {
+					t.Errorf("停止コード %q が表に重複している", m[1])
+				}
+				listed[m[1]] = struct{}{}
+			}
+
+			registered := map[string]struct{}{}
+			for _, code := range c.StopCodes {
+				registered[code] = struct{}{}
+				if _, ok := listed[code]; !ok {
+					t.Errorf("停止コード %q が、SKILL.md の「停止コード」表にない（条件と動作を表へ追加してください）", code)
+				}
+			}
+			for _, code := range sortedKeys(listed) {
+				if _, ok := registered[code]; !ok {
+					t.Errorf("「停止コード」表の %q が契約の stopCodes にない。意図した追加なら、%s の stopCodes に追加してください", code, skillContractPath)
+				}
+			}
+		})
+	}
+}
