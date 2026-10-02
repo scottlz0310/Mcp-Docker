@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 バグ修正
+
+- #355: `thread-owl-pr-reviewer`（revision 20）の CI 判定（`references/ci-check.md`）で、required checks の provider ID 照合に対応した。ruleset の `integration_id` と classic の `app_id` に具体値の GitHub App ID が指定されている場合、check run の `app.id` と照合し、context と App ID の両方が一致した run の結果だけを採用するようにした。同名でも別 App の run や App ID が欠落した run では required を満たさない。一致する provider の run が未返却なら `CI: pending` とし、具体値 App ID が要求されている check は provider ID を持たない commit status では満たせないよう fail-closed を徹底した。`gh api` fallback の抽出式にも `app: {id: .app.id, slug: .app.slug}` を含め、review-raven 経路と同一の判定ができるようにした。classic で `app_id` が null / 欠落、または checks の裏付けがない legacy `contexts` がある場合は引き続き `CI: unknown` とする。
+
 ## [2.30.3] - 2026-10-02
 
 ### 🔧 改善

@@ -7,7 +7,7 @@
 CI 判定に使う check runs は、**固定済みの `reviewedHeadSha` を入力**として、その commit の check run ごとの `name`、`status`、`conclusion`、対象 SHA（`head_sha`）、run ID、GitHub App を返す論理 read capability から取得する。
 
 - **第一選択**: `{RAVEN}:list_check_runs_for_sha`。
-- **fallback**: `{RAVEN}` の discovery 時点でこの capability が無い（review-raven v0.5.0 未満）、または schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。
+- **fallback**: `{RAVEN}` の discovery 時点でこの capability が無い（review-raven v0.5.0 未満）、または schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: {id: .app.id, slug: .app.slug}}'` を read-only で使う。
 - **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として停止する。`gh api` は実行ユーザーの token を使う別の認証経路なので、SKILL.md の契約表の既定（別経路へ切り替えない）に反する。
 - **PR 番号を入力とし、`head_sha` を返さない capability は CI 判定の根拠にしない**（公式 GitHub MCP の `pull_request_read` の `get_check_runs` など。PR の head が動くと対象が黙って変わるうえ、返却値で SHA を照合できない）。
 
@@ -55,19 +55,29 @@ required の集合は、リポジトリの設定から確定する。`<base>` �
 
 **admin 権限が要る `branches/<base>/protection` は使わない**。保護がなければ 404、権限がなければ 403 になり、「未定義」と「取得不能」を区別できなくなる。
 
-required の要素は、ruleset の `required_status_checks` の `checks[]`（`context`、`integration_id`）と、classic の `checks[]`（`context`、`app_id`）と `contexts[]`（`context` のみ）である。同じ `context` はまとめる。classic の `checks[]` は provider を一意に解釈できる場合だけ使う。GitHub REST API では `app_id` の省略時、最近その check を提供した GitHub App が自動選択される場合があり、App が提供元に設定されていなければ任意の App が許容される。`-1` は任意の App を明示する。legacy `contexts[]` も最近特定 App から報告された check をその App に制約し得る。したがって、`contexts[]` の各 context は、同じ context を持つ `checks[]` に `app_id: -1` が明示されている場合だけ照合対象にできる。それ以外は、**この規則では判定できないため `CI: unknown`** とする。詳細は[保護ブランチの REST API](https://docs.github.com/en/rest/branches/branch-protection)を参照。
+required の各要素は、`(context, provider constraint)` として扱う。ruleset の `required_status_checks` の `checks[]`（`context`、`integration_id`）と、classic の `checks[]`（`context`、`app_id`）および `contexts[]`（`context` のみ）から構成される。同じ `context` はまとめる。
+
+- **provider 制約の解釈**:
+  - ruleset: `integration_id` が具体値（正の整数）ならその GitHub App ID、`null` または `-1` なら任意の App（`-1` / 任意）。
+  - classic `checks[]`: `app_id` が具体値（正の整数）ならその GitHub App ID、`-1` は任意の App（`-1` / 任意）。
+  - classic `contexts[]`: GitHub REST API の仕様上、classic では `checks[]` の要素も同時に `contexts[]` に返される。したがって、`contexts[]` の各 context は、同じ context を持つ `checks[]` が存在し、その `app_id` が具体値または `-1` の場合に限り、その `checks[]` 側の provider 制約を採用する。`checks[]` に存在しないのに `contexts[]` だけに存在する context（legacy context）がある場合、暗黙の App 制約をこの規則では解決できないため、**`CI: unknown`** とする。詳細は[保護ブランチの REST API](https://docs.github.com/en/rest/branches/branch-protection)を参照。
+  - 同じ `context` が ruleset と classic の両方にある場合、両方の制約が一致（または一方が任意）ならその制約を採用し、異なる具体的 App ID が指定されて矛盾する場合は **`CI: unknown`** とする。
+
+次にあてはまる場合は、**この規則では判定できないため `CI: unknown`** とする。
 
 - どちらかの読み取りに失敗した（403 などの失敗）。
 - ruleset に `workflows`（required workflow）、`code_scanning`、`code_quality`、`code_coverage` の rule がある。必須結果や merge gate を、この規則では判定できない。`code_quality` / `code_coverage` も branch ルール上の merge 条件になる（[rules REST API](https://docs.github.com/en/rest/repos/rules)）。
-- ruleset required に App が指定されている（`integration_id` が `null` でも `-1` でもない）、または classic の `checks[]` に App ID が指定されている（`app_id` が `-1` 以外の数値）。run の App の照合には対応しない。
-- classic の `checks[].app_id` が `null` または欠落している。省略時に自動選択される App を、この規則では特定できない。classic の `app_id: -1` だけを「どの App でもよい」と扱う。
-- classic の `contexts[]` に、同じ `context` を持ち `app_id: -1` が明示された `checks[]` がない項目がある。legacy context の暗黙の App 制約を、この規則では解決できない。
+- classic の `checks[].app_id` が `null` または欠落している。省略時に自動選択される App を、この規則では特定できない。
+- classic の `contexts[]` に、同じ `context` を持ち具体値または `-1` の `app_id` を持つ `checks[]` がない項目がある（legacy context の暗黙の App 制約を解決できない）。
+- 同じ `context` に対して ruleset と classic で異なる具体的 App ID が指定されており、制約が矛盾する。
 
 上記に当たらず、和集合が**空**なら **required 未定義**とする。報告済みの check run をすべて required とみなし、「5. 判定」の規則をその集合に適用する。**check run が 1 件も報告されていなければ `CI: pending`**。この場合、commit status は対象にしない。
 
-和集合が空でなければ、required の各 `context` を、check run と commit status の**両方**で照合する。
+和集合が空でなければ、required の各 check `(context, provider constraint)` を、check run および commit status と照合する。
 
-- check run: 名前が一致する run（再実行は集約した後）。
+- check run: `name` が `context` と一致する run（再実行は集約した後）。
+  - provider 制約が具体的 App ID の場合: `run.app.id` が指定された App ID と一致する run だけを、この required check の結果として採用する。同じ `context` 名であっても App ID が異なる run（同名の別 App）や、`run.app.id` が欠落・取得不能な run は、この required check を満たさない。
+  - provider 制約が任意の App（`-1` または `null`）の場合: 任意の App から報告された一致 run を採用する。
 - commit status: 個別の status の一覧を読み、同じ `context` のうち最新のもの（新しい順に返るため、最初に現れるもの）。
 
   ```text
@@ -75,10 +85,13 @@ required の要素は、ruleset の `required_status_checks` の `checks[]`（`c
   ```
 
   `combined status` は使わない。
-- どちらにも該当がない: 未返却として `CI: pending`。
-- 該当のうち 1 つでも失敗（check run の失敗系の結論、status の `failure` / `error`）: その `context` は失敗。
-- 未完了（check run の `queued` / `in_progress`、status の `pending`）: その `context` は未完了。
-- すべて成功（check run は `completed` かつ `success`、status は `success`）の場合だけ、その `context` は成功。**同名の check run と commit status が併存する場合は、両方が成功のときだけ**成功とする。
+  - commit status には provider ID（GitHub App ID）が存在しないため、具体的 App ID が要求されている required check は commit status では満たせない（一致する provider の check run が必要であり、status だけでは未返却扱いとする）。
+  - provider 制約が任意の App（`-1` または `null`）の場合だけ、commit status を照合対象にできる。
+- 結果の判定:
+  - provider が一致する run（または status）が未返却（1件もない）: 未返却として `CI: pending`。
+  - 該当のうち 1 つでも失敗（check run の失敗系の結論、status の `failure` / `error`）: その check は失敗。
+  - 該当のうち未完了（check run の `queued` / `in_progress`、status の `pending`）がある: その check は未完了（`CI: pending`）。
+  - 該当がすべて成功（check run は `completed` かつ `success`、status は `success`）の場合だけ、その check は成功。**provider 制約が任意で、同名の check run と commit status が併存する場合は、両方が成功のときだけ**成功とする。
 
 required 未定義のときは、まだ報告されていない check（後から現れる check）を検知できず、commit status も見ない。すべて成功に見えても、後から現れた check が赤になり得る。この限界を、完了サマリー（approve の場合は Verdict の `summary`）の残存リスクに書く（例: 「required checks が未定義のため、報告済みの check run すべてを対象にした。後から現れる check と commit status は検知できない」）。
 
@@ -87,7 +100,7 @@ required 未定義のときは、まだ報告されていない check（後か�
 - `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功の場合だけ。
 - `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る。commit status は `pending`）の場合。
 - `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合、または required の commit status が `failure` / `error` の場合。
-- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。App 指定・provider が曖昧な classic 設定、`workflows` / `code_scanning` / `code_quality` / `code_coverage` の rule を含む）、結果不明を含む。
+- `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。provider が曖昧な classic 設定、`workflows` / `code_scanning` / `code_quality` / `code_coverage` の rule を含む）、結果不明を含む。
 
 optional check の結果は別途記録する。`CI: unknown` のまま Verdict / APPROVE を投稿しない。
 
