@@ -188,7 +188,8 @@ var skillSizeBudgets = []struct {
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
 	// #326 PR4-1: 契約表を共通規則 + 1 行 1 操作の表へ、停止コードを 1 つの表へ圧縮し、{OWL} の discovery を references/discovery.md へ移動
 	// （SKILL.md は -259 行・-11,615 文字。合計は新しい reference の分を含めて -9,744 文字。目標 26,000 文字には届かず、残りは契約表 22 行）
-	{skill: "thread-owl-pr-reviewer", maxLines: 354, maxRunes: 27559, maxTotalRunes: 45181},
+	// #355: required checks の provider ID 照合を追加（references を含む合計: 46,177 文字）
+	{skill: "thread-owl-pr-reviewer", maxLines: 354, maxRunes: 27559, maxTotalRunes: 46177},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
