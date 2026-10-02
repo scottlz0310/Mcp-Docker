@@ -61,7 +61,7 @@ required の各要素は、`(context, provider constraint)` として扱う。ru
   - ruleset: `integration_id` が具体値（正の整数）ならその GitHub App ID、`null` または `-1` なら任意の App（`-1` / 任意）。
   - classic `checks[]`: `app_id` が具体値（正の整数）ならその GitHub App ID、`-1` は任意の App（`-1` / 任意）。
   - classic `contexts[]`: GitHub REST API の仕様上、classic では `checks[]` の要素も同時に `contexts[]` に返される。したがって、`contexts[]` の各 context は、同じ context を持つ `checks[]` が存在し、その `app_id` が具体値または `-1` の場合に限り、その `checks[]` 側の provider 制約を採用する。`checks[]` に存在しないのに `contexts[]` だけに存在する context（legacy context）がある場合、暗黙の App 制約をこの規則では解決できないため、**`CI: unknown`** とする。詳細は[保護ブランチの REST API](https://docs.github.com/en/rest/branches/branch-protection)を参照。
-  - 同じ `context` が ruleset と classic の両方にある場合、両方の制約が一致（または一方が任意）ならその制約を採用し、異なる具体的 App ID が指定されて矛盾する場合は **`CI: unknown`** とする。
+  - 同じ `context` に対して、同一定義内または ruleset と classic の間で異なる具体的 App ID が指定されて矛盾する場合は **`CI: unknown`** とする（同一の App ID が重複している場合や、一方が任意でもう一方が具体値ならその具体値を採用）。
 
 次にあてはまる場合は、**この規則では判定できないため `CI: unknown`** とする。
 
@@ -69,7 +69,7 @@ required の各要素は、`(context, provider constraint)` として扱う。ru
 - ruleset に `workflows`（required workflow）、`code_scanning`、`code_quality`、`code_coverage` の rule がある。必須結果や merge gate を、この規則では判定できない。`code_quality` / `code_coverage` も branch ルール上の merge 条件になる（[rules REST API](https://docs.github.com/en/rest/repos/rules)）。
 - classic の `checks[].app_id` が `null` または欠落している。省略時に自動選択される App を、この規則では特定できない。
 - classic の `contexts[]` に、同じ `context` を持ち具体値または `-1` の `app_id` を持つ `checks[]` がない項目がある（legacy context の暗黙の App 制約を解決できない）。
-- 同じ `context` に対して ruleset と classic で異なる具体的 App ID が指定されており、制約が矛盾する。
+- 同じ `context` に対して異なる具体的 App ID が指定されており、制約が矛盾する（同一 ruleset 内、複数 ruleset 間、classic 内、または ruleset と classic の間のいずれの場合も含む）。
 
 上記に当たらず、和集合が**空**なら **required 未定義**とする。報告済みの check run をすべて required とみなし、「5. 判定」の規則をその集合に適用する。**check run が 1 件も報告されていなければ `CI: pending`**。この場合、commit status は対象にしない。
 

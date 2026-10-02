@@ -316,6 +316,20 @@ type ClassicProtection struct {
 	}
 }
 
+func mergeConstraint(a, b ProviderConstraint) (ProviderConstraint, bool) {
+	if a == b {
+		return a, true
+	}
+	if a.IsAny {
+		return b, true
+	}
+	if b.IsAny {
+		return a, true
+	}
+	// 異なる具体値 App ID が指定されており矛盾する
+	return ProviderConstraint{}, false
+}
+
 // ResolveRequiredChecks はリポジトリ設定から required checks 集合を解決する。
 // 判定不能な場合は ok = false (CI: unknown)。
 func ResolveRequiredChecks(rules []RulesetRule, classic ClassicProtection) (checks []RequiredCheck, ok bool, isUndefined bool) {
@@ -332,10 +346,20 @@ func ResolveRequiredChecks(rules []RulesetRule, classic ClassicProtection) (chec
 	for _, r := range rules {
 		if r.Type == "required_status_checks" {
 			for _, c := range r.Checks {
+				var p ProviderConstraint
 				if c.IntegrationID == nil || *c.IntegrationID == -1 {
-					rulesetMap[c.Context] = ProviderConstraint{IsAny: true}
+					p = ProviderConstraint{IsAny: true}
 				} else {
-					rulesetMap[c.Context] = ProviderConstraint{IsAny: false, AppID: *c.IntegrationID}
+					p = ProviderConstraint{IsAny: false, AppID: *c.IntegrationID}
+				}
+				if existing, exists := rulesetMap[c.Context]; exists {
+					merged, okMerge := mergeConstraint(existing, p)
+					if !okMerge {
+						return nil, false, false
+					}
+					rulesetMap[c.Context] = merged
+				} else {
+					rulesetMap[c.Context] = p
 				}
 			}
 		}
@@ -350,10 +374,20 @@ func ResolveRequiredChecks(rules []RulesetRule, classic ClassicProtection) (chec
 				// app_id が省略または null: 省略時に直近の提供 App が自動選択され provider を特定できないため unknown
 				return nil, false, false
 			}
+			var p ProviderConstraint
 			if *c.AppID == -1 {
-				classicMap[c.Context] = ProviderConstraint{IsAny: true}
+				p = ProviderConstraint{IsAny: true}
 			} else {
-				classicMap[c.Context] = ProviderConstraint{IsAny: false, AppID: *c.AppID}
+				p = ProviderConstraint{IsAny: false, AppID: *c.AppID}
+			}
+			if existing, exists := classicMap[c.Context]; exists {
+				merged, okMerge := mergeConstraint(existing, p)
+				if !okMerge {
+					return nil, false, false
+				}
+				classicMap[c.Context] = merged
+			} else {
+				classicMap[c.Context] = p
 			}
 		}
 
@@ -374,19 +408,11 @@ func ResolveRequiredChecks(rules []RulesetRule, classic ClassicProtection) (chec
 	}
 	for ctx, cp := range classicMap {
 		if rp, exists := allContexts[ctx]; exists {
-			// 両方に存在する場合の整合性チェック
-			if rp == cp {
-				// 一致
-				continue
-			}
-			if rp.IsAny {
-				allContexts[ctx] = cp
-			} else if cp.IsAny {
-				allContexts[ctx] = rp
-			} else {
-				// 異なる具体値 App ID が指定されており矛盾する
+			merged, okMerge := mergeConstraint(rp, cp)
+			if !okMerge {
 				return nil, false, false
 			}
+			allContexts[ctx] = merged
 		} else {
 			allContexts[ctx] = cp
 		}
@@ -498,6 +524,56 @@ func TestReviewerCIProviderAmbiguity(t *testing.T) {
 		_, ok, _ := ResolveRequiredChecks(rules, classic)
 		if ok {
 			t.Error("ResolveRequiredChecks() ok=true, want false (CI: unknown)")
+		}
+	})
+
+	t.Run("同一 ruleset 内で同じ context に異なる App ID がある場合は unknown", func(t *testing.T) {
+		rules := []RulesetRule{
+			{
+				Type: "required_status_checks",
+				Checks: []RulesetCheck{
+					{Context: "Frontend", IntegrationID: &appID},
+					{Context: "Frontend", IntegrationID: &appID2},
+				},
+			},
+		}
+		_, ok, _ := ResolveRequiredChecks(rules, ClassicProtection{})
+		if ok {
+			t.Error("ResolveRequiredChecks() ok=true, want false (CI: unknown)")
+		}
+	})
+
+	t.Run("同一 classic 内で同じ context に異なる App ID がある場合は unknown", func(t *testing.T) {
+		classic := ClassicProtection{
+			Enabled:  true,
+			Contexts: []string{"Frontend"},
+			Checks: []struct {
+				Context string
+				AppID   *int64
+			}{
+				{Context: "Frontend", AppID: &appID},
+				{Context: "Frontend", AppID: &appID2},
+			},
+		}
+		_, ok, _ := ResolveRequiredChecks(nil, classic)
+		if ok {
+			t.Error("ResolveRequiredChecks() ok=true, want false (CI: unknown)")
+		}
+	})
+
+	t.Run("同一 ruleset 内で同じ context に同一 App ID が重複している場合は正常採用", func(t *testing.T) {
+		rules := []RulesetRule{
+			{
+				Type: "required_status_checks",
+				Checks: []RulesetCheck{
+					{Context: "Frontend", IntegrationID: &appID},
+					{Context: "Frontend", IntegrationID: &appID},
+				},
+			},
+		}
+		checks, ok, _ := ResolveRequiredChecks(rules, ClassicProtection{})
+		if !ok || len(checks) != 1 || checks[0].Provider.AppID != 15368 {
+			t.Errorf("ResolveRequiredChecks() = %+v, ok=%v; want 1 check with AppID=15368", checks, ok)
 		}
 	})
 }
