@@ -182,9 +182,10 @@ var skillSizeBudgets = []struct {
 	// （SKILL.md は -206 行・-16,851 文字。合計は、入口の記述 6 か所と新しい reference の見出し・案内で +3,359 文字。PR4-3 の圧縮で、合計も下げる）
 	// #326 PR4-3: 契約表を共通規則 + 1 行 1 操作の表へ、停止コードを 1 つの表へ圧縮。ツール対応表と旧アノテーションからの移行を削除し、gh CLI の補完経路（GraphQL）と対応サマリの template を references/ へ移動
 	// （SKILL.md は -365 行・-15,426 文字。合計は 86,547 -> 73,493 文字。目標 40,000 文字には届かず、残りは契約表 25 行と停止コード表 40 行）
-	// gateway の GitHub App の移行（hub: 2026-10-04_cross_github-app-org-migration）: canonical allowlist へ新 login scottlz0310-mcp-gateway を追加
-	// （SKILL.md は +1 行・+28 文字。**一時的**: 旧 login mcp-gateway-authentication-app を削除する P6 の後に、500 行・43,190 文字・73,493 文字へ戻す）
-	{skill: "review-raven-thread-owl-cycle", maxLines: 501, maxRunes: 43218, maxTotalRunes: 73521},
+	// gateway の GitHub App の移行: canonical allowlist へ新 login scottlz0310-mcp-gateway を追加（SKILL.md は +1 行・+28 文字の一時的な引き上げ）
+	// #362: canonical allowlist を、SKILL.md の直書きから、サーバー側の設定（review-raven の get_trusted_comment_authors）へ移した。
+	// 直書きの削除で、SKILL.md は 493 行・43,188 文字（500 行・43,190 文字以下）へ戻った。合計は、discovery.md の必須 capability の追記などで、73,493 -> 73,807 文字
+	{skill: "review-raven-thread-owl-cycle", maxLines: 493, maxRunes: 43188, maxTotalRunes: 73807},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）

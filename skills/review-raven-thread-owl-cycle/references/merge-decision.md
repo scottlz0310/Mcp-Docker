@@ -13,7 +13,7 @@ SKILL.md の「Phase 8: マージ判断」から移した手順（内容は変�
 - 未解決の `blocking` 項目なし
 - `termination_status` が `READY_TO_MERGE` または `ESCALATE — Clean`
 - Phase 7.5 の完了記録が `mcp-docker reviewgate validate` を通過していること。`reviewed` 通知、CIグリーン、未解決0件だけでは代用しない。
-- **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が canonical allowlist の `thread-owl` と一致し、Phase 7 の「Verdict 照合規則」で書式一致するもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
+- **`termination_status = READY_TO_MERGE` の場合**: thread-owl の Verdict コメント（`normalize_login(author.login)` が `thread-owl` と一致し（かつ canonical allowlist に含まれ）、Phase 7 の「Verdict 照合規則」で書式一致するもの）が存在し、その `Reviewed HEAD SHA` が現在の PR HEAD SHA と一致すること（Phase 7 で確認済みであること）。
   - 該当コメントが存在しない、または SHA が不一致の場合は `AWAITING_THREAD_OWL_VERDICT` としてマージ判断に進まず、Phase 7 の Verdict コメント確認へ戻ります。
 - **`termination_status = ESCALATE — Clean` の場合**: Verdict コメント確認は対象外です（最大サイクル超過につき現在の HEAD に対する新しい Verdict が存在し得ないため。Phase U6「終了分類」参照）。マージには下記の `ESCALATE — Clean` 対応に従い、明示的な人間確認が必要です。
 
