@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - #358: `thread-owl-pr-reviewer`（revision 21）が、thread-owl の `get_pr` が返す PR の作成元の判定 `origin` を、O-02 で確認するようにした。`origin` が無い、または `origin.allowed` が `true` でない場合は、新しい停止コード `BLOCKED_PR_ORIGIN` で、ローカル検証・Independent Stage・投稿より前に停止する。queue を経由しない CLI からの直接起動でも、許可外の作成者・fork の PR のコードを、ローカルで実行しない。許可リストの正本は thread-owl の `ALLOWED_AUTHORS` の 1 か所で、skill は持たない。**配備の順序**: thread-owl#252 のリリース・配備が先（無い応答は fail-closed で停止する）。release-automate の GitHub App（`scottlz0310-release-bot`）の PR をレビューするには、運用環境の `THREAD_OWL_ALLOWED_AUTHORS` へ、先にその login を足すこと。
 
+### 🔧 改善
+
+- `review-raven-thread-owl-cycle`（revision 27）の必須コメント投稿者ゲートの canonical allowlist に、`scottlz0310-mcp-gateway`（組織所有の GitHub App。gateway の認証基盤の移行先）を追加した。旧 login `mcp-gateway-authentication-app` は、旧 login が関わる open の Issue・PR がなくなるまで残す（削除は移行の最後）。`docker-compose.yml` と `.env.template` の `ALLOWED_AUTHORS` の注釈の例にも、新しい bot 名義を加えた。**配備の順序**: gateway の認証基盤を新しい App へ切り替える前に、この変更をリリース・再配布する（切替の後に、新しい bot 名義のコメントが信頼されないと、サイクルが止まる）。
+
 ## [2.30.4] - 2026-10-02
 
 ### 🐛 バグ修正
