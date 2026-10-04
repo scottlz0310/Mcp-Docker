@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔄 変更
+
+- #362: `review-raven-thread-owl-cycle`（revision 28）の必須コメント投稿者ゲートの canonical allowlist を、`SKILL.md` の直書きから、**サーバー側の設定**へ移した。正本は、review-raven の環境変数 `TRUSTED_COMMENT_AUTHORS`（compose では `REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`。保管庫 → dsx）で、skill は、R-01 の前に `{RAVEN}:get_trusted_comment_authors`（review-raven#134）を 1 回呼んで、run の状態へ固定する。skill から、利用者・組織の login の直書きがなくなり、許可リストの変更は、環境変数の更新と review-raven の再作成だけになる（skill のリリースと再配布が要らない）。プロジェクト固有の追加（`.review-raven/trusted-comment-authors.json`）は維持し、union を取る。tool が無い・失敗・未設定・空のときは、新しい停止コード `TRUSTED_AUTHORS_UNAVAILABLE` で fail-closed に停止する。**配備の順序**: review-raven#134 のリリース・配備 → `REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS` の登録（初期値は、これまでの canonical allowlist と同じ）と review-raven の再作成 → この変更のリリース・再配布。skill が先に入ると、tool が無くて停止する。
+
 ## [2.30.5] - 2026-10-04
 
 ### ✨ 新機能

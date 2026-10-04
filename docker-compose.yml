@@ -143,6 +143,11 @@ services:
       - BIND_ADDR=0.0.0.0
       - MCP_PORT=${REVIEW_RAVEN_PORT:-8083}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # コメントの本文を、エージェントの文脈に入れてよい投稿者の許可リスト（カンマ区切りの GitHub の login。
+      # name でも name[bot] でもよい）。review-raven の get_trusted_comment_authors が公開し、reviewed skill が取得する。
+      # PR の作成者の許可リスト（thread-owl の ALLOWED_AUTHORS）とは別の問い。未設定の間は、tool がエラーを返し、
+      # reviewed skill は fail-closed に停止する。
+      - TRUSTED_COMMENT_AUTHORS=${REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS:-}
 
     # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/review-raven）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
