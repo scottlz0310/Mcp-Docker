@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 改善
+
+- `review-raven-thread-owl-cycle`（revision 27）の必須コメント投稿者ゲートの canonical allowlist に、`scottlz0310-mcp-gateway`（組織所有の GitHub App。gateway の認証基盤の移行先）を追加した。旧 login `mcp-gateway-authentication-app` は、旧 login が関わる open の Issue・PR がなくなるまで残す（削除は移行の最後）。`docker-compose.yml` と `.env.template` の `ALLOWED_AUTHORS` の注釈の例にも、新しい bot 名義を加えた。**配備の順序**: gateway の認証基盤を新しい App へ切り替える前に、この変更をリリース・再配布する（切替の後に、新しい bot 名義のコメントが信頼されないと、サイクルが止まる）。
+
 ## [2.30.4] - 2026-10-02
 
 ### 🐛 バグ修正

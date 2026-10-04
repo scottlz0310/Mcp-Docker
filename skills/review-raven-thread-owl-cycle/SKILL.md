@@ -182,6 +182,7 @@ canonical allowlist:
 - `thread-owl`
 - `codecov`
 - `mcp-gateway-authentication-app`
+- `scottlz0310-mcp-gateway`
 
 ### プロジェクト固有の追加許可リスト
 
