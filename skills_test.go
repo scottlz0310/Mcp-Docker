@@ -191,7 +191,8 @@ var skillSizeBudgets = []struct {
 	// #326 PR4-1: 契約表を共通規則 + 1 行 1 操作の表へ、停止コードを 1 つの表へ圧縮し、{OWL} の discovery を references/discovery.md へ移動
 	// （SKILL.md は -259 行・-11,615 文字。合計は新しい reference の分を含めて -9,744 文字。目標 26,000 文字には届かず、残りは契約表 22 行）
 	// #355: required checks の provider ID 照合を追加（references を含む合計: 46,177 文字）
-	{skill: "thread-owl-pr-reviewer", maxLines: 354, maxRunes: 27559, maxTotalRunes: 46177},
+	// #358: O-02 に PR の作成元の判定（origin）の確認と停止コード BLOCKED_PR_ORIGIN を追加（SKILL.md は +1 行・+640 文字。合計は +763 文字）
+	{skill: "thread-owl-pr-reviewer", maxLines: 355, maxRunes: 28199, maxTotalRunes: 46940},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
