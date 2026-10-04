@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.30.5] - 2026-10-04
+
 ### ✨ 新機能
 
 - #358: `thread-owl-pr-reviewer`（revision 21）が、thread-owl の `get_pr` が返す PR の作成元の判定 `origin` を、O-02 で確認するようにした。`origin` が無い、または `origin.allowed` が `true` でない場合は、新しい停止コード `BLOCKED_PR_ORIGIN` で、ローカル検証・Independent Stage・投稿より前に停止する。queue を経由しない CLI からの直接起動でも、許可外の作成者・fork の PR のコードを、ローカルで実行しない。許可リストの正本は thread-owl の `ALLOWED_AUTHORS` の 1 か所で、skill は持たない。**配備の順序**: thread-owl#252 のリリース・配備が先（無い応答は fail-closed で停止する）。release-automate の GitHub App（`scottlz0310-release-bot`）の PR をレビューするには、運用環境の `THREAD_OWL_ALLOWED_AUTHORS` へ、先にその login を足すこと。
@@ -935,7 +937,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.4...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.5...HEAD
+[2.30.5]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.4...v2.30.5
 [2.30.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.3...v2.30.4
 [2.30.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.2...v2.30.3
 [2.30.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.1...v2.30.2
