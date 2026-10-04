@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📝 ドキュメント
+
+- `docker-compose.yml` と `.env.template` の、thread-owl の `ALLOWED_AUTHORS` に関するコメントを、現状に合わせた。未設定（空）のときは、検証しないのではなく、すべての PR と再レビュー依頼を拒否する（thread-owl v0.7.0 以降。fail-closed）。bot 名義の例から、削除済みの `mcp-gateway-authentication-app` を外し、`review-raven` を加えた。
+
 ## [2.30.6] - 2026-10-04
 
 ### 🔄 変更
