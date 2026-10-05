@@ -77,7 +77,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 1. settings ページ左側の **Install App** をクリックし、対象 owner へ App をインストールする
 2. インストール後の URL `https://github.com/settings/installations/<ID>` の末尾を Installation ID として控える
 3. App の **General** ページへ戻り、**Private keys** の **Generate a private key** をクリックする
-4. ダウンロードした PEM を `config/github-app/private-key.pem` に保存する
+4. ダウンロードした PEM は、Bitwarden など、リポジトリの外の保管庫に保管する。リポジトリへ置いたり、gateway へマウントしたりしない。`make github-app-key-b64 PEM=<path>` で単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` で渡す（[資格情報の置き場](#資格情報の置き場) を参照）
 5. 環境変数に設定する（推奨。`.env` には書かない）:
 
    ```bash
@@ -86,7 +86,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
    MCP_GATEWAY_INTERNAL_SECRET=<32文字以上のランダム値>
    ```
 
-秘密鍵は Git 管理対象外であり、gateway コンテナだけに read-only mount される。`github-mcp` と `review-raven` には秘密鍵も installation token も環境変数として渡さない。
+秘密鍵は、gateway コンテナだけに、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` で渡す。gateway は、初回起動時に暗号化して `config.yaml` へ保存し、以後は保存済みの値を優先する。`github-mcp` と `review-raven` には秘密鍵も installation token も環境変数として渡さない。
 
 ### 資格情報の置き場
 
@@ -96,6 +96,20 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 - `.env` に値があると、環境変数が入っていない実行（`dsx-env` の忘れなど）で、`.env` の**旧い値が黙って使われる**。GitHub App を切り替えたときに、旧い Client ID が残って、認証が失敗する原因になる。
 - 例: Bitwarden に `env:<変数名>` の項目（カスタムフィールド `value` に値）を作り、[dsx](https://github.com/scottlz0310/dsx) の `dsx-env` で、シェルへ注入する。値の変更は、`bw sync` → `dsx-env` の順で反映する。
 - `.env` は、秘密を含まない PC 固有の設定（`LOG_LEVEL`・`MCP_GATEWAY_PUBLIC_URL`・TLS 証明書のパスなど）に使う。環境変数を使わない場合に限り、同じ変数名で `.env` に書いてもよい。
+- **秘密鍵（PEM）は、単一行の base64 にして `GITHUB_APP_PRIVATE_KEY_B64` で渡す。この変数だけは、`.env` から読まない**（秘密を `.env` に置かないため。未設定なら `make start-gateway` が止まる）。複数行の PEM は、dsx が改行入りの値を警告してスキップするため、そのままでは注入できない。
+  1. `make github-app-key-b64 PEM=<path>` を実行する。単一行の base64 が、クリップボードへ入る（画面には表示しない）。
+  2. Bitwarden に Secure Note `env:GITHUB_APP_PRIVATE_KEY_B64` を作り、カスタムフィールド `value`（非表示）へ貼り付ける。
+  3. `bw sync` → `dsx-env` で、シェルへ注入する。
+  4. `make verify-github-app-key PEM=<path>` が「一致しました」を返せば、注入できている（鍵の値は表示しない）。
+
+### 旧運用（PEM のファイルを手動配置）からの移行
+
+以前は、PEM を `config/github-app/private-key.pem` に置き、`docker-compose.yml` が gateway へ read-only でマウントしていた。この運用は廃止した。
+
+1. 上の手順で、`GITHUB_APP_PRIVATE_KEY_B64` を Bitwarden へ登録し、`dsx-env` で注入して、`make verify-github-app-key` で確認する。
+2. `make start-gateway` で起動する（`GITHUB_APP_PRIVATE_KEY_B64` が未設定なら、止まる）。
+3. 稼働中の gateway は、`config.yaml` に暗号化して保存済みの鍵を優先するので、この変更だけでは動作は変わらない。鍵を差し替えるときは、`make rotate-secret` を実行する（全サービスを停止し、`config.yaml` を削除して、起動し直す。`tokens.db` は保持される）。
+4. 不要になった `config/github-app/private-key.pem` は、Bitwarden に PEM の控えがあることを確認してから、削除してよい（`.gitignore` の対象なので、誤ってコミットはされない）。
 
 ## 4. TLS 切替時の変更（既存 App の URL 更新）
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠️ 破壊的変更
+
+- gateway の GitHub App の秘密鍵（PEM）を、ファイルのバインドマウント（`config/github-app/private-key.pem` → `/run/secrets/github-app`、`GITHUB_APP_PRIVATE_KEY_PATH`）から、環境変数 `GITHUB_APP_PRIVATE_KEY_B64`（PEM を単一行の base64 にした値）へ変えた。複数行の PEM は、dsx が改行入りの値を警告してスキップするため、Bitwarden と dsx-env で注入できなかった。`docker-compose.yml` から、バインドマウントと `GITHUB_APP_PRIVATE_KEY_PATH` を削除し、`make check-github-app-config`（`make start-gateway` の前提）は、PEM のファイルではなく `GITHUB_APP_PRIVATE_KEY_B64` を確認する。**この変数は、`.env` からは読まない**（秘密を `.env` に置かないため）。`config/github-app/.gitkeep` も削除した（`.gitignore` の `config/github-app/*` は、残した PEM の誤コミット防止のため維持）。**要 mcp-gateway v0.10.1 以降**（`GITHUB_APP_PRIVATE_KEY_B64` に対応した版）。**移行（PEM を手動配置している PC）**: ① `make github-app-key-b64 PEM=<path>` で値を作り、Bitwarden に `env:GITHUB_APP_PRIVATE_KEY_B64`（カスタムフィールド `value`）として登録する。② `bw sync` → `dsx-env` で注入し、`make verify-github-app-key PEM=<path>` で一致を確認する。③ gateway のイメージを更新して（`make pull`）、`make start-gateway` で起動する。稼働中の gateway は、`config.yaml` に暗号化して保存済みの鍵を優先するので、この変更だけでは動作は変わらない。鍵を差し替えるときは `make rotate-secret`。④ 不要になった `config/github-app/private-key.pem` は、Bitwarden に控えがあることを確認してから削除してよい。詳細は `docs/github-app-setup.md`。
+
+### ✨ 新機能
+
+- `make github-app-key-b64 PEM=<path>`: GitHub App の秘密鍵（PEM）を、単一行の base64 にして、クリップボードへ入れる（値は画面に出さない。Windows は `clip.exe`、macOS は `pbcopy`、Linux は `wl-copy`・`xclip`・`xsel`。`CLIP_CMD` で差し替え可能）。`make verify-github-app-key PEM=<path>`: 注入済みの `GITHUB_APP_PRIVATE_KEY_B64` が、PEM と一致するかを SHA-256 で確認する（一致・不一致と長さだけを出す）。どちらも、BATS のテストを追加した。
+
 ### 📝 ドキュメント
 
 - 資格情報（`OAUTH_CLIENT_ID`・`OAUTH_CLIENT_SECRET`・`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`MCP_GATEWAY_INTERNAL_SECRET`）は、`.env` ではなく環境変数で渡す推奨に、README・`docs/github-app-setup.md`・`.env.template` を合わせた（例: Bitwarden と dsx-env）。環境変数は `.env` より優先されるので、`.env` に旧い値が残っていると、環境変数が入っていない実行で、旧い値が黙って使われる。`docs/github-app-setup.md` に「資格情報の置き場」を追加した。あわせて、Client secret を再生成したときの対処を、`make restart-gateway` から `make rotate-secret` に直した（gateway は、保存済みの暗号化された secret を、環境変数より優先するので、再起動だけでは反映されない）。コードと設定の変更はない。
