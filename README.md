@@ -49,7 +49,7 @@ cd Mcp-Docker
 # 2. 環境ファイル作成（秘密を含まない PC 固有の設定用）
 cp .env.template .env
 
-# 3. 資格情報を環境変数で渡す（推奨。.env には書かない）:
+# 3. 資格情報を環境変数で渡す（推奨。環境変数を使わない場合に限り、同じ変数名で .env に書いても動きます）:
 #   OAUTH_CLIENT_ID                  (ユーザー認可用 GitHub App Client ID)
 #   OAUTH_CLIENT_SECRET              (ユーザー認可用 GitHub App Client Secret)
 #   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
@@ -72,8 +72,8 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 
 - Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
-- 作成後に Client secret を生成し、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する（`.env` には書かない）
-- App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（`.env` には書かない）
+- 作成後に Client secret を生成し、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する（推奨。環境変数を使わない場合に限り、`.env` に同じ変数名で書いても動く）
+- App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（同上）
 - 生成した秘密鍵を `config/github-app/private-key.pem` に保存する（`.gitignore` 対象、gateway へ read-only mount）
 
 gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
@@ -580,7 +580,7 @@ Mcp-Docker/
 
 ## セキュリティ
 
-- 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理し、`.env` には書かないでください（例: Bitwarden と dsx-env）
+- 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理することを推奨します（例: Bitwarden と dsx-env）。環境変数を使わない場合に限り、`.env` に書いても動きます（環境変数が優先されます。両方に書くと、環境変数が入っていない実行で `.env` の旧い値が使われるので、避けてください）
 - `.env` ファイルは `.gitignore` で除外済みです
 - `.env` をコミットしないでください
 - トークンスコープ要件・Fine-grained PAT の詳細は [SECURITY.md](SECURITY.md) を参照
