@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ 新機能
 
-- `make github-app-key-b64 PEM=<path>`: GitHub App の秘密鍵（PEM）を、単一行の base64 にして、クリップボードへ入れる（値は画面に出さない。Windows は `clip.exe`、macOS は `pbcopy`、Linux は `wl-copy`・`xclip`・`xsel`。`CLIP_CMD` で差し替え可能）。`make verify-github-app-key PEM=<path>`: 注入済みの `GITHUB_APP_PRIVATE_KEY_B64` が、PEM と一致するかを SHA-256 で確認する（一致・不一致と長さだけを出す）。どちらも、BATS のテストを追加した。
+- `make github-app-key-b64 PEM=<path>`: GitHub App の秘密鍵（PEM）を、単一行の base64 にして、クリップボードへ入れる（値は画面に出さない。Windows は `clip.exe`、macOS は `pbcopy`、Linux は `wl-copy`・`xclip`・`xsel`。`CLIP_CMD` で差し替え可能）。`make verify-github-app-key PEM=<path>`: 注入済みの `GITHUB_APP_PRIVATE_KEY_B64` が、PEM と一致するかを SHA-256 で確認する（一致・不一致と長さだけを出す。base64 の復号は、GNU と新しい macOS の `-d` と、古い macOS の `-D` の両方に対応）。どちらも、BATS のテストを追加した。
 
 ### 📝 ドキュメント
 

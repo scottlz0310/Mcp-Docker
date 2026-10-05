@@ -38,6 +38,30 @@ EOF
     chmod +x "$mock_path"
 }
 
+# 古い macOS の base64 のスタブ。復号は -D だけを受け付け、-d は認識しない。それ以外は、本物の base64 へ渡す。
+create_old_macos_base64_stub() {
+    local dir="$1" real
+    real=$(command -v base64)
+    mkdir -p "$dir"
+    cat >"${dir}/base64" <<EOF
+#!/bin/bash
+case "\${1:-}" in
+    -d|--decode)
+        echo "base64: invalid option -- d" >&2
+        exit 1
+        ;;
+    -D)
+        shift
+        exec "${real}" -d "\$@"
+        ;;
+    *)
+        exec "${real}" "\$@"
+        ;;
+esac
+EOF
+    chmod +x "${dir}/base64"
+}
+
 # --- github-app-key-b64.sh ---
 
 @test "github-app-key-b64.sh: スクリプトが存在し実行可能で、構文エラーがない" {
@@ -169,6 +193,47 @@ EOF
         [ "$status" -eq "$want_status" ] || { echo "ケース「${name}」: 終了コード ${status}（期待 ${want_status}）: ${output}" >&2; return 1; }
         [[ "$output" == *"$want_message"* ]] || { echo "ケース「${name}」: メッセージに「${want_message}」がない: ${output}" >&2; return 1; }
         [[ "$output" != *"$b64_other"* && "$output" != *"$b64_pem"* ]] || { echo "ケース「${name}」: 出力に鍵の値が含まれる" >&2; return 1; }
+    done
+}
+
+@test "verify-github-app-key.sh: base64 の復号オプションが -d の環境（GNU・新しい macOS）でも -D だけの環境（古い macOS）でも、同じ結果になる" {
+    local other="${BATS_TEST_TMPDIR}/other.pem"
+    make_pem "$other" B
+    local b64_pem b64_other
+    b64_pem=$(base64 <"$PEM" | tr -d '\r\n')
+    b64_other=$(base64 <"$other" | tr -d '\r\n')
+
+    local macos_stub="${BATS_TEST_TMPDIR}/old-macos-bin"
+    create_old_macos_base64_stub "$macos_stub"
+
+    # スタブが、-d を拒否して -D だけを受け付けること（テストの前提）
+    run env PATH="${macos_stub}:${PATH}" bash -c "printf 'QQ==' | base64 -d"
+    [ "$status" -ne 0 ]
+    run env PATH="${macos_stub}:${PATH}" bash -c "printf 'QQ==' | base64 -D"
+    [ "$status" -eq 0 ]
+
+    # 環境の名前|PATH の先頭に足すディレクトリ（空は、そのまま）
+    local variants=(
+        "-d の環境（GNU・新しい macOS）|"
+        "-D だけの環境（古い macOS）|${macos_stub}"
+    )
+    # 名前|期待する終了コード|期待するメッセージ|GITHUB_APP_PRIVATE_KEY_B64 の値
+    local cases=(
+        "一致|0|一致しました|${b64_pem}"
+        "別の PEM の値|1|PEM と一致しません|${b64_other}"
+        "base64 ではない値|1|base64 として復号できません|!!!not base64!!!"
+    )
+    local variant variant_name variant_dir entry name want_status want_message value
+    for variant in "${variants[@]}"; do
+        IFS='|' read -r variant_name variant_dir <<<"$variant"
+        for entry in "${cases[@]}"; do
+            IFS='|' read -r name want_status want_message value <<<"$entry"
+
+            run env PATH="${variant_dir:+${variant_dir}:}${PATH}" GITHUB_APP_PRIVATE_KEY_B64="$value" "${SCRIPTS_DIR}/verify-github-app-key.sh" "$PEM"
+
+            [ "$status" -eq "$want_status" ] || { echo "${variant_name} / ${name}: 終了コード ${status}（期待 ${want_status}）: ${output}" >&2; return 1; }
+            [[ "$output" == *"$want_message"* ]] || { echo "${variant_name} / ${name}: メッセージに「${want_message}」がない: ${output}" >&2; return 1; }
+        done
     done
 }
 

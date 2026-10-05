@@ -12,6 +12,19 @@ usage() {
   echo "使い方: $0 <PEM のパス>" >&2
 }
 
+# 標準入力の base64 を復号して、標準出力へ出す。
+# 復号のオプションは、GNU と新しい macOS が -d、古い macOS が -D（-d を認識しない）。使えるほうを選ぶ。
+base64_decode() {
+  if printf 'QQ==' | base64 -d >/dev/null 2>&1; then
+    base64 -d
+  elif printf 'QQ==' | base64 -D >/dev/null 2>&1; then
+    base64 -D
+  else
+    echo "エラー: この base64 は、復号のオプション（-d / -D）を受け付けません" >&2
+    return 1
+  fi
+}
+
 # 標準入力の SHA-256 を、16 進数で出す。
 sha256_of_stdin() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -41,11 +54,11 @@ if [ -z "$b64" ]; then
   exit 1
 fi
 
-if ! decoded_hash=$(printf '%s' "$b64" | base64 -d 2>/dev/null | sha256_of_stdin); then
+if ! decoded_hash=$(printf '%s' "$b64" | base64_decode 2>/dev/null | sha256_of_stdin); then
   echo "エラー: GITHUB_APP_PRIVATE_KEY_B64 を base64 として復号できません" >&2
   exit 1
 fi
-decoded_bytes=$(printf '%s' "$b64" | base64 -d 2>/dev/null | wc -c | tr -d '[:space:]')
+decoded_bytes=$(printf '%s' "$b64" | base64_decode 2>/dev/null | wc -c | tr -d '[:space:]')
 pem_hash=$(sha256_of_stdin <"$pem")
 
 if [ "$decoded_hash" != "$pem_hash" ]; then
