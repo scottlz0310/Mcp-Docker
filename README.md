@@ -584,7 +584,7 @@ Mcp-Docker/
 ## セキュリティ
 
 - 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理することを推奨します（例: Bitwarden と dsx-env）。環境変数を使わない場合に限り、`.env` に書いても動きます（環境変数が優先されます。両方に書くと、環境変数が入っていない実行で `.env` の旧い値が使われるので、避けてください）
-- GitHub App の秘密鍵は、単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` だけで渡します（`.env` からは読みません）。PEM のファイルを、リポジトリに置いたり、コンテナへマウントしたりしません
+- GitHub App の秘密鍵は、単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` だけで渡します（`.env` からは読みません）。PEM のファイルを、リポジトリに置いたり、コンテナへマウントしたりしません。秘密鍵の入れ替え（ローテーション・漏えい時の失効）の手順は、[docs/github-app-setup.md の「秘密鍵のローテーション」](docs/github-app-setup.md#秘密鍵のローテーション)
 - `.env` ファイルは `.gitignore` で除外済みです
 - `.env` をコミットしないでください
 - トークンスコープ要件・Fine-grained PAT の詳細は [SECURITY.md](SECURITY.md) を参照

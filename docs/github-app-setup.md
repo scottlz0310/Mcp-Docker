@@ -108,8 +108,27 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 
 1. 上の手順で、`GITHUB_APP_PRIVATE_KEY_B64` を Bitwarden へ登録し、`dsx-env` で注入して、`make verify-github-app-key` で確認する。
 2. `make start-gateway` で起動する（`GITHUB_APP_PRIVATE_KEY_B64` が未設定なら、止まる）。
-3. 稼働中の gateway は、`config.yaml` に暗号化して保存済みの鍵を優先するので、この変更だけでは動作は変わらない。鍵を差し替えるときは、`make rotate-secret` を実行する（全サービスを停止し、`config.yaml` を削除して、起動し直す。`tokens.db` は保持される）。
+3. 稼働中の gateway は、`config.yaml` に暗号化して保存済みの鍵を優先するので、この変更だけでは動作は変わらない。鍵を差し替えるときは、`make rotate-secret` を実行する（全サービスを停止し、`config.yaml` を削除して、起動し直す。`tokens.db` は保持される）。手順の全体は、次の「秘密鍵のローテーション」を参照する。
 4. 不要になった `config/github-app/private-key.pem` は、Bitwarden に PEM の控えがあることを確認してから、削除してよい（`.gitignore` の対象なので、誤ってコミットはされない）。
+
+### 秘密鍵のローテーション
+
+GitHub App の秘密鍵（PEM）を入れ替える（ロールする）手順。定期的な入れ替えと、漏えいが疑われるときの入れ替えの、どちらにも使う。**旧い鍵は、新しい鍵での動作を確認するまで、GitHub から削除しない**（削除前なら、いつでも旧い鍵へ戻せる）。
+
+> **なぜ `make rotate-secret` が要るか**: gateway は、初回起動時に、秘密鍵を暗号化して `config.yaml` へ保存し、以後は**保存済みの値を優先する**（環境変数は、初回のシード時だけ使われる）。Bitwarden（環境変数）の値を更新しただけでは、**旧い鍵のまま動き続ける**。`make rotate-secret` が、`config.yaml` を削除して、環境変数から作り直す。
+
+前提: 秘密鍵を Bitwarden の `env:GITHUB_APP_PRIVATE_KEY_B64` で渡している（「資格情報の置き場」）。`dsx-env` を実行できる。
+
+1. **新しい鍵を生成する**: GitHub の App 設定（組織所有なら、組織の Settings → Developer settings → GitHub Apps → 対象 App → General → Private keys）で **Generate a private key** をクリックする。ブラウザがダウンロードする PEM を、リポジトリの外の安全な場所に保管する。**旧い鍵は、まだ削除しない**（App は、複数の鍵を持てる）。
+2. **Bitwarden を更新する**: `make github-app-key-b64 PEM=<新しい PEM のパス>` で、単一行の base64 をクリップボードへ入れる（値は画面に出ない）。Bitwarden の項目 `env:GITHUB_APP_PRIVATE_KEY_B64` のカスタムフィールド `value`（非表示）を、貼り付けて更新する。
+3. **注入して、PEM と一致することを確認する**: `bw sync` → `dsx-env` → `make verify-github-app-key PEM=<新しい PEM のパス>` が「一致しました」を返す。**`bw sync` を忘れると、旧い値が注入される**。
+4. **gateway を入れ替える**: `make rotate-secret` を、**レビューが動いていない時**に実行する。全サービスを一度止め、`config.yaml` を削除して、起動し直す（`tokens.db` は保持される。gateway の OIDC 署名鍵も作り直されるので、クライアントによっては、再ログインが要る）。`rotate-secret` の最後は `make start-gateway`（既定のイメージ `:latest`）なので、`:main` の開発版で動かしている場合は、続けて `make start-main` を実行する。
+5. **動作を確認する**: `make health-check`（credential の診断。`GitHub App installation credential is ready`）が合格し、`/mcp/github` で、ファイルの取得（読み取り）が成功する。
+6. **旧い鍵を削除する**: 5 まで確認できてから、GitHub の App 設定で、旧い鍵を削除する。
+
+- **gateway を動かしている PC が複数あるとき**: PC ごとに `config.yaml` を持つので、**PC ごとに 3〜5 を行う**（2 は、Bitwarden の更新で、1 回だけ）。**旧い鍵の削除（6）は、すべての PC で 5 を確認してから**行う。先に削除すると、まだ旧い鍵の PC の `/mcp/github` が止まる。
+- **漏えいが疑われるとき**: 6（旧い鍵の削除）を、**先に**行う。削除した時点から、2〜4 を終えるまで、`/mcp/github` は動かない。
+- **うまくいかないとき**: 旧い鍵が GitHub に残っていれば、Bitwarden の値を旧い鍵へ戻し、`bw sync` → `dsx-env` → `make rotate-secret` で戻せる。症状と対処は、「5. トラブルシューティング」を参照する。
 
 ## 4. TLS 切替時の変更（既存 App の URL 更新）
 
@@ -143,10 +162,13 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 | TLS 切替後にブラウザが証明書警告を出す | mkcert のローカル CA が信頼されていない。`make setup-tls` を再実行する（CA の生成・信頼登録は冪等） |
 | Node.js 製 MCP クライアントが TLS 接続に失敗する | `NODE_EXTRA_CA_CERTS`（setup-tls が `.env` に自動設定）がクライアントのプロセス環境に渡っていない |
 | 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し、環境変数（Bitwarden の項目）を更新して、`make rotate-secret`。gateway は、初回に保存した暗号化済みの secret を、環境変数より優先するので、`make restart-gateway` だけでは反映されない |
+| `/mcp/github` が HTTP 502。gateway のログに `GitHub installation token endpoint returned HTTP 401`・`server credential unavailable` | 秘密鍵が一致しない。`config.yaml` に旧い鍵が残り、環境変数より優先されている（鍵の入れ替えのあと、`make rotate-secret` を実行していない）、または GitHub 側で旧い鍵を削除済みで、Bitwarden の値が旧い鍵のまま。「秘密鍵のローテーション」の 3〜4 をやり直す（`bw sync` → `dsx-env` → `make verify-github-app-key` → `make rotate-secret`） |
+| `make` が `GITHUB_APP_PRIVATE_KEY_B64 is required` で止まる | 秘密鍵が環境変数に入っていない（Bitwarden に未登録、または `dsx-env` を実行していない）。`.env` には書いても読まれない。「資格情報の置き場」の手順で登録し、`bw sync` → `dsx-env` を実行したシェルで再実行する |
 | `--with-api` の資格情報診断が失敗する | App ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
 
 ## 関連
 
 - [README — GitHub App 登録](../README.md#github-app-登録)（最低限の要点）
+- 秘密鍵（PEM）の入れ替え（ローテーション・ロール・漏えい時の失効）: 本文の「[秘密鍵のローテーション](#秘密鍵のローテーション)」
 - [mcp-gateway](https://github.com/scottlz0310/mcp-gateway) — `/callback` / `/device_callback` の実装元
 - Mcp-Docker #202 / #207、mcp-gateway #201（ローカル TLS 終端）
