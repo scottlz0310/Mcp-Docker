@@ -55,9 +55,11 @@ cp .env.template .env
 #   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
 #   GITHUB_APP_INSTALLATION_ID       (対象 owner の Installation ID)
 #   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
+#   GITHUB_APP_PRIVATE_KEY_B64       (GitHub App の秘密鍵 PEM を、単一行の base64 にした値。必ず環境変数で渡す)
+#                                    作り方: make github-app-key-b64 PEM=<path>（クリップボードへ。値は表示しない）
 # 例: Bitwarden に env:<変数名> の項目（カスタムフィールド value に値）を作り、dsx-env で注入する
 # 置き場の考え方は docs/github-app-setup.md の「資格情報の置き場」を参照
-# GitHub App の秘密鍵を config/github-app/private-key.pem に保存
+# ※ GITHUB_APP_PRIVATE_KEY_B64 だけは、.env から読みません（秘密を .env に置かないため。未設定なら make start-gateway が止まります）
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 # ※ 新規設定には canonical 名の OAUTH_* を使用してください。
@@ -74,7 +76,7 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
 - 作成後に Client secret を生成し、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する（推奨。環境変数を使わない場合に限り、`.env` に同じ変数名で書いても動く）
 - App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（同上）
-- 生成した秘密鍵を `config/github-app/private-key.pem` に保存する（`.gitignore` 対象、gateway へ read-only mount）
+- 生成した秘密鍵（PEM）は、`make github-app-key-b64 PEM=<path>` で単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` で gateway へ渡す（`.env` からは読まない。PEM のファイルは、リポジトリに置かず、gateway へマウントもしない）
 
 gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
 
@@ -483,7 +485,7 @@ make status        # コンテナ状態確認
 make logs-gateway  # mcp-gateway ログ
 ```
 
-`GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`、`config/github-app/private-key.pem`、GitHub App のインストール先と権限を確認してください。
+`GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`、`GITHUB_APP_PRIVATE_KEY_B64`（`make verify-github-app-key PEM=<path>` で、PEM と一致するかを確認できます）、GitHub App のインストール先と権限を確認してください。
 
 ### CLI から接続できない
 
@@ -563,11 +565,12 @@ Mcp-Docker/
 ├── Makefile                    # 操作コマンド集
 ├── config/
 │   ├── mcp-external.yml        # 外部 MCP サーバー定義
-│   ├── github-app/             # GitHub App 秘密鍵（Git 管理対象外）
 │   └── github-mcp/             # GitHub MCP のローカル bind mount 用（未作成時は Docker が作成）
 ├── scripts/
+│   ├── github-app-key-b64.sh   # GitHub App の秘密鍵を単一行の base64 にしてクリップボードへ（make github-app-key-b64）
 │   ├── health-check.sh         # ヘルスチェック
 │   ├── lint-shell.sh           # シェルスクリプト Lint（make lint-shell）
+│   ├── verify-github-app-key.sh  # 注入済みの秘密鍵が PEM と一致するか確認（make verify-github-app-key）
 │   └── verify-mcp-endpoint.js  # MCP エンドポイント疎通確認
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
@@ -581,6 +584,7 @@ Mcp-Docker/
 ## セキュリティ
 
 - 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理することを推奨します（例: Bitwarden と dsx-env）。環境変数を使わない場合に限り、`.env` に書いても動きます（環境変数が優先されます。両方に書くと、環境変数が入っていない実行で `.env` の旧い値が使われるので、避けてください）
+- GitHub App の秘密鍵は、単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` だけで渡します（`.env` からは読みません）。PEM のファイルを、リポジトリに置いたり、コンテナへマウントしたりしません
 - `.env` ファイルは `.gitignore` で除外済みです
 - `.env` をコミットしないでください
 - トークンスコープ要件・Fine-grained PAT の詳細は [SECURITY.md](SECURITY.md) を参照

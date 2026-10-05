@@ -83,7 +83,18 @@ check-github-app-config:
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
 	$(if $(and $(GITHUB_APP_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
 	$(if $(MCP_GATEWAY_INTERNAL_SECRET),,$(error ERROR: MCP_GATEWAY_INTERNAL_SECRET is required for credential diagnostics. Set a random value of at least 32 characters.))
-	$(if $(wildcard config/github-app/private-key.pem),,$(error ERROR: config/github-app/private-key.pem is required. Download the GitHub App private key and place it at this path.))
+	$(if $(GITHUB_APP_PRIVATE_KEY_B64),,$(error ERROR: GITHUB_APP_PRIVATE_KEY_B64 is required (the GitHub App private key as a single-line base64 value). Create it with: make github-app-key-b64 PEM=<path>, store it in Bitwarden as env:GITHUB_APP_PRIVATE_KEY_B64, and load it with dsx-env. It is intentionally not read from .env (no secrets in .env). See docs/github-app-setup.md.))
+
+# GitHub App の秘密鍵（PEM → 単一行の base64）。dsx は改行入りの値を注入できないため、環境変数では base64 で渡す。
+.PHONY: github-app-key-b64
+github-app-key-b64: ## PEM を単一行の base64 にしてクリップボードへ（PEM=<path>。値は表示しない）
+	$(if $(PEM),,$(error ERROR: PEM is required. Usage: make github-app-key-b64 PEM=<path to the GitHub App private key>))
+	"$(BASH_CMD)" ./scripts/github-app-key-b64.sh "$(PEM)"
+
+.PHONY: verify-github-app-key
+verify-github-app-key: ## 注入済みの GITHUB_APP_PRIVATE_KEY_B64 が PEM と一致するか確認（PEM=<path>）
+	$(if $(PEM),,$(error ERROR: PEM is required. Usage: make verify-github-app-key PEM=<path to the GitHub App private key>))
+	"$(BASH_CMD)" ./scripts/verify-github-app-key.sh "$(PEM)"
 
 .PHONY: start-gateway
 start-gateway: check-github-app-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）

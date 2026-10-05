@@ -75,7 +75,11 @@ services:
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
       - GITHUB_APP_ID=${GITHUB_APP_ID}
       - GITHUB_APP_INSTALLATION_ID=${GITHUB_APP_INSTALLATION_ID}
-      - GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/github-app/private-key.pem
+      # GitHub App の秘密鍵は、PEM を単一行の base64 にして、環境変数で渡す（Bitwarden → dsx-env）。
+      # 複数行の PEM は dsx が注入できない。PEM のファイルは、マウントしない。
+      # gateway は、初回起動時に暗号化して config.yaml へ保存し、以後は保存済みの値を優先する
+      # （鍵を差し替えるときは make rotate-secret）。作り方: make github-app-key-b64 PEM=<path>
+      - GITHUB_APP_PRIVATE_KEY_B64=${GITHUB_APP_PRIVATE_KEY_B64}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true
@@ -104,7 +108,6 @@ services:
       # TLS 証明書（make setup-tls で生成）。Go プロセスのデッドロックを避けるため
       # ファイル単体ではなく親ディレクトリ単位でマウントする。
       - ./config/certs:/data/certs:ro
-      - ./config/github-app:/run/secrets/github-app:ro
 
     ports:
       - "127.0.0.1:${MCP_GATEWAY_PORT:-8080}:${MCP_GATEWAY_PORT:-8080}"
