@@ -65,7 +65,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
    （App ID はinstallation認証、Client IDはユーザー認可に使用する）
 2. **Client secrets** セクションの **Generate a new client secret** をクリックし、
    表示された secret を控える（**この画面を離れると再表示できない**。紛失時は再生成する）
-3. `.env` に設定する:
+3. 環境変数に設定する（推奨。`.env` には書かない。[資格情報の置き場](#資格情報の置き場) を参照）:
 
    ```bash
    OAUTH_CLIENT_ID=Iv23xxxxxxxxxxxxxxxx
@@ -78,7 +78,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 2. インストール後の URL `https://github.com/settings/installations/<ID>` の末尾を Installation ID として控える
 3. App の **General** ページへ戻り、**Private keys** の **Generate a private key** をクリックする
 4. ダウンロードした PEM を `config/github-app/private-key.pem` に保存する
-5. `.env` に設定する:
+5. 環境変数に設定する（推奨。`.env` には書かない）:
 
    ```bash
    GITHUB_APP_ID=123456
@@ -87,6 +87,15 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
    ```
 
 秘密鍵は Git 管理対象外であり、gateway コンテナだけに read-only mount される。`github-mcp` と `review-raven` には秘密鍵も installation token も環境変数として渡さない。
+
+### 資格情報の置き場
+
+`OAUTH_CLIENT_ID`・`OAUTH_CLIENT_SECRET`・`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`MCP_GATEWAY_INTERNAL_SECRET` は、`.env` ではなく**環境変数**で渡すことを推奨する。
+
+- 環境変数は `.env` より優先される（Makefile の `?=`。Docker Compose の既定の優先順位も同じ）。`.env` は、環境変数が無いときのフォールバックである。
+- `.env` に値があると、環境変数が入っていない実行（`dsx-env` の忘れなど）で、`.env` の**旧い値が黙って使われる**。GitHub App を切り替えたときに、旧い Client ID が残って、認証が失敗する原因になる。
+- 例: Bitwarden に `env:<変数名>` の項目（カスタムフィールド `value` に値）を作り、[dsx](https://github.com/scottlz0310/dsx) の `dsx-env` で、シェルへ注入する。値の変更は、`bw sync` → `dsx-env` の順で反映する。
+- `.env` は、秘密を含まない PC 固有の設定（`LOG_LEVEL`・`MCP_GATEWAY_PUBLIC_URL`・TLS 証明書のパスなど）に使う。環境変数を使わない場合に限り、同じ変数名で `.env` に書いてもよい。
 
 ## 4. TLS 切替時の変更（既存 App の URL 更新）
 
@@ -119,7 +128,7 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 | 認可時に `redirect_uri` エラー（"The redirect_uri is not associated with this application." 等） | GitHub App の Callback URL が `<PUBLIC_URL>` と一致していない。scheme（http/https）・host（`127.0.0.1`/`localhost`）・port のいずれかの食い違いでも発生する。セクション 4 の手順で更新する |
 | TLS 切替後にブラウザが証明書警告を出す | mkcert のローカル CA が信頼されていない。`make setup-tls` を再実行する（CA の生成・信頼登録は冪等） |
 | Node.js 製 MCP クライアントが TLS 接続に失敗する | `NODE_EXTRA_CA_CERTS`（setup-tls が `.env` に自動設定）がクライアントのプロセス環境に渡っていない |
-| 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し `.env` を更新、`make restart-gateway` |
+| 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し、環境変数（Bitwarden の項目）を更新して、`make rotate-secret`。gateway は、初回に保存した暗号化済みの secret を、環境変数より優先するので、`make restart-gateway` だけでは反映されない |
 | `--with-api` の資格情報診断が失敗する | App ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
 
 ## 関連
