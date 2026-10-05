@@ -46,20 +46,23 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 git clone https://github.com/scottlz0310/Mcp-Docker.git
 cd Mcp-Docker
 
-# 2. 環境ファイル作成
+# 2. 環境ファイル作成（秘密を含まない PC 固有の設定用）
 cp .env.template .env
-# .env を編集して以下を設定:
+
+# 3. 資格情報を環境変数で渡す（推奨。.env には書かない）:
 #   OAUTH_CLIENT_ID                  (ユーザー認可用 GitHub App Client ID)
 #   OAUTH_CLIENT_SECRET              (ユーザー認可用 GitHub App Client Secret)
 #   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
 #   GITHUB_APP_INSTALLATION_ID       (対象 owner の Installation ID)
 #   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
+# 例: Bitwarden に env:<変数名> の項目（カスタムフィールド value に値）を作り、dsx-env で注入する
+# 置き場の考え方は docs/github-app-setup.md の「資格情報の置き場」を参照
 # GitHub App の秘密鍵を config/github-app/private-key.pem に保存
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 # ※ 新規設定には canonical 名の OAUTH_* を使用してください。
 
-# 3. 全サービス起動
+# 4. 全サービス起動
 make start-gateway
 ```
 
@@ -69,15 +72,15 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 
 - Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
-- 作成後に Client secret を生成し、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する
-- App を対象 owner にインストールし、`.env` の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する
+- 作成後に Client secret を生成し、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する（`.env` には書かない）
+- App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（`.env` には書かない）
 - 生成した秘密鍵を `config/github-app/private-key.pem` に保存する（`.gitignore` 対象、gateway へ read-only mount）
 
 gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
 
 画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
-> GitHub OAuth App から移行する場合は、`.env` の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます。既存 `.env` の旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` は `make` 実行時の移行フォールバックとしてのみ読み取られ、gateway へ旧名のまま渡されません。
+> GitHub OAuth App から移行する場合は、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` を GitHub App の値に置き換えます（`.env` に旧い値が残っていれば、削除します。環境変数が入っていない実行で、旧い値が使われるため）。既存 `.env` の旧 `GITHUB_MCP_CLIENT_ID` / `GITHUB_MCP_CLIENT_SECRET` は `make` 実行時の移行フォールバックとしてのみ読み取られ、gateway へ旧名のまま渡されません。
 
 ### ローカル HTTPS (TLS)
 
@@ -577,7 +580,7 @@ Mcp-Docker/
 
 ## セキュリティ
 
-- トークンはコンテナ外（`.env` またはホスト環境変数）で管理してください
+- 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理し、`.env` には書かないでください（例: Bitwarden と dsx-env）
 - `.env` ファイルは `.gitignore` で除外済みです
 - `.env` をコミットしないでください
 - トークンスコープ要件・Fine-grained PAT の詳細は [SECURITY.md](SECURITY.md) を参照

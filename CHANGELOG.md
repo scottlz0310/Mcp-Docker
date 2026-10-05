@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📝 ドキュメント
 
+- 資格情報（`OAUTH_CLIENT_ID`・`OAUTH_CLIENT_SECRET`・`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`MCP_GATEWAY_INTERNAL_SECRET`）は、`.env` ではなく環境変数で渡す推奨に、README・`docs/github-app-setup.md`・`.env.template` を合わせた（例: Bitwarden と dsx-env）。環境変数は `.env` より優先されるので、`.env` に旧い値が残っていると、環境変数が入っていない実行で、旧い値が黙って使われる。`docs/github-app-setup.md` に「資格情報の置き場」を追加した。あわせて、Client secret を再生成したときの対処を、`make restart-gateway` から `make rotate-secret` に直した（gateway は、保存済みの暗号化された secret を、環境変数より優先するので、再起動だけでは反映されない）。コードと設定の変更はない。
 - `docker-compose.yml` と `.env.template` の、thread-owl の `ALLOWED_AUTHORS` に関するコメントを、現状に合わせた。未設定（空）のときは、検証しないのではなく、すべての PR と再レビュー依頼を拒否する（thread-owl v0.7.0 以降。fail-closed）。bot 名義の例から、削除済みの `mcp-gateway-authentication-app` を外し、`review-raven` を加えた。
 
 ## [2.30.6] - 2026-10-04
