@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-10-05
+
 ### ⚠️ 破壊的変更
 
 - gateway の GitHub App の秘密鍵（PEM）を、ファイルのバインドマウント（`config/github-app/private-key.pem` → `/run/secrets/github-app`、`GITHUB_APP_PRIVATE_KEY_PATH`）から、環境変数 `GITHUB_APP_PRIVATE_KEY_B64`（PEM を単一行の base64 にした値）へ変えた。複数行の PEM は、dsx が改行入りの値を警告してスキップするため、Bitwarden と dsx-env で注入できなかった。`docker-compose.yml` から、バインドマウントと `GITHUB_APP_PRIVATE_KEY_PATH` を削除し、`make check-github-app-config`（`make start-gateway` の前提）は、PEM のファイルではなく `GITHUB_APP_PRIVATE_KEY_B64` を確認する。**この変数は、`.env` からは読まない**（秘密を `.env` に置かないため）。`config/github-app/.gitkeep` も削除した（`.gitignore` の `config/github-app/*` は、残した PEM の誤コミット防止のため維持）。**要 mcp-gateway v0.10.1 以降**（`GITHUB_APP_PRIVATE_KEY_B64` に対応した版）。**移行（PEM を手動配置している PC）**: ① `make github-app-key-b64 PEM=<path>` で値を作り、Bitwarden に `env:GITHUB_APP_PRIVATE_KEY_B64`（カスタムフィールド `value`）として登録する。② `bw sync` → `dsx-env` で注入し、`make verify-github-app-key PEM=<path>` で一致を確認する。③ gateway のイメージを更新して（`make pull`）、`make start-gateway` で起動する。稼働中の gateway は、`config.yaml` に暗号化して保存済みの鍵を優先するので、この変更だけでは動作は変わらない。鍵を差し替えるときは `make rotate-secret`。④ 不要になった `config/github-app/private-key.pem` は、Bitwarden に控えがあることを確認してから削除してよい。詳細は `docs/github-app-setup.md`。
@@ -956,7 +958,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.6...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.0...HEAD
+[2.31.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.6...v2.31.0
 [2.30.6]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.5...v2.30.6
 [2.30.5]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.4...v2.30.5
 [2.30.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.3...v2.30.4
