@@ -113,22 +113,26 @@ App 作成直後は App の settings ページ（General）に遷移する。あ
 
 ### 秘密鍵のローテーション
 
-GitHub App の秘密鍵（PEM）を入れ替える（ロールする）手順。定期的な入れ替えと、漏えいが疑われるときの入れ替えの、どちらにも使う。**旧い鍵は、新しい鍵での動作を確認するまで、GitHub から削除しない**（削除前なら、いつでも旧い鍵へ戻せる）。
+GitHub App の秘密鍵（PEM）を入れ替える（ロールする）手順。定期的な入れ替えと、漏えいが疑われるときの入れ替えの、どちらにも使う。**通常のローテーションでは、旧い鍵は、新しい鍵での動作を確認するまで、GitHub から削除しない**（削除前なら、いつでも旧い鍵へ戻せる）。**漏えいが疑われるときは、この順序を変える**（下の「漏えいが疑われるとき」）。
 
 > **なぜ `make rotate-secret` が要るか**: gateway は、初回起動時に、秘密鍵を暗号化して `config.yaml` へ保存し、以後は**保存済みの値を優先する**（環境変数は、初回のシード時だけ使われる）。Bitwarden（環境変数）の値を更新しただけでは、**旧い鍵のまま動き続ける**。`make rotate-secret` が、`config.yaml` を削除して、環境変数から作り直す。
 
 前提: 秘密鍵を Bitwarden の `env:GITHUB_APP_PRIVATE_KEY_B64` で渡している（「資格情報の置き場」）。`dsx-env` を実行できる。
 
-1. **新しい鍵を生成する**: GitHub の App 設定（組織所有なら、組織の Settings → Developer settings → GitHub Apps → 対象 App → General → Private keys）で **Generate a private key** をクリックする。ブラウザがダウンロードする PEM を、リポジトリの外の安全な場所に保管する。**旧い鍵は、まだ削除しない**（App は、複数の鍵を持てる）。
+1. **新しい鍵を生成する**: GitHub の App 設定（組織所有なら、組織の Settings → Developer settings → GitHub Apps → 対象 App → General → Private keys）で **Generate a private key** をクリックする。ブラウザがダウンロードする PEM を、リポジトリの外の安全な場所に保管する。**通常は、旧い鍵を、まだ削除しない**（App は、複数の鍵を持てる）。
 2. **Bitwarden を更新する**: `make github-app-key-b64 PEM=<新しい PEM のパス>` で、単一行の base64 をクリップボードへ入れる（値は画面に出ない）。Bitwarden の項目 `env:GITHUB_APP_PRIVATE_KEY_B64` のカスタムフィールド `value`（非表示）を、貼り付けて更新する。
 3. **注入して、PEM と一致することを確認する**: `bw sync` → `dsx-env` → `make verify-github-app-key PEM=<新しい PEM のパス>` が「一致しました」を返す。**`bw sync` を忘れると、旧い値が注入される**。
 4. **gateway を入れ替える**: `make rotate-secret` を、**レビューが動いていない時**に実行する。全サービスを一度止め、`config.yaml` を削除して、起動し直す（`tokens.db` は保持される。gateway の OIDC 署名鍵も作り直されるので、クライアントによっては、再ログインが要る）。`rotate-secret` の最後は `make start-gateway`（既定のイメージ `:latest`）なので、`:main` の開発版で動かしている場合は、続けて `make start-main` を実行する。
 5. **動作を確認する**: `make health-check`（credential の診断。`GitHub App installation credential is ready`）が合格し、`/mcp/github` で、ファイルの取得（読み取り）が成功する。
-6. **旧い鍵を削除する**: 5 まで確認できてから、GitHub の App 設定で、旧い鍵を削除する。
+6. **旧い鍵を削除する**: 5 まで確認できてから、GitHub の App 設定で、旧い鍵を削除する（漏えいが疑われるときは、確認を待たない。下の注意を参照）。
 
 - **gateway を動かしている PC が複数あるとき**: PC ごとに `config.yaml` を持つので、**PC ごとに 3〜5 を行う**（2 は、Bitwarden の更新で、1 回だけ）。**旧い鍵の削除（6）は、すべての PC で 5 を確認してから**行う。先に削除すると、まだ旧い鍵の PC の `/mcp/github` が止まる。
-- **漏えいが疑われるとき**: 6（旧い鍵の削除）を、**先に**行う。削除した時点から、2〜4 を終えるまで、`/mcp/github` は動かない。
-- **うまくいかないとき**: 旧い鍵が GitHub に残っていれば、Bitwarden の値を旧い鍵へ戻し、`bw sync` → `dsx-env` → `make rotate-secret` で戻せる。症状と対処は、「5. トラブルシューティング」を参照する。
+- **漏えいが疑われるとき（旧い鍵を、直ちに失効させる）**: 動作確認を待たず、次の順序で行う。**1（新しい鍵を生成）→ すぐに 6（漏えいした旧い鍵の削除）→ 2〜5（切り替え・確認）**。
+  - **1 を省いてはいけない**。App に鍵が 1 本しかないとき、GitHub は、新しい鍵を生成する前に、最後の鍵を削除させない（[GitHub Docs — Managing private keys for GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#deleting-private-keys)）。
+  - 削除した時点から、2〜4 を終えるまで、`/mcp/github` は動かない。
+  - **削除後は、旧い鍵へ戻せない**。失敗したときは、新しい鍵で、3〜5 をやり直す。
+  - gateway を動かしている PC が複数あるときも、削除は、全 PC の確認を待たない（漏えいした鍵を、残さないため）。
+- **うまくいかないとき（通常のローテーション）**: 旧い鍵が GitHub に残っていれば、Bitwarden の値を旧い鍵へ戻し、`bw sync` → `dsx-env` → `make rotate-secret` で戻せる。症状と対処は、「5. トラブルシューティング」を参照する。
 
 ## 4. TLS 切替時の変更（既存 App の URL 更新）
 
