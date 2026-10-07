@@ -89,7 +89,7 @@ server/discover
 
 ## resource-bridge-cli / squirrel-notifier の受け入れ確認
 
-protocol conformance client と実運用 client は別々に検証する。resource-bridge-cli v0.6.0 以降を先に起動し、
+protocol conformance client と実運用 client は別々に検証する。resource-bridge-cli v0.7.0 以降を先に起動し、
 上記の `enqueue_review` E2E を実行すると、同じ更新が subscriber にも届く。
 
 ```powershell
