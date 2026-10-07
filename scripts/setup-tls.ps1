@@ -147,7 +147,7 @@ Set-EnvValue -Path $EnvFile -Key 'NODE_EXTRA_CA_CERTS' -Value $rootCaPemFwd
 # 5. ユーザー環境変数 NODE_EXTRA_CA_CERTS の設定
 # ---------------------------------------------------------------------------
 # .env は docker compose にしか渡らない。ホスト側で直接起動する Node 製 MCP
-# クライアント（mcp-resource-subscriber 等）は Windows 証明書ストアを参照しない
+# クライアント（resource-bridge-cli 等）は Windows 証明書ストアを参照しない
 # ため、User スコープ環境変数として mkcert ローカル CA を信頼させる（#217）。
 $currentUserCa = [Environment]::GetEnvironmentVariable('NODE_EXTRA_CA_CERTS', 'User')
 switch (Get-NodeExtraCaCertsAction -CurrentValue $currentUserCa -DesiredValue $rootCaPemFwd) {

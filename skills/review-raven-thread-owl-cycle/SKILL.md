@@ -1,6 +1,6 @@
 ---
 name: review-raven-thread-owl-cycle
-description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿する。完了時は固定HEADの完了記録を作成し、mcp-docker reviewgate validate で検証する。--mcp-http 構成では mcp-resource-subscriber でレビュー完了を待機し、同一セッションでレビュー往復を続ける。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）、または PR を作成・更新した直後に待機を指示して呼び出す。"
+description: "thread-owl レビュー用の reviewed-side cycle スキル。thread-owl のレビュースレッドを読み、分類・修正・返信・resolve を行い、再レビューが必要な場合は @thread-owl re-review requested コメントを投稿する。完了時は固定HEADの完了記録を作成し、mcp-docker reviewgate validate で検証する。--mcp-http 構成では resource-bridge-cli でレビュー完了を待機し、同一セッションでレビュー往復を続ける。thread-owl がレビューを投稿した後（PR に unresolved スレッドが存在する状態）、または PR を作成・更新した直後に待機を指示して呼び出す。"
 ---
 
 # review-raven-thread-owl-cycle スキル
@@ -38,7 +38,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 | CLI | 役割 | 参照 |
 |-----|------|------|
-| `mcp-resource-subscriber`（v0.6.0 以降） | Phase W で `review://status/...` の更新通知を待機する | [README.md](https://github.com/scottlz0310/mcp-resource-subscriber/blob/main/README.md) |
+| `resource-bridge-cli`（v0.7.0 以降） | Phase W で `review://status/...` の更新通知を待機する | [README.md](https://github.com/scottlz0310/mcp-resource-subscriber/blob/main/README.md) |
 | `mcp-docker`（reviewgate 対応版） | Phase 7.5 で完了記録を固定したPR・HEAD・埋め込みskillへ結び付けて検証する | [Mcp-Docker](https://github.com/scottlz0310/Mcp-Docker) |
 
 ### 論理 alias
@@ -94,7 +94,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | R-19 | レビュー対応サマリの投稿。R-00 で固定した `{GH}:add_issue_comment` の write binding | 修正内容・accept / reject・先送り・CI・未解決数・Verdict・termination_status・サイクル状態 → summary comment の ID / URL・PR 上の `author.login` | R-12 の未解決 0 件、R-16〜R-18b の状態、`termination_status`・`fix_type`・`handled_comments` が確定している場合だけ。PR conversation へサマリを 1 件投稿する（コード・thread・queue は変更しない）。固定済み route・canonical allowlist の投稿 identity・固定 template の全項目・current head を確認する。Verdict の不一致・未確認は状態として明記し、サイクル状態のキーを省略・折り返し・推測で埋めない。fallback は R-10 と同じ | `SUMMARY_COMMENT_FAILED`、`WRITE_IDENTITY_UNCONFIRMED` |
 | R-20 | merge の人手境界。自律実行する tool はなく、人が GitHub UI または承認済みの CLI で実行する。手順は `references/merge-decision.md` | PR・対象 head・明示指示・squash / branch cleanup の方針 → merge commit・削除結果・関連 Issue の状態 | CI・未解決指摘・返信・termination_status・必要な Verdict SHA がマージ条件を満たし、人から対象 PR への明示的な merge 指示がある場合だけ。skill は自律 merge を呼ばない。人の明示操作の後に限り、merge・remote / local branch の削除・関連 Issue のクローズ・release note の更新を行う。`READY_TO_MERGE` では Verdict SHA を確認し、`ESCALATE` では未検証の理由と人手確認を明示する。条件未達を force merge・admin merge・Verdict の無視で回避せず、cleanup の失敗を成功と偽らない | `WAITING_FOR_USER_MERGE`（条件不一致は merge 保留として R-21 へ報告する） |
 | R-21 | ユーザー報告（外部 tool なし。日本語の固定 Markdown を出力する） | R-00〜R-20 と R-22 の evidence と状態 → termination_status・fix_type・CI・Verdict SHA・未解決数・queue route・次アクション | 何も write しない。`READY_TO_MERGE`・`ESCALATE`・`AWAITING_THREAD_OWL_VERDICT`・human escalation を混同せず、未確認を成功と書かない。必須 evidence が欠ける場合は unknown / blocked と明記し、推測で補完しない。token・Authorization header・秘密情報を含めない | `REPORT_EVIDENCE_INCOMPLETE` |
-| R-22 | レビュー完了待機（`--mcp-http` のみ）。`{OWL}:enqueue_review` と、購読用の `mcp-resource-subscriber`。手順は `references/review-wait.md` | owner・repo・prNumber・reason・enqueue 直前の `expected_head`・小文字の `review://status/<owner>/<repo>/<prNumber>`・購読 URL（`MCP_PROBE_URL` または `MCP_GATEWAY_PUBLIC_URL`）→ `route`・`errorCode`・`status`・`headSha`・`summaryCommentId` | R-13 が `--mcp-http` の場合だけ。待機中にこの PR へ push・enqueue しない。この round の `enqueue_review` を 1 回だけ実行し、その直後に subscriber を起動する。完了は、`route` が `subscription` / `pre-completion`、`status` が `reviewed` / `approved`、対象 PR が一致し、`headSha` と current PR head のどちらも `expected_head` と一致する場合だけ（null・不一致は受理しない）。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て、Phase U2 で thread を取得する。ポーリングへ切り替えない。`review-status.json` は reviewer の起動状態の確認にだけ使い、完了判定に使わない。`NOTIFICATION_TIMEOUT` は、`references/review-wait.md` に従って現在値を再取得し、公開状態で待ち続けるかを決める | `REVIEW_WAIT_TIMEOUT`、`REVIEW_STATUS_NOT_FOUND`、`REVIEW_HEAD_MISMATCH`、`REVIEW_WAIT_FAILED` |
+| R-22 | レビュー完了待機（`--mcp-http` のみ）。`{OWL}:enqueue_review` と、購読用の `resource-bridge-cli`。手順は `references/review-wait.md` | owner・repo・prNumber・reason・enqueue 直前の `expected_head`・小文字の `review://status/<owner>/<repo>/<prNumber>`・購読 URL（`MCP_PROBE_URL` または `MCP_GATEWAY_PUBLIC_URL`）→ `route`・`errorCode`・`status`・`headSha`・`summaryCommentId` | R-13 が `--mcp-http` の場合だけ。待機中にこの PR へ push・enqueue しない。この round の `enqueue_review` を 1 回だけ実行し、その直後に subscriber を起動する。完了は、`route` が `subscription` / `pre-completion`、`status` が `reviewed` / `approved`、対象 PR が一致し、`headSha` と current PR head のどちらも `expected_head` と一致する場合だけ（null・不一致は受理しない）。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て、Phase U2 で thread を取得する。ポーリングへ切り替えない。`review-status.json` は reviewer の起動状態の確認にだけ使い、完了判定に使わない。`NOTIFICATION_TIMEOUT` は、`references/review-wait.md` に従って現在値を再取得し、公開状態で待ち続けるかを決める | `REVIEW_WAIT_TIMEOUT`、`REVIEW_STATUS_NOT_FOUND`、`REVIEW_HEAD_MISMATCH`、`REVIEW_WAIT_FAILED` |
 
 ## 停止コード
 

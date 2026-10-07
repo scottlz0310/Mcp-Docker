@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewer/reviewed skillの購読CLIを `resource-bridge-cli`（v0.7.0以降）へ統一し、シェルから起動して同じセッションでJSONを受け取る役割を明記。MCPサーバー登録・alias/tool探索にCLIを混ぜない。既存のURI/最終status/固定HEAD照合・認証cache/MCP_PROBE_*・timeoutの未完了判定は維持する
+- 関連する実行手順・指示文書・TLS案内を新名へ整合。skill revisionをreviewer 22 / reviewed 29へ更新
+
 ### 📝 ドキュメント
 
 - `docs/github-app-setup.md` に、「秘密鍵のローテーション」の節を追加した。GitHub App の秘密鍵（PEM）を入れ替える（ロールする）順序を、1 か所にまとめた: ① GitHub で新しい鍵を生成（**通常は、旧い鍵を、動作を確認するまで削除しない**。漏えいが疑われるときは、新しい鍵を生成してから、確認を待たずに旧い鍵を削除する。App に鍵が 1 本だけのとき、GitHub は、新しい鍵を生成する前に、最後の鍵を削除させない）→ ② Bitwarden の `env:GITHUB_APP_PRIVATE_KEY_B64` を更新 → ③ `bw sync` → `dsx-env` → `make verify-github-app-key` → ④ `make rotate-secret`（gateway は、保存済みの鍵を環境変数より優先するので、必須）→ ⑤ `make health-check` → ⑥ 旧い鍵を削除。gateway を動かす PC が複数あるときの注意（PC ごとに 3〜5、旧い鍵の削除は全 PC の確認後）、漏えいが疑われるとき、失敗したときの戻し方も記載した。トラブルシュートの表に、鍵の不一致（`/mcp/github` の HTTP 502、`GitHub installation token endpoint returned HTTP 401`）と、`GITHUB_APP_PRIVATE_KEY_B64 is required` の行を追加した。README・`docker-compose.yml` のコメントから、この節へ導線を足した。コードと設定の変更はない。
