@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.1] - 2026-10-07
+
 ### Changed
 
 - reviewer/reviewed skillの購読CLIを `resource-bridge-cli`（v0.7.0以降）へ統一し、シェルから起動して同じセッションでJSONを受け取る役割を明記。MCPサーバー登録・alias/tool探索にCLIを混ぜない。既存のURI/最終status/固定HEAD照合・認証cache/MCP_PROBE_*・timeoutの未完了判定は維持する
@@ -967,7 +969,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.1...HEAD
+[2.31.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.0...v2.31.1
 [2.31.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.6...v2.31.0
 [2.30.6]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.5...v2.30.6
 [2.30.5]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.4...v2.30.5
