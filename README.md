@@ -390,7 +390,7 @@ $env:MCP_E2E_BEARER_TOKEN = "<gateway-issued bearer token>"
 make mcp-conformance
 ```
 
-legacy `initialize` の拒否、subscription notification、mcp-resource-subscriber / squirrel-notifier の
+legacy `initialize` の拒否、subscription notification、resource-bridge-cli / squirrel-notifier の
 実機受け入れ手順は [MCP 2026-07-28 conformance 検証](docs/mcp-2026-07-28-conformance.md) を参照。
 
 ポートを変更する場合：

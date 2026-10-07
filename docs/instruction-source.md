@@ -68,7 +68,7 @@ mcp-docker instruction repair --agent claude,copilot --yes
 +PR を作成または更新した実装側エージェントは、同じセッションで次を行う。
 +
 +1. `--mcp-http` 構成では thread-owl の `enqueue_review` を、PR作成時は `reason: opened`、既存PRへのpush後は `reason: synchronized`、修正対応後の再レビューは `reason: re-review-requested` で呼ぶ。
-+2. enqueue の直後に `mcp-resource-subscriber` で、owner / repo を小文字にした `review://status/<owner>/<repo>/<prNumber>` を購読する。
++2. enqueue の直後に `resource-bridge-cli` で、owner / repo を小文字にした `review://status/<owner>/<repo>/<prNumber>` を購読する。
 +3. 購読を続けながら、同じ Windows ホストの Squirrel Notifier のローカルサイクル記録（`%LocalAppData%\SquirrelNotifier\review-cycles.json`）と Recent activity で、対象 PR・reason・今回のラウンドの reviewer 起動記録を確認する。確認できなければ未起動と断定せず、「レビュー自動開始」設定、保留理由、手動起動の有無を確認するよう案内する。再 enqueue や実装側セッションでの reviewer 起動はしない。記録はレビュー完了の根拠にしない。
 +4. `listenAcknowledged`、要求URIの受理、対象PR、最終 `status`（`reviewed` または `approved`）、`headSha` と待機開始時のPR HEAD一致を確認してからレビュー結果を取得する。
 +5. timeout、resource消失、URI不一致、HEAD不一致、認証・URL解決失敗は完了扱いにせず、原因と再実行条件を報告して停止する。
@@ -77,7 +77,7 @@ mcp-docker instruction repair --agent claude,copilot --yes
 +
 +レビュー開始は Squirrel Notifier の「レビューする」ボタン、または別 CLI エージェントへの reviewer 起動指示で行う。購読はレビュー完了を待つためのものであり、登録・購読だけでレビュー開始済みとは扱わない。
 +
-+購読の接続設定や CLI への配布は `mcp-resource-subscriber` / Mcp-Docker 側の責務とし、review-raven の reviewed-side skill はレビューコメント受信後の修正・返信・resolve にのみ使う。
++購読の接続設定や CLI への配布は `resource-bridge-cli` / Mcp-Docker 側の責務とし、review-raven の reviewed-side skill はレビューコメント受信後の修正・返信・resolve にのみ使う。
 ```
 
 購読 URL や gateway の認証情報は source 本文へ固定値で書かず、各 CLI の実行環境・MCP 設定から解決する。購読が利用できない場合は、待機を完了扱いにせず原因と復旧方法を報告する。
@@ -89,7 +89,7 @@ mcp-docker instruction repair --agent claude,copilot --yes
 | instruction source の本文 | ユーザー管理ファイル |
 | source パス、symlink、状態確認、バックアップ | Mcp-Docker |
 | review queue への登録 | thread-owl の `enqueue_review` |
-| review 完了イベントの購読 | mcp-resource-subscriber |
+| review 完了イベントの購読 | resource-bridge-cli |
 | レビューエージェントの起動 | Squirrel Notifier または別 CLI エージェント |
 | コメント対応、返信、resolve | review-raven / reviewed-side skill |
 

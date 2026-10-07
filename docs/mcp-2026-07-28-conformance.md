@@ -87,14 +87,14 @@ server/discover
 
 自然発生する更新を待つ場合は `--trigger-tool` を省略して `--wait-for-update` を指定する。
 
-## mcp-resource-subscriber / squirrel-notifier の受け入れ確認
+## resource-bridge-cli / squirrel-notifier の受け入れ確認
 
-protocol conformance client と実運用 client は別々に検証する。mcp-resource-subscriber v0.6.0 以降を先に起動し、
+protocol conformance client と実運用 client は別々に検証する。resource-bridge-cli v0.6.0 以降を先に起動し、
 上記の `enqueue_review` E2E を実行すると、同じ更新が subscriber にも届く。
 
 ```powershell
 $env:MCP_PROBE_AUTH_TOKEN = $env:MCP_E2E_BEARER_TOKEN
-pnpm dlx mcp-resource-subscriber@0.6.1 `
+pnpm dlx resource-bridge-cli@0.7.0 `
   --url "https://localhost:8080/mcp/thread-owl" `
   --uri "queue://review/queue" `
   --timeout-ms 900000 `

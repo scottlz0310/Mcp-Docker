@@ -60,7 +60,7 @@ function Get-EnvValue {
 
 # User スコープ環境変数 NODE_EXTRA_CA_CERTS の扱いを判定する（#217）。
 # .env は docker compose にしか渡らないため、ホスト側で直接起動する Node 製
-# MCP クライアント（mcp-resource-subscriber 等）には User スコープでの設定が必要。
+# MCP クライアント（resource-bridge-cli 等）には User スコープでの設定が必要。
 #   set      — 未設定（要設定）
 #   noop     — 既に同じパスを指している（区切り文字・大文字小文字の差は無視）
 #   conflict — 別の値が設定済み。NODE_EXTRA_CA_CERTS は 1 ファイルしか指定

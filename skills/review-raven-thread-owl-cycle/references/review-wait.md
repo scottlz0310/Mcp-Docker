@@ -1,6 +1,6 @@
 # レビュー完了待機（Phase W・R-22）
 
-SKILL.md の「Phase W」から移した手順（`--mcp-http` のみ。内容は変更していない）と、購読がタイムアウトした後の確認の手順をまとめる。
+`--mcp-http` では、Node >=26.10.0で `resource-bridge-cli` をシェル実行し、JSONを同じセッションへ返す。MCP探索・登録にCLIを混ぜない。
 
 ## Phase W: レビュー完了待機（`--mcp-http` のみ）
 
@@ -27,14 +27,14 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
    ```powershell
    # MCP_PROBE_URL が設定済みの場合は --url 行を省く
-   bunx mcp-resource-subscriber `
+   bunx resource-bridge-cli `
      --url "$($env:MCP_GATEWAY_PUBLIC_URL.TrimEnd('/'))/mcp/thread-owl" `
      --uri review://status/<owner>/<repo>/<prNumber> `
      --timeout-ms 1200000 `
      --json
    ```
 
-   - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx mcp-resource-subscriber --login --url <同じ URL>` の実行を依頼する。
+   - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx resource-bridge-cli --login --url <同じ URL>` の実行を依頼する。
    - `--timeout-ms` は 20 分。reviewer の起動前の CI 確定待ち（Squirrel Notifier。最大 12 分）と reviewer のレビュー（実測で 4〜7 分）が、enqueue の直後に始まるこの待機の内側に入るため。20 分は多くの CLI の shell tool のタイムアウトを超えるので、バックグラウンド実行で終了を待つ。shell tool 側のタイムアウトで subscriber を打ち切らない。この値は **1 回の購読の上限で、合計の待機の上限ではない**（待ち行列や reviewer の実行時間で 20 分を超える。タイムアウト後は手順 4 の表）。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
