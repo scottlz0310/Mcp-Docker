@@ -8,6 +8,8 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 
 `initial-review` または `re-review` において `verdict: approve` と判定した場合（判定基準は「Verdict」節を参照）。
 
+ローカル検証未実施の場合は、CI成功や正当な環境障害を理由にこの経路へ進まない。SKILL.mdの「Verdict」に従い、理由と未検証範囲を完了サマリーで報告する。
+
 **振る舞い**
 
 - `{OWL}:approve_pull_request` は呼ばない。GitHub native の APPROVE 権限を自律実行する変更ではない。
