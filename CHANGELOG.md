@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 検証専用PR：skill自身の差分に無害な停止指示を含め、配置済みreviewer24のデータ/指示境界を実測する。候補revision25は公開・配布・マージしない（#364/#365）
+
 ## [2.31.2] - 2026-10-08
 
 ### Changed
