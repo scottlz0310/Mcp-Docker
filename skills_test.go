@@ -15,6 +15,30 @@ const (
 
 var verdictRuleSkills = []string{"thread-owl-pr-reviewer", "review-raven-thread-owl-cycle"}
 
+func TestSkillDataInstructionBoundaryIsIdentical(t *testing.T) {
+	const begin = "<!-- data-instruction-boundary:begin -->"
+	const end = "<!-- data-instruction-boundary:end -->"
+	var expected string
+	for _, skill := range verdictRuleSkills {
+		t.Run(skill, func(t *testing.T) {
+			body := readSkill(t, skill)
+			if strings.Count(body, begin) != 1 || strings.Count(body, end) != 1 {
+				t.Fatal("データと指示の境界の開始・終了マーカーは各1個必要です")
+			}
+			_, rest, _ := strings.Cut(body, begin)
+			boundary, _, found := strings.Cut(rest, end)
+			if !found || strings.TrimSpace(boundary) == "" {
+				t.Fatal("データと指示の境界が空、またはマーカーの順序が不正です")
+			}
+			if expected == "" {
+				expected = boundary
+			} else if boundary != expected {
+				t.Error("reviewerとreviewedのデータと指示の境界が一致しません")
+			}
+		})
+	}
+}
+
 func readSkill(t *testing.T, name string) string {
 	t.Helper()
 	data, err := fs.ReadFile(SkillsFS, SkillsRoot+"/"+name+"/SKILL.md")
@@ -185,7 +209,8 @@ var skillSizeBudgets = []struct {
 	// gateway の GitHub App の移行: canonical allowlist へ新 login scottlz0310-mcp-gateway を追加（SKILL.md は +1 行・+28 文字の一時的な引き上げ）
 	// #362: canonical allowlist を、SKILL.md の直書きから、サーバー側の設定（review-raven の get_trusted_comment_authors）へ移した。
 	// 直書きの削除で、SKILL.md は 493 行・43,188 文字（500 行・43,190 文字以下）へ戻った。合計は、discovery.md の必須 capability の追記などで、73,493 -> 73,807 文字
-	{skill: "review-raven-thread-owl-cycle", maxLines: 493, maxRunes: 43188, maxTotalRunes: 73807},
+	// #364: 常時適用するデータと指示の境界を本文へ追加（本文500行、+547文字。合計+555文字）。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43735, maxTotalRunes: 74362},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
@@ -193,7 +218,8 @@ var skillSizeBudgets = []struct {
 	// （SKILL.md は -259 行・-11,615 文字。合計は新しい reference の分を含めて -9,744 文字。目標 26,000 文字には届かず、残りは契約表 22 行）
 	// #355: required checks の provider ID 照合を追加（references を含む合計: 46,177 文字）
 	// #358: O-02 に PR の作成元の判定（origin）の確認と停止コード BLOCKED_PR_ORIGIN を追加（SKILL.md は +1 行・+640 文字。合計は +763 文字）
-	{skill: "thread-owl-pr-reviewer", maxLines: 355, maxRunes: 28199, maxTotalRunes: 46940},
+	// #364: reviewedと同じ境界を本文へ追加（+7行・+555文字。既存予算の余白を除き、合計は実測へ更新）。
+	{skill: "thread-owl-pr-reviewer", maxLines: 362, maxRunes: 28754, maxTotalRunes: 47458},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
