@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewer skillのclone/worktree名をSHA先頭12文字の短い名前へ変更し、Windowsの生成ファイルパスを短縮。取得・checkout・HEAD照合には完全なSHAを維持（reviewer revision 25）。Squirrel側の短いscratchルートと併用できる。
+
 ## [2.31.2] - 2026-10-08
 
 ### Changed
