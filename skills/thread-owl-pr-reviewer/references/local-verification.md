@@ -7,7 +7,7 @@ SKILL.md の O-04 と「Snapshot Guard」の手順 2 の手順。Squirrelのrevi
 - **検証環境の選択**:
   - 最初に `git rev-parse --is-inside-work-tree` で作業場所がGit作業ツリーか確認する。
   - Git作業ツリーであり、tracked fileがclean・HEADが `reviewedHeadSha` と一致する場合だけ、その場所で検証してよい。
-  - 非Gitの作業場所では、下で解決したscratch配下の `<reviewedHeadSha>-clone` にcloneする。既存の実装担当checkoutを探して流用しない。
+  - 非Gitの作業場所では、scratch配下の `c-<SHA先頭12文字>` にcloneする。既存の実装担当checkoutを流用しない。短縮SHAはフォルダ名だけに使い、取得・checkout・HEAD照合は完全なSHAを使う。
   - dirty/mismatchedなGit作業ツリーでは、隔離worktreeまたはcloneを使用する。
 - **隔離環境の作成**:
   - 未 commit 変更を stash / discard してレビューを続行してはならない（実装担当の作業状態を破壊しないため）。
@@ -15,7 +15,7 @@ SKILL.md の O-04 と「Snapshot Guard」の手順 2 の手順。Squirrelのrevi
   - **一時領域（スクラッチディレクトリ）の解決**:
     - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が設定されている場合：
       - パスが**絶対パス**であり、かつ**実在するディレクトリ**であることを確認する。
-      - 有効な場合、隔離 worktree / clone、およびビルド成果物やテストログ等の一時ファイルをすべてその配下に作成する（例: `$SQUIRREL_REVIEW_SCRATCH_DIR/<reviewedHeadSha>-worktree`）。
+      - 有効な場合、隔離 worktree / clone と検証の一時ファイルをすべてその配下に作成する（worktree名は `w-<SHA先頭12文字>`）。
       - 相対パス、存在しないパス、ファイルパスなど不正な値の場合は、**既定パスへフォールバックしてはならない**（不正な指定を黙って無視しないため）。この場合は隔離環境を作成せず、`local verification: not performed` としてレビューを進行する。
     - 環境変数 `SQUIRREL_REVIEW_SCRATCH_DIR` が未設定または空の場合：
       - 従来どおり既定の一時パス（OS の一時ディレクトリなど）を使用する（CLI 直接起動の互換性を維持）。
@@ -34,7 +34,7 @@ SKILL.md の O-04 と「Snapshot Guard」の手順 2 の手順。Squirrelのrevi
     2. 次の例の各コマンドの終了コードを確認する。失敗したら後続コマンドを実行せず、検証不能の理由を報告する。別token・別checkoutへ自動切替しない。
        ```powershell
        $repository = "$owner/$repo"
-       $clonePath = Join-Path $scratchRoot "$reviewedHeadSha-clone"
+       $clonePath = Join-Path $scratchRoot ("c-" + $reviewedHeadSha.Substring(0, 12))
        gh repo clone $repository $clonePath -- --no-checkout
        git -C $clonePath fetch origin $reviewedHeadSha
        git -C $clonePath checkout --detach $reviewedHeadSha
