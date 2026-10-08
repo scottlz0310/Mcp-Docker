@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- reviewer skill に、非Gitの隔離作業場所からscratchへcloneし、固定SHA・clean状態を確認して検証する手順を明記。ローカル検証未実施時は理由を報告し、CI成功でも承認しない基準へ統一（利用者承認済み、#365）。reviewer revisionを24へ更新。公開・再配布後の複数言語PRによる実機確認は別工程
 - reviewer/reviewed skill にデータと指示の境界を追加。PR 本文・差分・コメント・CI 出力などを検証対象として扱い、配置済み skill の規則や停止条件を変更させない。skill 自身の変更PRにも適用し、指示の混入は確認できた事実へ記録する。文章による防御の限界を明示し、共通規則の契約ガードを追加（#364）
 - skill revision を reviewer 23 / reviewed 30 へ更新。公開・再配布と新revisionによる実機検証は別工程
 

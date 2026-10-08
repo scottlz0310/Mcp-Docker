@@ -42,7 +42,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 | --- | --- | --- |
 | 最初の操作（O-00。全モード） | `references/discovery.md` | `REFERENCE_UNREADABLE` |
 | PR が明示されず queue 待機を依頼されたとき | `references/queue-wait.md` | `QUEUE_WAIT_FAILED` |
-| worktree が dirty または `reviewedHeadSha` と不一致で、ローカル検証をするとき | `references/local-verification.md` | `local verification: not performed` |
+| ローカル検証をするとき（非 Git の作業場所を含む） | `references/local-verification.md` | `local verification: not performed`（承認しない） |
 | CI を判定するとき（O-06、O-15、Snapshot Guard の手順 4） | `references/ci-check.md` | `CI: unknown`（Verdict / APPROVE を投稿しない） |
 | `verdict: approve` の Verdict を投稿するとき（O-12） | `references/verdict.md` | `VERDICT_FORMAT_INVALID` |
 | `re-review` / `thread-follow-up` | `references/re-review.md` | `REFERENCE_UNREADABLE`（inline も thread 返信も行わない） |
@@ -91,7 +91,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | O-01 | モード選択（外部 tool なし） | PR URL・queue reason・依頼 → mode（`initial-review` / `re-review` / `thread-follow-up` / `summary-only`） | `opened` と通常の `synchronized` は initial、`re-review-requested` は re-review。thread-follow-up は指定 thread がある場合だけ、summary-only は明示された場合だけ。曖昧なとき、表示順・過去の文脈・推測で補完しない | `REVIEW_MODE_UNKNOWN` |
 | O-02 | Remote Snapshot の PR metadata。`{OWL}:get_pr` | owner・repo・prNumber → PR identity・base / head SHA・files・`origin`（head SHA を `reviewedHeadSha` に固定） | PR identity・minimum output schema・`pr.head.sha`・base SHA を検証する。branch 名だけをレビュー根拠にしない。allowlist は read にも適用され、拒否や read failure を review-raven・GitHub route・`gh` で迂回しない。全 mode で、O-04 以降（ローカル検証・Independent Stage・投稿）より前に、`origin.allowed` が `true` であることを確認する。`origin` が無い（thread-owl が未対応）、または `true` でない場合は、`reason` を報告して停止し、`gh`・GitHub connector・review-raven で PR を取得して続行しない（許可外の作成者・fork の PR のコードを、ローカルで実行しないため） | `BLOCKED_MCP_READ`、`BLOCKED_PR_ORIGIN`、`REMOTE_SNAPSHOT_READ_FAILED` |
 | O-03 | Remote Snapshot の diff / files。`{OWL}:get_pr` の files / patch | PR snapshot → patch と投稿可能位置 | patch が `reviewedHeadSha` の snapshot に属することを確認し、branch 名で再取得しない。O-02 が成功した場合に限り、同じ PR identity と SHA を照合する read-only の connector / `gh` で、巨大 patch を補完できる | `DIFF_SNAPSHOT_INCOMPLETE` |
-| O-04 | Repository State Guard。`git status`・`git rev-parse HEAD`・必要な `git fetch origin` / `git worktree add --detach` | worktree・`reviewedHeadSha`・`SQUIRREL_REVIEW_SCRATCH_DIR` → 検証環境（clean・HEAD 一致）の有無と配置先 | 必要な場合だけ一時 worktree / clone を作る（scratch dir があればその配下。不正値は既定パスへフォールバックしない）。tracked file の dirty / mismatch はレビュー根拠にせず、元 worktree を壊さず隔離して検証する。隔離できなければ `local verification: not performed`（未検証を success としない）。片付けはランチャーの責務。手順は `references/local-verification.md` | `REPOSITORY_STATE_UNSAFE` |
+| O-04 | Repository State Guard。`git rev-parse --is-inside-work-tree`・`git status`・`git rev-parse HEAD`・必要な `gh repo clone` / `git fetch` / `git worktree add --detach` | 作業場所・`reviewedHeadSha`・`SQUIRREL_REVIEW_SCRATCH_DIR` → clean・HEAD一致の検証環境と配置先 | 非Gitの作業場所ではscratchへcloneする。dirty/mismatchのworktreeは隔離し、stash/discardしない。不正scratchは既定パスへfallbackしない。環境を作れなければ理由付きで `local verification: not performed` とし、O-20で承認しない。片付けはランチャーの責務。手順は `references/local-verification.md` | `REPOSITORY_STATE_UNSAFE` |
 | O-05 | Independent Stage の実装・テスト確認。固定した worktree での `git`・`rg`・build・test・static analysis | diff・実装・テスト → 独立した候補（failure path・回帰・security・packaging・テスト不足） | Independent Stage が終わるまで、既存 review comment・thread・summary の本文を文脈へ入れない。確認対象は固定済み SHA に限る。未実施を pass と解釈しない | `LOCAL_VERIFICATION_UNKNOWN` |
 | O-06 | Independent Stage の CI。`{OWL}:get_pr` の直後に、固定した経路の check runs read | `reviewedHeadSha` → `CI: success` / `pending` / `failure` / `unknown` と根拠 | 読み取り・応答の検証・判定は `references/ci-check.md` の規則だけに従う。CI の再実行・設定変更はしない。`CI: unknown`（同文書を読めない場合を含む）のまま Verdict / APPROVE を投稿しない | なし（`CI:` の状態として記録する） |
 | O-07 | Independent Stage の候補生成（LLM 判断。外部 tool なし） | O-05・O-06 の観測 → 候補ごとの根拠・影響・再現条件・重大度 | 何も投稿しない。既存レビューの結論や言い換えを混ぜず、特定 diff 行または PR-level の根拠を持つ候補だけを作る。独立評価が不足するとき、既存レビュー本文を先に読んで補完しない | `INDEPENDENT_REVIEW_INCOMPLETE` |
@@ -107,7 +107,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | O-17 | Re-review の current diff 上の新規 inline。`{OWL}:post_inline_comment` | current path / line・`commitId = reviewedHeadSha` → 新規 thread の ID | 元 thread が resolved / outdated で問題が残り、O-10 で current diff に有効な位置がある場合だけ。新しい unresolved thread を一件投稿し、元 thread へ重複返信しない。以前の指摘の継続であることと現 head の具体的な再現条件を書く。位置が無ければ O-18 | `REREVIEW_INLINE_FAILED` |
 | O-18 | Re-review / Follow-up の current diff 外の論点。re-review は O-12 の完了サマリーの「current diff 外の指摘」に含める。thread-follow-up は `{OWL}:post_summary_comment` | blocking / 残存条件・影響・再現手順 → PR-level summary の ID | re-review では別の `post_summary_comment` を呼ばない（途中で呼ぶと、reviewed-side の待機がレビュー完了前に終わる）。位置がない理由とマージへの影響を明記し、過去の行番号へ投稿しない。blocking なら Verdict approve を抑止する。無理に inline へ移さない | `REREVIEW_SUMMARY_FAILED` |
 | O-19 | Thread Follow-up。`{OWL}:get_pr`・`{OWL}:list_review_threads` と、O-16〜O-18 の適切な write | root comment・全返信・対応差分 → resolved in code / partially resolved / not resolved / needs clarification / declined-by-implementer の判定と投稿結果 | 指定 thread の文脈だけを確認する。必要な場合だけ、返信・新規 inline・summary のいずれかを一件投稿する（resolve / unresolve / merge はしない）。question なら作成者の回答を根拠に再評価し、未回答の既存 question と同内容の返信は投稿しない。unresolved は O-16、current diff に位置があれば O-17、無ければ O-18。独立論点を同じ thread に混ぜない | `THREAD_FOLLOWUP_INCOMPLETE` |
-| O-20 | Verdict 判定（LLM 判断。投稿は O-12） | blocking・thread・question・主要リスク・CI・残存リスク → `approve` / `request changes` / `comment only` / `needs follow-up` | 判定基準は「Verdict」節。APPROVE・merge・Issue クローズは自動実行しない。CI・thread・SHA・独立検証のいずれかが unknown なら、approve に寄せず comment only / needs follow-up にする | `VERDICT_INCOMPLETE` |
+| O-20 | Verdict 判定（LLM 判断。投稿は O-12） | blocking・thread・question・主要リスク・CI・残存リスク → `approve` / `request changes` / `comment only` / `needs follow-up` | 判定基準は「Verdict」節。APPROVE・merge・Issue クローズは自動実行しない。ローカル検証未実施は、環境障害やCI成功を理由に承認せず、理由付きのcomment only / needs follow-upにする。CI・thread・SHA・独立検証がunknownでも承認しない | `VERDICT_INCOMPLETE` |
 | O-21 | ユーザー報告・ハンドオフ（外部 tool なし。「ユーザー報告」「ハンドオフ提示」の固定 Markdown を出力する） | O-00〜O-20 の evidence → 固定フォーマットの報告 | 何も write しない。approve / request changes / comment only / needs follow-up / blocked を混同せず、未確認を成功と書かない。必須値が得られない場合は unknown / blocked と明記し、推測で補完しない | `REPORT_EVIDENCE_INCOMPLETE` |
 
 ## 停止コード
@@ -298,10 +298,11 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 
 ## Verdict
 
+- ローカル検証が `not performed` の場合、clone不能・認証/ネットワーク障害・不正scratchなど正当な理由があっても `approve` にしない。可能なのに省いた場合も同じ。理由と未検証範囲を記載して `comment only` / `needs follow-up` とし、O-12で完了サマリーを投稿する。実際のblocking指摘がある場合は `request changes` とする。
 - `approve`: 新規 `blocking` 指摘と未回答の `[question]` がなく、既存 review thread がすべて resolved であり（分類を問わない。`non-blocking` / `question` の未解決も許容しない）、主要リスクのテストまたは説明があり、CI が成功し、CI の対象 SHA が `reviewedHeadSha` と一致している。「技術的・品質的にマージ可能な状態である（マージ推奨）」という判断結果であり、ユーザーへの報告で明記する。実装者が明示的な理由（Won't fix、スコープ外、仕様意図など）をもって resolve した指摘（`declined-by-implementer`）は新規 blocking とみなさず、残存リスクを完了サマリー（および Verdict の summary）に明記した上で `approve` を妨げない。`initial-review` / `re-review` でこの判定に至った場合は「Verdict コメント投稿」節に従って Verdict コメントを投稿する。明示的な許可（指示）がない限り、実際の `APPROVE` 投稿は行わない。
 - `request changes`: blocking が残る。Thread Owl に REQUEST_CHANGES tool はないため、blocking comment と verdict の報告、および「レビュー完了サマリー」の投稿に留める。
 - `comment only`: 判断材料が不足し、question が中心。question が未回答の間は、approve にせず `comment only` / `needs follow-up` の区別を維持する。
-- `needs follow-up`: merge 可能だが、別 issue または後続 PR で追う論点がある。
+- `needs follow-up`: 別 issue・後続 PR または環境復旧後の検証を要する。ローカル検証未実施なら、マージ可能と判断した旨は書かない。
 
 ## ユーザー報告
 
@@ -314,6 +315,7 @@ reviewer-side の投稿前後の検証と reviewed-side のマージゲートは
 - source of truth: remote PR snapshot
 - local verification: isolated worktree | clean matching worktree | not performed
 - local verification head: <SHA | n/a>
+- local verification reason: <未実施の理由と未検証範囲 | n/a>
 - CI head: <SHA | unknown>
 - verdict: approve | request changes | comment only | needs follow-up
 - CI: success | failure | unknown

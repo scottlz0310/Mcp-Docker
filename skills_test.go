@@ -219,7 +219,8 @@ var skillSizeBudgets = []struct {
 	// #355: required checks の provider ID 照合を追加（references を含む合計: 46,177 文字）
 	// #358: O-02 に PR の作成元の判定（origin）の確認と停止コード BLOCKED_PR_ORIGIN を追加（SKILL.md は +1 行・+640 文字。合計は +763 文字）
 	// #364: reviewedと同じ境界を本文へ追加（+7行・+555文字。既存予算の余白を除き、合計は実測へ更新）。
-	{skill: "thread-owl-pr-reviewer", maxLines: 362, maxRunes: 28754, maxTotalRunes: 47458},
+	// #365: 非Gitでのclone手順と未検証時の非承認基準を明記。詳細はreferencesに置く。
+	{skill: "thread-owl-pr-reviewer", maxLines: 364, maxRunes: 29035, maxTotalRunes: 49025},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
