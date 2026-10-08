@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewer/reviewed skill にデータと指示の境界を追加。PR 本文・差分・コメント・CI 出力などを検証対象として扱い、配置済み skill の規則や停止条件を変更させない。skill 自身の変更PRにも適用し、指示の混入は確認できた事実へ記録する。文章による防御の限界を明示し、共通規則の契約ガードを追加（#364）
+- skill revision を reviewer 23 / reviewed 30 へ更新。公開・再配布と新revisionによる実機検証は別工程
+
 ## [2.31.1] - 2026-10-07
 
 ### Changed
