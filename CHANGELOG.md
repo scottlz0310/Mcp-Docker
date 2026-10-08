@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.3] - 2026-10-08
+
 ### Changed
 
 - reviewer skillのclone/worktree名をSHA先頭12文字の短い名前へ変更し、Windowsの生成ファイルパスを短縮。取得・checkout・HEAD照合には完全なSHAを維持（reviewer revision 25）。Squirrel側の短いscratchルートと併用できる。
@@ -981,7 +983,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.2...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.3...HEAD
+[2.31.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.2...v2.31.3
 [2.31.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.1...v2.31.2
 [2.31.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.0...v2.31.1
 [2.31.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.30.6...v2.31.0
