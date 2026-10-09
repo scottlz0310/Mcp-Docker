@@ -29,6 +29,10 @@ else
   BASH_CMD    := bash
 endif
 
+# makeはrepoの標準設定を使う。追加設定が必要な場合はmake COMPOSE_FILE=...で明示する。
+# 検証時のCOMPOSE_FILEがシェルに残っていても、廃止した追加Composeを読み込まない。
+export COMPOSE_FILE := docker-compose.yml
+
 # 環境変数優先、.env フォールバック（安全な awk テキスト抽出）
 # include .env は Makefile として解釈される危険があり、
 # . ./.env (shell source) は .env 内の任意コマンドを実行する危険がある。
@@ -50,6 +54,9 @@ ifneq (,$(wildcard .env))
   MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
   PLAYWRIGHT_MCP_IMAGE         ?= $(call ENV_GET,PLAYWRIGHT_MCP_IMAGE)
   PLAYWRIGHT_MCP_ENABLED       ?= $(call ENV_GET,PLAYWRIGHT_MCP_ENABLED)
+  REVIEW_RAVEN_GITHUB_APP_ID   ?= $(call ENV_GET,REVIEW_RAVEN_GITHUB_APP_ID)
+  REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID ?= $(call ENV_GET,REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID)
+  REVIEW_RAVEN_GITHUB_APP_OWNER ?= $(call ENV_GET,REVIEW_RAVEN_GITHUB_APP_OWNER)
 endif
 
 # OAUTH_* → GITHUB_MCP_* → GITHUB_* の優先順位でフォールバック解決
@@ -61,6 +68,7 @@ ifeq ($(strip $(OAUTH_CLIENT_SECRET)),)
 endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
 export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL PLAYWRIGHT_MCP_ENABLED
+export REVIEW_RAVEN_GITHUB_APP_ID REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID REVIEW_RAVEN_GITHUB_APP_OWNER REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64 REVIEW_RAVEN_PROXY_SECRET
 
 # playwright-mcp は任意（既定では起動しない。.env の PLAYWRIGHT_MCP_ENABLED=1 で有効にする）。
 # 有効なときだけ、サービス名を明示して起動し、pull の対象にも加える（docker-compose.yml の profile "playwright"）。
@@ -84,6 +92,14 @@ check-github-app-config:
 	$(if $(and $(GITHUB_APP_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
 	$(if $(MCP_GATEWAY_INTERNAL_SECRET),,$(error ERROR: MCP_GATEWAY_INTERNAL_SECRET is required for credential diagnostics. Set a random value of at least 32 characters.))
 	$(if $(GITHUB_APP_PRIVATE_KEY_B64),,$(error ERROR: GITHUB_APP_PRIVATE_KEY_B64 is required (the GitHub App private key as a single-line base64 value). Create it with: make github-app-key-b64 PEM=<path>, store it in Bitwarden as env:GITHUB_APP_PRIVATE_KEY_B64, and load it with dsx-env. It is intentionally not read from .env (no secrets in .env). See docs/github-app-setup.md.))
+	$(if $(and $(REVIEW_RAVEN_GITHUB_APP_ID),$(REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID),$(REVIEW_RAVEN_GITHUB_APP_OWNER)),,$(error ERROR: REVIEW_RAVEN_GITHUB_APP_ID / REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID / REVIEW_RAVEN_GITHUB_APP_OWNERを設定してください。))
+	$(if $(REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64),,$(error ERROR: REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64を保管庫からdsx-envで注入してください。))
+	$(if $(REVIEW_RAVEN_PROXY_SECRET),,$(error ERROR: REVIEW_RAVEN_PROXY_SECRETを保管庫からdsx-envで注入してください。))
+	@"$(BASH_CMD)" ./scripts/check-review-raven-app.sh
+
+.PHONY: check-compose-config
+check-compose-config: check-github-app-config ## 秘密値を表示せず標準Composeと資格情報を検証
+	@docker compose config --quiet
 
 # GitHub App の秘密鍵（PEM → 単一行の base64）。dsx は改行入りの値を注入できないため、環境変数では base64 で渡す。
 .PHONY: github-app-key-b64
@@ -97,7 +113,7 @@ verify-github-app-key: ## 注入済みの GITHUB_APP_PRIVATE_KEY_B64 が PEM と
 	"$(BASH_CMD)" ./scripts/verify-github-app-key.sh "$(PEM)"
 
 .PHONY: start-gateway
-start-gateway: check-github-app-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
+start-gateway: check-compose-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
 	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway $(PLAYWRIGHT_SERVICE)
 	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
@@ -108,7 +124,9 @@ stop-gateway: ## 全サービスを停止
 	docker compose --profile "*" down
 
 .PHONY: restart-gateway
-restart-gateway: stop-gateway start-gateway ## 全サービスを再起動
+restart-gateway: check-compose-config ## 設定検証後に全サービスを再起動
+	$(MAKE) stop-gateway
+	$(MAKE) start-gateway
 
 .PHONY: logs-gateway
 logs-gateway: ## mcp-gateway のログ表示
@@ -152,7 +170,7 @@ mcp-conformance-review-raven: $(MCP_DOCKER) ## review-raven route のdiscovery/s
 		--timeout "$(MCP_CONFORMANCE_TIMEOUT)"
 
 .PHONY: pull-gateway
-pull-gateway: ## 全サービスの Docker イメージを取得
+pull-gateway: check-compose-config ## 全サービスの Docker イメージを取得
 	docker compose $(PLAYWRIGHT_PROFILE) pull
 
 # 後方互換エイリアス
@@ -186,7 +204,7 @@ PLAYWRIGHT_MCP_MAIN_IMAGE     ?= mcr.microsoft.com/playwright/mcp:main
 PLAYWRIGHT_MCP_FALLBACK_IMAGE ?= $(or $(PLAYWRIGHT_MCP_IMAGE),mcr.microsoft.com/playwright/mcp:latest)
 
 .PHONY: pull-main
-pull-main: ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
+pull-main: check-compose-config ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
 	docker compose pull github-mcp
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
@@ -202,7 +220,7 @@ else
 endif
 
 .PHONY: start-main
-start-main: check-github-app-config ## pull-main で取得済みの開発版イメージで全サービスを起動
+start-main: check-compose-config ## pull-main で取得済みの開発版イメージで全サービスを起動
 ifneq ($(strip $(PLAYWRIGHT_MCP_ENABLED)),)
 	@playwright_image=$$("$(BASH_CMD)" ./scripts/select-playwright-main-image.sh "$(PLAYWRIGHT_MCP_MAIN_IMAGE)" "$(PLAYWRIGHT_MCP_FALLBACK_IMAGE)") || { status=$$?; exit "$$status"; }; \
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
@@ -219,7 +237,9 @@ endif
 	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: restart-main
-restart-main: stop-gateway start-main ## 取得済みの開発版イメージで全サービスを再起動（pull なし）
+restart-main: check-compose-config ## 設定検証後に取得済みの開発版イメージで再起動
+	$(MAKE) stop-gateway
+	$(MAKE) start-main
 
 # CLI 登録（Primary）
 BIN_DIR      := bin

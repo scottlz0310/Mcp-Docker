@@ -24,7 +24,7 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 |---|---|---|---|
 | `mcp-gateway` | `ghcr.io/scottlz0310/mcp-gateway:latest` | 8080（ホスト公開） | OAuth ゲートウェイ |
 | `github-mcp` | `ghcr.io/github/github-mcp-server:main` | 8082（内部のみ） | GitHub MCP サーバー |
-| `review-raven` | `ghcr.io/scottlz0310/review-raven:latest` | 8083（内部のみ） | レビュー対応自動化（reviewed-side） |
+| `review-raven` | `ghcr.io/scottlz0310/review-raven:main` | 8083（内部のみ） | 専用App名義のレビュー対応（reviewed-side） |
 | `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none）。**任意で、既定では起動しない**（[有効にする手順](#playwright-mcpauthnone任意)） |
 
 `github-mcp`・`review-raven`・`playwright-mcp` はホストに直接公開されません。
@@ -57,9 +57,11 @@ cp .env.template .env
 #   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
 #   GITHUB_APP_PRIVATE_KEY_B64       (GitHub App の秘密鍵 PEM を、単一行の base64 にした値。必ず環境変数で渡す)
 #                                    作り方: make github-app-key-b64 PEM=<path>（クリップボードへ。値は表示しない）
+#   REVIEW_RAVEN_GITHUB_APP_ID / REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID / REVIEW_RAVEN_GITHUB_APP_OWNER
+#   REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64 / REVIEW_RAVEN_PROXY_SECRET（必ず保管庫から環境変数へ注入）
 # 例: Bitwarden に env:<変数名> の項目（カスタムフィールド value に値）を作り、dsx-env で注入する
 # 置き場の考え方は docs/github-app-setup.md の「資格情報の置き場」を参照
-# ※ GITHUB_APP_PRIVATE_KEY_B64 だけは、.env から読みません（秘密を .env に置かないため。未設定なら make start-gateway が止まります）
+# ※ App秘密鍵・review-raven proxy共有鍵は、.envからmakeへ読みません。未設定なら停止・起動前に検証で失敗します。
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 # ※ 新規設定には canonical 名の OAUTH_* を使用してください。
@@ -69,6 +71,8 @@ make start-gateway
 ```
 
 ### GitHub App 登録
+
+review-ravenは標準Composeで専用Appを使います。[専用Appの資格情報・make運用](docs/review-raven-app-auth.md)を参照してください。`COMPOSE_FILE`の手動指定は不要です。makeは標準Composeを選択し、設定検証後に起動・再起動します。review-ravenの既定イメージは専用App対応を公開済みの`:main`です。
 
 mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 
@@ -467,7 +471,7 @@ servers:
 |---|---|---|
 | `GITHUB_MCP_GATEWAY_IMAGE` | `ghcr.io/scottlz0310/mcp-gateway:main` | ゲートウェイイメージ |
 | `GITHUB_MCP_IMAGE` | `ghcr.io/github/github-mcp-server:main` | github-mcp-server イメージ |
-| `REVIEW_RAVEN_IMAGE` | `ghcr.io/scottlz0310/review-raven:latest` | review-raven イメージ |
+| `REVIEW_RAVEN_IMAGE` | `ghcr.io/scottlz0310/review-raven:main` | 専用App認証対応のreview-raven イメージ |
 | `PLAYWRIGHT_MCP_IMAGE` | `mcr.microsoft.com/playwright/mcp:latest` | 通常起動時のイメージ。`pull-main` / `start-main` の fallback にも使用 |
 | `PLAYWRIGHT_MCP_MAIN_IMAGE` | `mcr.microsoft.com/playwright/mcp:main` | `pull-main` が取得し、`start-main` がローカルにあれば起動する開発版イメージ |
 | `PLAYWRIGHT_MCP_FALLBACK_IMAGE` | `PLAYWRIGHT_MCP_IMAGE` または `mcr.microsoft.com/playwright/mcp:latest` | `pull-main` の fallback、および `start-main` で `:main` がローカルにない場合に使用するイメージ |
