@@ -36,3 +36,5 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 4. 投稿 identity の確認は、対象 PR に対して実際に必要なコメント（R-10 返信、R-14 再レビュー依頼、R-19 サマリ）を投稿した直後に、返却された comment ID を使って同じ PR の issue-comment metadata を再取得し、実際の `author.login` を `write_author_login` として観測・検証する。分離された probe PR への事前プローブ投稿は要求しない。
 5. 観測した `write_author_login` を run の状態へ保存し、canonical allowlist に含まれることを確認する。allowlist にない投稿者、null、欠落、類似名の場合は `WRITE_IDENTITY_UNCONFIRMED` として停止する。fallback route を使う場合も、最初の write 直後に同様に観測・固定する。
 6. write 開始後の transport failure、受理結果不明、identity 不一致では別 route、別認証、`gh` CLI へ切り替えない。同じコメントの重複投稿を避け、停止して報告する。
+
+注意: この方式は事前の probe 投稿による誤 identity 投稿の事前抑止ではなく、対象 PR への最初の write 直後に identity を検証して不一致時に以後の操作を停止する（事後検出と安全な停止）というトレードオフを持つ。誤った identity による初回の投稿自体は防がない点に留意すること。
