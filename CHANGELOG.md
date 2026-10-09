@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- review-raven-thread-owl-cycle スキルから専用 probe PR への書き込み要件を廃止し、対象 PR への実コメント投稿（再レビュー依頼・返信・サマリ）後に得られる comment ID から投稿 identity を観測・検証する方式へ改修（#382）
+- skill revision を reviewed 31 へ更新
+
 ## [2.31.3] - 2026-10-08
 
 ### Changed
