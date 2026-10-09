@@ -21,8 +21,17 @@ func TestReviewRavenAppOverride(t *testing.T) {
 	if len(file.Services) != 2 {
 		t.Fatal("専用App設定が無関係なサービスを変更しています")
 	}
+	baseData, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseGateway, err := gatewayEnv(baseData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRoute := strings.TrimSuffix(baseGateway["ROUTE_REVIEW_RAVEN"], "|upstream_provider_token=true") + "|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET"
 	for _, tt := range []struct{ service, name, want string }{
-		{"mcp-gateway", "ROUTE_REVIEW_RAVEN", "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET"},
+		{"mcp-gateway", "ROUTE_REVIEW_RAVEN", wantRoute},
 		{"mcp-gateway", "REVIEW_RAVEN_PROXY_SECRET", "${REVIEW_RAVEN_PROXY_SECRET:?"},
 		{"review-raven", "REVIEW_RAVEN_AUTH_MODE", "github-app"},
 		{"review-raven", "REVIEW_RAVEN_PROXY_SECRET", "${REVIEW_RAVEN_PROXY_SECRET:?"},
