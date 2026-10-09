@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-10-09
+
 ### Changed
 
 - V4実機検証後、review-ravenの専用App認証と共有Bearer設定を標準Composeへ組み込み、暫定の追加Composeを廃止した。makeは標準設定を選び、手動のCOMPOSE_FILE指定なしでpull/start/restartを実行できる。資格情報・共有鍵長・Compose設定を停止処理前に検証する。
@@ -16,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 専用Appへの切り替え設定で`REVIEW_RAVEN_PROXY_SECRET`をgatewayとreview-ravenへ渡し、proxy間の共有Bearer認証を必須にした。
 
-- review-raven専用GitHub Appへの移行用Compose設定を追加した。明示的に読み込んだ場合だけ専用資格情報をreview-ravenへ渡し、gatewayからのprovider token委譲を外す。標準Composeの既存認証は維持する。V4実測とgateway Contents縮小は配備後の後続作業。
+- review-raven専用GitHub Appの資格情報を標準Composeから注入し、gatewayからのprovider token委譲を専用の共有Bearerへ置き換えた。主要V4実測と恒久構成の配備確認は完了。期限越えtoken更新・他クライアント実操作・gateway Contents縮小は後続。
 
 ## [2.31.4] - 2026-10-09
 
