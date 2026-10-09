@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.4] - 2026-10-09
+
 ### Fixed
 
 - review-raven-thread-owl-cycle スキルから専用 probe PR への書き込み要件を廃止し、対象 PR への実コメント投稿（再レビュー依頼・返信・サマリ）後に得られる comment ID から投稿 identity を観測・検証する方式へ改修（#382）
@@ -988,7 +990,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.3...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.4...HEAD
+[2.31.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.3...v2.31.4
 [2.31.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.2...v2.31.3
 [2.31.2]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.1...v2.31.2
 [2.31.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.0...v2.31.1
