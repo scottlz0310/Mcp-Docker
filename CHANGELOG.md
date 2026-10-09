@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 専用Appへの切り替え設定で`REVIEW_RAVEN_PROXY_SECRET`をgatewayとreview-ravenへ渡し、proxy間の共有Bearer認証を必須にした。
+
+- review-raven専用GitHub Appへの移行用Compose設定を追加した。明示的に読み込んだ場合だけ専用資格情報をreview-ravenへ渡し、gatewayからのprovider token委譲を外す。標準Composeの既存認証は維持する。V4実測とgateway Contents縮小は配備後の後続作業。
+
 ## [2.31.4] - 2026-10-09
 
 ### Fixed
