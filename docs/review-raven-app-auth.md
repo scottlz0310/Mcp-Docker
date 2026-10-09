@@ -11,6 +11,7 @@
 | `REVIEW_RAVEN_GITHUB_APP_ID` | `5184108` |
 | `REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID` | `169443079` |
 | `REVIEW_RAVEN_GITHUB_APP_OWNER` | `scottlz0310` |
+| `REVIEW_RAVEN_PROXY_SECRET` | 32文字以上のランダムな専用共有シークレット。gatewayとreview-ravenへ同じ値を注入 |
 | `REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64` | 専用AppのRSA PEM秘密鍵をbase64化した値 |
 
 Client ID・Client secretは使わない。対象は組織`scottlz0310`のAll repositories。既存の`REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`・`THREAD_OWL_ALLOWED_AUTHORS`に`review-raven`を含める。
@@ -28,7 +29,7 @@ Client ID・Client secretは使わない。対象は組織`scottlz0310`のAll re
 
    Linuxでは区切りは`:`、Windowsでは`;`になる。各PCの起動設定でも同じ読み込み対象を維持する。通常の`docker compose config`は注入済みの秘密鍵を表示するため使わず、`--quiet`を使う。必要な値が欠けるとCompose検証で失敗する。
 
-4. `docker compose up -d --no-deps mcp-gateway review-raven`で反映する。gatewayのOAuth設定・鍵・GitHub MCP routeは維持する。routeから`upstream_provider_token=true`だけを外し、gateway Appのtokenは注入しない。
+4. `docker compose up -d --no-deps mcp-gateway review-raven`で反映する。gatewayのOAuth設定・鍵・GitHub MCP routeは維持する。routeから`upstream_provider_token=true`を外し、`upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET`で専用共有Bearerを注入する。gateway Appのtokenは注入しない。gatewayが利用者を認証してidentityを上書きし、review-ravenが共有Bearerを照合する。元のComposeの`BIND_ADDR=0.0.0.0`はコンテナ間接続のために維持し、ホストへのports公開は追加しない。同じ内部ネットワークの他コンテナがidentity/Bearerを偽装しても、共有鍵が一致しなければ401で拒否する。
 5. review-ravenの起動ログでApp・installation・組織・権限の照合成功を確認する。公開toolが6件でwatchが無いこと、許可リストの取得、各CLIの接続を確認する。
 6. review-ravenの手順書に従い専用tokenでV4を実測する。gatewayのContents writeは維持し、専用tokenのresolve成功を確認した後に縮小を別作業で行う。
 

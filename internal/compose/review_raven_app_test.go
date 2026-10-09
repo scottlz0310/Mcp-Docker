@@ -22,8 +22,10 @@ func TestReviewRavenAppOverride(t *testing.T) {
 		t.Fatal("専用App設定が無関係なサービスを変更しています")
 	}
 	for _, tt := range []struct{ service, name, want string }{
-		{"mcp-gateway", "ROUTE_REVIEW_RAVEN", "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp"},
+		{"mcp-gateway", "ROUTE_REVIEW_RAVEN", "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET"},
+		{"mcp-gateway", "REVIEW_RAVEN_PROXY_SECRET", "${REVIEW_RAVEN_PROXY_SECRET:?"},
 		{"review-raven", "REVIEW_RAVEN_AUTH_MODE", "github-app"},
+		{"review-raven", "REVIEW_RAVEN_PROXY_SECRET", "${REVIEW_RAVEN_PROXY_SECRET:?"},
 		{"review-raven", "REVIEW_RAVEN_GITHUB_APP_ID", "${REVIEW_RAVEN_GITHUB_APP_ID:?"},
 		{"review-raven", "REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID", "${REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID:?"},
 		{"review-raven", "REVIEW_RAVEN_GITHUB_APP_OWNER", "${REVIEW_RAVEN_GITHUB_APP_OWNER:?"},
