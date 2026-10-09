@@ -242,7 +242,7 @@ EOF
 }
 
 @test "Makefile: pull-main は PLAYWRIGHT_MCP_ENABLED があれば Playwright の main/fallback resolver を呼び出す" {
-    run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" --dry-run pull-main
+    run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" -o check-compose-config --dry-run pull-main
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"pull-playwright-main.sh"* ]]
@@ -250,7 +250,7 @@ EOF
 }
 
 @test "Makefile: pull-main は PLAYWRIGHT_MCP_ENABLED が未設定なら Playwright を取得しない" {
-    run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" --dry-run pull-main
+    run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" -o check-compose-config --dry-run pull-main
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"docker compose pull mcp-gateway review-raven thread-owl"* ]]

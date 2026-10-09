@@ -63,9 +63,9 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 			want: "/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true",
 		},
 		{
-			name: "review-raven の upstream endpoint（provider token 注入）",
+			name: "review-raven の upstream endpoint（専用proxyの共有Bearer注入）",
 			key:  "ROUTE_REVIEW_RAVEN",
-			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_provider_token=true",
+			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET",
 		},
 		{
 			name: "thread-owl の upstream endpoint",

@@ -1,40 +1,47 @@
-# review-raven専用Appへの切り替え
+# review-raven専用GitHub Appの運用
 
-専用App認証に対応するreview-ravenイメージの配備後に、`docker-compose.review-raven-app.yml`を追加で読み込む。標準の`docker-compose.yml`だけなら従来のprovider token経路を維持する。専用Appの認証実装・V4検証条件は[review-ravenの手順書](https://github.com/scottlz0310/review-raven/blob/main/docs/github-app-auth.md)を参照。
+専用App設定は標準`docker-compose.yml`に組み込まれている。追加Composeや`COMPOSE_FILE`の手動設定は不要。認証実装は[review-ravenの手順書](https://github.com/scottlz0310/review-raven/blob/main/docs/github-app-auth.md)、実機検証結果は[V4検証記録](review-raven-app-v4.md)を参照する。
 
 ## 資格情報
 
-保管庫からdsxで次の環境変数を注入する。gateway・thread-owlの資格情報は変更しない。
+保管庫からdsxで次の環境変数を注入する。gateway・thread-owlの既存資格情報も維持する。
 
 | 名前 | 値 |
 |---|---|
 | `REVIEW_RAVEN_GITHUB_APP_ID` | `5184108` |
 | `REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID` | `169443079` |
 | `REVIEW_RAVEN_GITHUB_APP_OWNER` | `scottlz0310` |
-| `REVIEW_RAVEN_PROXY_SECRET` | 32文字以上のランダムな専用共有シークレット。gatewayとreview-ravenへ同じ値を注入 |
+| `REVIEW_RAVEN_PROXY_SECRET` | 32文字以上のランダムな専用共有シークレット |
 | `REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64` | 専用AppのRSA PEM秘密鍵をbase64化した値 |
 
-Client ID・Client secretは使わない。対象は組織`scottlz0310`のAll repositories。既存の`REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`・`THREAD_OWL_ALLOWED_AUTHORS`に`review-raven`を含める。
+Bitwardenの項目名は`env:<変数名>`、カスタムフィールドは非表示の`value`。専用App秘密鍵とproxy共有鍵は環境変数で渡し、`.env`からはmakeへ読み込まない。Client ID・Client secretは専用Appでは使わない。
 
-## 切り替え
+Appは組織`scottlz0310`のAll repositoriesへインストールする。GitHubが許可する組織外の公開情報の読み取りは許容する。installation権限の対象を限定する方針であり、MCPに組織外の読み取りを一律拒否する制限は追加しない。`REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`・`THREAD_OWL_ALLOWED_AUTHORS`に`review-raven`を含める。
 
-1. active watch・実行中のレビューがないことを確認する。専用AppモードではCopilot系・watchが非公開になる。
-2. 対応済みのreview-ravenイメージを指定する。PR作成だけでは配備済みと判断しない。
-3. Composeの読み込み対象を設定する。既存の`COMPOSE_FILE`がある場合は、その対象を保ったうえで専用Appファイルを末尾に追加する。PowerShellでの標準構成の例:
+## 起動・再起動
 
-   ```powershell
-   $env:COMPOSE_FILE = @('docker-compose.yml', 'docker-compose.review-raven-app.yml') -join [IO.Path]::PathSeparator
-   docker compose config --quiet
-   ```
+鍵を登録した後は、同じシェルで次を実行する。他PCも同じ手順でよい。
 
-   Linuxでは区切りは`:`、Windowsでは`;`になる。各PCの起動設定でも同じ読み込み対象を維持する。通常の`docker compose config`は注入済みの秘密鍵を表示するため使わず、`--quiet`を使う。必要な値が欠けるとCompose検証で失敗する。
+```powershell
+cd ~/src/Mcp-Docker
+bw sync
+dsx-env
+make pull
+make restart
+```
 
-4. `docker compose up -d --no-deps mcp-gateway review-raven`で反映する。gatewayのOAuth設定・鍵・GitHub MCP routeは維持する。routeから`upstream_provider_token=true`を外し、`upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET`で専用共有Bearerを注入する。gateway Appのtokenは注入しない。gatewayが利用者を認証してidentityを上書きし、review-ravenが共有Bearerを照合する。元のComposeの`BIND_ADDR=0.0.0.0`はコンテナ間接続のために維持し、ホストへのports公開は追加しない。同じ内部ネットワークの他コンテナがidentity/Bearerを偽装しても、共有鍵が一致しなければ401で拒否する。
-5. review-ravenの起動ログでApp・installation・組織・権限の照合成功を確認する。公開toolが6件でwatchが無いこと、許可リストの取得、各CLIの接続を確認する。
-6. review-ravenの手順書に従い専用tokenでV4を実測する。gatewayのContents writeは維持し、専用tokenのresolve成功を確認した後に縮小を別作業で行う。
+gateway・thread-owlもmain版を使う場合は`make pull-main`・`make restart-main`を使う。review-ravenの既定イメージは専用App対応を公開済みの`:main`。別の`REVIEW_RAVEN_IMAGE`を指定する場合は、`github-app`モードと共有Bearer検証に対応するイメージを選ぶ。
 
-CLI登録は元のComposeに記載されたrouteから同じURLを読み取るため、専用Appの切り替えによるURL・alias変更はない。登録の削除や再登録は不要。
+makeは`COMPOSE_FILE=docker-compose.yml`を子プロセスへ渡す。シェルに検証時の古い`COMPOSE_FILE`が残っていても、廃止した追加Composeを読み込まない。独自の追加Composeを使う場合だけ、`make COMPOSE_FILE=<読み込み対象> ...`として明示する。Docker Composeを直接実行するときは、makeの設定は適用されないため`docker compose -f docker-compose.yml ...`を使う。
 
-## 切り戻し
+pull・start・restartは、資格情報と`docker compose config --quiet`を先に検証する。restartは検証成功後にstop→startを順番に実行するため、不正な設定で稼働中コンテナを停止しない。設定検証だけなら`make check-compose-config`を使う。通常の`docker compose config`は秘密値を表示するので使用しない。
 
-読み込み対象から`docker-compose.review-raven-app.yml`を外して、元のCompose設定で`mcp-gateway`・`review-raven`を再作成する。標準構成なら`COMPOSE_FILE=docker-compose.yml`に戻す。既存DB・許可リスト・専用botの投稿を維持する。gateway Contents縮小後は従来resolveへの切り戻しがそのまま成立するとは判断しない。
+gatewayは利用者を認証し、`upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET`で専用共有Bearerを注入する。review-ravenは共有Bearerを照合した後に専用App tokenを使う。ホストへreview-ravenのポートは公開しない。内部HTTPを保護し、共有鍵を他サービスへ渡さない。
+
+## 共有鍵の更新と切り戻し
+
+共有鍵を保管庫で更新し、`bw sync`→`dsx-env`→`make restart(-main)`でgatewayとreview-ravenへ同時に反映する。実行中のレビューがない時間に行い、起動ログと6 tool公開を確認する。
+
+旧provider tokenモードへ戻す場合は、切り替え前のrepo構成とイメージへ戻して再作成する。標準Composeの設定を混在させない。専用botが投稿したコメントを読めるよう、許可リストの`review-raven`は維持する。gateway Contents縮小後は、旧resolve経路がそのまま使えると仮定しない。
+
+gatewayのContents縮小は、専用App移行とは別の後続作業である。

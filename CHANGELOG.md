@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- V4実機検証後、review-ravenの専用App認証と共有Bearer設定を標準Composeへ組み込み、暫定の追加Composeを廃止した。makeは標準設定を選び、手動のCOMPOSE_FILE指定なしでpull/start/restartを実行できる。資格情報・共有鍵長・Compose設定を停止処理前に検証する。
+- review-ravenの既定イメージを専用App対応を公開済みの`:main`へ変更した。通常のmake pull/restartでも専用App対応コードを使用する。
+
 ### Added
 
 - 専用Appへの切り替え設定で`REVIEW_RAVEN_PROXY_SECRET`をgatewayとreview-ravenへ渡し、proxy間の共有Bearer認証を必須にした。
