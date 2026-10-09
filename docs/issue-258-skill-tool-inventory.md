@@ -499,7 +499,7 @@ Run 1 の registry は論理名の解決結果であって、別 client では t
 | Run 2 の `/mcp/github` route | GitHub App installation token であり `get_me` が 403 になった事実はあるが、write の PR 表示 identity は今回も直接測定していない | write identity は inferred のまま |
 | Run 2 の `/mcp/review-raven` route | `diagnose_github_token` で `scottlz0310-user` を確認したが、write の PR 表示 identity は Run 2 では測定していない | write identity は inferred のまま |
 
-この結果から、write identity は route / server instance / 認証経路ごとに変わり得るため、`get_me`、token 種別、過去の別 route の login から推測しない。R-00 で write binding を一意に固定し、identity が未観測の route は明示的に許可された probe comment の ID と PR 上の `author.login` を紐付けてから使用する。write 試行後に `gh`、別 MCP server、別認証へ切り替えると identity drift と重複投稿を招くため、失敗時は停止して報告する。
+この結果から、write identity は route / server instance / 認証経路ごとに変わり得るため、`get_me`、token 種別、過去の別 route の login から推測しない。R-00 で write binding を一意に固定し、identity が未観測の route は明示的に許可された probe comment の ID と PR 上の `author.login` を紐付けてから使用する。write 試行後に `gh`、別 MCP server、別認証へ切り替えると identity drift と重複投稿を招くため、失敗時は停止して報告する。（※注: 2026-10-09 の #382 により、運用上の probe PR 要求は廃止され、対象 PR への実コメント投稿後に comment ID で identity を検証する方式へ改修された。上記は 2026-09-10 当時の棚卸し実測の履歴記録である。）
 
 ### #250 対応方針の確定: プロジェクト固有 allowlist
 

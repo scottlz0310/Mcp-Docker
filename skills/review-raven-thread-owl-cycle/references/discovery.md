@@ -32,9 +32,9 @@ R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub w
 
 1. `{GH}` の issue-comment write capability について、server instance / route / opaque handle、input / output schema、想定される fallback を候補ごとに列挙する。
 2. 明示 binding があれば優先し、なければ capability・schema・repository 対象が一意な候補だけを `write_binding` として採用する。R-00 完了後は R-10、R-14、R-19 の全 write で同じ binding を使う。
-3. `get_me` は診断補助にとどめ、失敗しても停止条件にしない。write capability の結果で comment ID を得た後、同じ PR の issue-comment metadata を comment ID で再取得し、実際の `author.login` を `write_author_login` として観測する。
-4. route の投稿 identity が未観測の場合は、実装対象とは分離した、明示的に許可された probe PR へラベル付きコメントを一件だけ投稿して identity を確認する。comment ID と author.login を紐付けられない場合は、実質的な PR write を開始しない。
-5. `write_binding` と `write_author_login` を run の状態へ保存し、canonical allowlist にない投稿者、null、欠落、類似名は採用しない。fallback route を使う場合も、最初の write より前に選択・観測して固定する。
+3. `get_me` は診断補助にとどめ、失敗しても停止条件にしない。
+4. 投稿 identity の確認は、対象 PR に対して実際に必要なコメント（R-10 返信、R-14 再レビュー依頼、R-19 サマリ）を投稿した直後に、返却された comment ID を使って同じ PR の issue-comment metadata を再取得し、実際の `author.login` を `write_author_login` として観測・検証する。分離された probe PR への事前プローブ投稿は要求しない。
+5. 観測した `write_author_login` を run の状態へ保存し、canonical allowlist に含まれることを確認する。allowlist にない投稿者、null、欠落、類似名の場合は `WRITE_IDENTITY_UNCONFIRMED` として停止する。fallback route を使う場合も、最初の write 直後に同様に観測・固定する。
 6. write 開始後の transport failure、受理結果不明、identity 不一致では別 route、別認証、`gh` CLI へ切り替えない。同じコメントの重複投稿を避け、停止して報告する。
 
-この probe は route の存在確認ではなく、PR 上に表示された投稿者を確認するための観測である。観測結果は route と comment ID を含めて棚卸しへ記録し、別 client / 別 route の identity へ暗黙に一般化しない。
+注意: この方式は事前の probe 投稿による誤 identity 投稿の事前抑止ではなく、対象 PR への最初の write 直後に identity を検証して不一致時に以後の操作を停止する（事後検出と安全な停止）というトレードオフを持つ。誤った identity による初回の投稿自体は防がない点に留意すること。
