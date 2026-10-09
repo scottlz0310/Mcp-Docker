@@ -24,3 +24,15 @@ App ID `5184108`、Installation ID `169443079`、owner `scottlz0310`。起動時
 期限前token更新は、署名・キャッシュ・並行取得・期限5分前更新・401無効化の自動テストが成功している。実機では新規tokenによる上記API成功を確認したが、稼働中tokenの期限越え更新はこの時点では未観測。Claude/Copilot/Antigravityでの実操作も未実施。これらを実測済みとは扱わない。
 
 主要操作と認証境界に問題がなかったため、利用者が事前に指示した標準Compose/makeへの恒久対応を進める。gatewayのContents権限は変更していない。
+
+## 恒久構成の配備確認（2026-10-09）
+
+Mcp-Docker #386とreview-raven #141のマージ後、利用者が標準Composeでコンテナを再作成し、05:25 UTCの起動後に次を確認した。秘密値は記録していない。
+
+- review-ravenは`:main`、revision `b69e2f39c45c835a8bc92c5ff744ab92a04d3f90`、`github-app`モードで稼働。
+- App ID `5184108`、Installation ID `169443079`、owner `scottlz0310`、専用秘密鍵の注入を確認。
+- gatewayのrouteは`upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET`。両サービスの共有Bearer一致、review-ravenの公開portなしを確認。
+- SDK discoveryは公開6 tool、resource template 0件。
+- MCP経由で許可リスト取得、PR #141のmetadata取得（全ページ完了・未解決0件）、上記固定SHAのChecks取得（全ページ完了・8件）が成功。
+
+稼働tokenの期限越え更新・他クライアント実操作・gateway Contents権限縮小は、この配備確認の対象に含めていない。
