@@ -190,7 +190,7 @@ services:
           memory: 256M
 
   gateway-credentials-check:
-    image: ${CURL_IMAGE:-curlimages/curl:8.22.0}
+    image: ${CURL_IMAGE:-curlimages/curl:8.23.0}
     profiles: ["diagnostics"]
     network_mode: "service:mcp-gateway"
     depends_on:
