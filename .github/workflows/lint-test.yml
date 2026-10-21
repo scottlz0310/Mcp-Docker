@@ -76,7 +76,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
 
       # 外部のスクリプトを、検証せずに実行しない（curl | bash は、壊れた応答や、意図しない内容もそのまま実行する）。
       # 取得（再試行つき）、検証（シェルスクリプトであること）、実行の順に行う。
