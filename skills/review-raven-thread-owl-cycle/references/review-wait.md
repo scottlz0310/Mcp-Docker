@@ -1,6 +1,6 @@
 # レビュー完了待機（Phase W・R-22）
 
-`--mcp-http` では、Node >=26.10.0で `resource-bridge-cli` をシェル実行し、JSONを同じセッションへ返す。MCP探索・登録にCLIを混ぜない。
+`--mcp-http` では、Node >=26.10.0で `resource-bridge-cli` をシェル実行し、JSONを同じセッションへ返す。MCP探索・登録にCLIを混ぜない。完了の判定は `review://status` の購読、進捗の途中報告は `watch-review-status`（v0.8.0 以降）で行い、2 つを混ぜない。
 
 ## Phase W: レビュー完了待機（`--mcp-http` のみ）
 
@@ -16,7 +16,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 ### 手順
 
 1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
-2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を `enqueued_after` として控える。
+2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
    - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
    - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
 3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（Mcp-Docker の compose は thread-owl をホストへ公開しないので、mcp-gateway の route を経由する）。
@@ -40,11 +40,15 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
 
 
-   **reviewer 起動状態の確認**: subscriber を待機させたまま、同じ Windows ホストの `%LocalAppData%\SquirrelNotifier\review-status.json`（Squirrel Notifier v0.16.0 以降の公開契約）を読み取り専用で読み、`references/review-wait.md` の表で、対象 PR（小文字の `owner/repo#N`。`receivedAt` が `enqueued_after` より後のもの）の状態を判断する。起動待ち（`holdReason` を添える）、実行中、終了（`exitCode`）、受信していない、観測不能を、確認できた事実だけ、1 行で伝える。`pending` や queue 登録だけで起動済みとは言わない。`outcome` / `exitCode` はプロセスの終了結果で、Verdict ではない。
+   **進捗の監視（`watch-review-status`、v0.8.0 以降）**: subscriber を待機させたまま、**並べて**起動する。MCP 接続・認証は不要で、同じ Windows ホストの Squirrel Notifier（v0.16.0 以降）の公開状態を読む。完了の判定には使わない。
 
-   `holdReason = manual`（自動起動が off、または手動運用）は利用者の操作待ちなので、Squirrel Notifier の「レビューする」か、別 CLI の `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。別 CLI の直接起動は Squirrel Notifier が観測しないため、`review-status.json` には出ない。既に起動中の reviewer を重複起動しない。
+   ```powershell
+   resource-bridge-cli watch-review-status --key <owner>/<repo>#<prNumber> --after <enqueued_after> --timeout-ms 1500000
+   ```
 
-   確認できた事実と推測を分けてユーザーへ短く伝え、subscriber の待機を続ける。未確認を理由に再 enqueue したり、この実装側セッションで reviewer skill を起動したりしない。
+   - 状態が変わるたびに 1 行 1 JSON が出る（`updatedAt` だけの更新では出ない）。逐次通知を受け取れるクライアント（Claude Code の `Monitor` など）では、その行を途中報告として使う。受け取れないクライアントでは、バックグラウンドで実行し、subscriber の終了時に、出力の最後の行を読む。
+   - `"terminal": true` の行で終了する。終了コード: 完了 0 / reviewer の失敗で終了 1 / 引数エラー 2 / 手動待ち 3 / 上限 4。
+   - 各行の扱いは、「進捗の監視の出力の読み方」の表に従う。確認できた事実と推測を分けてユーザーへ短く伝え、subscriber の待機を続ける。`waiting` や queue 登録だけで起動済みとは言わない。未確認を理由に再 enqueue したり、この実装側セッションで reviewer skill を起動したりしない。
 4. JSON 出力を判定する。
 
    | 出力 | 扱い |
@@ -69,7 +73,7 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 `REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
 
-- `review-status.json` を再確認し、起動待ち（`holdReason`）・実行中・Verdict なしの終了（`exitCode`）・受信していない・観測不能を区別して報告する。`holdReason = manual`（自動起動 off または手動運用）なら、Squirrel Notifier の「レビューする」か別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。既に起動中の reviewer を重複起動しない。
+- `watch-review-status` の出力を再確認し、起動待ち（`holdReason`）・実行中・Verdict なしの終了（`outcome` / `exitCode`）・受信していない（`not_received`）・観測不能（`unobservable`）を区別して報告する。`action_required`（`holdReason = manual`。自動起動 off または手動運用）なら、Squirrel Notifier の「レビューする」か別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。既に起動中の reviewer を重複起動しない。
 - reviewer が `VERDICT_TOOL_UNAVAILABLE` で停止していた場合は、稼働中の thread-owl が v0.5.0 未満である。PR には Verdict も完了サマリーも投稿されていないので、thread-owl を v0.5.0 以降へ更新してから reviewer を再起動する（`post_summary_comment` での Verdict の代替投稿は依頼しない）。
 - レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
@@ -77,28 +81,30 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 
 ## レビュー完了待機のタイムアウト後の確認（Phase W 手順 4・R-22）
 
-SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`initialText` の `status` が `reviewed` / `approved` ではなかったときの手順。待機をエージェントから外す設計（D4）が入るまでの暫定で、Squirrel Notifier（v0.16.0 以降）が公開する `review-status.json` を使う。
+SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`initialText` の `status` が `reviewed` / `approved` ではなかったときの手順。待機をエージェントから外す設計（D4）が入るまでの暫定で、Squirrel Notifier（v0.16.0 以降）の公開状態を `watch-review-status` で読む。
 
 ### 原則
 
 - **打ち切りは、時間ではなく状態で決める。** reviewer が動き出すまでの待ちと、reviewer の実行時間は、待ち行列の深さや PR の大きさで変わる（実測で 4〜20 分以上）。`--timeout-ms` は **1 回の購読の上限**であり、合計の待機の上限ではない。
-- **完了の判定は、常に `review://status`（`status` と `headSha`）で行う。** `review-status.json` は、待ち続けるか打ち切るかの判断と、起動状態の報告にだけ使う。`outcome` / `exitCode` は reviewer のプロセスの終了結果で、Verdict ではない。
+- **完了の判定は、常に `review://status`（`status` と `headSha`）で行う。** `watch-review-status`（公開状態）は、待ち続けるか打ち切るかの判断と、起動状態の報告にだけ使う。`outcome` / `exitCode` は reviewer のプロセスの終了結果で、Verdict ではない（Verdict の投稿は、`finished` より先に届くのが普通）。
 
-### 公開状態の読み方
+### 進捗の監視の出力の読み方
 
-同じ Windows ホストの `%LocalAppData%\SquirrelNotifier\review-status.json`（公開契約。`schemaVersion: 1`。Squirrel Notifier の `docs/review-status-contract.md`）を、読み取り専用で、開いてすぐ閉じて読む。内部ストアの `review-cycles.json` と `statusline-summary.json` は、この判断に使わない。知らないフィールドは無視する。
+`watch-review-status`（v0.8.0 以降）の出力で判断する。この監視は、Squirrel Notifier の公開状態（`%LocalAppData%/SquirrelNotifier/review-status.json`、`schemaVersion: 1`）から、対象 PR（小文字の `owner/repo#N`）の、`--after`（`enqueued_after`）より**後に受信した**項目だけを読む。前の round の `finished` を拾わない。
 
-- **観測不能**: ファイルが無い（Squirrel Notifier が起動していない、または v0.16.0 未満）、読めない、CLI が別ホストにいる、`schemaVersion` が 1 ではない（互換性のない版は、この表で読まない）、`updatedAt` が現在時刻より 3 分以上古い（アプリは 60 秒ごとに更新するので、止まっている）のいずれか。
-- 対象 PR の `key` は、**小文字**の `owner/repo#N`（`review://status` の URI と同じ表記）。`items[]`（`waiting` / `running`）と `recent[]`（`finished`）から探す。`recent[]` は、`receivedAt` が `enqueued_after`（Phase W 手順 2 で控えた時刻）より後のものだけを、今回の分とみなす。前の round の `finished` を拾わない。
-
-| 対象 PR の状態 | 扱い |
+| 出力（`type`） | 扱い |
 |---|---|
-| `items[]` の `running` | reviewer が実行中。**待ち続ける** |
-| `items[]` の `waiting` で、`holdReason` が `busy`（別のレビューの実行中）/ `ciPending`（required checks の確定待ち。最大 12 分）/ `autoPause`、または `holdReason` が無い（評価の途中） | 起動待ち。**待ち続ける** |
-| `items[]` の `waiting` で、`holdReason` が `manual` | 自動起動が off、または手動運用で、**利用者の操作待ち**。打ち切る（`REVIEW_WAIT_TIMEOUT`）。「レビューする」か、別 CLI での reviewer 起動を案内する（SKILL.md の「reviewer 起動状態の確認」） |
-| `recent[]` の `finished`（今回の分） | reviewer のプロセスが、Verdict を投稿せずに終了した。打ち切る（`REVIEW_WAIT_TIMEOUT`）。`outcome` / `exitCode` を報告する |
-| どこにもない | queue event を受信していない。打ち切る（`REVIEW_WAIT_TIMEOUT`） |
-| 観測不能 | 打ち切る（`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」 |
+| `state`（`running`） | reviewer が実行中。**待ち続ける** |
+| `state`（`waiting`。`holdReason` が `busy`（別のレビューの実行中）/ `ciPending`（required checks の確定待ち。最大 12 分）/ `autoPause`、または無い） | 起動待ち。**待ち続ける** |
+| `action_required`（終了コード 3。`holdReason = manual`） | 自動起動が off、または手動運用で、**利用者の操作待ち**。打ち切る（`REVIEW_WAIT_TIMEOUT`）。「レビューする」か、別 CLI での reviewer 起動を案内する |
+| `state`（`finished`。終了コード 0 / 1） | reviewer のプロセスが終了した。**打ち切る前に、手順 2a（`review://status` の再取得）を行う**。`reviewed` / `approved` なら HEAD 照合へ。`pending` のままなら、Verdict を投稿せずに終了したので、打ち切る（`REVIEW_WAIT_TIMEOUT`）。`outcome` / `exitCode` を報告する。終了コード 1（失敗で終了）の原因は、Squirrel Notifier のログ `%LocalAppData%/SquirrelNotifier/logs/winui3.log` で確認する |
+| `not_received` | queue event を受信していない。打ち切る（`REVIEW_WAIT_TIMEOUT`） |
+| `unobservable`（`reason`: `no_file` / `unreadable` / `unsupported_schema` / `stale`） | 観測不能（Squirrel Notifier が起動していない、v0.16.0 未満、別ホスト、`schemaVersion` が 1 でない、更新が 3 分以上止まっている）。打ち切る（`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」。`recovered` が続いたときは、待ち続けてよい |
+| `heartbeat` | 生存確認（状態は変わっていない）。1 行で報告する |
+| `timeout`（終了コード 4） | 監視の上限。完了の判定は `review://status` で行う（再購読の判断は下の手順） |
+| `error`（終了コード 2） | 引数エラー（`--key` / `--after`）。直して起動し直す |
+
+`resource-bridge-cli` が v0.8.0 未満で `watch-review-status` が使えないときは、同じ公開状態を読み取り専用で直接読んでもよい（契約: Squirrel Notifier の `docs/review-status-contract.md`）。上の表と同じ規則で判断し、`review-cycles.json` と `statusline-summary.json` は使わない。
 
 ### 手順
 
@@ -106,8 +112,8 @@ SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`
    - 終了した購読の `initialText` は、**購読の開始時点**の値である。待機中に `reviewed` になっても、`NOTIFICATION_TIMEOUT` で終わった購読の出力には現れない（実例: reviewer が 20 分 16 秒かかり、購読は約 20 秒前に終了した）。
    - `status` が `reviewed` / `approved` なら、Phase W 手順 4 の「HEAD 照合」へ進む。
    - `RESOURCE_NOT_FOUND` などの `errorCode` は、Phase W 手順 4 の表に従う。
-2. **公開状態を確認する。** 上の表で、待ち続けるか、打ち切るかを決める。待ち続けるなら手順 3 へ。打ち切るなら、手順 2a を行ってから停止する。
-2a. **打ち切る前に、現在値をもう一度取得する。** 手順 1 の再取得から、手順 2 の確認までの間に、reviewer が完了して、`items[]` から `recent[]` へ移った場合がある。公開状態の確認の**後**に、手順 1 と同じ `--timeout-ms 10000` の購読で `review://status` の現在値を読み、`reviewed` / `approved` なら HEAD 照合へ進む。`pending` のままなら、打ち切る。
+2. **公開状態を確認する。** 上の表で、待ち続けるか、打ち切るかを決める（監視が終了しているときは、同じ引数に `--timeout-ms 10000` を付けて起動し直し、最初の行を読む）。待ち続けるなら手順 3 へ。打ち切るなら、手順 2a を行ってから停止する。
+2a. **打ち切る前に、現在値をもう一度取得する。** 手順 1 の再取得から、手順 2 の確認までの間に、reviewer が完了して、`finished` へ移った場合がある。公開状態の確認の**後**に、手順 1 と同じ `--timeout-ms 10000` の購読で `review://status` の現在値を読み、`reviewed` / `approved` なら HEAD 照合へ進む。`pending` のままなら、打ち切る。
 3. **待ち続ける場合は、購読を起動し直す。** Phase W 手順 3 の購読（`--timeout-ms 1200000`）を、**`enqueue_review` をやり直さずに**起動する。再購読は、最初の購読を含めて最大 6 回まで（合計で最大約 2 時間）。上限に達したら、`REVIEW_WAIT_TIMEOUT` で停止し、公開状態の確認結果を報告する。
 
 ### 報告

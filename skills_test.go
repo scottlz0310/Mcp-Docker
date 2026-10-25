@@ -213,7 +213,9 @@ var skillSizeBudgets = []struct {
 	// #382: probe PR 要件を廃止し、対象 PR への実コメント投稿・identity 検証方式へ改修（SKILL.md は 43,696 文字、合計は 74,324 文字）。
 	// reviewgate: 必須 check が未定義の repository を扱えるようにした。ci-check.md に required の集合の確定手順（reviewer-side と同じ規則。
 	// 「未定義」と「取得不能」を区別する）、completion-record.md に未定義の記録形式を追加（SKILL.md は +0 行・-3 文字。合計は references の +2,970 文字。観測 check に App ID を付ける記録手順を含む）。
-	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43710, maxTotalRunes: 77310},
+	// Phase W: 進捗の途中報告を watch-review-status（resource-bridge-cli v0.8.0 以降）に置き換えた。review-wait.md の手動の確認（review-status.json を人手で読む）を、
+	// 出力（type）ごとの扱いの表に置き換え、並べて起動する手順を追加（SKILL.md は -15 文字で 43,695 文字へ。合計は references の +645 文字）。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 77955},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
