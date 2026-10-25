@@ -203,6 +203,10 @@ THREAD_OWL_MAIN_IMAGE         ?= ghcr.io/scottlz0310/thread-owl:main
 PLAYWRIGHT_MCP_MAIN_IMAGE     ?= mcr.microsoft.com/playwright/mcp:main
 PLAYWRIGHT_MCP_FALLBACK_IMAGE ?= $(or $(PLAYWRIGHT_MCP_IMAGE),mcr.microsoft.com/playwright/mcp:latest)
 
+# 内部連携を有効にしているとき、compose は thread-owl のイメージの明示を要求する（docker-compose.yml の image）。
+# main 系ターゲットは、前提の設定検証（check-compose-config）にも同じ main イメージを渡す。
+pull-main start-main restart-main: export THREAD_OWL_IMAGE := $(THREAD_OWL_MAIN_IMAGE)
+
 .PHONY: pull-main
 pull-main: check-compose-config ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
 	docker compose pull github-mcp

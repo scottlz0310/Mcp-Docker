@@ -24,9 +24,6 @@ type composeFile struct {
 
 type composeService struct {
 	Environment yaml.Node `yaml:"environment"`
-	// Ports と Volumes は、リポジトリの docker-compose.yml の契約テストが読む（register の処理では使わない）。
-	Ports   []string `yaml:"ports"`
-	Volumes []string `yaml:"volumes"`
 }
 
 func Load(path string) ([]register.Server, error) {

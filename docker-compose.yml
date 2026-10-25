@@ -236,7 +236,9 @@ services:
         esac
 
   thread-owl:
-    image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
+    # 内部連携（REVIEW_INTERNAL_LINK_ENABLED）の内部面・台帳・配送は、最新リリース（:latest、v0.7.0）にはまだ含まれない。
+    # 有効のときは、対応済みのイメージを THREAD_OWL_IMAGE で明示させる（未指定なら停止。リリース前の main ビルドは make pull-main / restart-main）。
+    image: ${THREAD_OWL_IMAGE:-${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?内部連携を有効にするには、内部面を含む thread-owl のイメージを THREAD_OWL_IMAGE で指定してください（リリース前は make pull-main / restart-main）}}${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}}
     container_name: thread-owl
     restart: unless-stopped
     command: ["--mcp-http"]

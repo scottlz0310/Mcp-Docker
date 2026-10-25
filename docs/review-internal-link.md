@@ -31,6 +31,7 @@ thread-owl   ──http(コンテナ内)──▶ mcp-gateway /mcp/review-raven-
 | `THREAD_OWL_SERVICE_ACL` | thread-owlの内部面のサービス別ACL。例: `{"services":{"<raven主体のlogin>":{"actions":["accept","cancel","get_result"],"repos":["scottlz0310/*"]}}}` |
 | `REVIEW_RAVEN_OWL_INTERNAL_TOKEN` | review-ravenがthread-owlの内部ルートへ提示する資格情報（raven主体のgatewayトークン） |
 | `THREAD_OWL_RAVEN_INTERNAL_TOKEN` | thread-owlがreview-ravenの内部ルートへ提示する資格情報（owl主体のgatewayトークン） |
+| `THREAD_OWL_IMAGE` | 内部面・台帳・配送を含む thread-owl のイメージ。**有効時は明示が必須**（未指定なら`docker compose config`が止まる）。最新リリース（`:latest`、v0.7.0）にはまだ含まれないため、リリース前は`make pull-main`・`make restart-main`（`THREAD_OWL_MAIN_IMAGE`の`:main`を自動で渡す）を使う。対応済みのリリースが出たら、そのタグを指定してよい |
 | `REVIEW_INTERNAL_LINK_GATEWAY_URL` | 任意。配送先gatewayのbase URL。既定は`http://mcp-gateway:${MCP_GATEWAY_PORT:-8080}` |
 
 スイッチを有効にするとcomposeが次を設定する。
@@ -68,7 +69,7 @@ curl -s -X POST "$GATEWAY/token" -d "grant_type=urn:ietf:params:oauth:grant-type
 ## 有効化と切り戻し
 
 1. 保管庫の値を注入したシェルで`REVIEW_INTERNAL_LINK_ENABLED=1`を設定し、`docker compose config -q`が通ることを確認する（必須の値が欠ければ、この段階で止まる）。
-2. 標準の`make`で再作成する（review-raven・thread-owl・gateway）。
+2. `make pull-main`→`make restart-main`で再作成する（review-raven・thread-owl・gateway。thread-owlは内部面を含む`:main`が必要）。標準の`make pull`・`make restart`を使う場合は、`THREAD_OWL_IMAGE`で内部面を含むイメージを指定する。
 3. 下の確認チェックリストを実施する。
 4. 切り戻し: `REVIEW_INTERNAL_LINK_ENABLED`を外して再作成する。内部ルート・内部面・配送が止まり、公開面は変わらない。台帳は`thread-owl-data`・`review-raven-data`に残る（削除は手動）。
 

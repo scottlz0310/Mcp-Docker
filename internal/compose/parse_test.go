@@ -564,6 +564,80 @@ func TestRepositoryComposeInternalRoutes(t *testing.T) {
 	}
 }
 
+// リポジトリの docker-compose.yml の契約テストだけが読む型。ports / volumes は短い形式の前提で、
+// 本番のパーサー（composeService）には持たせない: Compose の長形式を使う構成で register が失敗しないようにするため。
+type repoComposeFile struct {
+	Services map[string]struct {
+		Image       string    `yaml:"image"`
+		Environment yaml.Node `yaml:"environment"`
+		Ports       []string  `yaml:"ports"`
+		Volumes     []string  `yaml:"volumes"`
+	} `yaml:"services"`
+}
+
+// Compose の長形式の ports / volumes（map）を含む構成でも、register のパーサーは失敗せず、ルートを読める。
+func TestParseAcceptsLongFormPortsAndVolumes(t *testing.T) {
+	data := []byte(`services:
+  mcp-gateway:
+    ports:
+      - target: 8080
+        published: "8080"
+    volumes:
+      - type: volume
+        source: data
+        target: /data
+    environment:
+      - ROUTE_GITHUB=/mcp/github|http://github-mcp:8082
+  other:
+    ports:
+      - target: 9000
+        published: "9000"
+    volumes:
+      - type: bind
+        source: ./x
+        target: /x
+`)
+	servers, err := Parse(data, func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatalf("long-form ports/volumes must not break the parser: %v", err)
+	}
+	if len(servers) != 1 || servers[0].Name != "github" {
+		t.Fatalf("servers = %+v, want the github route", servers)
+	}
+}
+
+// 内部連携を有効にするとき、thread-owl のイメージは最新リリース（内部面を含まない）の既定に頼らず、明示させる。
+// 無効の間の既定は変えない。main 系の make ターゲットは、設定検証にも main イメージを渡す。
+func TestRepositoryThreadOwlImageRequiresExplicitWhenInternalLinkEnabled(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file repoComposeFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	image := file.Services["thread-owl"].Image
+	for _, want := range []string{
+		"${THREAD_OWL_IMAGE:-",
+		"${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?",
+		"${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}",
+	} {
+		if !strings.Contains(image, want) {
+			t.Fatalf("services.thread-owl.image = %q, want it to contain %q", image, want)
+		}
+	}
+
+	makefile, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const export = "pull-main start-main restart-main: export THREAD_OWL_IMAGE := $(THREAD_OWL_MAIN_IMAGE)"
+	if !strings.Contains(string(makefile), export) {
+		t.Fatalf("Makefile must pass the main thread-owl image to the main targets and their config check: %q", export)
+	}
+}
+
 // review-raven と thread-owl の内部連携は、単一のスイッチで有効にし、必須の秘密と ACL が欠ければ設定の検証で止まり、
 // 配送は gateway の内部ルートへ向ける。ホストへポートを公開せず、台帳の volume を持つ。
 func TestRepositoryComposeInternalLinkServices(t *testing.T) {
@@ -571,7 +645,7 @@ func TestRepositoryComposeInternalLinkServices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var file composeFile
+	var file repoComposeFile
 	if err := yaml.Unmarshal(data, &file); err != nil {
 		t.Fatal(err)
 	}
