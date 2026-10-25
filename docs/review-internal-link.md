@@ -2,6 +2,8 @@
 
 review-raven（依頼側）と thread-owl（レビュー側）のサービス間連携を、標準`docker-compose.yml`で有効にするための手順。設計は[review-raven#144の設計文書](https://github.com/scottlz0310/review-raven/blob/main/docs/design/review-responsibility-boundaries.md)、契約は[review-raven `docs/design/contracts/`](https://github.com/scottlz0310/review-raven/tree/main/docs/design/contracts)を参照する。
 
+> **凍結中（2026-10-25）。有効にしない。** サービス間認証の方式（サービス主体の形）が未決のため。進捗の通知は、Squirrel Notifierの公開状態（`review-status.json`）を`resource-bridge-cli watch-review-status`で購読する方式に倒した（[設計メモ](https://github.com/scottlz0310/review-raven/blob/main/docs/design/review-progress-local-status.md)）。この内部連携は、必要になるかの判断がつくまで残している。
+
 **既定は無効**。`REVIEW_INTERNAL_LINK_ENABLED`が未設定の間は、内部ルート・内部面・台帳・配送のすべてが空になり、既存の挙動は変わらない。
 
 ## 構成
@@ -45,7 +47,9 @@ review-ravenの内部連携は、専用GitHub Appモード（[専用Appの運用
 
 ## サービス主体と資格情報
 
-サービス主体は、**専用のGitHubアカウント（machine user）**として扱う。ACLのキーは、gatewayが付与する`X-Authenticated-User`（GitHub login）。利用者本人のアカウントを兼用しない。
+サービス主体の形は**未決**。ACLのキーは、gatewayが付与する`X-Authenticated-User`（GitHub login）で、利用者本人のアカウントを兼用しない。
+
+当初は、主体ごとに専用のGitHubアカウント（machine user）を用意する想定だったが、**採用しない**。GitHubの規約で、無料のmachine accountは個人のアカウントに加えて1つまでで、組織（scottlz0310）のTeamプランも席が1のため、主体ごとには用意できない。gatewayはdevice flowなどの利用者の認可しか持たず（`client_credentials`が無い）、アカウントを介さない主体は、現状では表現できない。代替が決まるまで、下の取得手順は実施しない。
 
 | 主体 | 呼び出し先 | ACLの操作 |
 |---|---|---|
@@ -54,12 +58,12 @@ review-ravenの内部連携は、専用GitHub Appモード（[専用Appの運用
 
 トークンは、各主体のアカウントでgatewayのdevice flowを1回行って取得する。`resource`にはルート名（`ROUTE_`以降を小文字にした値）を渡し、内部audienceのトークンを得る。
 
-### 取得手順
+### 取得手順（参考。主体の形が決まるまで実施しない）
 
-1. 主体ごとにGitHubのmachine userを用意する。そのloginが、各ACLのキー（`<raven主体>`・`<owl主体>`・`<squirrel主体>`）になる。
-2. 承認に使うブラウザで、主体のmachine userとしてGitHubにログインしておく（普段のアカウントと混ざらないよう、別のブラウザプロファイルかシークレットウィンドウを使う）。
+1. 主体ごとにGitHubのアカウントを用意する（形は未決。上記）。そのloginが、各ACLのキー（`<raven主体>`・`<owl主体>`・`<squirrel主体>`）になる。
+2. 承認に使うブラウザで、主体のアカウントとしてGitHubにログインしておく（普段のアカウントと混ざらないよう、別のブラウザプロファイルかシークレットウィンドウを使う）。
 3. 内部連携を有効にした**gatewayが起動している状態で**、主体ごとに`scripts/issue-internal-token.sh`を実行する。スクリプトはdevice flowを開始し、承認用のURLとコードを表示し、承認されるまで待つ。承認後、トークンをクリップボードへ入れる（画面・標準出力・コマンドラインには出さない）。
-4. 表示される`sub`が、その主体のmachine userのloginであることを確認する。**違う場合は貼り付けない**（利用者本人のアカウントで承認した可能性がある）。
+4. 表示される`sub`が、その主体のアカウントのloginであることを確認する。**違う場合は貼り付けない**（利用者本人のアカウントで承認した可能性がある）。
 5. クリップボードの値を、保管庫の項目`env:<変数名>`のカスタムフィールド`value`（非表示）に貼り付ける。
 
 | 主体 | 引数 | `resource` | 貼り付ける変数 | 呼び出し先 |
@@ -104,7 +108,7 @@ scripts/issue-internal-token.sh owl
 
 ## 確認チェックリスト（実環境）
 
-このリポジトリのテストが確認するのは、composeの展開（無効時は空・有効時は必須値のfail-closed・内部ルートの登録除外・ポート非公開・volume）まで。以下は**実環境でしか確認できず、配備時に実施する**。
+このリポジトリのテストが確認するのは、composeの展開（無効時は空・有効時は必須値のfail-closed・内部ルートの登録除外・ポート非公開・volume）まで。以下は**実環境でしか確認できず、配備時に実施する**（凍結中のため、有効にするまで実施しない）。
 
 - [ ] 有効化後、review-raven・thread-owlが起動する（設定検証で止まらない）
 - [ ] gatewayの起動ログに`/mcp/review-raven-internal`・`/mcp/thread-owl-internal`が出る
