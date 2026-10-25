@@ -19,7 +19,7 @@ SKILL.md の「Phase 7: サマリコメント投稿」から移した template�
 - なし | <リスト: Thread <threadId> — Follow-up: #N>
 
 ### 検証
-- CI: ...
+- CI: ...（required 未定義の場合は、報告済みの check run すべてを対象にした旨と、後から現れる check・commit status を検知できない限界）
 - カバレッジ: <Codecov 要約: patch X%, project Y% (モード: gate / informative, 閾値: Z% | 未定義)> | 未確認（理由）
 - 未解決指摘数: 0
 - thread-owl Verdict: 確認済み (Reviewed HEAD SHA: `<SHA>`) | AWAITING_THREAD_OWL_VERDICT（VERDICT_NOT_POSTED | VERDICT_FORMAT_MISMATCH: comment <ID> | VERDICT_HEAD_MISMATCH: comment <ID>）
