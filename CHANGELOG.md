@@ -7,18 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-10-25
+
 ### Added
 
-- review-raven ⇔ thread-owl の内部連携を、単一のスイッチ`REVIEW_INTERNAL_LINK_ENABLED`でopt-inできるようにした（既定は無効で挙動は変わらない）。gatewayに内部ルート`ROUTE_REVIEW_RAVEN_INTERNAL`/`ROUTE_THREAD_OWL_INTERNAL`（`required_audience`で通常のagent向けトークンと分離、内部面専用の共有Bearerを注入）、review-raven/thread-owlに内部面・配送の設定、thread-owlに台帳用の`thread-owl-data` volumeを追加した。有効時は必須の秘密・ACL・資格情報、および内部面を含む`THREAD_OWL_IMAGE`（最新リリースの`:latest`にはまだ含まれない。リリース前は`make pull-main`・`restart-main`）が欠ければ`docker compose config`が止まる。運用手順は`docs/review-internal-link.md`（#392）。実環境での相互接続の確認は未実施。
-
-- 内部連携のサービス主体（raven・owl・squirrel）のgatewayトークンを、device flowで取得してクリップボードへ入れる`scripts/issue-internal-token.sh`を追加した。トークンは画面・標準出力・コマンドラインに出さず、取得後に`sub`・`aud`・`exp`だけを表示して主体の取り違えを確認できる。`docs/review-internal-link.md`に、取得手順・主体と変数の対応表・共有Bearerの生成方法を追記した。
+- review-raven ⇔ thread-owl の内部連携を、単一のスイッチ`REVIEW_INTERNAL_LINK_ENABLED`でopt-inできるようにした（既定は無効で挙動は変わらない）。gatewayに内部ルート`ROUTE_REVIEW_RAVEN_INTERNAL`/`ROUTE_THREAD_OWL_INTERNAL`（`required_audience`で通常のagent向けトークンと分離、内部面専用の共有Bearerを注入）、review-raven/thread-owlに内部面・配送の設定、thread-owlに台帳用の`thread-owl-data` volumeを追加した。有効時は必須の秘密・ACL・資格情報、および内部面を含む`THREAD_OWL_IMAGE`（thread-owl v0.8.0以降のイメージに含まれる。`:latest`は該当する）が欠ければ`docker compose config`が止まる。運用手順は`docs/review-internal-link.md`（#392）。**内部連携は凍結中で、有効にしない**（review-raven#159で、廃案か存続かを実稼働の観測に基づいて判断する）。実環境での相互接続の確認は未実施。
+- 内部連携のサービス主体（raven・owl・squirrel）のgatewayトークンを、device flowで取得してクリップボードへ入れる`scripts/issue-internal-token.sh`を追加した。トークンは画面・標準出力・コマンドラインに出さず、取得後に`sub`・`aud`・`exp`だけを表示して主体の取り違えを確認できる。`docs/review-internal-link.md`に、取得手順・主体と変数の対応表・共有Bearerの生成方法を追記した。サービス主体の形（専用のGitHubアカウントを用意する前提を採用しない）が未決のため、取得手順は実施しない参考として残している。
+- `mcp-docker reviewgate validate`が、必須checkを定義していないrepositoryの完了記録を扱えるようにした。これまでは`ci.requiredChecks`が空だと一律に`CI_NOT_GREEN`で止まり、「未定義と確認できた」と「判定できなかった」を区別できなかった。`ci.requiredChecksPolicy: "undefined"`を明示し、固定HEADで観測した全check runを`ci.observedChecks`に列挙した場合だけ、それらがすべて`completed / success`（1件以上）であることを検証する。CIのreadは(App ID, name)ごとに集約するため、`observedChecks`の各要素には報告したGitHub Appの`appId`を必須とし、別Appの同名checkを重複として拒否しない。省略時は従来どおりで、`contractVersion`は1のまま。空配列だけでは通らず、設定を読み取れなかった場合は完了記録を作らず`CI: unknown`で止まる。reviewed-side skillの`references/ci-check.md`にrequiredの集合の確定手順（reviewer-sideと同じ規則）を追加し、skillのrevisionを32に更新した。
 
 ### Changed
 
-- 内部連携の運用文書（`docs/review-internal-link.md`）とREADMEに、凍結中であることを明記した。サービス主体を専用のGitHubアカウント（machine user）とする前提を外し、主体の形は未決であること、GitHubの規約上その前提を採用しない理由を書いた。取得手順は、主体の形が決まるまで実施しない参考として残した。`scripts/issue-internal-token.sh`の見出しと表示文言からも、machine userの言及を外した（処理は変えていない）。
-- reviewed-side skill（`review-raven-thread-owl-cycle`、revision 33）のPhase Wを、進捗の途中報告に`resource-bridge-cli watch-review-status`（v0.8.0以降）を使う形に見直した。完了の判定は従来どおり`review://status`の購読と`headSha`の照合で行い、進捗の監視は並べて起動する（混ぜない）。`review-wait.md`の手動の確認（`review-status.json`を人手で読む）を、出力の`type`ごとの扱いの表（`state`/`action_required`/`finished`/`not_received`/`unobservable`/`heartbeat`/`timeout`/`error`）に置き換え、`enqueued_after`は小数秒つきで控える手順にした。実際のレビューroundの観察から、`finished`を受けたら打ち切る前に`review://status`を再取得する（Verdictは`finished`より先に届く）規則を足した。`watch-review-status`が使えないCLI（v0.8.0未満）では、従来どおり公開状態を直接読む。`mcp-docker register`は、名前が`_INTERNAL`で終わる`ROUTE_*`（サービス間の内部ルート）を登録の対象外にした。Composeの長形式の`ports`・`volumes`を含む構成でも読み込めることを回帰テストで固定した。
+- reviewed-side skill（`review-raven-thread-owl-cycle`、revision 33）のPhase Wを、進捗の途中報告に`resource-bridge-cli watch-review-status`（v0.8.0以降）を使う形に見直した。完了の判定は従来どおり`review://status`の購読と`headSha`の照合で行い、進捗の監視は並べて起動する（混ぜない）。`review-wait.md`の手動の確認（`review-status.json`を人手で読む）を、出力の`type`ごとの扱いの表（`state`/`action_required`/`finished`/`not_received`/`unobservable`/`heartbeat`/`timeout`/`error`）に置き換え、`enqueued_after`は小数秒つきで控える手順にした。実際のレビューroundの観察から、`finished`を受けたら打ち切る前に`review://status`を再取得する（Verdictは`finished`より先に届く）規則を足した。`watch-review-status`が使えないCLI（v0.8.0未満）では、従来どおり公開状態を直接読む。
+- `mcp-docker register`は、名前が`_INTERNAL`で終わる`ROUTE_*`（サービス間の内部ルート）を登録の対象外にした。Composeの長形式の`ports`・`volumes`を含む構成でも読み込めることを回帰テストで固定した。
 - `make pull-main`・`start-main`・`restart-main`は、前提の設定検証にも`THREAD_OWL_MAIN_IMAGE`を渡す。
-- `mcp-docker reviewgate validate`が、必須checkを定義していないrepositoryの完了記録を扱えるようにした。これまでは`ci.requiredChecks`が空だと一律に`CI_NOT_GREEN`で止まり、「未定義と確認できた」と「判定できなかった」を区別できなかった。`ci.requiredChecksPolicy: "undefined"`を明示し、固定HEADで観測した全check runを`ci.observedChecks`に列挙した場合だけ、それらがすべて`completed / success`（1件以上）であることを検証する。CIのreadは(App ID, name)ごとに集約するため、`observedChecks`の各要素には報告したGitHub Appの`appId`を必須とし、別Appの同名checkを重複として拒否しない。省略時は従来どおりで、`contractVersion`は1のまま。空配列だけでは通らず、設定を読み取れなかった場合は完了記録を作らず`CI: unknown`で止まる。reviewed-side skillの`references/ci-check.md`にrequiredの集合の確定手順（reviewer-sideと同じ規則）を追加し、skillのrevisionを32に更新した。
+- 内部連携の運用文書（`docs/review-internal-link.md`）とREADMEに、凍結中であることを明記した。サービス主体を専用のGitHubアカウント（machine user）とする前提を外し、主体の形は未決であること、GitHubの規約上その前提を採用しない理由を書いた。取得手順は、主体の形が決まるまで実施しない参考として残した。`scripts/issue-internal-token.sh`の見出しと表示文言からも、machine userの言及を外した（処理は変えていない）。thread-owl v0.8.0の公開に合わせて、`THREAD_OWL_IMAGE`と再作成の手順の記述を直した。
 
 ## [2.32.0] - 2026-10-09
 
@@ -1016,7 +1018,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.32.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...HEAD
+[2.33.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.4...v2.32.0
 [2.31.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.3...v2.31.4
 [2.31.3]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.2...v2.31.3
