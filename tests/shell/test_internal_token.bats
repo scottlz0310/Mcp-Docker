@@ -115,6 +115,16 @@ run_script() {
     run bash -c '"$0" "$@" >"$STDOUT_FILE" 2>"$STDERR_FILE"' "$SCRIPT" "$@"
 }
 
+# Windows では実行権限がファイルに現れないため、Git に記録されたモードを見る（100644 だと Linux で Permission denied になる）。
+@test "Git に実行権限（100755）で記録されている" {
+    git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1 || skip "git リポジトリではない"
+
+    run git -C "$PROJECT_ROOT" ls-files -s -- scripts/issue-internal-token.sh
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == 100755\ * ]]
+}
+
 @test "主体ごとに正しい resource で開始し、トークンをクリップボードへだけ渡す" {
     write_token_success last
     local row principal resource var_name
