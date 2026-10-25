@@ -13,12 +13,20 @@ import (
 
 const defaultGatewayPort = "8080"
 
+// internalRouteSuffix は、サービス間のルート（review-raven ⇔ thread-owl の内部連携）の名前の末尾。
+// agent 向けの MCP クライアントの設定（register）には載せない: agent が内部面の存在を知る必要はなく、
+// 内部面は専用の audience とサービス別の ACL で守る（docs/review-internal-link.md）。
+const internalRouteSuffix = "_INTERNAL"
+
 type composeFile struct {
 	Services map[string]composeService `yaml:"services"`
 }
 
 type composeService struct {
 	Environment yaml.Node `yaml:"environment"`
+	// Ports と Volumes は、リポジトリの docker-compose.yml の契約テストが読む（register の処理では使わない）。
+	Ports   []string `yaml:"ports"`
+	Volumes []string `yaml:"volumes"`
 }
 
 func Load(path string) ([]register.Server, error) {
@@ -43,7 +51,7 @@ func Parse(data []byte, lookup func(string) (string, bool)) ([]register.Server, 
 
 	var keys []string
 	for key := range env {
-		if strings.HasPrefix(key, "ROUTE_") {
+		if strings.HasPrefix(key, "ROUTE_") && !strings.HasSuffix(key, internalRouteSuffix) {
 			keys = append(keys, key)
 		}
 	}

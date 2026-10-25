@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- review-raven ⇔ thread-owl の内部連携を、単一のスイッチ`REVIEW_INTERNAL_LINK_ENABLED`でopt-inできるようにした（既定は無効で挙動は変わらない）。gatewayに内部ルート`ROUTE_REVIEW_RAVEN_INTERNAL`/`ROUTE_THREAD_OWL_INTERNAL`（`required_audience`で通常のagent向けトークンと分離、内部面専用の共有Bearerを注入）、review-raven/thread-owlに内部面・配送の設定、thread-owlに台帳用の`thread-owl-data` volumeを追加した。有効時は必須の秘密・ACL・資格情報が欠ければ`docker compose config`が止まる。運用手順は`docs/review-internal-link.md`（#392）。実環境での相互接続の確認は未実施。
+
+### Changed
+
+- `mcp-docker register`は、名前が`_INTERNAL`で終わる`ROUTE_*`（サービス間の内部ルート）を登録の対象外にした。
+
 ## [2.32.0] - 2026-10-09
 
 ### Changed
