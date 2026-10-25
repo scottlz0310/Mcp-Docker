@@ -18,6 +18,14 @@ const (
 
 	// ReviewedSideSkillID は merge 前に必ず解決・実行する skill の識別子。
 	ReviewedSideSkillID = "review-raven-thread-owl-cycle"
+
+	// RequiredChecksDefined は repository 設定から必須 check を1件以上確定できたことを表す。
+	// requiredChecksPolicy を省略した場合も同じ扱いになる。
+	RequiredChecksDefined = "defined"
+
+	// RequiredChecksUndefined は repository 設定を読み取り、必須 check が未定義だと確認できたことを表す。
+	// 設定を判定できなかった場合は含まない。その場合は完了記録を作らず停止する。
+	RequiredChecksUndefined = "undefined"
 )
 
 // StopCode は reviewed-side の fail-closed 停止理由。
@@ -93,11 +101,19 @@ type CompletionRecord struct {
 	CI              FixedHeadCI `json:"ci"`
 }
 
-// FixedHeadCI は完了記録に含める固定 HEAD の必須 check runs である。
+// FixedHeadCI は完了記録に含める固定 HEAD の check runs である。
+//
+// 必須 check を repository 設定から確定できた場合は RequiredChecks に列挙する。
+// 設定を読み取って必須 check が未定義だと確認できた場合だけ、RequiredChecksPolicy を
+// RequiredChecksUndefined にし、固定 HEAD で観測した全 check run を ObservedChecks に列挙する。
+// RequiredChecks が空であることだけでは、設定が未定義なのか判定できなかったのかを区別できないため、
+// 空配列を「未定義」と解釈しない。
 type FixedHeadCI struct {
-	HeadSHA        string     `json:"headSha"`
-	Complete       bool       `json:"complete"`
-	RequiredChecks []CheckRun `json:"requiredChecks"`
+	HeadSHA              string     `json:"headSha"`
+	Complete             bool       `json:"complete"`
+	RequiredChecksPolicy string     `json:"requiredChecksPolicy,omitempty"`
+	RequiredChecks       []CheckRun `json:"requiredChecks"`
+	ObservedChecks       []CheckRun `json:"observedChecks,omitempty"`
 }
 
 // ValidationTarget は完了記録を検証する直前に固定した外部状態を表す。
@@ -270,25 +286,45 @@ func (r CompletionRecord) Validate() error {
 	if !r.CI.Complete {
 		return stop(StopCINotGreen, "ci.complete", "固定 HEAD の必須 CI が完了していません")
 	}
-	if len(r.CI.RequiredChecks) == 0 {
-		return stop(StopCINotGreen, "ci.requiredChecks", "必須 check run がありません")
+	switch r.CI.RequiredChecksPolicy {
+	case "", RequiredChecksDefined:
+		if len(r.CI.ObservedChecks) != 0 {
+			return invalid("ci.observedChecks", "requiredChecksPolicy が undefined のときだけ指定できます")
+		}
+		if len(r.CI.RequiredChecks) == 0 {
+			return stop(StopCINotGreen, "ci.requiredChecks", "必須 check run がありません")
+		}
+		return validateGreenChecks("ci.requiredChecks", r.CI.RequiredChecks, r.HeadSHA)
+	case RequiredChecksUndefined:
+		if len(r.CI.RequiredChecks) != 0 {
+			return invalid("ci.requiredChecks", "requiredChecksPolicy が undefined のときは空にします")
+		}
+		if len(r.CI.ObservedChecks) == 0 {
+			return stop(StopCINotGreen, "ci.observedChecks", "観測した check run がありません")
+		}
+		return validateGreenChecks("ci.observedChecks", r.CI.ObservedChecks, r.HeadSHA)
+	default:
+		return invalid("ci.requiredChecksPolicy", fmt.Sprintf("%q は未対応です", r.CI.RequiredChecksPolicy))
 	}
+}
 
-	seen := make(map[string]struct{}, len(r.CI.RequiredChecks))
-	for i, check := range r.CI.RequiredChecks {
-		field := fmt.Sprintf("ci.requiredChecks[%d]", i)
+// validateGreenChecks は checks がすべて同一 HEAD 上で completed / success であることを検証する。
+func validateGreenChecks(field string, checks []CheckRun, headSHA string) error {
+	seen := make(map[string]struct{}, len(checks))
+	for i, check := range checks {
+		item := fmt.Sprintf("%s[%d]", field, i)
 		if strings.TrimSpace(check.Name) == "" {
-			return invalid(field+".name", "空にできません")
+			return invalid(item+".name", "空にできません")
 		}
 		if _, exists := seen[check.Name]; exists {
-			return invalid(field+".name", "同じ check run が重複しています")
+			return invalid(item+".name", "同じ check run が重複しています")
 		}
 		seen[check.Name] = struct{}{}
-		if check.HeadSHA != r.HeadSHA {
-			return stop(StopHeadMismatch, field+".headSha", "完了記録の HEAD と一致しません")
+		if check.HeadSHA != headSHA {
+			return stop(StopHeadMismatch, item+".headSha", "完了記録の HEAD と一致しません")
 		}
 		if check.Status != "completed" || check.Conclusion != "success" {
-			return stop(StopCINotGreen, field, "status=completed かつ conclusion=success が必要です")
+			return stop(StopCINotGreen, item, "status=completed かつ conclusion=success が必要です")
 		}
 	}
 	return nil

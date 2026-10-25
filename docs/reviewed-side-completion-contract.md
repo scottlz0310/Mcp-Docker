@@ -53,13 +53,35 @@
 }
 ```
 
+必須 check が repository に定義されていない場合は、`ci` を次の形にする。`requiredChecks` が空であること自体は「未定義」を意味しない。読み取りに成功して未定義と確認できたときだけ、`requiredChecksPolicy` を `undefined` にして、固定 HEAD で観測した全 check run を `observedChecks` に列挙する。必須 check を判定できなかった場合（読み取り失敗など）は、完了記録を作らず `CI: unknown` で停止する。
+
+```json
+  "ci": {
+    "headSha": "0123456789abcdef0123456789abcdef01234567",
+    "complete": true,
+    "requiredChecksPolicy": "undefined",
+    "requiredChecks": [],
+    "observedChecks": [
+      {
+        "name": "Go CLI チェック",
+        "headSha": "0123456789abcdef0123456789abcdef01234567",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+```
+
+`requiredChecksPolicy` は省略可能で、省略は `defined` と同じ（`contractVersion` は 1 のまま）。`observedChecks` は `undefined` のときだけ指定できる。
+
 `internal/reviewgate.CompletionRecord.Validate` と `mcp-docker reviewgate validate` は次を fail-closed で検証する。
 
 - `contractVersion`、repository、PR番号、40桁小文字 SHA が有効であること
 - `skillId` が `review-raven-thread-owl-cycle` で、revision が記録されていること
 - skill 実行済み、全返信済み、未解決スレッド数が0件であること
 - CI の HEAD と完了記録の HEAD が一致すること
-- 必須 check run が1件以上あり、すべて同一 HEAD 上で `completed / success` であること
+- 必須 check run が1件以上あり、すべて同一 HEAD 上で `completed / success` であること。`requiredChecksPolicy` が `undefined` のときは、`requiredChecks` が空で、`observedChecks`（固定 HEAD で観測した全 check run）が1件以上あり、すべて同一 HEAD 上で `completed / success` であること
+- `requiredChecksPolicy` が `defined`（省略を含む）のときに `observedChecks` を持たないこと、未対応の値でないこと
 - 未知の JSON フィールド、同一オブジェクト内の重複キー、連結された複数 JSON、重複した check 名を拒否すること
 
 この記録自体は自己申告可能な証跡であり、merge の唯一の根拠ではない。`mcp-docker reviewgate validate` は JSON の契約、直前に固定した repository・PR・HEAD、および実行中バイナリに埋め込まれた reviewed-side skill の revision を照合する。後続の gate は、現在の PR HEAD、購読 URI、review thread、GitHub の required checks を再取得し、同一値であることを確認する。

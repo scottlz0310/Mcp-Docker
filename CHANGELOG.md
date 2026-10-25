@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `mcp-docker register`は、名前が`_INTERNAL`で終わる`ROUTE_*`（サービス間の内部ルート）を登録の対象外にした。Composeの長形式の`ports`・`volumes`を含む構成でも読み込めることを回帰テストで固定した。
 - `make pull-main`・`start-main`・`restart-main`は、前提の設定検証にも`THREAD_OWL_MAIN_IMAGE`を渡す。
+- `mcp-docker reviewgate validate`が、必須checkを定義していないrepositoryの完了記録を扱えるようにした。これまでは`ci.requiredChecks`が空だと一律に`CI_NOT_GREEN`で止まり、「未定義と確認できた」と「判定できなかった」を区別できなかった。`ci.requiredChecksPolicy: "undefined"`を明示し、固定HEADで観測した全check runを`ci.observedChecks`に列挙した場合だけ、それらがすべて`completed / success`（1件以上）であることを検証する。省略時は従来どおりで、`contractVersion`は1のまま。空配列だけでは通らず、設定を読み取れなかった場合は完了記録を作らず`CI: unknown`で止まる。reviewed-side skillの`references/ci-check.md`にrequiredの集合の確定手順（reviewer-sideと同じ規則）を追加し、skillのrevisionを32に更新した。
 
 ## [2.32.0] - 2026-10-09
 

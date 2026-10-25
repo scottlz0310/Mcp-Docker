@@ -29,6 +29,14 @@ func validRecord() CompletionRecord {
 	}
 }
 
+// asUndefinedRequiredChecks は、必須 check が未定義と確認できた記録へ変換する。
+// 固定 HEAD で観測した check run は ObservedChecks に載せ、RequiredChecks は空にする。
+func asUndefinedRequiredChecks(r *CompletionRecord) {
+	r.CI.RequiredChecksPolicy = RequiredChecksUndefined
+	r.CI.ObservedChecks = r.CI.RequiredChecks
+	r.CI.RequiredChecks = nil
+}
+
 func TestCompletionRecordValidate(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -51,6 +59,48 @@ func TestCompletionRecordValidate(t *testing.T) {
 		{name: "check head mismatch", mutate: func(r *CompletionRecord) { r.CI.RequiredChecks[0].HeadSHA = strings.Repeat("f", 40) }, code: StopHeadMismatch},
 		{name: "check failed", mutate: func(r *CompletionRecord) { r.CI.RequiredChecks[0].Conclusion = "failure" }, code: StopCINotGreen},
 		{name: "duplicate check", mutate: func(r *CompletionRecord) { r.CI.RequiredChecks = append(r.CI.RequiredChecks, r.CI.RequiredChecks[0]) }, code: StopCompletionRecordInvalid},
+		{name: "defined policy explicit", mutate: func(r *CompletionRecord) { r.CI.RequiredChecksPolicy = RequiredChecksDefined }, code: ""},
+		{name: "defined policy without required checks", mutate: func(r *CompletionRecord) {
+			r.CI.RequiredChecksPolicy = RequiredChecksDefined
+			r.CI.RequiredChecks = nil
+		}, code: StopCINotGreen},
+		{name: "defined policy with observed checks", mutate: func(r *CompletionRecord) {
+			r.CI.ObservedChecks = append([]CheckRun(nil), r.CI.RequiredChecks...)
+		}, code: StopCompletionRecordInvalid},
+		{name: "unsupported policy", mutate: func(r *CompletionRecord) { r.CI.RequiredChecksPolicy = "none" }, code: StopCompletionRecordInvalid},
+		{name: "undefined policy", mutate: asUndefinedRequiredChecks, code: ""},
+		{name: "undefined policy without observed checks", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks = nil
+		}, code: StopCINotGreen},
+		{name: "undefined policy with required checks", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.RequiredChecks = []CheckRun{{Name: "x", HeadSHA: testHeadSHA, Status: "completed", Conclusion: "success"}}
+		}, code: StopCompletionRecordInvalid},
+		{name: "undefined policy ci pending", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.Complete = false
+		}, code: StopCINotGreen},
+		{name: "undefined policy observed failed", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks = append(r.CI.ObservedChecks, CheckRun{Name: "Lint", HeadSHA: testHeadSHA, Status: "completed", Conclusion: "failure"})
+		}, code: StopCINotGreen},
+		{name: "undefined policy observed in progress", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks = append(r.CI.ObservedChecks, CheckRun{Name: "Lint", HeadSHA: testHeadSHA, Status: "in_progress"})
+		}, code: StopCINotGreen},
+		{name: "undefined policy observed head mismatch", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks[0].HeadSHA = strings.Repeat("f", 40)
+		}, code: StopHeadMismatch},
+		{name: "undefined policy observed duplicate", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks = append(r.CI.ObservedChecks, r.CI.ObservedChecks[0])
+		}, code: StopCompletionRecordInvalid},
+		{name: "undefined policy observed empty name", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks[0].Name = " "
+		}, code: StopCompletionRecordInvalid},
 	}
 
 	for _, tt := range tests {
@@ -106,6 +156,48 @@ func TestCompletionRecordValidateFor(t *testing.T) {
 			var stopErr *StopError
 			if !errors.As(err, &stopErr) {
 				t.Fatalf("ValidateFor error = %v, want *StopError", err)
+			}
+			if stopErr.Code != tt.code {
+				t.Fatalf("StopError.Code = %q, want %q", stopErr.Code, tt.code)
+			}
+		})
+	}
+}
+
+func TestDecodeCompletionRecordUndefinedRequiredChecks(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*CompletionRecord)
+		code   StopCode
+	}{
+		{name: "observed checks only", mutate: asUndefinedRequiredChecks, code: ""},
+		{name: "no observed checks", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.ObservedChecks = nil
+		}, code: StopCINotGreen},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := validRecord()
+			tt.mutate(&record)
+			data, err := json.Marshal(record)
+			if err != nil {
+				t.Fatalf("json.Marshal returned error: %v", err)
+			}
+
+			got, err := DecodeCompletionRecord(data)
+			if tt.code == "" {
+				if err != nil {
+					t.Fatalf("DecodeCompletionRecord returned error: %v", err)
+				}
+				if got.CI.RequiredChecksPolicy != RequiredChecksUndefined || len(got.CI.ObservedChecks) != 1 || len(got.CI.RequiredChecks) != 0 {
+					t.Fatalf("decoded CI = %+v, want undefined policy with 1 observed check and no required checks", got.CI)
+				}
+				return
+			}
+			var stopErr *StopError
+			if !errors.As(err, &stopErr) {
+				t.Fatalf("DecodeCompletionRecord error = %v, want *StopError", err)
 			}
 			if stopErr.Code != tt.code {
 				t.Fatalf("StopError.Code = %q, want %q", stopErr.Code, tt.code)
