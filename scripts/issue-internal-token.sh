@@ -1,8 +1,8 @@
 #!/bin/bash
-# 内部連携のサービス主体（machine user）の gateway トークンを、device flow で取得してクリップボードへ入れる。
+# 内部連携のサービス主体の gateway トークンを、device flow で取得してクリップボードへ入れる。
 #
 # 手順は docs/review-internal-link.md の「サービス主体と資格情報」を参照。
-# 承認は、主体の GitHub アカウント（machine user）でログインしたブラウザで行う。利用者本人のアカウントで承認すると、
+# 承認は、主体の GitHub アカウントでログインしたブラウザで行う（主体のアカウントの形は未決。docs/review-internal-link.md）。利用者本人のアカウントで承認すると、
 # ACL の主体と食い違うため、取得後に表示する sub（GitHub login）で必ず確認する。
 # トークンは、画面にも標準出力にも出さず、コマンドラインにも載せない（標準入力でクリップボードへ渡す）。
 # 貼り付け先は、Bitwarden の項目 env:<変数名> のカスタムフィールド value（非表示）。
@@ -121,7 +121,7 @@ if ! IFS=$'\t' read -r device_code user_code verification_uri expires_in interva
 fi
 
 {
-  echo "machine user（${principal} 主体のアカウント）でログインしたブラウザで、次を開いて承認してください。"
+  echo "${principal} 主体のアカウントでログインしたブラウザで、次を開いて承認してください。"
   echo "  URL : ${verification_uri}"
   echo "  コード: ${user_code}"
   echo "（${expires_in} 秒以内。待機中...）"
@@ -182,4 +182,4 @@ if ! printf '%s' "$access_token" | "${clip_argv[@]}"; then
   exit 1
 fi
 
-echo "クリップボードにコピーしました（${claims}）。sub が ${principal} 主体の machine user であることを確認し、Bitwarden の env:${var_name} の value に貼り付けてください" >&2
+echo "クリップボードにコピーしました（${claims}）。sub が ${principal} 主体のアカウントの login であることを確認し、Bitwarden の env:${var_name} の value に貼り付けてください" >&2
