@@ -89,6 +89,14 @@ services:
       # gateway は公開せず、mcp-docker register も登録対象にしない（#167 の ${VAR:+...} の仕組み）。
       - ROUTE_PLAYWRIGHT=${PLAYWRIGHT_MCP_ENABLED:+/mcp/playwright|http://playwright-mcp:${PLAYWRIGHT_MCP_PORT:-8931}|auth=none}
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:${THREAD_OWL_PORT:-3000}/mcp
+      # review-raven ⇔ thread-owl の内部連携（任意。REVIEW_INTERNAL_LINK_ENABLED が未設定の間は、ルートが空になり、公開しない）。
+      # サービス間のルートで、agent 向けではない: 名前が _INTERNAL で終わる ROUTE_* は、mcp-docker register の対象外にする。
+      # required_audience で agent 向けのトークン（audience: mcp-gateway）と分け、upstream へは内部面専用の共有 Bearer を注入する。
+      # 手順と資格情報は docs/review-internal-link.md。
+      - ROUTE_REVIEW_RAVEN_INTERNAL=${REVIEW_INTERNAL_LINK_ENABLED:+/mcp/review-raven-internal|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/internal/mcp|upstream_bearer_token_env=REVIEW_RAVEN_INTERNAL_PROXY_SECRET|required_audience=review-raven-internal}
+      - ROUTE_THREAD_OWL_INTERNAL=${REVIEW_INTERNAL_LINK_ENABLED:+/mcp/thread-owl-internal|http://thread-owl:${THREAD_OWL_PORT:-3000}/internal/mcp|upstream_bearer_token_env=THREAD_OWL_INTERNAL_PROXY_SECRET|required_audience=thread-owl-internal}
+      - REVIEW_RAVEN_INTERNAL_PROXY_SECRET=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_RAVEN_INTERNAL_PROXY_SECRET:?内部連携を有効にするには、review-raven の内部面専用の共有シークレットを保管庫から注入してください}}
+      - THREAD_OWL_INTERNAL_PROXY_SECRET=${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_INTERNAL_PROXY_SECRET:?内部連携を有効にするには、thread-owl の内部面専用の共有シークレットを保管庫から注入してください}}
       - OAUTH_SCOPES=${OAUTH_SCOPES:-repo,user}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - SESSION_TTL_MIN=${SESSION_TTL_MIN:-10}
@@ -159,6 +167,18 @@ services:
       # PR の作成者の許可リスト（thread-owl の ALLOWED_AUTHORS）とは別の問い。未設定の間は、tool がエラーを返し、
       # reviewed skill は fail-closed に停止する。
       - TRUSTED_COMMENT_AUTHORS=${REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS:-}
+      # thread-owl との内部連携（任意。REVIEW_INTERNAL_LINK_ENABLED が未設定の間は、すべて空で、無効）。
+      # 有効にすると、依頼台帳・公開の依頼 tool・内部面（/internal/mcp）・thread-owl への配送が有効になる。
+      # 必須の秘密と ACL が欠けていれば、起動前の設定検証で止まる。手順は docs/review-internal-link.md。
+      - REVIEW_RAVEN_REVIEW_REQUESTS=${REVIEW_INTERNAL_LINK_ENABLED:+true}
+      - REVIEW_RAVEN_REQUEST_ACL=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_RAVEN_REQUEST_ACL:?内部連携を有効にするには、依頼を出せる利用者と repo の ACL（JSON）を指定してください}}
+      - REVIEW_RAVEN_INTERNAL_SURFACE=${REVIEW_INTERNAL_LINK_ENABLED:+true}
+      - REVIEW_RAVEN_INTERNAL_PROXY_SECRET=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_RAVEN_INTERNAL_PROXY_SECRET:?内部連携を有効にするには、review-raven の内部面専用の共有シークレットを保管庫から注入してください}}
+      - REVIEW_RAVEN_SERVICE_ACL=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_RAVEN_SERVICE_ACL:?内部連携を有効にするには、内部面のサービス別 ACL（JSON）を指定してください}}
+      # thread-owl への配送は gateway の内部ルートを、コンテナのネットワーク上のサービス名で引く（http。資格情報はこのネットワーク上を平文で流れる）。
+      - REVIEW_RAVEN_OWL_INTERNAL_URL=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_INTERNAL_LINK_GATEWAY_URL:-http://mcp-gateway:${MCP_GATEWAY_PORT:-8080}}/mcp/thread-owl-internal}
+      - REVIEW_RAVEN_OWL_INTERNAL_TOKEN=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_RAVEN_OWL_INTERNAL_TOKEN:?内部連携を有効にするには、review-raven が thread-owl の内部ルートへ提示する資格情報（サービス主体のトークン）を注入してください}}
+      - REVIEW_RAVEN_OWL_INTERNAL_ALLOW_PLAIN_HTTP=${REVIEW_INTERNAL_LINK_ENABLED:+true}
 
     # mcp-gateway 経由でのみアクセス（http://127.0.0.1:8080/mcp/review-raven）。
     # ホストから直接アクセスする場合は下記のコメントを解除してください。
@@ -216,7 +236,9 @@ services:
         esac
 
   thread-owl:
-    image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
+    # 内部連携（REVIEW_INTERNAL_LINK_ENABLED）の内部面・台帳・配送は、最新リリース（:latest、v0.7.0）にはまだ含まれない。
+    # 有効のときは、対応済みのイメージを THREAD_OWL_IMAGE で明示させる（未指定なら停止。リリース前の main ビルドは make pull-main / restart-main）。
+    image: ${THREAD_OWL_IMAGE:-${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?内部連携を有効にするには、内部面を含む thread-owl のイメージを THREAD_OWL_IMAGE で指定してください（リリース前は make pull-main / restart-main）}}${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}}
     container_name: thread-owl
     restart: unless-stopped
     command: ["--mcp-http"]
@@ -233,12 +255,26 @@ services:
       # 設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せる（fork は常に拒否）。
       # 未設定（空）の間は、作成者を検証できないため、すべての PR と再レビュー依頼を拒否する（fail-closed。thread-owl v0.7.0 以降）。
       - ALLOWED_AUTHORS=${THREAD_OWL_ALLOWED_AUTHORS:-}
+      # review-raven との内部連携（任意。REVIEW_INTERNAL_LINK_ENABLED が未設定の間は、すべて空で、無効）。
+      # 有効にすると、永続台帳（/data/ledger.sqlite）・内部面（/internal/mcp）・review-raven への配送が有効になる。
+      # 必須の秘密と ACL が欠けていれば、起動前の設定検証で止まる。手順は docs/review-internal-link.md。
+      - THREAD_OWL_LEDGER_PATH=${REVIEW_INTERNAL_LINK_ENABLED:+/data/ledger.sqlite}
+      - THREAD_OWL_INTERNAL_PROXY_SECRET=${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_INTERNAL_PROXY_SECRET:?内部連携を有効にするには、thread-owl の内部面専用の共有シークレットを保管庫から注入してください}}
+      - THREAD_OWL_SERVICE_ACL=${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_SERVICE_ACL:?内部連携を有効にするには、内部面のサービス別 ACL（JSON）を指定してください}}
+      # review-raven への配送は gateway の内部ルートを、コンテナのネットワーク上のサービス名で引く（http。資格情報はこのネットワーク上を平文で流れる）。
+      - THREAD_OWL_RAVEN_INTERNAL_URL=${REVIEW_INTERNAL_LINK_ENABLED:+${REVIEW_INTERNAL_LINK_GATEWAY_URL:-http://mcp-gateway:${MCP_GATEWAY_PORT:-8080}}/mcp/review-raven-internal}
+      - THREAD_OWL_RAVEN_INTERNAL_TOKEN=${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_RAVEN_INTERNAL_TOKEN:?内部連携を有効にするには、thread-owl が review-raven の内部ルートへ提示する資格情報（サービス主体のトークン）を注入してください}}
+      - THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP=${REVIEW_INTERNAL_LINK_ENABLED:+true}
       - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}
 
     expose:
       - "${THREAD_OWL_PORT:-3000}"
+
+    # 内部連携の永続台帳（受付・取消記録・結果索引・outbox）。無効の間も、マウントしても害はない。
+    volumes:
+      - thread-owl-data:/data
 
     networks:
       - mcp-network
