@@ -215,7 +215,7 @@ mcp-docker register --agent all --yes
 
 `go install` は GitHub Release のビルド済み成果物ではなく、指定した Go module をローカルでビルドします。バージョン表示は module build info から取得するため、リリース版を指定した場合はそのタグのバージョンが表示されます。GitHub Release の成果物を使う場合は、Release ページから対象 OS のアーカイブを手動でダウンロード・配置してください。
 
-リリースは GitHub Actions の「リリース」workflow から手動実行できます。`tag` に `vX.Y.Z`、`source_ref` にリリース対象の branch・tag・commit（通常は `main`）を指定すると、検証・クロスビルド成功後にタグ、GitHub Release、チェックサムが作成されます。既存の `v*` タグ push によるリリースも利用できます。
+安定版は GitHub Actions の「Prepare Release」で版を指定し、Release bot が作る準備 PR のレビュー・公開許可後にマージします。共通 workflow が同一 SHA のタグ・draft を作り、5種類のクロスビルドと成果物の再取得検証後に公開します。手順は [リリース手順](docs/release-automation.md) を参照してください。従来のタグ push・`tag` / `source_ref` による直接公開は使用しません。
 
 登録対象は以下から読み取ります：
 

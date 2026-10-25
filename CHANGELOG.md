@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 安定版の準備・draft 作成・成果物の添付と再取得検証・公開を release-automate の固定 SHA へ統一した。5種類の配布アーカイブ名、checksum、ldflags の版埋め込みを維持し、公開前に全アーカイブの checksum/内容と Linux amd64 の実行版を確認する。独自ノート生成と自動生成ノートの併記、タグ push/任意 source_ref の直接公開を廃止し、CHANGELOG と共通の検証証跡を本文にする。
+
 ## [2.33.0] - 2026-10-25
 
 ### Added

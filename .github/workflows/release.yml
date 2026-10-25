@@ -2,127 +2,63 @@ name: リリース
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "リリースタグ（例: v2.21.2）"
-        required: true
-        type: string
-      source_ref:
-        description: "リリース対象の branch / tag / commit（既定: main）"
-        required: false
-        default: main
-        type: string
-
-concurrency:
-  group: mcp-docker-release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: mcp-docker-stable-release
+  cancel-in-progress: false
 
 jobs:
+  draft:
+    if: startsWith(github.event.head_commit.message, 'chore(release):')
+    uses: scottlz0310/release-automate/.github/workflows/reusable-publish-release.yml@7f53bc1716dc7da1740be166e55b5d94b33041e6 # v3.2.0
+    permissions:
+      contents: write
+    with:
+      draft: true
+
   release-context:
-    name: リリースコンテキスト検証
+    needs: draft
+    if: needs.draft.outputs.release_state == 'draft'
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.metadata.outputs.tag }}
       version: ${{ steps.metadata.outputs.version }}
-      source_sha: ${{ steps.metadata.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.ref }}
-          fetch-depth: 0
-
-      - name: タグ・対象コミット検証
+      - name: 安定版の形式を確認
         id: metadata
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
-          REF_NAME: ${{ github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.draft.outputs.tag_name }}
         run: |
-          set -euo pipefail
-
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            TAG="$INPUT_TAG"
-          else
-            TAG="$REF_NAME"
-          fi
-
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "invalid release tag: $TAG" >&2
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error::版は vMAJOR.MINOR.PATCH（RC・build metadata 可）で指定してください'
             exit 1
           fi
-
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "GitHub Release already exists: $TAG" >&2
-            exit 1
-          fi
-
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] && git ls-remote --exit-code --refs origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Git tag already exists: $TAG" >&2
-            exit 1
-          fi
-
-          SOURCE_SHA="$(git rev-parse HEAD)"
-          VERSION="${TAG#v}"
-          {
-            echo "tag=$TAG"
-            echo "version=$VERSION"
-            echo "source_sha=$SOURCE_SHA"
-          } >> "$GITHUB_OUTPUT"
-          echo "release tag: $TAG"
-          echo "source ref: $SOURCE_SHA"
-
-      - name: リリースノート生成
-        env:
-          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
-          SOURCE_SHA: ${{ steps.metadata.outputs.source_sha }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          bash scripts/generate-release-notes.sh \
-            "$RELEASE_TAG" \
-            "$SOURCE_SHA" \
-            "$REPOSITORY" \
-            CHANGELOG.md \
-            dist/release-notes.md
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-notes
-          path: dist/release-notes.md
-          if-no-files-found: error
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
   test:
     name: テスト・lint
-    needs: release-context
+    needs: [draft, release-context]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-context.outputs.source_sha }}
-
+          ref: ${{ needs.draft.outputs.target_sha }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-
       - name: go vet
         run: go vet ./...
-
       - name: go test
         run: go test ./...
 
   build:
     name: ビルド (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
-    needs: [release-context, test]
+    needs: [draft, release-context, test]
     strategy:
       matrix:
         include:
@@ -145,66 +81,100 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.release-context.outputs.source_sha }}
-
+          ref: ${{ needs.draft.outputs.target_sha }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-
       - name: バイナリビルド＆アーカイブ
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
+          VERSION: ${{ needs.release-context.outputs.version }}
+          EXT: ${{ matrix.ext }}
+          SUFFIX: ${{ matrix.suffix }}
         run: |
           set -euo pipefail
-          BIN="mcp-docker${{ matrix.ext }}"
-          VERSION="${{ needs.release-context.outputs.version }}"
-          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "${BIN}" ./cmd/mcp-docker
-          if [[ "${{ matrix.goos }}" == "linux" && "${{ matrix.goarch }}" == "amd64" ]]; then
-            test "$(./${BIN} --version)" = "mcp-docker ${VERSION}"
+          bin="mcp-docker$EXT"
+          go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "$bin" ./cmd/mcp-docker
+          if [[ "$GOOS/$GOARCH" == linux/amd64 ]]; then
+            test "$(./mcp-docker --version)" = "mcp-docker $VERSION"
           fi
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip "mcp-docker-${{ matrix.suffix }}.zip" "${BIN}"
+          if [[ "$GOOS" == windows ]]; then
+            zip "mcp-docker-$SUFFIX.zip" "$bin"
           else
-            tar czf "mcp-docker-${{ matrix.suffix }}.tar.gz" "${BIN}"
+            tar czf "mcp-docker-$SUFFIX.tar.gz" "$bin"
           fi
-
       - uses: actions/upload-artifact@v7
         with:
           name: bin-${{ matrix.suffix }}
           path: mcp-docker-${{ matrix.suffix }}.*
+          if-no-files-found: error
 
-  release:
-    name: リリース作成
-    needs: [release-context, build]
+  attach:
+    needs: [draft, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      checksum_digest: ${{ steps.attach.outputs.checksum_digest }}
     steps:
       - uses: actions/download-artifact@v8
         with:
+          pattern: bin-*
           path: dist/
           merge-multiple: true
-
-      - name: チェックサムファイル生成
-        run: |
-          cd dist
-          sha256sum mcp-docker-*.tar.gz mcp-docker-*.zip 2>/dev/null | sort > checksums.txt
-
-      - name: GitHub Release 作成
+      - name: 対象 draft に成果物を添付
+        id: attach
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
-          SOURCE_SHA: ${{ needs.release-context.outputs.source_sha }}
+          TAG: ${{ needs.draft.outputs.tag_name }}
+          TARGET_SHA: ${{ needs.draft.outputs.target_sha }}
         run: |
           set -euo pipefail
-          ARCHIVES=$(find dist \( -name "mcp-docker-*.tar.gz" -o -name "mcp-docker-*.zip" \) | sort | tr '\n' ' ')
-          gh release create "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$SOURCE_SHA" \
-            --title "$RELEASE_TAG" \
-            --notes-file dist/release-notes.md \
-            --generate-notes \
-            ${ARCHIVES} \
-            dist/checksums.txt
-          echo "released $RELEASE_TAG from $SOURCE_SHA"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish |
+            jq -e --arg sha "$TARGET_SHA" '.isDraft == true and .targetCommitish == $sha'
+          (cd dist && sha256sum mcp-docker-*.tar.gz mcp-docker-*.zip | sort > checksums.txt)
+          echo "checksum_digest=$(sha256sum dist/checksums.txt | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          gh release upload "$TAG" dist/mcp-docker-*.tar.gz dist/mcp-docker-*.zip dist/checksums.txt \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+  verify-assets:
+    needs: [draft, release-context, attach]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.draft.outputs.target_sha }}
+      - name: draft の成果物を再取得して検証
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.draft.outputs.tag_name }}
+          TARGET_SHA: ${{ needs.draft.outputs.target_sha }}
+          VERSION: ${{ needs.release-context.outputs.version }}
+          EXPECTED_CHECKSUM_DIGEST: ${{ needs.attach.outputs.checksum_digest }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish,assets > release.json
+          jq -e --arg sha "$TARGET_SHA" '.isDraft == true and .targetCommitish == $sha and
+            ([.assets[].name] | sort) == (["checksums.txt", "mcp-docker-darwin-amd64.tar.gz",
+            "mcp-docker-darwin-arm64.tar.gz", "mcp-docker-linux-amd64.tar.gz",
+            "mcp-docker-linux-arm64.tar.gz", "mcp-docker-windows-amd64.zip"] | sort)' release.json
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir verified-assets
+          actual=$(sha256sum verified-assets/checksums.txt | cut -d ' ' -f 1)
+          test "$actual" = "$EXPECTED_CHECKSUM_DIGEST"
+          bash scripts/verify-release-assets.sh verified-assets "$VERSION"
+
+  finalize:
+    needs: [draft, verify-assets]
+    uses: scottlz0310/release-automate/.github/workflows/reusable-finalize-release.yml@7f53bc1716dc7da1740be166e55b5d94b33041e6 # v3.2.0
+    permissions:
+      contents: write
+    with:
+      tag_name: ${{ needs.draft.outputs.tag_name }}
+      target_sha: ${{ needs.draft.outputs.target_sha }}
+      append_release_evidence: true
+      verification_results: ${{ toJSON(needs) }}
