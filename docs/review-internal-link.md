@@ -54,17 +54,35 @@ review-ravenの内部連携は、専用GitHub Appモード（[専用Appの運用
 
 トークンは、各主体のアカウントでgatewayのdevice flowを1回行って取得する。`resource`にはルート名（`ROUTE_`以降を小文字にした値）を渡し、内部audienceのトークンを得る。
 
+### 取得手順
+
+1. 主体ごとにGitHubのmachine userを用意する。そのloginが、各ACLのキー（`<raven主体>`・`<owl主体>`・`<squirrel主体>`）になる。
+2. 承認に使うブラウザで、主体のmachine userとしてGitHubにログインしておく（普段のアカウントと混ざらないよう、別のブラウザプロファイルかシークレットウィンドウを使う）。
+3. 内部連携を有効にした**gatewayが起動している状態で**、主体ごとに`scripts/issue-internal-token.sh`を実行する。スクリプトはdevice flowを開始し、承認用のURLとコードを表示し、承認されるまで待つ。承認後、トークンをクリップボードへ入れる（画面・標準出力・コマンドラインには出さない）。
+4. 表示される`sub`が、その主体のmachine userのloginであることを確認する。**違う場合は貼り付けない**（利用者本人のアカウントで承認した可能性がある）。
+5. クリップボードの値を、保管庫の項目`env:<変数名>`のカスタムフィールド`value`（非表示）に貼り付ける。
+
+| 主体 | 引数 | `resource` | 貼り付ける変数 | 呼び出し先 |
+|---|---|---|---|---|
+| raven主体 | `raven` | `thread_owl_internal` | `REVIEW_RAVEN_OWL_INTERNAL_TOKEN` | thread-owl内部面 |
+| owl主体 | `owl` | `review_raven_internal` | `THREAD_OWL_RAVEN_INTERNAL_TOKEN` | review-raven内部面 |
+| Squirrel主体 | `squirrel` | `review_raven_internal` | `SQUIRREL_OBSERVATION_TOKEN`（Squirrelを動かすPCの環境にだけ入れる） | review-raven内部面（`observe`） |
+
 ```bash
-# 例: owl主体のトークン（review-raven内部ルート向け）。raven主体は resource=thread_owl_internal
-curl -s -X POST "$GATEWAY/device_authorization" -d "client_id=mcp-client" -d "scope=repo user" -d "resource=review_raven_internal"
-# 表示されたURLをmachine userでログインしたブラウザで開いて承認し、device_codeで/tokenをポーリングする
-curl -s -X POST "$GATEWAY/token" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" -d "device_code=<device_code>" -d "client_id=mcp-client" -d "resource=review_raven_internal"
+scripts/issue-internal-token.sh owl
 ```
 
-- 取得した`access_token`を`THREAD_OWL_RAVEN_INTERNAL_TOKEN`（owl主体）／`REVIEW_RAVEN_OWL_INTERNAL_TOKEN`（raven主体）として保管庫に格納する。値をログ・リポジトリ・チャットに出さない。
+- gatewayのURLは、`GATEWAY_URL`、なければ`MCP_GATEWAY_PUBLIC_URL`から読む。
+- gatewayがmkcertの証明書（`make setup-tls`）の場合、curlがそのCAを信頼しないことがある。そのときは`GATEWAY_CACERT="$(mkcert -CAROOT)/rootCA.pem"`を指定する。
+- device codeの有効期間は15分。期限が切れたら、もう一度実行する。
+- 共有Bearer（`REVIEW_RAVEN_INTERNAL_PROXY_SECRET`・`THREAD_OWL_INTERNAL_PROXY_SECRET`）は、`openssl rand -base64 36`で生成する（48文字）。画面に出さずに保管庫へ移すなら、`openssl rand -base64 36 | tr -d '\n' | clip.exe`（Windows）のようにクリップボードへ入れる。`REVIEW_RAVEN_PROXY_SECRET`とは別の値にする。
+
+スクリプトを使わず手で行う場合は、`POST /device_authorization`（`client_id=mcp-client`・`scope=repo user`・`resource=<上表>`）で`device_code`を得て、表示された`verification_uri`で承認し、`POST /token`（`grant_type=urn:ietf:params:oauth:grant-type:device_code`・`device_code`・`client_id`・`resource`）を`interval`秒ごとにポーリングする。応答の`access_token`だけを使い、`refresh_token`は保管しない。
+
+- 取得した`access_token`を、上表の変数として保管庫に格納する。値をログ・リポジトリ・チャットに出さない。
 - 有効期間は`TOKEN_EXPIRES_IN_SEC`（既定90日）。**期限前にrotationする**: 同じ手順で再取得して保管庫を更新し、該当サービスだけ再作成する。
 - 失効は`POST /revoke`（RFC 7009）。builtin modeではJWTが即時に失効する。漏えいの疑いがあれば失効→再取得→ACLの見直しの順で行う。
-- 主体を増やす（Squirrelの`observe`など）ときは、アカウントを分け、該当サービスのACLに操作とrepoを最小で追加する。
+- 主体を増やすときは、アカウントを分け、該当サービスのACLに操作とrepoを最小で追加する。Squirrelの`observe`は`REVIEW_RAVEN_SERVICE_ACL`に`{"actions":["observe"],"repos":["scottlz0310/*"],"producers":["squirrel-notifier"]}`で追加する（Squirrel側の設定は[review-observation-publishing](https://github.com/scottlz0310/squirrel-notifier/blob/main/docs/review-observation-publishing.md)）。
 
 ## 有効化と切り戻し
 
