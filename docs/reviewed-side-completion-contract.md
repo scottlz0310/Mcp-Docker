@@ -64,6 +64,7 @@
     "observedChecks": [
       {
         "name": "Go CLI チェック",
+        "appId": 15368,
         "headSha": "0123456789abcdef0123456789abcdef01234567",
         "status": "completed",
         "conclusion": "success"
@@ -72,7 +73,7 @@
   }
 ```
 
-`requiredChecksPolicy` は省略可能で、省略は `defined` と同じ（`contractVersion` は 1 のまま）。`observedChecks` は `undefined` のときだけ指定できる。
+`requiredChecksPolicy` は省略可能で、省略は `defined` と同じ（`contractVersion` は 1 のまま）。`observedChecks` は `undefined` のときだけ指定できる。CI の read は (GitHub App の ID, name) ごとに再実行を集約するため、別の App が同名の check を報告すると同名の run が複数残る。`observedChecks` の各要素には、報告した App の ID を `appId`（1 以上）として必ず付け、`(appId, name)` の重複だけを拒否する。`requiredChecks` の `appId` は省略でき（指定する場合は 0 以上）、必須 check は context 単位なので、同名は App が違っても重複として拒否する。
 
 `internal/reviewgate.CompletionRecord.Validate` と `mcp-docker reviewgate validate` は次を fail-closed で検証する。
 
@@ -80,7 +81,7 @@
 - `skillId` が `review-raven-thread-owl-cycle` で、revision が記録されていること
 - skill 実行済み、全返信済み、未解決スレッド数が0件であること
 - CI の HEAD と完了記録の HEAD が一致すること
-- 必須 check run が1件以上あり、すべて同一 HEAD 上で `completed / success` であること。`requiredChecksPolicy` が `undefined` のときは、`requiredChecks` が空で、`observedChecks`（固定 HEAD で観測した全 check run）が1件以上あり、すべて同一 HEAD 上で `completed / success` であること
+- 必須 check run が1件以上あり、すべて同一 HEAD 上で `completed / success` であること。`requiredChecksPolicy` が `undefined` のときは、`requiredChecks` が空で、`observedChecks`（固定 HEAD で観測した全 check run）が1件以上あり、すべて同一 HEAD 上で `completed / success` であること（`observedChecks` は `appId` を持ち、`(appId, name)` が重複しないこと）
 - `requiredChecksPolicy` が `defined`（省略を含む）のときに `observedChecks` を持たないこと、未対応の値でないこと
 - 未知の JSON フィールド、同一オブジェクト内の重複キー、連結された複数 JSON、重複した check 名を拒否すること
 

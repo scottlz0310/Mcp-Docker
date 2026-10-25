@@ -127,9 +127,14 @@ type ValidationTarget struct {
 	SkillRevision int
 }
 
-// CheckRun は固定 HEAD 上の 1 件の必須 check run である。
+// CheckRun は固定 HEAD 上の 1 件の check run である。
+//
+// CI の read は (App ID, name) ごとに再実行を集約するため、別の GitHub App が同名の check を
+// 報告すると、同名の run が複数残る。AppID はそれらを区別する識別情報で、ObservedChecks では必須、
+// RequiredChecks では省略できる（必須 check は context 単位で、同名を重複として扱う）。
 type CheckRun struct {
 	Name       string `json:"name"`
+	AppID      int64  `json:"appId,omitempty"`
 	HeadSHA    string `json:"headSha"`
 	Status     string `json:"status"`
 	Conclusion string `json:"conclusion"`
@@ -294,7 +299,7 @@ func (r CompletionRecord) Validate() error {
 		if len(r.CI.RequiredChecks) == 0 {
 			return stop(StopCINotGreen, "ci.requiredChecks", "必須 check run がありません")
 		}
-		return validateGreenChecks("ci.requiredChecks", r.CI.RequiredChecks, r.HeadSHA)
+		return validateGreenChecks("ci.requiredChecks", r.CI.RequiredChecks, r.HeadSHA, false)
 	case RequiredChecksUndefined:
 		if len(r.CI.RequiredChecks) != 0 {
 			return invalid("ci.requiredChecks", "requiredChecksPolicy が undefined のときは空にします")
@@ -302,24 +307,38 @@ func (r CompletionRecord) Validate() error {
 		if len(r.CI.ObservedChecks) == 0 {
 			return stop(StopCINotGreen, "ci.observedChecks", "観測した check run がありません")
 		}
-		return validateGreenChecks("ci.observedChecks", r.CI.ObservedChecks, r.HeadSHA)
+		return validateGreenChecks("ci.observedChecks", r.CI.ObservedChecks, r.HeadSHA, true)
 	default:
 		return invalid("ci.requiredChecksPolicy", fmt.Sprintf("%q は未対応です", r.CI.RequiredChecksPolicy))
 	}
 }
 
+// checkIdentity は check run の同一性を判定する鍵である。
+type checkIdentity struct {
+	appID int64
+	name  string
+}
+
 // validateGreenChecks は checks がすべて同一 HEAD 上で completed / success であることを検証する。
-func validateGreenChecks(field string, checks []CheckRun, headSHA string) error {
-	seen := make(map[string]struct{}, len(checks))
+// byApp が true のときは App ID を必須とし、(App ID, name) で重複を判定する。false のときは name だけで判定する。
+func validateGreenChecks(field string, checks []CheckRun, headSHA string, byApp bool) error {
+	seen := make(map[checkIdentity]struct{}, len(checks))
 	for i, check := range checks {
 		item := fmt.Sprintf("%s[%d]", field, i)
 		if strings.TrimSpace(check.Name) == "" {
 			return invalid(item+".name", "空にできません")
 		}
-		if _, exists := seen[check.Name]; exists {
+		if check.AppID < 0 || (byApp && check.AppID < 1) {
+			return invalid(item+".appId", "GitHub App の ID（1 以上）が必要です")
+		}
+		identity := checkIdentity{name: check.Name}
+		if byApp {
+			identity.appID = check.AppID
+		}
+		if _, exists := seen[identity]; exists {
 			return invalid(item+".name", "同じ check run が重複しています")
 		}
-		seen[check.Name] = struct{}{}
+		seen[identity] = struct{}{}
 		if check.HeadSHA != headSHA {
 			return stop(StopHeadMismatch, item+".headSha", "完了記録の HEAD と一致しません")
 		}

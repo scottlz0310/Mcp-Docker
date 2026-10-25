@@ -15,7 +15,7 @@ R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分け�
      - `check_runs` が空配列でも正常な応答である（push 直後で CI が未開始の場合など）。required check が未返却のときの扱い（手順 3 の `CI: pending`）に従う
      - tool は合否判定を行わず、required / optional の区別も出力に含まれない。required の集合は手順 2 で確定する
      - 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない
-   - **fallback**: R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い（review-raven v0.5.0 未満）か schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app: .app.slug}'` を read-only で使う。この経路では**同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は ID が最大のものだけを採用する**。`pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合は `CI: unknown` とする。
+   - **fallback**: R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い（review-raven v0.5.0 未満）か schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app_id: .app.id, app: .app.slug}'` を read-only で使う。この経路では**同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は ID が最大のものだけを採用する**。`pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合は `CI: unknown` とする。
    - **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として扱い、`gh api` へ迂回しない。
    - **`{GH}:get_check_runs`（公式 GitHub MCP の `pull_request_read`）は PR 番号を入力とし `head_sha` を返さないので、CI 判定の根拠にしない。**
 2. **required の集合の確定**: `<base>` は PR の base ref（`{GH}:get_pr` の `base.ref`）。次の 2 つを、`gh api` の read-only で読み（MCP tool は提供していないため、CI read の経路にかかわらず常に `gh api`）、**和集合**をとる。判定規則は `thread-owl-pr-reviewer` の `references/ci-check.md`「4. required checks の集合」と同じで、片方を変えるときはもう片方も同時に更新する。
