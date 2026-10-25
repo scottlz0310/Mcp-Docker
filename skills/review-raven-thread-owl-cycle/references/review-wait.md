@@ -104,7 +104,12 @@ SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`
 | `timeout`（終了コード 4） | 監視の上限。完了の判定は `review://status` で行う（再購読の判断は下の手順） |
 | `error`（終了コード 2） | 引数エラー（`--key` / `--after`）。直して起動し直す |
 
-`resource-bridge-cli` が v0.8.0 未満で `watch-review-status` が使えないときは、同じ公開状態を読み取り専用で直接読んでもよい（契約: Squirrel Notifier の `docs/review-status-contract.md`）。上の表と同じ規則で判断し、`review-cycles.json` と `statusline-summary.json` は使わない。
+`resource-bridge-cli` が v0.8.0 未満で `watch-review-status` が使えないときは、同じ公開状態を、次の規則で直接読んでもよい。
+
+- 読み取り: `%LocalAppData%\SquirrelNotifier\review-status.json`（公開契約。`schemaVersion: 1`。Squirrel Notifier の `docs/review-status-contract.md`）を、読み取り専用で、**開いてすぐ閉じて**読む（Squirrel Notifier の置換を妨げない）。知らないフィールドは無視する。内部ストアの `review-cycles.json` と `statusline-summary.json` は、この判断に使わない。
+- 対象 PR: `key` は**小文字**の `owner/repo#N`（`review://status` の URI と同じ表記）。`items[]`（`waiting` / `running`）と `recent[]`（`finished`）から探し、`receivedAt` が `enqueued_after`（Phase W 手順 2 で控えた時刻）より**後**のものだけを、今回の分とみなす。時刻は小数秒まで比較する。前の round の `finished` を拾わない。
+- 観測不能: ファイルが無い、読めない、`schemaVersion` が 1 ではない、`updatedAt` が現在時刻より 3 分以上古い（アプリは 60 秒ごとに更新するので、止まっている）。
+- 扱い: 上の表と同じ（`items[]` の `running` / `waiting` は `state`、`holdReason = manual` は `action_required`、`recent[]` の `finished` は `finished`、どこにもない場合は `not_received`）。
 
 ### 手順
 
