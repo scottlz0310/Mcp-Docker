@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-10-27
+
 ### Changed
 
 - reviewed 側 skill（`review-raven-thread-owl-cycle`、revision 34）の Phase W に、enqueue の前の購読状態の確認を加えた。`starting` なら上限 5 分まで待ち、`stopped` / `stopping` / `error` / `authRequired`、または公開状態の `updatedAt` が 3 分以上古いときは、enqueue せずに利用者へ報告して停止する。enqueue 後に 2 分受信がなくても、購読が `running` なら再 enqueue せず、利用者へ報告して停止する。いずれも再試行はしない。再レビュー依頼の経路（Phase U6）でも、コメントの投稿と enqueue の前に同じ前提を適用する。
@@ -1023,7 +1025,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...HEAD
+[2.34.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.4...v2.32.0
 [2.31.4]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.3...v2.31.4
