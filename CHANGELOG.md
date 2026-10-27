@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- reviewed 側 skill（`review-raven-thread-owl-cycle`、revision 34）の Phase W に、enqueue の前の購読状態の確認を加えた。`starting` なら上限 5 分まで待ち、`stopped` / `stopping` / `error` / `authRequired`、または公開状態の `updatedAt` が 3 分以上古いときは、enqueue せずに利用者へ報告して停止する。enqueue 後に 2 分受信がなくても、購読が `running` なら再 enqueue せず、利用者へ報告して停止する。いずれも再試行はしない。
+- reviewed 側 skill（`review-raven-thread-owl-cycle`、revision 34）の Phase W に、enqueue の前の購読状態の確認を加えた。`starting` なら上限 5 分まで待ち、`stopped` / `stopping` / `error` / `authRequired`、または公開状態の `updatedAt` が 3 分以上古いときは、enqueue せずに利用者へ報告して停止する。enqueue 後に 2 分受信がなくても、購読が `running` なら再 enqueue せず、利用者へ報告して停止する。いずれも再試行はしない。再レビュー依頼の経路（Phase U6）でも、コメントの投稿と enqueue の前に同じ前提を適用する。
 - 安定版の準備・draft 作成・成果物の添付と再取得検証・公開を release-automate の固定 SHA へ統一した。5種類の配布アーカイブ名、checksum、ldflags の版埋め込みを維持し、公開前に全アーカイブの checksum/内容と Linux amd64 の実行版を確認する。独自ノート生成と自動生成ノートの併記、タグ push/任意 source_ref の直接公開を廃止し、CHANGELOG と共通の検証証跡を本文にする。
 
 ## [2.33.0] - 2026-10-25
