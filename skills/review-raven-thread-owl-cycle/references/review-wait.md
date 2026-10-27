@@ -20,11 +20,13 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
 | 観測 | 扱い |
 |---|---|
 | `subscription.state` が `running` | 正常。enqueue へ進む |
-| `starting` | 起動中の可能性。上限 5 分まで待つ。待つのは 1 回のシェル待機（シェル側で状態を確認し続け、LLM が公開状態を繰り返し読まない）。5 分以内に `running` になれば enqueue へ進む。超えたら利用者へ報告して停止する |
-| `stopped` / `stopping` / `error` / `authRequired` | 購読されていない。再試行しない。enqueue しない。利用者へ報告して停止する（Squirrel Notifier の起動、またはログインを依頼する） |
+| `starting` / `error`（`authRequired` を除く） | 起動中、または Squirrel Notifier の自動回復中の可能性。上限 6 分まで待つ。待つのは 1 回のシェル待機（シェル側で状態を確認し続け、LLM が公開状態を繰り返し読まない）。6 分以内に `running` になれば enqueue へ進む。超えたら利用者へ報告して停止する |
+| `authRequired` | 自動回復の対象ではない。待たない。enqueue しない。利用者へ再ログインを依頼して停止する |
+| `stopped` / `stopping` | 利用者が停止した状態。待たない。enqueue しない。利用者へ報告して停止する（Squirrel Notifier の起動を依頼する） |
 | `updatedAt` が 3 分以上古い | Squirrel Notifier が動いていない可能性。enqueue しない。利用者へ報告して停止する |
 
-- `starting` の上限は、「打ち切りは、時間ではなく状態で決める」原則の例外である。起動の遅れは状態から終わりが分からないため、時間で区切る。
+- `starting` と `error` の上限は、「打ち切りは、時間ではなく状態で決める」原則の例外である。起動の遅れと自動回復の間隔は状態から終わりが分からないため、時間で区切る。6 分は、Squirrel Notifier の自動回復の最大間隔（5 分）に起動の余裕を足した暫定値で、実機の E2E で実測して見直す。
+- `error` が自動回復で `running` に戻れば、待機の中でそれを観測して enqueue へ進む。回復の後に人が enqueue し直す必要はない。戻らなければ上限で停止する。
 - enqueue の後に `not_received`（2 分）が出ても、購読が `running` なら、配送の問題として扱う。再 enqueue は重複レビューの危険があるため、しない。
 - 停止するときは、R-22 の evidence に、観測した `subscription.state`、`subscription.since`、`updatedAt` を含める。
 

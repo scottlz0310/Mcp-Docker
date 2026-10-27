@@ -217,7 +217,8 @@ var skillSizeBudgets = []struct {
 	// 出力（type）ごとの扱いの表に置き換え、並べて起動する手順を追加（SKILL.md は -15 文字で 43,695 文字へ。合計は references の +1,308 文字。遅延読み込みの references に、フォールバック（v0.8.0 未満の CLI）の具体的な規則を残すため）。
 	// 起動前の購読確認（review-wait.md「起動前の前提（購読）」）を追加: 合計は references の +1,140 文字。停止の扱いを圧縮せずに明記するため、合計の上限を実測へ更新した。
 	// 再レビュー経路（re-review-request.md）にも同じ前提を適用: 合計は +255 文字（累計 +1,395 文字）。両経路の順序を一致させるため、実測へ更新した。
-	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 80013},
+	// 購読の前提の error 行（自動回復の待機）と authRequired / stopped の分離: 合計は +278 文字。上限 6 分の根拠を節に明記するため、合計の上限を実測へ更新した。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 80291},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
