@@ -20,6 +20,10 @@ queue の観測結果から起動モードを推定してはならない。webho
 
 **Mcp-Docker の既定構成は `--mcp-http`**（`docker-compose.yml` の `thread-owl` サービスが `command: ["--mcp-http"]`）であり、この場合は次節の enqueue が必須である。
 
+### 起動前の前提（購読）の確認
+
+`--mcp-http` では、再レビュー依頼コメントを投稿する**前**に、`references/review-wait.md` の「起動前の前提（購読）」を満たす。満たさない場合は、コメントも enqueue も行わず、利用者へ報告して停止する（`REVIEW_WAIT_TIMEOUT`）。未購読のままでは enqueue しても自動開始が止まり、コメントだけが残るため。Phase W の最初の enqueue と同じ前提を、この再レビュー経路にも適用する。
+
 ### queue への登録（`--mcp-http` では必須）
 
 コメント投稿に続けて、**同一サイクル内で必ず** `{OWL}:enqueue_review` を実行する。ユーザーの指示を待たない。

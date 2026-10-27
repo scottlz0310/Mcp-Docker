@@ -13,10 +13,25 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 - 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
 - `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
 
+### 起動前の前提（購読）
+
+enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/SquirrelNotifier/review-status.json`）の `subscription.state` を読む。読み取りの規則は「進捗の監視の出力の読み方」の節と同じ（読み取り専用で、開いてすぐ閉じる）。コンテナの起動が間に合わず Squirrel が未購読のときは、自動開始が止まり、待っても何も届かない。
+
+| 観測 | 扱い |
+|---|---|
+| `subscription.state` が `running` | 正常。enqueue へ進む |
+| `starting` | 起動中の可能性。上限 5 分まで待つ。待つのは 1 回のシェル待機（シェル側で状態を確認し続け、LLM が公開状態を繰り返し読まない）。5 分以内に `running` になれば enqueue へ進む。超えたら利用者へ報告して停止する |
+| `stopped` / `stopping` / `error` / `authRequired` | 購読されていない。再試行しない。enqueue しない。利用者へ報告して停止する（Squirrel Notifier の起動、またはログインを依頼する） |
+| `updatedAt` が 3 分以上古い | Squirrel Notifier が動いていない可能性。enqueue しない。利用者へ報告して停止する |
+
+- `starting` の上限は、「打ち切りは、時間ではなく状態で決める」原則の例外である。起動の遅れは状態から終わりが分からないため、時間で区切る。
+- enqueue の後に `not_received`（2 分）が出ても、購読が `running` なら、配送の問題として扱う。再 enqueue は重複レビューの危険があるため、しない。
+- 停止するときは、R-22 の evidence に、観測した `subscription.state`、`subscription.since`、`updatedAt` を含める。
+
 ### 手順
 
 1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
-2. `{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
+2. 「起動前の前提（購読）」の節を満たしてから、`{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
    - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
    - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
 3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（Mcp-Docker の compose は thread-owl をホストへ公開しないので、mcp-gateway の route を経由する）。
@@ -98,8 +113,8 @@ SKILL.md の「Phase W」で、購読が `NOTIFICATION_TIMEOUT` で終わり、`
 | `state`（`waiting`。`holdReason` が `busy`（別のレビューの実行中）/ `ciPending`（required checks の確定待ち。最大 12 分）/ `autoPause`、または無い） | 起動待ち。**待ち続ける** |
 | `action_required`（終了コード 3。`holdReason = manual`） | 自動起動が off、または手動運用で、**利用者の操作待ち**。打ち切る（`REVIEW_WAIT_TIMEOUT`）。「レビューする」か、別 CLI での reviewer 起動を案内する |
 | `state`（`finished`。終了コード 0 / 1） | reviewer のプロセスが終了した。**打ち切る前に、手順 2a（`review://status` の再取得）を行う**。`reviewed` / `approved` なら HEAD 照合へ。`pending` のままなら、Verdict を投稿せずに終了したので、打ち切る（`REVIEW_WAIT_TIMEOUT`）。`outcome` / `exitCode` を報告する。終了コード 1（失敗で終了）の原因は、Squirrel Notifier のログ `%LocalAppData%/SquirrelNotifier/logs/winui3.log` で確認する |
-| `not_received` | queue event を受信していない。打ち切る（`REVIEW_WAIT_TIMEOUT`） |
-| `unobservable`（`reason`: `no_file` / `unreadable` / `unsupported_schema` / `stale`） | 観測不能（Squirrel Notifier が起動していない、v0.16.0 未満、別ホスト、`schemaVersion` が 1 でない、更新が 3 分以上止まっている）。打ち切る（`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」。`recovered` が続いたときは、待ち続けてよい |
+| `not_received` | queue event を受信していない（enqueue から 2 分）。購読の状態を確認する（「起動前の前提（購読）」の節）。購読が `running` なら、再 enqueue せず、利用者へ報告して停止する（`REVIEW_WAIT_TIMEOUT`）。購読が `running` でなければ、その状態の扱いに従う |
+| `unobservable`（`reason`: `no_file` / `unreadable` / `unsupported_schema` / `stale`） | 観測不能（Squirrel Notifier が起動していない、v0.16.0 未満、別ホスト、`schemaVersion` が 1 でない、更新が 3 分以上止まっている）。利用者の操作が要るため、即エスカレートする（再試行しない。Squirrel Notifier の起動、コンテナの起動、v0.16.0 以降への更新を依頼して停止する。`REVIEW_WAIT_TIMEOUT`）。理由は「観測不能」。`recovered` が続いたときは、待ち続けてよい |
 | `heartbeat` | 生存確認（状態は変わっていない）。1 行で報告する |
 | `timeout`（終了コード 4） | 監視の上限。完了の判定は `review://status` で行う（再購読の判断は下の手順） |
 | `error`（終了コード 2） | 引数エラー（`--key` / `--after`）。直して起動し直す |
