@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewed 側 skill（`review-raven-thread-owl-cycle`、revision 35）の起動前の購読確認で、`error` を `starting` と同じく上限 6 分まで `running` を待つように変えた。Squirrel Notifier の自動回復で `running` に戻る場合に、人手の enqueue し直しを不要にするため。`authRequired` は待たずに停止し、`stopped` / `stopping` は従来どおり即停止する。上限は暫定値で、実機の E2E で見直す。
+
 ## [2.34.0] - 2026-10-27
 
 ### Changed
