@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.1] - 2026-10-27
+
 ### Changed
 
 - reviewed 側 skill（`review-raven-thread-owl-cycle`、revision 35）の起動前の購読確認で、`error` を `starting` と同じく上限 6 分まで `running` を待つように変えた。Squirrel Notifier の自動回復で `running` に戻る場合に、人手の enqueue し直しを不要にするため。`authRequired` は待たずに停止し、`stopped` / `stopping` は従来どおり即停止する。上限は暫定値で、実機の E2E で見直す。
@@ -1029,7 +1031,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...HEAD
+[2.34.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...v2.34.1
 [2.34.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.31.4...v2.32.0
