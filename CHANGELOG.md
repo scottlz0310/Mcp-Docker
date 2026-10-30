@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-10-30
+
 ### Added
 
 - `mcp-docker reviewgate validate`が、リポジトリが名前を明示して許可した`skipped`のcheckを成功として扱えるようにした（Mcp-Docker#405）。これまでは、`conclusion`が`success`でないcheckを一律に`CI_NOT_GREEN`で拒否していたため、`if`条件で設計どおりに`skipped`になるjob（PRでは実行しないjobなど）が1件でもあると、完了記録を検証できなかった。GitHubは`skipped`を成功として扱い、必須チェックでもマージを妨げない。一方、reviewed側・reviewer側のskillは、`skipped`を「リポジトリ方針で明示的に許可されていない場合」は失敗とするが、その許可を検証器が実装していなかった。許可は、対象リポジトリの`.review-raven/ci-policy.json`（`{"version": 1, "allowedSkippedChecks": [...]}`）に名前を列挙し、**PRのHEADではなくbase refのファイルだけ**を読む（投稿者の許可リストと同じ信頼境界）。完了記録には`ci.skipPolicy`（`baseSha`、`allowedSkippedChecks`）と、許可に基づいて成功として扱ったcheckの`policyAllowedSkip: true`を記録する。`skipped`を一律には許さないのは、本来動くべき実質的なcheckが`if`やパスフィルタの誤りで黙って`skipped`になり、何も検証されないまま通ることを防ぐため。許可は名前の完全一致に限り、`neutral`は許可しない。許可した`skipped`以外のcheckが1件でも成功でなければ、また`success`のcheckが1件も無ければ、`CI_NOT_GREEN`とする。`requiredChecksPolicy`が`defined`でも`undefined`でも使える。`contractVersion`は1のまま（追加のフィールドは省略可能で、省略時は従来どおり）。reviewed側skill（revision 36）の`references/ci-check.md`（手順2a）と`completion-record.md`、reviewer側skill（revision 26）の`references/ci-check.md`に、宣言の読み方と適用の規則を追加した（両skillの判定規則は同じ）。SKILL.md本体は変えていない。
@@ -1035,7 +1037,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.35.0...HEAD
+[2.35.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...v2.35.0
 [2.34.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...v2.34.1
 [2.34.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.32.0...v2.33.0
