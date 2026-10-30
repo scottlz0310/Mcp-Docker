@@ -108,12 +108,28 @@ type CompletionRecord struct {
 // RequiredChecksUndefined にし、固定 HEAD で観測した全 check run を ObservedChecks に列挙する。
 // RequiredChecks が空であることだけでは、設定が未定義なのか判定できなかったのかを区別できないため、
 // 空配列を「未定義」と解釈しない。
+//
+// 設計どおり skipped になる check（PR では実行しない job など）は、repository が名前を明示して許可した
+// ものに限り、SkipPolicy と各 check の PolicyAllowedSkip で記録する。
 type FixedHeadCI struct {
-	HeadSHA              string     `json:"headSha"`
-	Complete             bool       `json:"complete"`
-	RequiredChecksPolicy string     `json:"requiredChecksPolicy,omitempty"`
-	RequiredChecks       []CheckRun `json:"requiredChecks"`
-	ObservedChecks       []CheckRun `json:"observedChecks,omitempty"`
+	HeadSHA              string      `json:"headSha"`
+	Complete             bool        `json:"complete"`
+	RequiredChecksPolicy string      `json:"requiredChecksPolicy,omitempty"`
+	RequiredChecks       []CheckRun  `json:"requiredChecks"`
+	ObservedChecks       []CheckRun  `json:"observedChecks,omitempty"`
+	SkipPolicy           *SkipPolicy `json:"skipPolicy,omitempty"`
+}
+
+// SkipPolicy は repository が宣言した、skipped を許可する check の名前の一覧である。
+//
+// 宣言は PR の HEAD ではなく base ref のファイル（.review-raven/ci-policy.json）から読む。
+// PR 自身が自分の skip を許可できないようにするためで、投稿者の allowlist と同じ信頼境界である。
+// BaseSHA は、その宣言を読んだ base ref の SHA で、後から読み直して確認できるようにする。
+// この検証器は形式と記録内の整合だけを確認し、宣言が base ref から読まれたことは確認できない
+// （記録の作成手順を定める skill の責務）。
+type SkipPolicy struct {
+	BaseSHA              string   `json:"baseSha"`
+	AllowedSkippedChecks []string `json:"allowedSkippedChecks"`
 }
 
 // ValidationTarget は完了記録を検証する直前に固定した外部状態を表す。
@@ -132,12 +148,16 @@ type ValidationTarget struct {
 // CI の read は (App ID, name) ごとに再実行を集約するため、別の GitHub App が同名の check を
 // 報告すると、同名の run が複数残る。AppID はそれらを区別する識別情報で、ObservedChecks では必須、
 // RequiredChecks では省略できる（必須 check は context 単位で、同名を重複として扱う）。
+//
+// PolicyAllowedSkip は、conclusion が skipped の check が、SkipPolicy で許可された名前であることを明示する。
+// skipped 以外の check には付けられない。
 type CheckRun struct {
-	Name       string `json:"name"`
-	AppID      int64  `json:"appId,omitempty"`
-	HeadSHA    string `json:"headSha"`
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
+	Name              string `json:"name"`
+	AppID             int64  `json:"appId,omitempty"`
+	HeadSHA           string `json:"headSha"`
+	Status            string `json:"status"`
+	Conclusion        string `json:"conclusion"`
+	PolicyAllowedSkip bool   `json:"policyAllowedSkip,omitempty"`
 }
 
 // DecodeCompletionRecord は厳格な JSON として完了記録を読み込む。
@@ -291,6 +311,10 @@ func (r CompletionRecord) Validate() error {
 	if !r.CI.Complete {
 		return stop(StopCINotGreen, "ci.complete", "固定 HEAD の必須 CI が完了していません")
 	}
+	allowedSkips, err := r.CI.allowedSkippedNames()
+	if err != nil {
+		return err
+	}
 	switch r.CI.RequiredChecksPolicy {
 	case "", RequiredChecksDefined:
 		if len(r.CI.ObservedChecks) != 0 {
@@ -299,7 +323,7 @@ func (r CompletionRecord) Validate() error {
 		if len(r.CI.RequiredChecks) == 0 {
 			return stop(StopCINotGreen, "ci.requiredChecks", "必須 check run がありません")
 		}
-		return validateGreenChecks("ci.requiredChecks", r.CI.RequiredChecks, r.HeadSHA, false)
+		return validateGreenChecks("ci.requiredChecks", r.CI.RequiredChecks, r.HeadSHA, false, allowedSkips)
 	case RequiredChecksUndefined:
 		if len(r.CI.RequiredChecks) != 0 {
 			return invalid("ci.requiredChecks", "requiredChecksPolicy が undefined のときは空にします")
@@ -307,7 +331,7 @@ func (r CompletionRecord) Validate() error {
 		if len(r.CI.ObservedChecks) == 0 {
 			return stop(StopCINotGreen, "ci.observedChecks", "観測した check run がありません")
 		}
-		return validateGreenChecks("ci.observedChecks", r.CI.ObservedChecks, r.HeadSHA, true)
+		return validateGreenChecks("ci.observedChecks", r.CI.ObservedChecks, r.HeadSHA, true, allowedSkips)
 	default:
 		return invalid("ci.requiredChecksPolicy", fmt.Sprintf("%q は未対応です", r.CI.RequiredChecksPolicy))
 	}
@@ -319,10 +343,40 @@ type checkIdentity struct {
 	name  string
 }
 
-// validateGreenChecks は checks がすべて同一 HEAD 上で completed / success であることを検証する。
+// allowedSkippedNames は SkipPolicy を検証し、skipped を許可された check の名前の集合を返す。
+// SkipPolicy が無ければ空の集合を返す（skipped は 1 件も許可されない）。
+func (ci FixedHeadCI) allowedSkippedNames() (map[string]struct{}, error) {
+	allowed := map[string]struct{}{}
+	if ci.SkipPolicy == nil {
+		return allowed, nil
+	}
+	if !shaPattern.MatchString(ci.SkipPolicy.BaseSHA) {
+		return nil, invalid("ci.skipPolicy.baseSha", "宣言を読んだ base ref の 40 桁の小文字 hexadecimal が必要です")
+	}
+	if len(ci.SkipPolicy.AllowedSkippedChecks) == 0 {
+		return nil, invalid("ci.skipPolicy.allowedSkippedChecks", "1 件以上の check 名が必要です（許可しないなら skipPolicy ごと省略します）")
+	}
+	for i, name := range ci.SkipPolicy.AllowedSkippedChecks {
+		item := fmt.Sprintf("ci.skipPolicy.allowedSkippedChecks[%d]", i)
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
+			return nil, invalid(item, "空、または前後に空白のある名前は使えません")
+		}
+		if _, exists := allowed[name]; exists {
+			return nil, invalid(item, "同じ名前が重複しています")
+		}
+		allowed[name] = struct{}{}
+	}
+	return allowed, nil
+}
+
+// validateGreenChecks は checks がすべて同一 HEAD 上で completed であり、success であることを検証する。
+// ただし、allowedSkips に名前があり、policyAllowedSkip を付けた skipped の check は成功として扱う。
+// skipped は「実質的な check が黙って動かなかった」場合と区別できないため、名前を明示して許可されたものに限り、
+// success の check が 1 件以上あることも必須とする（すべてが skipped の記録は、何も検証していない）。
 // byApp が true のときは App ID を必須とし、(App ID, name) で重複を判定する。false のときは name だけで判定する。
-func validateGreenChecks(field string, checks []CheckRun, headSHA string, byApp bool) error {
+func validateGreenChecks(field string, checks []CheckRun, headSHA string, byApp bool, allowedSkips map[string]struct{}) error {
 	seen := make(map[checkIdentity]struct{}, len(checks))
+	successCount := 0
 	for i, check := range checks {
 		item := fmt.Sprintf("%s[%d]", field, i)
 		if strings.TrimSpace(check.Name) == "" {
@@ -342,9 +396,28 @@ func validateGreenChecks(field string, checks []CheckRun, headSHA string, byApp 
 		if check.HeadSHA != headSHA {
 			return stop(StopHeadMismatch, item+".headSha", "完了記録の HEAD と一致しません")
 		}
-		if check.Status != "completed" || check.Conclusion != "success" {
-			return stop(StopCINotGreen, item, "status=completed かつ conclusion=success が必要です")
+		if check.PolicyAllowedSkip {
+			if check.Conclusion != "skipped" {
+				return invalid(item+".policyAllowedSkip", "conclusion が skipped の check にだけ付けられます")
+			}
+			if _, ok := allowedSkips[check.Name]; !ok {
+				return invalid(item+".policyAllowedSkip", "ci.skipPolicy.allowedSkippedChecks に名前がありません")
+			}
 		}
+		if check.Status != "completed" {
+			return stop(StopCINotGreen, item, "status=completed が必要です")
+		}
+		switch {
+		case check.Conclusion == "success":
+			successCount++
+		case check.Conclusion == "skipped" && check.PolicyAllowedSkip:
+			// repository が名前を明示して許可した skipped
+		default:
+			return stop(StopCINotGreen, item, "conclusion=success が必要です（skipped は ci.skipPolicy で許可した名前に policyAllowedSkip を付けたものだけ）")
+		}
+	}
+	if successCount == 0 {
+		return stop(StopCINotGreen, field, "conclusion=success の check が 1 件以上必要です")
 	}
 	return nil
 }
