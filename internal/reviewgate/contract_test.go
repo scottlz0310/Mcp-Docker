@@ -313,3 +313,184 @@ func TestDecodeCompletionRecordRejectsAmbiguousJSON(t *testing.T) {
 		})
 	}
 }
+
+const (
+	testBaseSHA = "89abcdef0123456789abcdef0123456789abcdef"
+
+	// testSkippedCheck は、PR では実行しない設計で、必ず skipped になる job の名前。
+	testSkippedCheck = "report"
+)
+
+// withAllowedSkip は、必須 check が未定義の記録に、repository が許可した skipped の check を 1 件加える。
+// success の check（Go CLI チェック）に加えて、skipPolicy で許可した名前の skipped の check を観測した状態にする。
+func withAllowedSkip(r *CompletionRecord) {
+	asUndefinedRequiredChecks(r)
+	r.CI.SkipPolicy = &SkipPolicy{BaseSHA: testBaseSHA, AllowedSkippedChecks: []string{testSkippedCheck}}
+	r.CI.ObservedChecks = append(r.CI.ObservedChecks, CheckRun{
+		Name: testSkippedCheck, AppID: testAppID, HeadSHA: testHeadSHA,
+		Status: "completed", Conclusion: "skipped", PolicyAllowedSkip: true,
+	})
+}
+
+func skippedCheck(r *CompletionRecord) *CheckRun {
+	return &r.CI.ObservedChecks[len(r.CI.ObservedChecks)-1]
+}
+
+// TestCompletionRecordValidateSkipPolicy は、repository が名前を明示して許可した skipped だけを成功として扱い、
+// それ以外の skipped や neutral、許可の誤用を拒否することを固定する。
+//
+// skipped は GitHub の必須チェックでは成功として扱われるが、本来動くべき実質的な check（テストなど）が
+// if やパスフィルタの誤りで黙って skipped になった場合と区別できない。そのため一律には許さない。
+func TestCompletionRecordValidateSkipPolicy(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*CompletionRecord)
+		code   StopCode
+	}{
+		// 許可される
+		{name: "allowed skip with undefined required checks", mutate: withAllowedSkip, code: ""},
+		{name: "allowed skip with defined required checks", mutate: func(r *CompletionRecord) {
+			r.CI.SkipPolicy = &SkipPolicy{BaseSHA: testBaseSHA, AllowedSkippedChecks: []string{testSkippedCheck}}
+			r.CI.RequiredChecks = append(r.CI.RequiredChecks, CheckRun{
+				Name: testSkippedCheck, HeadSHA: testHeadSHA, Status: "completed", Conclusion: "skipped", PolicyAllowedSkip: true,
+			})
+		}, code: ""},
+		{name: "skip policy declared but unused", mutate: func(r *CompletionRecord) {
+			asUndefinedRequiredChecks(r)
+			r.CI.SkipPolicy = &SkipPolicy{BaseSHA: testBaseSHA, AllowedSkippedChecks: []string{testSkippedCheck}}
+		}, code: ""},
+
+		// skipped を許可しない（宣言が無い、名前が違う、印が無い）
+		{name: "skipped without any policy", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy = nil
+			skippedCheck(r).PolicyAllowedSkip = false
+		}, code: StopCINotGreen},
+		{name: "skipped without mark although name is allowed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).PolicyAllowedSkip = false
+		}, code: StopCINotGreen},
+		{name: "skipped with a name that is not allowed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.AllowedSkippedChecks = []string{"other"}
+		}, code: StopCompletionRecordInvalid},
+		{name: "second skipped check is not allowed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			other := *skippedCheck(r)
+			other.Name = "Go CLI テスト"
+			other.PolicyAllowedSkip = false
+			r.CI.ObservedChecks = append(r.CI.ObservedChecks, other)
+		}, code: StopCINotGreen},
+		{name: "neutral is never allowed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).Conclusion = "neutral"
+			skippedCheck(r).PolicyAllowedSkip = false
+		}, code: StopCINotGreen},
+
+		// 許可の印の誤用
+		{name: "mark on a success check", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.ObservedChecks[0].PolicyAllowedSkip = true
+		}, code: StopCompletionRecordInvalid},
+		{name: "mark on a failed check", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).Conclusion = "failure"
+		}, code: StopCompletionRecordInvalid},
+		{name: "mark on a neutral check", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).Conclusion = "neutral"
+		}, code: StopCompletionRecordInvalid},
+
+		// 許可しても、他の check の成功は必須
+		{name: "allowed skip but another check failed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.ObservedChecks[0].Conclusion = "failure"
+		}, code: StopCINotGreen},
+		{name: "allowed skip but nothing succeeded", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.ObservedChecks = r.CI.ObservedChecks[1:]
+		}, code: StopCINotGreen},
+		{name: "allowed skip but check is not completed", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).Status = "in_progress"
+		}, code: StopCINotGreen},
+		{name: "allowed skip on another head", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			skippedCheck(r).HeadSHA = strings.Repeat("f", 40)
+		}, code: StopHeadMismatch},
+
+		// 宣言（skipPolicy）自体の不備
+		{name: "skip policy base sha format", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.BaseSHA = "main"
+		}, code: StopCompletionRecordInvalid},
+		{name: "skip policy empty list", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.AllowedSkippedChecks = nil
+		}, code: StopCompletionRecordInvalid},
+		{name: "skip policy blank name", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.AllowedSkippedChecks = append(r.CI.SkipPolicy.AllowedSkippedChecks, " ")
+		}, code: StopCompletionRecordInvalid},
+		{name: "skip policy name with surrounding space", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.AllowedSkippedChecks = []string{" " + testSkippedCheck}
+		}, code: StopCompletionRecordInvalid},
+		{name: "skip policy duplicate name", mutate: func(r *CompletionRecord) {
+			withAllowedSkip(r)
+			r.CI.SkipPolicy.AllowedSkippedChecks = append(r.CI.SkipPolicy.AllowedSkippedChecks, testSkippedCheck)
+		}, code: StopCompletionRecordInvalid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := validRecord()
+			tt.mutate(&record)
+			err := record.Validate()
+			if tt.code == "" {
+				if err != nil {
+					t.Fatalf("Validate returned error: %v", err)
+				}
+				return
+			}
+
+			var stopErr *StopError
+			if !errors.As(err, &stopErr) {
+				t.Fatalf("Validate error = %v, want *StopError", err)
+			}
+			if stopErr.Code != tt.code {
+				t.Fatalf("StopError.Code = %q, want %q（%v）", stopErr.Code, tt.code, err)
+			}
+		})
+	}
+}
+
+// TestDecodeCompletionRecordSkipPolicy は、skipPolicy と policyAllowedSkip を含む JSON が、
+// 契約どおりに読み込まれて検証を通ること、skipPolicy 内の未知フィールドを拒否することを確認する。
+func TestDecodeCompletionRecordSkipPolicy(t *testing.T) {
+	record := validRecord()
+	withAllowedSkip(&record)
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	decoded, err := DecodeCompletionRecord(data)
+	if err != nil {
+		t.Fatalf("DecodeCompletionRecord returned error: %v", err)
+	}
+	if err := decoded.Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	if decoded.CI.SkipPolicy == nil || decoded.CI.SkipPolicy.BaseSHA != testBaseSHA {
+		t.Fatalf("SkipPolicy = %+v, want baseSha %s", decoded.CI.SkipPolicy, testBaseSHA)
+	}
+	if !skippedCheck(&decoded).PolicyAllowedSkip {
+		t.Fatalf("PolicyAllowedSkip was not preserved: %+v", skippedCheck(&decoded))
+	}
+
+	unknown := strings.Replace(string(data), `"baseSha"`, `"unknown":1,"baseSha"`, 1)
+	if _, err := DecodeCompletionRecord([]byte(unknown)); err == nil {
+		t.Fatal("DecodeCompletionRecord accepted an unknown field in skipPolicy")
+	}
+}

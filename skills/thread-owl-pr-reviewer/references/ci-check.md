@@ -97,9 +97,13 @@ required 未定義のときは、まだ報告されていない check（後か�
 
 ## 5. 判定
 
-- `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功の場合だけ。
+`skipped` を成功として扱うのは、リポジトリが**名前を明示して許可した check に限る**（判定規則は reviewed-side の `ci-check.md` 手順 2a と同じで、片方を変えるときはもう片方も同時に更新する）。`if` 条件で設計どおりに skipped になる job（PR では実行しない job など）は GitHub では成功として扱われるが、本来動くべき実質的な check が `if` やパスフィルタの誤りで黙って skipped になった場合と、結論からは区別できないため。
+- 宣言: 固定した base ref の SHA にある `.review-raven/ci-policy.json` を読む。形式は `{"version": 1, "allowedSkippedChecks": ["<check run の name>", ...]}`。**PR の HEAD や作業ツリーから読んではならない**（PR 自身が、自分の skip を許可できないようにするため）。ファイルが無い（404）なら許可は 0 件。存在するのに、JSON ではない、`version` が 1 ではない、`allowedSkippedChecks` が空または文字列だけの配列ではない、前後に空白のある名前や重複がある、未知のキーがある、のいずれかなら `CI: unknown`。
+- 適用: `conclusion: skipped` の check run の `name` が `allowedSkippedChecks` に完全一致する場合だけ成功として扱う。それ以外の check が 1 件でも成功でなければ `CI: success` にしない。`success` の check が 1 件も無い場合（すべてが許可した skipped）も `CI: success` にしない。`neutral` など、`skipped` 以外は許可の対象外。
+
+- `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`（または許可した `skipped`）、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功（または許可した `skipped`）で、`success` が 1 件以上ある場合だけ。
 - `CI: pending`: required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る。commit status は `pending`）の場合。
-- `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（リポジトリ方針で明示的に許可されていない場合）などの結論がある場合、または required の commit status が `failure` / `error` の場合。
+- `CI: failure`: required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（上の宣言で許可されていない場合）などの結論がある場合、または required の commit status が `failure` / `error` の場合。
 - `CI: unknown`: 上記のいずれにも当てはめられない場合。取得できない、対象 SHA を確認できない、`pagination.complete` が `true` でない、tool error、required の集合を確定できない（「4」。provider が曖昧な classic 設定、`workflows` / `code_scanning` / `code_quality` / `code_coverage` の rule を含む）、結果不明を含む。
 
 optional check の結果は別途記録する。`CI: unknown` のまま Verdict / APPROVE を投稿しない。
@@ -116,4 +120,4 @@ re-review（O-15）では、current head を固定し直して、この文書の
 
 ## 8. 記録
 
-evidence に次を記録する（`observed`）: `reviewedHeadSha`、CI read 経路（`{RAVEN}` / `gh api`）と `{RAVEN}` の解決可否、応答の `sha`、全 check run、status / conclusion、`pagination.complete`、`deduplication`、SHA 比較、required の集合とその由来（ruleset / classic / 未定義）、失敗ログ経路、最終 head 再確認。最終的な verdict の根拠とした CI の対象 SHA を確認・記録する。
+evidence に次を記録する（`observed`）: `reviewedHeadSha`、CI read 経路（`{RAVEN}` / `gh api`）と `{RAVEN}` の解決可否、応答の `sha`、全 check run、status / conclusion、`pagination.complete`、`deduplication`、SHA 比較、required の集合とその由来（ruleset / classic / 未定義）、skipped を許可した宣言（`.review-raven/ci-policy.json` の有無、読んだ base ref の SHA、許可した名前）、失敗ログ経路、最終 head 再確認。最終的な verdict の根拠とした CI の対象 SHA を確認・記録する。
