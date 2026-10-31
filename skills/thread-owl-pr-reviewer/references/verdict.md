@@ -35,8 +35,8 @@ reviewed-side workflow は、マージ判断時に「thread-owl から現在の 
 **投稿前後の検証（必須）**
 
 1. 投稿前: `summary` を上記 2 条件で検証する（行分割は「Verdict 照合規則」の手順 1 に従う）。満たさない場合は投稿せず `VERDICT_FORMAT_INVALID` として停止する。予約行を削って投稿し直すのではなく、停止して報告する。
-2. 投稿: `{OWL}:post_review_verdict` を 1 回だけ呼ぶ。head 不一致の error は `STALE_REVIEW`、それ以外の error・結果不明は `VERDICT_POST_FAILED` として停止し、即時再実行しない。結果不明の場合は `gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate` の read-only で重複を確認してから報告する。
-3. 投稿後: 戻り値の `commentId` の本文を `gh api repos/<owner>/<repo>/issues/comments/<commentId>` の read-only で取得し、「Verdict 照合規則」で書式一致と HEAD 行のキャプチャが `reviewedHeadSha` と完全一致することを検証する。不一致なら `VERDICT_FORMAT_INVALID` として comment ID と不一致の行を報告し、停止する。重複 Verdict を作らないよう再投稿しない。
+2. 投稿: `{OWL}:post_review_verdict` を 1 回だけ呼ぶ。head 不一致の error は `STALE_REVIEW`、それ以外の error・結果不明は `VERDICT_POST_FAILED` として停止し、即時再実行しない。結果不明の場合も`comment-reader.md`のreaderで重複を確認し、再投稿せず報告する。
+3. 投稿後: `comment-reader.md`に従うreaderの`issueComments`から返却`commentId`の本文と投稿者を確認し、「Verdict 照合規則」で書式一致と HEAD 行のキャプチャが `reviewedHeadSha` と完全一致することを検証する。不一致なら `VERDICT_FORMAT_INVALID` として comment ID と不一致の行を報告し、停止する。重複 Verdict を作らないよう再投稿しない。
 4. 投稿後の本文を read できない場合は `verdict post-verification: not performed` と記録して報告する。検証済みとは書かず、再投稿もしない。
 5. comment ID、投稿前後の検証結果を evidence に残す。
 

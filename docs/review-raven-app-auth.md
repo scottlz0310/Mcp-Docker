@@ -45,3 +45,13 @@ gatewayは利用者を認証し、`upstream_bearer_token_env=REVIEW_RAVEN_PROXY_
 旧provider tokenモードへ戻す場合は、切り替え前のrepo構成とイメージへ戻して再作成する。標準Composeの設定を混在させない。専用botが投稿したコメントを読めるよう、許可リストの`review-raven`は維持する。gateway Contents縮小後は、旧resolve経路がそのまま使えると仮定しない。
 
 gatewayのContents縮小は、専用App移行とは別の後続作業である。
+
+## コメントreaderとskillの適用順
+
+review-ravenとthread-owlの`read_pr_comments`は、同じ既存の`REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`を`TRUSTED_COMMENT_AUTHORS`として受け取る。PR作成者を検証する`THREAD_OWL_ALLOWED_AUTHORS`とは用途が異なり、流用しない。未設定/空のreader許可リストは誰も信頼せず、本文取得前に停止する。内部連携を有効にする設定ではない。
+
+1. 対応済みreaderを含むコンテナと、このComposeの設定を反映する。既存の資格情報注入と`make check-compose-config`を使い、秘密値を表示しない。
+2. 同じ既存PRを対象に、raven側は`{owner, repo, pr}`、owl側は`{owner, repo, prNumber}`で`read_pr_comments`を実行する。両方が成功し、要求したPRのhead/base・全ページ・snapshotIdを確認できるまでskillを配布しない。許可リスト未設定や取得失敗を成功扱いしない。
+3. 対応する公開版mcp-dockerを用い、reviewed rev37 / reviewer rev27を`skill install`で配布する。配置先コピーを直接編集しない。`skill status`で4 CLIのrevisionを確認し、同じバイナリの`reviewgate validate`で完了記録を検証する。他PCの配布は別々に確認し、このPCの結果を転記しない。
+
+受付・購読先のI2移行、内部連携の解凍、GitHub MCPの撤去は別作業である。新readerが使えない状態で旧本文APIへ迂回する運用は追加しない。

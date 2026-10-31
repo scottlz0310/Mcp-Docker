@@ -9,6 +9,8 @@
 3. 採用候補で、PR URL 起点なら `{OWL}:get_pr`、queue 起点なら queue resource read と `{OWL}:get_pr` のうち対象を確認できる最小 read を **1 回成功** させる。成功とは tool / resource error がなく、PR identity・head SHA などの minimum output schema を満たすことをいう。server 一覧、`Connected` 表示、schema 取得だけでは成功とみなさない。
 4. `{OWL}` から選択済み server / route / handle への binding を run の状態に固定し、以後の全 read / write で同じ binding を使う。後続の接続失敗、schema 不一致、allowlist 拒否を、別 candidate や GitHub connector / `gh` の write に切り替える理由にしてはならない。再 discovery による途中の候補切り替えも禁止する。
 
+`{OWL}:read_pr_comments`は必須capability。入力schemaの`owner/repo/prNumber`を確認し、不在・不一致は`BLOCKED_MCP_DISCOVERY`。成功応答とerror envelopeは最初の本文readで`comment-reader.md`に従い検証する。Independent Stage前の本文probeはせず、最小readはget_prのままにする。
+
 binding の確定後に、`{RAVEN}` の discovery と CI read の経路の固定を、`references/ci-check.md` の「1. 経路の固定」に従って行う。`{RAVEN}` の未解決は、レビューの停止条件にしない。
 
 ## 停止

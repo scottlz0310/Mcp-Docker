@@ -232,7 +232,9 @@ var skillSizeBudgets = []struct {
 	// #365: 非Gitでのclone手順と未検証時の非承認基準を明記。詳細はreferencesに置く。
 	// #405: skipped の許可（リポジトリ方針）の判定規則を ci-check.md に追加（reviewed 側の手順 2a と同じ規則。片方を変えるときはもう片方も同時に更新する）。
 	// SKILL.md は変えない。合計は references の +982 文字。reviewed 側と規則を一致させるため、合計の上限を実測へ更新した。
-	{skill: "thread-owl-pr-reviewer", maxLines: 364, maxRunes: 29035, maxTotalRunes: 50007},
+	// B1: 本文取得のschema・投稿者検証エラー・snapshot再評価をcomment-reader.mdへ集約。
+	// SKILL.mdは既存の行数/文字数上限内に保ち、参照文書の追加による合計+1,601文字だけを反映する。
+	{skill: "thread-owl-pr-reviewer", maxLines: 364, maxRunes: 29035, maxTotalRunes: 51608},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
