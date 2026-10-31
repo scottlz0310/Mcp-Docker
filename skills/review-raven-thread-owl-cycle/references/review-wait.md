@@ -125,7 +125,7 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
 ### Auto-Pauseの待機方針
 
 - 公開状態が新鮮で対象eventが一致することを先に確認する。`autoPause`のagentId/limitId、使用率/閾値、observedAtとその経過、resetAtを報告する。JSONの鮮度と使用率の観測時刻は別物であり、欠落値を0や解除済みへ補わない。
-- 現在UTCから有効な未来のresetAtまでが**20分以内（ちょうど20分を含む）なら待つ**。20分超、詳細欠落、resetAt欠落/不正/過去なら解除予定不明として実装側の待機を終了する。resetAtは解除保証ではない。予定時刻を過ぎてもautoPauseなら、再評価で解除を確認するまで待機を延長しない。
+- 現在UTCから有効な未来のresetAtまでが**20分以内（ちょうど20分を含む）なら待つ**。20分超なら長期保留、詳細欠落・resetAt欠落/不正/過去なら解除予定不明として実装側の待機を終了する。resetAtは解除保証ではない。予定時刻を過ぎてもautoPauseなら、再評価で解除を確認するまで待機を延長しない。
 - 詳細を配送するCLIでは出力の`autoPause`を使う。旧CLIが詳細を落とす場合は同じ公開JSONを下記規則で直接読む。旧Squirrelで詳細自体が無ければ不明として扱う。認証・URL・他ホストの内部ストアで補わない。
 - 終了前に下記手順2aで完了raceを確認する。pendingなら`REVIEW_WAIT_TIMEOUT`として、原因・予定UTC/残り時間・観測の鮮度・解除には最新使用率が閾値未満になる必要がある旨を報告する。自分のsubscriber/watchだけをhostのキャンセル機能または一意に確認したPIDで終了する。Squirrelと独立reviewerの自動解除/起動は継続し、設定変更・再enqueue・完了扱いをしない。公開状態だけで解除方法を断定しない。
 
