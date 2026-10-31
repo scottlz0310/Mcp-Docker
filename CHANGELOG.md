@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-10-31
+
 ### Changed
 
 - reviewed skill rev39でAuto-Pauseの停止根拠と観測時刻を確認し、解除予定が20分以内なら待機、20分超または不明なら原因・解除条件を報告して実装側の待機を終了する。旧CLIでは公開JSONを直接確認し、Squirrelの自動解除・reviewer起動は継続する。
@@ -1057,7 +1059,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.37.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.38.0...HEAD
+[2.38.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...v2.35.0
