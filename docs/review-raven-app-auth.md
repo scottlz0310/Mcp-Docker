@@ -55,3 +55,11 @@ review-ravenとthread-owlの`read_pr_comments`は、同じ既存の`REVIEW_RAVEN
 3. 対応する公開版mcp-dockerを用い、reviewed rev37 / reviewer rev27を`skill install`で配布する。配置先コピーを直接編集しない。`skill status`で4 CLIのrevisionを確認し、同じバイナリの`reviewgate validate`で完了記録を検証する。他PCの配布は別々に確認し、このPCの結果を転記しない。
 
 受付・購読先のI2移行、内部連携の解凍、GitHub MCPの撤去は別作業である。新readerが使えない状態で旧本文APIへ迂回する運用は追加しない。
+
+## B2の投稿APIとskill移行
+
+reviewed rev38は専用Appのpost_review_cycle_commentを必須とする。対応済みサーバーを先に配備し、公開toolのowner/repo/pr/headSha/kind/bodyとcommentId/url/author/headShaを確認する。read-onlyのtool discoveryを投稿成功の証拠にしない。
+
+独立レビュー済みの自分の実PRがOPENの間に、B2の実投稿確認として対応サマリを最大1件だけ投稿する。これは旧skillのreviewed runや独立Verdictの代用ではない。返却IDで既存readerから投稿者review-raven・本文・head/baseを確認し、結果不明時は再投稿しない。成功後に対応CLIとrev38を配布し、4 CLIのstatus/reviewgateを確認する。新skillでの新規PR全往復は別に実績を記録する。
+
+通常の再依頼/サマリはRAVEN、汎用の指摘返信/Issue作成はGHのrouteを維持する。gatewayの権限縮小・GitHub MCP撤去・内部連携の有効化をこの配布に含めない。

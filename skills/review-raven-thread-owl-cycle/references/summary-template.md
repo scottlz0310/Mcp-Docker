@@ -2,7 +2,7 @@
 
 SKILL.md の「Phase 7: サマリコメント投稿」から移した template（内容は変更していない）。
 
-`{GH}:add_issue_comment` で以下を PR に投稿する:
+`references/cycle-comment.md`に従い`{RAVEN}:post_review_cycle_comment(kind=cycle_summary)`で以下をPRに投稿する:
 
 ```markdown
 ## レビュー対応サマリ（thread-owl）
