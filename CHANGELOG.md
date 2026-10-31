@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewed skill rev38で再レビュー依頼/対応サマリをreview-ravenのpost_review_cycle_commentへ移した。GHの汎用返信とは投稿routeとidentityを分け、返却ID・実投稿者・本文・HEADをreaderで照合する。結果不明時の別経路再投稿を禁じる。
+
+
 ## [2.36.0] - 2026-10-31
 
 ### Changed
