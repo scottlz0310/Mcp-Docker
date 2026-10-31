@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-10-31
+
 ### Changed
 
 - reviewed skill rev38で再レビュー依頼/対応サマリをreview-ravenのpost_review_cycle_commentへ移した。GHの汎用返信とは投稿routeとidentityを分け、返却ID・実投稿者・本文・HEADをreaderで照合する。結果不明時の別経路再投稿を禁じる。
@@ -1051,7 +1053,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.36.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.37.0...HEAD
+[2.37.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...v2.35.0
 [2.34.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...v2.34.1
