@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- reviewed skill rev39でAuto-Pauseの停止根拠と観測時刻を確認し、解除予定が20分以内なら待機、20分超または不明なら原因・解除条件を報告して実装側の待機を終了する。旧CLIでは公開JSONを直接確認し、Squirrelの自動解除・reviewer起動は継続する。
+
 ## [2.37.0] - 2026-10-31
 
 ### Changed
