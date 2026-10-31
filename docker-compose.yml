@@ -238,7 +238,7 @@ services:
   thread-owl:
     # 内部連携（REVIEW_INTERNAL_LINK_ENABLED）の内部面・台帳・配送は、最新リリース（:latest、v0.7.0）にはまだ含まれない。
     # 有効のときは、対応済みのイメージを THREAD_OWL_IMAGE で明示させる（未指定なら停止。リリース前の main ビルドは make pull-main / restart-main）。
-    image: ${THREAD_OWL_IMAGE:-${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?内部連携を有効にするには、内部面を含む thread-owl のイメージを THREAD_OWL_IMAGE で指定してください（リリース前は make pull-main / restart-main）}}${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}}
+    image: ${THREAD_OWL_IMAGE:-${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?内部面対応のTHREAD_OWL_IMAGEを指定}}${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}}
     container_name: thread-owl
     restart: unless-stopped
     command: ["--mcp-http"]
@@ -255,6 +255,8 @@ services:
       # 設定すると、許可された作成者の同一リポジトリの PR だけを queue に載せる（fork は常に拒否）。
       # 未設定（空）の間は、作成者を検証できないため、すべての PR と再レビュー依頼を拒否する（fail-closed。thread-owl v0.7.0 以降）。
       - ALLOWED_AUTHORS=${THREAD_OWL_ALLOWED_AUTHORS:-}
+      # コメント本文のreaderには、review-ravenと同じ既存の投稿者許可リストを渡す。
+      - TRUSTED_COMMENT_AUTHORS=${REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS:-}
       # review-raven との内部連携（任意。REVIEW_INTERNAL_LINK_ENABLED が未設定の間は、すべて空で、無効）。
       # 有効にすると、永続台帳（/data/ledger.sqlite）・内部面（/internal/mcp）・review-raven への配送が有効になる。
       # 必須の秘密と ACL が欠けていれば、起動前の設定検証で止まる。手順は docs/review-internal-link.md。

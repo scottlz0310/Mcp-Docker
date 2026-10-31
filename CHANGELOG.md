@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- reviewed/reviewer skillのコメント本文取得を、それぞれの`read_pr_comments`へ統一した。投稿者検証・全ページ・head/base・snapshotを確認し、失敗時の旧本文APIへの迂回を廃止する。reviewed rev37 / reviewer rev27へ更新した。
+- thread-owlのreaderにもreview-ravenと同じ既存の投稿者許可リストを渡し、設定反映・両readerの実確認・skill配布の順を文書化した。内部連携の設定は変更しない。
+
 - リリース共通workflowをrelease-automate v3.2.1へ更新し、準備時の比較元に対象版以上の旧系列タグを選ばない修正を取り込んだ。
 
 ## [2.35.0] - 2026-10-30

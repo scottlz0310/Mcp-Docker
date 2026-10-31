@@ -26,6 +26,8 @@ status = blocked
 
 この場合は、対象 PR（確定済みの場合）、logical alias、必要 capability、候補数、失敗分類（unresolved / not connected / schema mismatch / read failed / ambiguous）、read 検証の結果、`writes performed: 0`、再実行に必要な設定変更を報告する。token・Authorization header・秘密情報は報告しない。`gh` CLI、別の MCP candidate、別の write 経路へ進まず、Phase 3 以降の変更・返信・resolve・コメント投稿・enqueue を実行しない。
 
+8. `{RAVEN}:read_pr_comments`は必須capability。入力schemaの`owner/repo/pr`を確認し、不在・不一致なら`BLOCKED_MCP_DISCOVERY`。成功応答とerror envelopeはR-01後の最初の本文readで`references/comment-reader.md`に従って検証する。R-00で本文を読むprobeはしない。
+
 ### Write route と投稿 identity の discovery
 
 R-00 では read binding だけでなく、R-10、R-14、R-19 が使う GitHub write binding も固定する。投稿 identity は route / server instance / 認証経路に依存して変わり得るため、`get_me` の成功や token 種別から推測しない。

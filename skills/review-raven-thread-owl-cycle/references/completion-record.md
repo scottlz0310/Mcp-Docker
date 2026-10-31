@@ -4,7 +4,7 @@ SKILL.md の「Phase 7.5: 完了記録とローカル契約検証」から移し
 
 1. Phase 7 のサマリ投稿と投稿者確認が成功した直後に、最終スナップショットを取り直します。
    - `{GH}:get_pr` で現在のPR HEADを取得し、`final_head` として固定する。Phase 6.5 の `reviewedHeadSha` と異なる場合は、古いCI結果を破棄して Phase 6.5 からやり直す。
-   - `{RAVEN}:get_review_threads` に `include_bodies=false` を明示して全ページを取得し、`pagination.complete=true` と `summary.unresolved=0` を確認する。未解決が残る場合は `REVIEW_INCOMPLETE` として停止する。
+   - `references/comment-reader.md`に従って`{RAVEN}:read_pr_comments`を再取得し、`pagination.complete=true`と`summary.unresolvedThreads=0`を全thread状態と照合する。snapshotIdの変化と新規actionable指摘も確認する。未解決が残る場合は `REVIEW_INCOMPLETE` として停止する。
    - `all_replied=true` は、今回のサイクルで対象にした全スレッドの返信・resolve結果、および review body / PR comment の全 actionable 指摘に対する返信・処理済み記録を確認できた場合だけ設定する。未確認を `true` にしてはならない。
    - Phase 6.5 と同じCI read bindingで `final_head` の全ページを取得し、`sha`、各 `head_sha`、`pagination.complete` を再確認する。`references/ci-check.md` の手順 2 で確定した required の集合に従い、次のとおり扱う。記録する check は、すべて `status=completed` かつ `conclusion=success`（または `ci-check.md` の手順 2a で許可した `skipped`）であることを確認する。
    - **required を確定できた**: 全 required check を `requiredChecks` に列挙する（`requiredChecksPolicy` は省略するか `defined`）。
