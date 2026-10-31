@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-10-31
+
 ### Changed
 
 - reviewed/reviewer skillのコメント本文取得を、それぞれの`read_pr_comments`へ統一した。投稿者検証・全ページ・head/base・snapshotを確認し、失敗時の旧本文APIへの迂回を廃止する。reviewed rev37 / reviewer rev27へ更新した。
@@ -1044,7 +1046,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.35.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.36.0...HEAD
+[2.36.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.1...v2.35.0
 [2.34.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.34.0...v2.34.1
 [2.34.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.33.0...v2.34.0
