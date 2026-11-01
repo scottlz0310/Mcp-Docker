@@ -63,3 +63,11 @@ reviewed rev38は専用Appのpost_review_cycle_commentを必須とする。対�
 独立レビュー済みの自分の実PRがOPENの間に、B2の実投稿確認として対応サマリを最大1件だけ投稿する。これは旧skillのreviewed runや独立Verdictの代用ではない。返却IDで既存readerから投稿者review-raven・本文・head/baseを確認し、結果不明時は再投稿しない。成功後に対応CLIとrev38を配布し、4 CLIのstatus/reviewgateを確認する。新skillでの新規PR全往復は別に実績を記録する。
 
 通常の再依頼/サマリはRAVEN、汎用の指摘返信/Issue作成はGHのrouteを維持する。gatewayの権限縮小・GitHub MCP撤去・内部連携の有効化をこの配布に含めない。
+
+## B3の本文更新APIとskill移行
+
+reviewed rev40は、PR説明を更新する必要がある場合だけget_pr_description / update_pr_descriptionを使用する。review-raven v0.10.0以降の専用Appモードを先に配備し、11 toolの公開と既存readerを確認する。入力と停止規則は[専用手順](../skills/review-raven-thread-owl-cycle/references/pr-description.md)を参照する。通常レビューでの本文編集は必須にしない。
+
+2026-11-02にreview-raven v0.10.0をこのPCへ配備し、[検証PR177](https://github.com/scottlz0310/review-raven/pull/177)で専用Appによる本文更新・元本文復元を各1回、計2回だけ実施した。同一本文とHEAD/hash競合拒否はPATCHなし、作成者不変・実editorのBot Node ID・本文/hash/HEAD/stateを読戻し確認した。PRは未マージcloseし検証branch/refも整理済み。別PC・期限越えtoken更新の検証へは繰り上げない。
+
+Mcp-Dockerの対応公開版を取得してからskill installで4 CLIへ配布し、statusと同じバイナリのreviewgateでrevisionを確認する。配置済みコピーを直接編集しない。実App編集E2E、skill配布、新skillでの通常レビュー実績は区別して記録する。

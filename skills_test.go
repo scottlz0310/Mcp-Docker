@@ -220,7 +220,9 @@ var skillSizeBudgets = []struct {
 	// 購読の前提の error 行（自動回復の待機）と authRequired / stopped の分離: 合計は +278 文字。上限 6 分の根拠を節に明記するため、合計の上限を実測へ更新した。
 	// #405: skipped の許可（リポジトリ方針）を追加。ci-check.md に宣言の読み方と適用（手順 2a）、completion-record.md に skipPolicy の記録手順を置いた。
 	// SKILL.md は変えない（+0 行・+0 文字）。合計は references の +1,463 文字。「許可の仕組みが無いのに、skill が例外を約束する」不整合を、実装と同じ規則で具体化するため、合計の上限を実測へ更新した。
-	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 81754},
+	// B3: 条件付き本文更新の新reference・schema discovery・停止契約を追加（合計+2,652文字）。
+	// 入口の500行/文字数予算は維持し、既存契約を削らず新機能分だけ合計へ反映する。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 84406},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）

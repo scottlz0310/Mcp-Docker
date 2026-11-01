@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- reviewed側skill rev40に、必要なPR説明本文更新を専用Appのget_pr_description / update_pr_descriptionで行う契約を追加した。期待HEAD/hash・実取得identity・読戻しを確認し、結果不明時は再試行や別経路の更新をせず停止する。通常レビューに本文編集は強制しない。
+
 ## [2.39.0] - 2026-11-01
 
 ### Fixed
