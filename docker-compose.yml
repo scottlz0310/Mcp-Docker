@@ -234,6 +234,7 @@ services:
       - ALLOWED_AUTHORS=${THREAD_OWL_ALLOWED_AUTHORS:-}
       # コメント本文のreaderには、review-ravenと同じ既存の投稿者許可リストを渡す。
       - TRUSTED_COMMENT_AUTHORS=${REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS:-}
+      - HOST=0.0.0.0
       - PORT=${THREAD_OWL_PORT:-3000}
       - LOG_LEVEL=${LOG_LEVEL:-info}
 
