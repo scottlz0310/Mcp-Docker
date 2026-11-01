@@ -3,7 +3,6 @@ package compose
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -483,13 +482,13 @@ func TestParseExcludesInternalRoutes(t *testing.T) {
     environment:
       - ROUTE_GITHUB=/mcp/github|http://github-mcp:8082
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:8083/mcp
-      - ROUTE_REVIEW_RAVEN_INTERNAL=${REVIEW_INTERNAL_LINK_ENABLED:+/mcp/review-raven-internal|http://review-raven:8083/internal/mcp|upstream_bearer_token_env=REVIEW_RAVEN_INTERNAL_PROXY_SECRET|required_audience=review-raven-internal}
+      - ROUTE_PRIVATE_A_INTERNAL=${PRIVATE_SERVICE_ENABLED:+/mcp/private-a|http://review-raven:8083/internal/mcp|upstream_bearer_token_env=PRIVATE_A_INTERNAL_PROXY_SECRET|required_audience=private-a}
       - ROUTE_THREAD_OWL=/mcp/thread-owl|http://thread-owl:3000/mcp
-      - ROUTE_THREAD_OWL_INTERNAL=${REVIEW_INTERNAL_LINK_ENABLED:+/mcp/thread-owl-internal|http://thread-owl:3000/internal/mcp|upstream_bearer_token_env=THREAD_OWL_INTERNAL_PROXY_SECRET|required_audience=thread-owl-internal}
+      - ROUTE_PRIVATE_B_INTERNAL=${PRIVATE_SERVICE_ENABLED:+/mcp/private-b|http://thread-owl:3000/internal/mcp|upstream_bearer_token_env=PRIVATE_B_INTERNAL_PROXY_SECRET|required_audience=private-b}
 `)
 	for _, enabled := range []bool{false, true} {
 		lookup := func(key string) (string, bool) {
-			if enabled && key == "REVIEW_INTERNAL_LINK_ENABLED" {
+			if enabled && key == "PRIVATE_SERVICE_ENABLED" {
 				return "1", true
 			}
 			return "", false
@@ -511,71 +510,6 @@ func TestParseExcludesInternalRoutes(t *testing.T) {
 	}
 }
 
-// リポジトリの docker-compose.yml の内部ルートは、実際に登録の対象外で、内部面専用の保護（audience と共有 Bearer）を持つ。
-func TestRepositoryComposeInternalRoutes(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	gateway, err := gatewayEnv(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tt := range []struct{ key, path, secret, audience string }{
-		{"ROUTE_REVIEW_RAVEN_INTERNAL", "/mcp/review-raven-internal|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/internal/mcp", "REVIEW_RAVEN_INTERNAL_PROXY_SECRET", "review-raven-internal"},
-		{"ROUTE_THREAD_OWL_INTERNAL", "/mcp/thread-owl-internal|http://thread-owl:${THREAD_OWL_PORT:-3000}/internal/mcp", "THREAD_OWL_INTERNAL_PROXY_SECRET", "thread-owl-internal"},
-	} {
-		t.Run(tt.key, func(t *testing.T) {
-			value := gateway[tt.key]
-			// 無効の間はルートが空になる（スイッチ ${REVIEW_INTERNAL_LINK_ENABLED:+...} の中に定義する）
-			if !strings.HasPrefix(value, "${REVIEW_INTERNAL_LINK_ENABLED:+") {
-				t.Fatalf("%s must be opt-in behind REVIEW_INTERNAL_LINK_ENABLED, got %q", tt.key, value)
-			}
-			for _, want := range []string{tt.path, "upstream_bearer_token_env=" + tt.secret, "required_audience=" + tt.audience} {
-				if !strings.Contains(value, want) {
-					t.Fatalf("%s = %q, want it to contain %q", tt.key, value, want)
-				}
-			}
-			if strings.Contains(value, "auth=none") {
-				t.Fatalf("%s must be authenticated", tt.key)
-			}
-		})
-	}
-
-	// 内部ルートの audience は、agent 向けのルート（既定の audience）と重ならない
-	if strings.Contains(gateway["ROUTE_REVIEW_RAVEN"], "required_audience") || strings.Contains(gateway["ROUTE_THREAD_OWL"], "required_audience") {
-		t.Fatal("agent-facing routes must keep the default audience")
-	}
-
-	lookup := func(key string) (string, bool) {
-		if key == "REVIEW_INTERNAL_LINK_ENABLED" {
-			return "1", true
-		}
-		return "", false
-	}
-	servers, err := Parse(data, lookup)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, s := range servers {
-		if strings.Contains(s.Source, "INTERNAL") || strings.Contains(s.URL, "internal") {
-			t.Fatalf("internal route registered for agents: %+v", s)
-		}
-	}
-}
-
-// リポジトリの docker-compose.yml の契約テストだけが読む型。ports / volumes は短い形式の前提で、
-// 本番のパーサー（composeService）には持たせない: Compose の長形式を使う構成で register が失敗しないようにするため。
-type repoComposeFile struct {
-	Services map[string]struct {
-		Image       string    `yaml:"image"`
-		Environment yaml.Node `yaml:"environment"`
-		Ports       []string  `yaml:"ports"`
-		Volumes     []string  `yaml:"volumes"`
-	} `yaml:"services"`
-}
-
-// Compose の長形式の ports / volumes（map）を含む構成でも、register のパーサーは失敗せず、ルートを読める。
 func TestParseAcceptsLongFormPortsAndVolumes(t *testing.T) {
 	data := []byte(`services:
   mcp-gateway:
@@ -603,132 +537,5 @@ func TestParseAcceptsLongFormPortsAndVolumes(t *testing.T) {
 	}
 	if len(servers) != 1 || servers[0].Name != "github" {
 		t.Fatalf("servers = %+v, want the github route", servers)
-	}
-}
-
-// 内部連携を有効にするとき、thread-owl のイメージは最新リリース（内部面を含まない）の既定に頼らず、明示させる。
-// 無効の間の既定は変えない。main 系の make ターゲットは、設定検証にも main イメージを渡す。
-func TestRepositoryThreadOwlImageRequiresExplicitWhenInternalLinkEnabled(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var file repoComposeFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
-		t.Fatal(err)
-	}
-	image := file.Services["thread-owl"].Image
-	for _, want := range []string{
-		"${THREAD_OWL_IMAGE:-",
-		"${REVIEW_INTERNAL_LINK_ENABLED:+${THREAD_OWL_IMAGE:?",
-		"${REVIEW_INTERNAL_LINK_ENABLED:-ghcr.io/scottlz0310/thread-owl:latest}",
-	} {
-		if !strings.Contains(image, want) {
-			t.Fatalf("services.thread-owl.image = %q, want it to contain %q", image, want)
-		}
-	}
-
-	makefile, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	const export = "pull-main start-main restart-main: export THREAD_OWL_IMAGE := $(THREAD_OWL_MAIN_IMAGE)"
-	if !strings.Contains(string(makefile), export) {
-		t.Fatalf("Makefile must pass the main thread-owl image to the main targets and their config check: %q", export)
-	}
-}
-
-// review-raven と thread-owl の内部連携は、単一のスイッチで有効にし、必須の秘密と ACL が欠ければ設定の検証で止まり、
-// 配送は gateway の内部ルートへ向ける。ホストへポートを公開せず、台帳の volume を持つ。
-func TestRepositoryComposeInternalLinkServices(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var file repoComposeFile
-	if err := yaml.Unmarshal(data, &file); err != nil {
-		t.Fatal(err)
-	}
-	const sw = "${REVIEW_INTERNAL_LINK_ENABLED:+"
-
-	// 有効のときだけ値を持つ（既定は空）
-	flags := []struct{ service, name, want string }{
-		{"review-raven", "REVIEW_RAVEN_REVIEW_REQUESTS", sw + "true}"},
-		{"review-raven", "REVIEW_RAVEN_INTERNAL_SURFACE", sw + "true}"},
-		{"review-raven", "REVIEW_RAVEN_OWL_INTERNAL_ALLOW_PLAIN_HTTP", sw + "true}"},
-		{"thread-owl", "THREAD_OWL_RAVEN_INTERNAL_ALLOW_PLAIN_HTTP", sw + "true}"},
-		{"thread-owl", "THREAD_OWL_LEDGER_PATH", sw + "/data/ledger.sqlite}"},
-	}
-	// 有効のとき、欠ければ設定の検証で止まる（"${VAR:?...}" をスイッチの中に置く）
-	required := []struct{ service, name string }{
-		{"mcp-gateway", "REVIEW_RAVEN_INTERNAL_PROXY_SECRET"},
-		{"mcp-gateway", "THREAD_OWL_INTERNAL_PROXY_SECRET"},
-		{"review-raven", "REVIEW_RAVEN_REQUEST_ACL"},
-		{"review-raven", "REVIEW_RAVEN_INTERNAL_PROXY_SECRET"},
-		{"review-raven", "REVIEW_RAVEN_SERVICE_ACL"},
-		{"review-raven", "REVIEW_RAVEN_OWL_INTERNAL_TOKEN"},
-		{"thread-owl", "THREAD_OWL_INTERNAL_PROXY_SECRET"},
-		{"thread-owl", "THREAD_OWL_SERVICE_ACL"},
-		{"thread-owl", "THREAD_OWL_RAVEN_INTERNAL_TOKEN"},
-	}
-	// 配送の宛先は、gateway の内部ルートを、コンテナのネットワーク上のサービス名で引く
-	urls := []struct{ service, name, route string }{
-		{"review-raven", "REVIEW_RAVEN_OWL_INTERNAL_URL", "/mcp/thread-owl-internal}"},
-		{"thread-owl", "THREAD_OWL_RAVEN_INTERNAL_URL", "/mcp/review-raven-internal}"},
-	}
-
-	env := func(service string) map[string]string {
-		t.Helper()
-		e, err := environmentMap(file.Services[service].Environment)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return e
-	}
-	for _, f := range flags {
-		t.Run(f.name, func(t *testing.T) {
-			if got := env(f.service)[f.name]; got != f.want {
-				t.Fatalf("%s.%s = %q, want %q", f.service, f.name, got, f.want)
-			}
-		})
-	}
-	for _, r := range required {
-		t.Run(r.name, func(t *testing.T) {
-			got := env(r.service)[r.name]
-			if want := sw + "${" + r.name + ":?"; !strings.HasPrefix(got, want) {
-				t.Fatalf("%s.%s = %q, want prefix %q (the variable must be required when enabled)", r.service, r.name, got, want)
-			}
-		})
-	}
-	for _, u := range urls {
-		t.Run(u.name, func(t *testing.T) {
-			got := env(u.service)[u.name]
-			if !strings.HasPrefix(got, sw+"${REVIEW_INTERNAL_LINK_GATEWAY_URL:-http://mcp-gateway:${MCP_GATEWAY_PORT:-8080}}") || !strings.HasSuffix(got, u.route) {
-				t.Fatalf("%s.%s = %q", u.service, u.name, got)
-			}
-		})
-	}
-
-	// 内部面専用の共有シークレットは、公開面のものと別の変数で、公開面のシークレットを流用しない
-	for _, service := range []string{"mcp-gateway", "review-raven", "thread-owl"} {
-		e := env(service)
-		for name, value := range e {
-			if strings.HasSuffix(name, "_INTERNAL_PROXY_SECRET") && strings.Contains(value, "REVIEW_RAVEN_PROXY_SECRET") {
-				t.Fatalf("%s.%s must not reuse the public proxy secret", service, name)
-			}
-		}
-	}
-
-	// ホストへポートを公開せず、thread-owl は台帳の volume を持つ
-	for _, service := range []string{"review-raven", "thread-owl"} {
-		if ports := file.Services[service].Ports; len(ports) > 0 {
-			t.Fatalf("services.%s must not publish ports: %v", service, ports)
-		}
-	}
-	if !slices.Contains(file.Services["thread-owl"].Volumes, "thread-owl-data:/data") {
-		t.Fatalf("services.thread-owl.volumes = %v, want thread-owl-data:/data", file.Services["thread-owl"].Volumes)
-	}
-	if !slices.Contains(file.Services["review-raven"].Volumes, "review-raven-data:/data") {
-		t.Fatalf("services.review-raven.volumes = %v, want review-raven-data:/data", file.Services["review-raven"].Volumes)
 	}
 }

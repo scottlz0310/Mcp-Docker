@@ -13,9 +13,7 @@ import (
 
 const defaultGatewayPort = "8080"
 
-// internalRouteSuffix は、サービス間のルート（review-raven ⇔ thread-owl の内部連携）の名前の末尾。
-// agent 向けの MCP クライアントの設定（register）には載せない: agent が内部面の存在を知る必要はなく、
-// 内部面は専用の audience とサービス別の ACL で守る（docs/review-internal-link.md）。
+// エージェント向けでない内部routeをMCPクライアントへ自動登録しない。
 const internalRouteSuffix = "_INTERNAL"
 
 type composeFile struct {

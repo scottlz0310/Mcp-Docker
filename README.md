@@ -74,7 +74,7 @@ make start-gateway
 
 review-ravenは標準Composeで専用Appを使います。[専用Appの資格情報・make運用](docs/review-raven-app-auth.md)を参照してください。`COMPOSE_FILE`の手動指定は不要です。makeは標準Composeを選択し、設定検証後に起動・再起動します。review-ravenの既定イメージは専用App対応を公開済みの`:main`です。
 
-review-raven ⇔ thread-owl の内部連携（任意・既定は無効・**現在は凍結中**）は[内部連携の運用](docs/review-internal-link.md)を参照してください。
+2026-11-01の利用者決定により、認証付き内部連携は廃案とし専用route・設定・token発行手順を撤去しました。各GitHub Appの投稿者検証、Squirrelの同一PC公開JSON、既存queue/review statusを使う現行運用を維持します。
 
 mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 

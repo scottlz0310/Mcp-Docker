@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- 廃案となった認証付きレビュー内部連携のroute・専用設定・サービス主体token発行スクリプト・手順書・thread-owl台帳volume定義を撤去した。Appの公開routeと既存skill/reviewgate契約、汎用の内部route非登録は維持する。
+
 ## [2.38.0] - 2026-10-31
 
 ### Changed
