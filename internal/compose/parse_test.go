@@ -93,6 +93,16 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for key, want := range map[string]string{
+		"HOST": "0.0.0.0",
+		"PORT": "${THREAD_OWL_PORT:-3000}",
+	} {
+		t.Run("thread-owl のコンテナ接続設定/"+key, func(t *testing.T) {
+			if got := threadOwlEnv[key]; got != want {
+				t.Fatalf("thread-owl %s = %q, want %q", key, got, want)
+			}
+		})
+	}
 	if _, ok := threadOwlEnv["MCP_HTTP_PATH"]; ok {
 		t.Fatal("thread-owl must use its default /mcp endpoint")
 	}
