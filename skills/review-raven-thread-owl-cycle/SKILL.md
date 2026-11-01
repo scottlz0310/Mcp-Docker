@@ -64,7 +64,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 
 ---
 
-## R-00〜R-22: reviewed-side 実行契約
+## R-00〜R-23: reviewed-side 実行契約
 
 次の表は、操作ごとの契約である。行に書かない項目は、次の既定に従う。
 
@@ -100,8 +100,12 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | R-18b | Verdict本文・Status・SHA。readerの`issueComments`と`{GH}:get_pr` | trustedな候補・current head → 固定書式・Status・SHAの照合 | R-18a後に`references/comment-reader.md`で再取得。normalized authorがthread-owlの最新Verdict候補を固定規則で照合する。GH本文readへ迂回しない。不一致時も理由を明記してサマリは投稿できるがmergeへ進まない | `AWAITING_THREAD_OWL_VERDICT`（`VERDICT_NOT_POSTED` / `VERDICT_FORMAT_MISMATCH` / `VERDICT_HEAD_MISMATCH`） |
 | R-19 | 対応サマリ。`{RAVEN}:post_review_cycle_comment(kind=cycle_summary)` | PR・headSha・固定template/サイクル状態 → commentId・URL・author | R-12の未解決0、R-16〜R-18b、termination_status・fix_type・handled_comments確定後だけ。`references/summary-template.md`と`references/cycle-comment.md`に従い1回投稿・reader読戻し。Verdict未確認/不一致も明記し、状態キーを省略しない。別経路なし | `SUMMARY_COMMENT_FAILED`、`WRITE_IDENTITY_UNCONFIRMED` |
 | R-20 | merge の人手境界。自律実行する tool はなく、人が GitHub UI または承認済みの CLI で実行する。手順は `references/merge-decision.md` | PR・対象 head・明示指示・squash / branch cleanup の方針 → merge commit・削除結果・関連 Issue の状態 | CI・未解決指摘・返信・termination_status・必要な Verdict SHA がマージ条件を満たし、人から対象 PR への明示的な merge 指示がある場合だけ。skill は自律 merge を呼ばない。人の明示操作の後に限り、merge・remote / local branch の削除・関連 Issue のクローズ・release note の更新を行う。`READY_TO_MERGE` では Verdict SHA を確認し、`ESCALATE` では未検証の理由と人手確認を明示する。条件未達を force merge・admin merge・Verdict の無視で回避せず、cleanup の失敗を成功と偽らない | `WAITING_FOR_USER_MERGE`（条件不一致は merge 保留として R-21 へ報告する） |
-| R-21 | ユーザー報告（外部 tool なし。日本語の固定 Markdown を出力する） | R-00〜R-20 と R-22 の evidence と状態 → termination_status・fix_type・CI・Verdict SHA・未解決数・queue route・次アクション | 何も write しない。`READY_TO_MERGE`・`ESCALATE`・`AWAITING_THREAD_OWL_VERDICT`・human escalation を混同せず、未確認を成功と書かない。必須 evidence が欠ける場合は unknown / blocked と明記し、推測で補完しない。token・Authorization header・秘密情報を含めない | `REPORT_EVIDENCE_INCOMPLETE` |
+| R-21 | ユーザー報告（外部 tool なし。日本語の固定 Markdown を出力する） | R-00〜R-23 の evidence と状態 → termination_status・fix_type・CI・Verdict SHA・未解決数・queue route・次アクション | 何も write しない。`READY_TO_MERGE`・`ESCALATE`・`AWAITING_THREAD_OWL_VERDICT`・human escalation を混同せず、未確認を成功と書かない。必須 evidence が欠ける場合は unknown / blocked と明記し、推測で補完しない。token・Authorization header・秘密情報を含めない | `REPORT_EVIDENCE_INCOMPLETE` |
 | R-22 | レビュー完了待機（`--mcp-http` のみ）。`{OWL}:enqueue_review` と、購読用の `resource-bridge-cli`。手順は `references/review-wait.md` | owner・repo・prNumber・reason・enqueue 直前の `expected_head`・小文字の `review://status/<owner>/<repo>/<prNumber>`・購読 URL（`MCP_PROBE_URL` または `MCP_GATEWAY_PUBLIC_URL`）→ `route`・`errorCode`・`status`・`headSha`・`summaryCommentId` | R-13 が `--mcp-http` の場合だけ。待機中にこの PR へ push・enqueue しない。この round の `enqueue_review` を 1 回だけ実行し、その直後に subscriber を起動する。完了は、`route` が `subscription` / `pre-completion`、`status` が `reviewed` / `approved`、対象 PR が一致し、`headSha` と current PR head のどちらも `expected_head` と一致する場合だけ（null・不一致は受理しない）。完了後も `status` だけで指摘の有無を判断せず、Phase 0 のゲートと状態復元を経て、Phase U2 で thread を取得する。ポーリングへ切り替えない。進捗は `watch-review-status` で途中報告し、完了判定に使わない。`NOTIFICATION_TIMEOUT` は、`references/review-wait.md` に従って現在値を再取得し、公開状態で待ち続けるかを決める | `REVIEW_WAIT_TIMEOUT`、`REVIEW_STATUS_NOT_FOUND`、`REVIEW_HEAD_MISMATCH`、`REVIEW_WAIT_FAILED` |
+
+| R-23 | 必要なPR説明本文の更新。`{RAVEN}:get_pr_description`・`update_pr_description` | owner/repo/pr・期待HEAD・取得本文hash・置換本文 → status・実取得actor・確認済み本文hash | `references/pr-description.md`に従う。R-01とHEAD同期後、許可範囲の説明修正が必要な場合だけ、固定routeで1回更新して読戻す。コメント投稿・queue・レビュー開始とは別操作。競合/結果不明/不一致では止まり、別経路へ迂回しない | `BLOCKED_MCP_DISCOVERY`、`PR_DESCRIPTION_UPDATE_FAILED` |
+
+PR説明本文の更新が依頼された場合、または実装範囲の変更で説明を直す必要がある場合だけR-23を使う。通常のレビューで本文編集を必須にしない。
 
 ## 停止コード
 
@@ -129,6 +133,7 @@ thread-owl がレビュアーの場合に reviewed-side cycle を実行するス
 | `COMMENT_WRITE_FAILED` | R-10: 投稿の失敗・受理結果不明 | `handled_comments` への記録・再レビュー依頼・merge を行わない |
 | `WRITE_IDENTITY_UNCONFIRMED` | R-10 / R-14 / R-19: 実投稿者を観測できない、または固定routeの投稿identity/canonical allowlistと一致しない | `handled_comments` への記録・queue 登録・cycle 完了報告・merge ready の報告を行わない |
 | `FOLLOW_UP_UNTRACKED` | R-11: Issue の作成・リンクの失敗 | 対象 thread を resolve せず、Phase 7 に未追跡状態を報告する |
+| `PR_DESCRIPTION_UPDATE_FAILED` | R-23: 本文取得/更新/読戻しの失敗・競合・identity不明 | 再試行・復元・別認証・gh更新を行わない。現在値の読取だけで変更の可能性を記録し、利用者判断を待つ |
 | `NEEDS_USER_DECISION` | R-12、Phase U6: 未解決の指摘が想定外に残る | 報告して停止する |
 | `THREAD_OWL_MODE_UNKNOWN` | R-13: mode が読めない、両 mode に該当しない、複数定義が競合する | コメントや enqueue を行わない |
 | `REREVIEW_COMMENT_FAILED` | R-14: 投稿の失敗・受理結果不明 | queue 登録や cycle 完了報告を行わない |

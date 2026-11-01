@@ -28,6 +28,8 @@ status = blocked
 
 ### Write route と投稿 identity の discovery
 
+R-23が必要な場合は、同じRAVEN bindingの`get_pr_description` / `update_pr_description`も`pr-description.md`の入出力schemaで固定する。通常のレビューでは必須capabilityにしない。必要時の不在・不一致は`BLOCKED_MCP_DISCOVERY`で止まり、GH/ghへ切り替えない。
+
 R-00で2つのwrite routeを固定する。候補のserver instance/route/opaque handle、input/output schema、repository対象、明示bindingを記録する。明示指定を優先し、無ければ必要capability/schemaを満たす一意の候補だけを採用する。曖昧・利用不能なら`BLOCKED_MCP_DISCOVERY`で停止する。
 
 - R-10の汎用指摘返信は`{GH}`のissue-comment writeを`write_binding`へ固定。使用前だけ、R-10が明示する未使用primaryのfallbackを選べる。投稿後は切り替えない。

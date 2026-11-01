@@ -25,7 +25,8 @@
       "R-19",
       "R-20",
       "R-21",
-      "R-22"
+      "R-22",
+      "R-23"
     ],
     "stopCodes": [
       "AWAITING_THREAD_OWL_VERDICT",
@@ -42,6 +43,7 @@
       "LOCAL_REMOTE_MISMATCH",
       "LOCAL_WORKTREE_FAILED",
       "NEEDS_USER_DECISION",
+      "PR_DESCRIPTION_UPDATE_FAILED",
       "PROJECT_ALLOWLIST_INVALID",
       "PUSH_FAILED",
       "QUEUE_ENQUEUE_FAILED",
