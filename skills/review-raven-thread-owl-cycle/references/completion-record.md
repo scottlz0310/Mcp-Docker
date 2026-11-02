@@ -10,7 +10,7 @@ SKILL.md の「Phase 7.5: 完了記録とローカル契約検証」から移し
    - **required を確定できた**: 全 required check を `requiredChecks` に列挙する（`requiredChecksPolicy` は省略するか `defined`）。
    - **required を読み取って未定義と確認できた**: `requiredChecksPolicy` を `undefined` にし、`requiredChecks` は空にして、`final_head` で観測した全 check run（1 件以上）を、省略せず `observedChecks` に列挙する。各 run に報告した GitHub App の ID（`app.id`）を `appId` として必ず付ける（別の App が同名の check を報告すると、同名の run が複数残るため。`appId` が違えば同名でも別の run として記録する）。
    - **required を確定できなかった**（読み取り失敗、判定できない rule など）: `CI: unknown` であり、完了記録を作らず停止する。`requiredChecks` を空にして記録してはならない（空配列は「未定義」を意味しない）。
-   - **許可された skipped がある**（`ci-check.md` の手順 2a。`defined` / `undefined` のどちらでも）: `ci.skipPolicy` に `{"baseSha": "<宣言を読んだ base ref の SHA>", "allowedSkippedChecks": [<宣言の名前>]}` を記録し、許可に基づいて成功として扱った check に `"policyAllowedSkip": true` を付ける（`conclusion` は `skipped` のまま）。許可の宣言が無い、または宣言が無い名前の skipped は、記録に入れず、`CI: failure` として扱う。`mcp-docker reviewgate validate` は、宣言した名前の skipped だけを成功として受け入れ、`success` の check が 1 件も無い記録を拒否する。記録を除外して検証を通してはならない。
+   - **許可された skipped がある**（`ci-check.md`の手順2a）: `policy-source.md`で現在の宣言元を再確認し、reader v2と一致させる。`ci.skipPolicy`に`{"baseSha": "<実際にci-policyを読んだpolicyBaseSha>", "allowedSkippedChecks": [<宣言の名前>]}`を記録する。JSON名`baseSha`は維持するがPR比較元ではない。許可したcheckに`"policyAllowedSkip": true`を付け、`conclusion`は`skipped`のままにする。許可なしのskippedは除外せず`CI: failure`とする。reviewgateは記録内の整合だけを検証し、GitHubの現在のbranchや取消を確認しない。外部write前・終端の再取得は省略しない。
 2. 作業ツリー外の一時ファイルへ、次のJSONを1つだけ書き出します。`skillRevision` は Phase 0 で取得した埋め込みskillのrevision、`unresolved_count` は最終スナップショットの値、`ci.requiredChecks` はrequired checkだけを使います。
 
 ```json

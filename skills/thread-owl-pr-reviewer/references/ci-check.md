@@ -98,7 +98,7 @@ required 未定義のときは、まだ報告されていない check（後か�
 ## 5. 判定
 
 `skipped` を成功として扱うのは、リポジトリが**名前を明示して許可した check に限る**（判定規則は reviewed-side の `ci-check.md` 手順 2a と同じで、片方を変えるときはもう片方も同時に更新する）。`if` 条件で設計どおりに skipped になる job（PR では実行しない job など）は GitHub では成功として扱われるが、本来動くべき実質的な check が `if` やパスフィルタの誤りで黙って skipped になった場合と、結論からは区別できないため。
-- 宣言: 固定した base ref の SHA にある `.review-raven/ci-policy.json` を読む。形式は `{"version": 1, "allowedSkippedChecks": ["<check run の name>", ...]}`。**PR の HEAD や作業ツリーから読んではならない**（PR 自身が、自分の skip を許可できないようにするため）。ファイルが無い（404）なら許可は 0 件。存在するのに、JSON ではない、`version` が 1 ではない、`allowedSkippedChecks` が空または文字列だけの配列ではない、前後に空白のある名前や重複がある、未知のキーがある、のいずれかなら `CI: unknown`。
+- 宣言: `policy-source.md`を必ず読み、現在のbase branch先頭の`policyBaseSha`にある`.review-raven/ci-policy.json`を同文書のread-only経路で読む。reader v2の`baseRefName` / `policyBaseSha`と一致させる。PR比較元の`baseRefOid`、HEAD、作業ツリーへ代替しない。参照消失・不一致・取得失敗は`CI: unknown`。形式は`{"version": 1, "allowedSkippedChecks": ["<check run の name>", ...]}`。ファイル取得の404だけは許可0件。存在するが不正JSON/version/名前配列、空配列・空白・重複・未知のキーがある場合も`CI: unknown`。
 - 適用: `conclusion: skipped` の check run の `name` が `allowedSkippedChecks` に完全一致する場合だけ成功として扱う。それ以外の check が 1 件でも成功でなければ `CI: success` にしない。`success` の check が 1 件も無い場合（すべてが許可した skipped）も `CI: success` にしない。`neutral` など、`skipped` 以外は許可の対象外。
 
 - `CI: success`: `reviewedHeadSha` に対するすべての required checks が、「4」の照合で成功の場合だけ（check run は `status: completed` かつ `conclusion: success`（または許可した `skipped`）、commit status は `state: success`）。required 未定義のときは、報告済みの check run すべてが成功（または許可した `skipped`）で、`success` が 1 件以上ある場合だけ。

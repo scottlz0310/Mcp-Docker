@@ -26,6 +26,8 @@ status = blocked
 
 8. `{RAVEN}:read_pr_comments`は必須capability。入力schemaの`owner/repo/pr`を確認し、不在・不一致なら`BLOCKED_MCP_DISCOVERY`。成功応答とerror envelopeはR-01後の最初の本文readで`references/comment-reader.md`に従って検証する。R-00で本文を読むprobeはしない。
 
+宣言元は`policy-source.md`を必ず読み、最小read成功後に現在のbase branchから`baseRefName` / `policyBaseSha`へ固定する。PR比較元の`baseRefOid`とは分ける。取得不能・不一致は`PROJECT_ALLOWLIST_INVALID`で停止し、認証経路を切り替えない。
+
 ### Write route と投稿 identity の discovery
 
 R-23が必要な場合は、同じRAVEN bindingの`get_pr_description` / `update_pr_description`も`pr-description.md`の入出力schemaで固定する。通常のレビューでは必須capabilityにしない。必要時の不在・不一致は`BLOCKED_MCP_DISCOVERY`で止まり、GH/ghへ切り替えない。

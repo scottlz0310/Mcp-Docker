@@ -122,10 +122,10 @@ type FixedHeadCI struct {
 
 // SkipPolicy は repository が宣言した、skipped を許可する check の名前の一覧である。
 //
-// 宣言は PR の HEAD ではなく base ref のファイル（.review-raven/ci-policy.json）から読む。
+// 宣言は現在のbase branch先頭のファイル（.review-raven/ci-policy.json）から読む。
 // PR 自身が自分の skip を許可できないようにするためで、投稿者の allowlist と同じ信頼境界である。
-// BaseSHA は、その宣言を読んだ base ref の SHA で、後から読み直して確認できるようにする。
-// この検証器は形式と記録内の整合だけを確認し、宣言が base ref から読まれたことは確認できない
+// BaseSHAは実際に宣言を読んだpolicyBaseShaで、JSON名は互換性のため維持する。
+// この検証器は形式と記録内の整合だけを確認し、現在のbranchや宣言取消は確認しない
 // （記録の作成手順を定める skill の責務）。
 type SkipPolicy struct {
 	BaseSHA              string   `json:"baseSha"`
