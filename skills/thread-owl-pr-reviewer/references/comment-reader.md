@@ -1,5 +1,7 @@
 # 既存コメントの検証済みread
 
+中断後の通知先検証と通知読戻しだけは`review-stop.md`の別snapshotを使う。Independent Stage前でも通知確認に必要な範囲だけ読み、通常レビューへ戻らず、元のreviewedHeadShaを上書きしない。
+
 既存コメント本文は、固定した `{OWL}:read_pr_comments`（入力 `{owner, repo, prNumber}`）だけで取得する。initial-reviewではIndependent Stageの後のFilter Stageで初めて呼ぶ。discoveryではschema確認だけにとどめ、本文readを事前プローブに使わない。re-review・thread-follow-up・summary-only・Verdict読戻しでも同じ経路を使う。
 
 - 成功には`schemaVersion=2`、`pagination.complete=true`、PR metadataと一致する`headSha` / `baseSha`、小文字64桁hexの`snapshotId`が必要。`policy-source.md`で解決した`baseRefName` / `policyBaseSha`も必須で、CI宣言の取得元と一致させる。参照不一致は`STALE_REVIEW`、不正・欠落・部分応答・v1は`REVIEW_THREADS_READ_FAILED`。古いSHAへ代替しない。

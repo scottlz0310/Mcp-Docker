@@ -279,6 +279,8 @@ func TestDecodeCompletionRecordRejectsAmbiguousJSON(t *testing.T) {
 		data string
 	}{
 		{name: "unknown field", data: string(data[:len(data)-1]) + `,"extra":true}`},
+		{name: "中断通知を正常完了へ混入", data: string(data[:len(data)-1]) + `,"status":"stopped","attemptId":"54c9d9e2-3758-4711-a53a-f7d7f0703893"}`},
+		{name: "中断コメントは完了証跡でない", data: string(data[:len(data)-1]) + `,"stop":{"commentId":123,"code":"LOCAL_ENVIRONMENT_DIFFERENCE"}}`},
 		{name: "multiple values", data: string(data) + " {}"},
 		{name: "invalid json", data: "{"},
 	}

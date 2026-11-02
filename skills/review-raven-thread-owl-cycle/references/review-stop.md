@@ -1,0 +1,25 @@
+# reviewer中断の受信（R-22）
+
+`review://status`の`stopped`はreviewerが申告した中断結果で、正常完了ではない。resource-bridge-cliの通信成功（exit 0）やSquirrelのfinished/exitCode=0とも区別する。正常完了の経路はreviewed/approvedの固定HEADと独立Verdict照合のままとする。
+
+## attemptの照合
+
+enqueue直後に開始した購読の`initialText`から、owner/repo/prNumber、UUIDのattemptId、`attemptHeadSha=expected_head`を確認し、`expected_attempt`へ固定する。既に停止/完了していても同じ対象・HEADの開始時値を記録する。後の通知で別IDを新しい期待値として採用しない。enqueue応答と最初のresource readは非原子的なので、開始値を一意に結び付けられなければREVIEW_WAIT_FAILEDで停止する。
+
+旧APIでattemptフィールドがない場合はstoppedの受理を行わない。従来のreviewed/approvedのSHA照合と有限timeoutは維持し、API更新が必要なことを報告する。欠落を推測のIDや別PRで補わない。
+
+## 停止結果の扱い
+
+1. `initialText`または`finalText`のstatusがstoppedなら、通常の完了判定より先にこの手順を適用する。要求URIの受理/ack、対象PR、expected_attempt、headSha/attemptHeadShaとexpected_head、stop.commentId/code/currentHeadSha/notificationIdの存在と型を確認する。部分応答・不一致はREVIEW_WAIT_FAILEDまたはREVIEW_HEAD_MISMATCH。古いattemptを現在の結果として受理しない。
+2. get_prで現在HEADを確認する。STALE_REVIEWの停止は対象HEADと確認時HEADが異なってよく、両方と取得時点の現在HEADを区別して報告する。通常のreviewed/approvedなら現在HEADもexpected_headとの一致必須である。停止を新HEADのレビュー済み根拠にしない。
+3. 必須投稿者ゲートと現在のpolicy-source.mdの宣言検証を実行し、comment-reader.mdのreaderでstop.commentIdのAppコメントを読む。通知検証に限って手順2の現在metadataを別snapshotへ固定し、readerのhead/base/baseRefName/policyBaseShaと照合する。expected_headは上書きしない。正規化authorがthread-owl、PR/両HEAD/停止コード/識別子が通知と一致し、中断見出しであることを確認する。queuedの識別子はattemptId。許可外投稿者、read失敗、参照不明は既存の停止コードを優先し、コメント本文の別経路へ迂回しない。
+4. `termination_status=REVIEWER_STOPPED`、`status=blocked`として待機を打ち切り、対象PR/attempt/対象HEAD/確認時HEAD/停止コード/commentId、観測事実、未検証範囲、再開条件、writes performedを報告する。通知コメントが消失・不一致ならその未確認理由も記録する。正常完了としてPhase U2・修正・返信・resolve・サマリ投稿へ進めず、再enqueue・reviewer重複起動をしない。
+5. `skillCompleted=true`の完了記録を作らず、reviewgateのvalid/READY_TO_MERGEへ進めない。停止通知そのものをVerdictとして採用しない。再開は通知で示された条件を満たした別runとして行う。
+
+## 通知不可と起動状態
+
+stoppedが届かずpendingのままでも、watch-review-statusのfreshなfinishedを観測したら、通常どおりstatusの現在値を再取得してから打ち切る。プロセス正常終了はレビュー完了を保証しない。通知toolに到達できないクラッシュを推測でstoppedへ書き換えず、「Verdictなしで終了・停止理由未取得」と報告する。別ホストや直接CLIでは観測不能なため有限timeoutを維持する。
+
+「レビュー未開始」「レビューするを押す」と案内する前に、同じPCの公開JSON/watch結果を読む。runningでは操作を促さず、waitingのholdReasonと観測不能を分ける。waiting/manualだけが操作案内の根拠で、pendingやqueue登録だけから未開始と推定しない。既存の公開JSONの鮮度・round/receivedAt照合を省略しない。
+
+API先行配備後に両skillを更新する。新APIのstoppedを古いskillが正常完了と誤認しないことを確認し、schemaVersion2のreaderやSquirrelの公開JSONに新しい進捗台帳を追加しない。過去runへの遡及通知・再enqueue・検証だけのPRは作らない。
