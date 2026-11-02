@@ -6,7 +6,7 @@
 
 1. PR URL 起点では `owner`、`repo`、`prNumber` を確定してから候補を列挙する。queue 起点では、まず review queue resource を discovery し、resource read で candidate の `owner`、`repo`、`prNumber`、`reason` を取得する。
 2. host / client の設定に `{OWL}` の明示 binding があれば優先する。なければ、必要な read / write capability と schema を満たす候補が一つだけの場合に限り採用する。複数候補が残った場合は discovery 順や表示名だけで選ばず、`BLOCKED_MCP_DISCOVERY` として停止する。
-3. 採用候補で、PR URL 起点なら `{OWL}:get_pr`、queue 起点なら queue resource read と `{OWL}:get_pr` のうち対象を確認できる最小 read を **1 回成功** させる。成功とは tool / resource error がなく、PR identity・head SHA などの minimum output schema を満たすことをいう。server 一覧、`Connected` 表示、schema 取得だけでは成功とみなさない。
+3. `pr-snapshot.md`に従い`get_pr`の`includePatch`入力schemaを検証する。採用候補で、PR URL 起点なら `{OWL}:get_pr(includePatch: false)`、queue 起点なら queue resource read と `{OWL}:get_pr` のうち対象を確認できる最小 read を **1 回成功** させる。成功とは tool / resource error がなく、PR identity・head SHA などの minimum output schema を満たすことをいう。server 一覧、`Connected` 表示、schema 取得だけでは成功とみなさない。
 4. `{OWL}` から選択済み server / route / handle への binding を run の状態に固定し、以後の全 read / write で同じ binding を使う。後続の接続失敗、schema 不一致、allowlist 拒否を、別 candidate や GitHub connector / `gh` の write に切り替える理由にしてはならない。再 discovery による途中の候補切り替えも禁止する。
 
 `{OWL}:read_pr_comments`は必須capability。入力schemaの`owner/repo/prNumber`を確認し、不在・不一致は`BLOCKED_MCP_DISCOVERY`。成功応答とerror envelopeは最初の本文readで`comment-reader.md`に従い検証する。Independent Stage前の本文probeはせず、最小readはget_prのままにする。
