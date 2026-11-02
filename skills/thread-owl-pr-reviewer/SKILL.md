@@ -54,7 +54,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 
 | 操作 | 契約 |
 | --- | --- |
-| `{OWL}:get_pr` | `owner`、`repo`、`prNumber` から `pr`・`files`・`origin` を返す。`pr.head.sha`、`pr.base.sha`、各 file の `patch` を記録する。`origin`（`allowed`、拒否のときは `reason`）は、thread-owl が `ALLOWED_AUTHORS` と fork で判定した PR の作成元の結果である。skill は許可リストを持たない |
+| `{OWL}:get_pr` | `owner/repo/prNumber/includePatch: false`からPR・files・origin・reviewAttempt・patchesOmittedを返す。metadataと完全diffの取得は`references/pr-snapshot.md`に従う。originはthread-owlが`ALLOWED_AUTHORS`とforkを判定した結果であり、skillは許可リストを持たない |
 | `{OWL}:read_pr_comments` | `{owner, repo, prNumber}`から投稿者検証済みの全thread・review body・issue commentを返す。`references/comment-reader.md`に従う |
 | `{OWL}:post_inline_comment` | `commitId`、`path`、`line`、`body` を指定して current diff に投稿する |
 | `{OWL}:reply_review_thread` | `threadId` へ返信する。thread の所属 repository は server 側でも allowlist 照合される |
@@ -91,8 +91,8 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | O-00 | queue 起点の待機。queue resource の native read と `resource-bridge-cli` | resource URI・購読 URL・timeout → candidate（`owner`・`repo`・`prNumber`・`reason`・`expected_head`）・route | read と待機だけを行う。re-review は `queue://review/re-review-requests` を使い、route が `subscription` / `pre-completion` であること。`timeout` / `failed` は完了扱いにしない。購読は native subscription が無い場合だけ CLI を使う。手順は `references/queue-wait.md` | `QUEUE_WAIT_FAILED` |
 | O-00 | `{OWL}` の discovery と固定（全モード）。手順は `references/discovery.md` | PR URL または queue candidate → `{OWL}` の binding（run の状態に固定） | 候補は capability と schema で判定し、明示 binding を優先、無ければ一意の候補だけを採用する。最小 read を 1 回成功させる。固定後の失敗で、別 candidate・connector・`gh` の write へ切り替えない | `BLOCKED_MCP_DISCOVERY` |
 | O-01 | モード選択（外部 tool なし） | PR URL・queue reason・依頼 → mode（`initial-review` / `re-review` / `thread-follow-up` / `summary-only`） | `opened` と通常の `synchronized` は initial、`re-review-requested` は re-review。thread-follow-up は指定 thread がある場合だけ、summary-only は明示された場合だけ。曖昧なとき、表示順・過去の文脈・推測で補完しない | `REVIEW_MODE_UNKNOWN` |
-| O-02 | Remote Snapshot の PR metadata。`{OWL}:get_pr` | owner・repo・prNumber → PR identity・base / head SHA・files・`origin`（head SHA を `reviewedHeadSha` に固定） | PR identity・minimum output schema・`pr.head.sha`・base SHA を検証する。branch 名だけをレビュー根拠にしない。allowlist は read にも適用され、拒否や read failure を review-raven・GitHub route・`gh` で迂回しない。最初の成功metadataで`reviewAttempt`とrun UUIDを固定する（`references/review-stop.md`）。全 mode で、O-04 以降（ローカル検証・Independent Stage・投稿）より前に、`origin.allowed` が `true` であることを確認する。`origin` が無い（thread-owl が未対応）、または `true` でない場合は、`reason` を報告して停止し、`gh`・GitHub connector・review-raven で PR を取得して続行しない（許可外の作成者・fork の PR のコードを、ローカルで実行しないため） | `BLOCKED_MCP_READ`、`BLOCKED_PR_ORIGIN`、`REMOTE_SNAPSHOT_READ_FAILED` |
-| O-03 | Remote Snapshot の diff / files。`{OWL}:get_pr` の files / patch | PR snapshot → patch と投稿可能位置 | patch が `reviewedHeadSha` の snapshot に属することを確認し、branch 名で再取得しない。O-02 が成功した場合に限り、同じ PR identity と SHA を照合する read-only の connector / `gh` で、巨大 patch を補完できる | `DIFF_SNAPSHOT_INCOMPLETE` |
+| O-02 | Remote Snapshotのmetadata。`{OWL}:get_pr(includePatch: false)` | owner/repo/prNumber → PR identity・base/head SHA・files・origin・reviewAttempt・patchesOmitted | `references/pr-snapshot.md`でschemaと省略を検証し、head SHAを`reviewedHeadSha`へ固定する。開始時attempt/UUIDは`references/review-stop.md`に従う。全modeでO-04以降の前に`origin.allowed: true`を必須とし、欠落/拒否はreasonを報告して停止する。allowlist拒否/read failureをreview-raven・GH・ghで迂回しない | `BLOCKED_MCP_READ`、`BLOCKED_PR_ORIGIN`、`REMOTE_SNAPSHOT_READ_FAILED` |
+| O-03 | Remote Snapshotの完全diff。固定SHAの隔離環境 | PR metadata → 完全diffと投稿可能位置 | O-02成功後、O-04の環境を用意し`references/pr-snapshot.md`に従って固定base/headからdiffを取得・filesを照合する。省略されたpatchやbranch名を根拠にしない | `DIFF_SNAPSHOT_INCOMPLETE` |
 | O-04 | Repository State Guard。`git rev-parse --is-inside-work-tree`・`git status`・`git rev-parse HEAD`・必要な `gh repo clone` / `git fetch` / `git worktree add --detach` | 作業場所・`reviewedHeadSha`・`SQUIRREL_REVIEW_SCRATCH_DIR` → clean・HEAD一致の検証環境と配置先 | 非Gitの作業場所ではscratchへcloneする。dirty/mismatchのworktreeは隔離し、stash/discardしない。不正scratchは既定パスへfallbackしない。環境を作れなければ理由付きで `local verification: not performed` とし、O-20で承認しない。片付けはランチャーの責務。手順は `references/local-verification.md` | `REPOSITORY_STATE_UNSAFE`、`LOCAL_CONTENT_CHANGED`、`LOCAL_ENVIRONMENT_DIFFERENCE` |
 | O-05 | Independent Stage の実装・テスト確認。固定した worktree での `git`・`rg`・build・test・static analysis | diff・実装・テスト → 独立した候補（failure path・回帰・security・packaging・テスト不足） | Independent Stage が終わるまで、既存 review comment・thread・summary の本文を文脈へ入れない。確認対象は固定済み SHA に限る。未実施を pass と解釈しない | `LOCAL_VERIFICATION_UNKNOWN` |
 | O-06 | Independent Stage の CI。`{OWL}:get_pr` の直後に、固定した経路の check runs read | `reviewedHeadSha` → `CI: success` / `pending` / `failure` / `unknown` と根拠 | 読み取り・応答の検証・判定は `references/ci-check.md` の規則だけに従う。CI の再実行・設定変更はしない。`CI: unknown`（同文書を読めない場合を含む）のまま Verdict / APPROVE を投稿しない | なし（`CI:` の状態として記録する） |
@@ -178,7 +178,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 
 ### 1. Independent Stage
 
-1. PR の title、description、base/head、head SHA（O-02）と、diff・変更ファイル・関連実装・テスト差分（O-03）を読む。
+1. O-02の小さいmetadataでoriginとbase/head SHAを固定し、O-04の隔離環境を確保してからO-03の完全diff・関連実装・テスト差分を読む（`references/pr-snapshot.md`）。
 2. CI を Snapshot Guard の手順 4 で確認する（O-06）。failed/skipped checks、packaging、docs、release への影響も確認する。
 3. 既存レビューを参照せず、独立した懸念候補を作る（O-07）。
 4. 次の非主要パスを横断確認する。

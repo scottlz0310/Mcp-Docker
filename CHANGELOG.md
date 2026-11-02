@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- reviewer rev30は`get_pr(includePatch: false)`でmetadataを取得し、完全diffを固定base/head SHAの隔離環境から取得する。patch省略を空diffと誤認せず、未対応APIでは停止する。thread-owl #291対応APIを先に配備してからskillを配布する。reviewed rev42は維持する。
+
 ## [2.42.0] - 2026-11-02
 
 ### Fixed

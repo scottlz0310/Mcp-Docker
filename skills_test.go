@@ -241,7 +241,8 @@ var skillSizeBudgets = []struct {
 	// SKILL.mdは既存の行数/文字数上限内に保ち、参照文書の追加による合計+1,601文字だけを反映する。
 	// #408: 同じ宣言元解決とv2照合を自己完結させる。入口予算は維持し、合計は実測+2,192文字。
 	// #391: 任意tool/参照入口/停止コード3件で入口+5行・819文字。詳細は参照へ置き、合計を実測へ更新。
-	{skill: "thread-owl-pr-reviewer", maxLines: 369, maxRunes: 29854, maxTotalRunes: 59137},
+	// Owl #291: metadataと完全diffの取得を参照へ分離。入口を縮小し、合計のみ実測へ更新。
+	{skill: "thread-owl-pr-reviewer", maxLines: 369, maxRunes: 29854, maxTotalRunes: 60307},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
