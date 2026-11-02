@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-11-02
+
 ### Fixed
 
 - reviewer中断を通常完了から分離する両skill契約を追加した。専用停止通知高々1回、開始時attempt固定、ローカル実内容/改行環境差異の分類、結果不明時の再送禁止、stopped受信時の待機停止を定義する。reviewed rev42 / reviewer rev29。thread-owlの停止通知APIを先に配備し、その後にskillを配布する。
@@ -1085,7 +1087,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...HEAD
+[2.42.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.39.0...v2.40.0
 [2.39.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.38.0...v2.39.0
