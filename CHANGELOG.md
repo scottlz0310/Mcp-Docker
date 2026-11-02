@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-11-02
+
 ### Fixed
 
 - 両レビューskillをreader契約v2へ揃え、投稿者許可とCI skip宣言を現在のbase branch先頭から読む。PR比較元SHAと宣言用policyBaseShaを分離し、readerのprovenance・書込み前/終端の参照一致を確認する。reviewed rev41 / reviewer rev28。公開・配備は両readerの対応版と揃える。
@@ -1079,7 +1081,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.40.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...HEAD
+[2.41.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.39.0...v2.40.0
 [2.39.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.38.0...v2.39.0
 [2.38.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.37.0...v2.38.0
