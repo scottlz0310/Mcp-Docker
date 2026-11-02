@@ -13,6 +13,8 @@
 
 binding の確定後に、`{RAVEN}` の discovery と CI read の経路の固定を、`references/ci-check.md` の「1. 経路の固定」に従って行う。`{RAVEN}` の未解決は、レビューの停止条件にしない。
 
+宣言元は`policy-source.md`を必ず読み、O-02のPR作成元の許可判定を通過後に、現在のbase branchから`baseRefName` / `policyBaseSha`へ固定する。PR比較元の`baseRefOid`とは分ける。取得不能・不一致は`BLOCKED_MCP_READ`で停止し、拒否されたreadを迂回しない。
+
 ## 停止
 
 候補を解決できない、未接続、schema 不一致、read 検証失敗、または複数候補を一意に選べない場合は、次の状態で停止する。

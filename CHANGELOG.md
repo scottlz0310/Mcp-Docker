@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 両レビューskillをreader契約v2へ揃え、投稿者許可とCI skip宣言を現在のbase branch先頭から読む。PR比較元SHAと宣言用policyBaseShaを分離し、readerのprovenance・書込み前/終端の参照一致を確認する。reviewed rev41 / reviewer rev28。公開・配備は両readerの対応版と揃える。
+
 ## [2.40.0] - 2026-11-01
 
 ### Added

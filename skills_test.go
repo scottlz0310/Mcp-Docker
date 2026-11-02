@@ -222,7 +222,8 @@ var skillSizeBudgets = []struct {
 	// SKILL.md は変えない（+0 行・+0 文字）。合計は references の +1,463 文字。「許可の仕組みが無いのに、skill が例外を約束する」不整合を、実装と同じ規則で具体化するため、合計の上限を実測へ更新した。
 	// B3: 条件付き本文更新の新reference・schema discovery・停止契約を追加（合計+2,652文字）。
 	// 入口の500行/文字数予算は維持し、既存契約を削らず新機能分だけ合計へ反映する。
-	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 84406},
+	// #408: 現在の宣言元解決・v2照合・再確認を参照文書へ追加。入口予算は維持し、合計は実測+2,290文字。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 86696},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）
@@ -236,7 +237,8 @@ var skillSizeBudgets = []struct {
 	// SKILL.md は変えない。合計は references の +982 文字。reviewed 側と規則を一致させるため、合計の上限を実測へ更新した。
 	// B1: 本文取得のschema・投稿者検証エラー・snapshot再評価をcomment-reader.mdへ集約。
 	// SKILL.mdは既存の行数/文字数上限内に保ち、参照文書の追加による合計+1,601文字だけを反映する。
-	{skill: "thread-owl-pr-reviewer", maxLines: 364, maxRunes: 29035, maxTotalRunes: 51608},
+	// #408: 同じ宣言元解決とv2照合を自己完結させる。入口予算は維持し、合計は実測+2,192文字。
+	{skill: "thread-owl-pr-reviewer", maxLines: 364, maxRunes: 29035, maxTotalRunes: 53800},
 }
 
 // skillMarkdownRunes は skill ディレクトリ配下の .md ファイルの合計文字数を返す。
