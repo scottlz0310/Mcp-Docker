@@ -1,5 +1,7 @@
 # 投稿者検証済みコメントの取得（R-02〜R-05・R-17・R-18b）
 
+stoppedの通知照合だけは`review-stop.md`の現在metadataを別snapshotへ固定する。元のexpected_headを更新せず、正常完了・修正・マージの根拠へ使わない。
+
 PRコメント本文の取得経路は、固定した `{RAVEN}:read_pr_comments`（入力 `{owner, repo, pr}`）だけとする。R-01のmetadata-only gateは維持するが、本文取得時にはtool自身も全投稿者を検証する。旧thread API、GitHub connector、`gh api`の本文readへ迂回しない。
 
 ## 成功応答と使うフィールド

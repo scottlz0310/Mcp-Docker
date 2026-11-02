@@ -9,9 +9,10 @@ R-22 の実行契約に従い、reviewer-side のレビュー完了を `review:/
 ### 前提
 
 - thread-owl v0.5.0以降。旧版ではapprove時の`post_review_verdict`が無く、reviewerは`VERDICT_TOOL_UNAVAILABLE`、待機側は`REVIEW_WAIT_TIMEOUT`で止まる。
-- reviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に完了通知 write を 1 回呼ぶこと（approve なら `post_review_verdict`、それ以外は `post_summary_comment`）。thread-owl の状態が `reviewed` になるのは `post_summary_comment` / `post_review_verdict`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
+- 通常終了のreviewer-side（`thread-owl-pr-reviewer`）が `initial-review` / `re-review` の最後に完了通知 write を 1 回呼ぶこと（approve なら `post_review_verdict`、それ以外は `post_summary_comment`）。thread-owl の状態が `reviewed` になるのは `post_summary_comment` / `post_review_verdict`（または `approve_pull_request`）のときだけで、inline の投稿では変わらない。
 - 状態は thread-owl の in-memory に直近 100 PR 分だけ保持され、thread-owl を再起動すると失われる。
 - `reviewed` は「サマリーコメントが投稿された」ことだけを表し、未解決スレッドの有無は表さない。`approved` でも nit 等の未解決スレッドが残ることがある。
+- 中断通知対応APIでは`stopped`が届く。`review-stop.md`のattempt固定・通知照合・REVIEWER_STOPPEDを適用し、正常完了へ進めない。旧APIに停止通知のsummary代替を要求しない。
 
 ### 起動前の前提（購読）
 
@@ -68,6 +69,8 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
    - 各行を下の表で判断する。Auto-Pauseは購読timeout前でも20分方針を適用する。途中行を受け取れないhostは、待機開始時と購読timeout時に同じ公開JSONを確認する。`waiting`やqueue登録を起動済みとは扱わず、再enqueue・自己レビューをしない。
 4. JSON 出力を判定する。
 
+   `initialText`/`finalText`のstoppedは、下表の正常完了より先に`review-stop.md`で判定する。開始時attemptを固定し、別attemptへの追随・同じHEADだからという省略をしない。購読のexit 0は配送成功であってレビュー成功ではない。
+
    | 出力 | 扱い |
    |------|------|
    | `route` が `subscription` / `pre-completion`、かつ `finalText` の `status` が `reviewed` / `approved`、かつ owner / repo / prNumber が対象 PR と一致 | HEAD 照合（下記）へ |
@@ -87,6 +90,8 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
    - 未解決の指摘が 0 件 → `READY_TO_MERGE` として Phase 6.5 → 6.6 → 7 → 7.5 → 8 へ進む。approve 相当かどうかは Phase 7 の Verdict 照合で判定し、Verdict が無ければ `AWAITING_THREAD_OWL_VERDICT` として報告する。どちらの場合もマージは人の判断を待つ。
 
 ### 停止時の報告
+
+stopped受信時は`review-stop.md`のREVIEWER_STOPPEDを使う。その他の停止でも、「レビュー未開始」「レビューするを押す」と案内する前に公開状態を読み、runningなら重複起動を促さない。
 
 `REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
 

@@ -4,6 +4,14 @@ SKILL.md の O-04 と「Snapshot Guard」の手順 2 の手順。Squirrelのrevi
 
 **前提**: O-02 の `origin.allowed` が `true` であること。この手順に入る時点で確認済みであり、許可外の作成者・fork の PR のコードは、ローカルで実行しない（`BLOCKED_PR_ORIGIN`）。
 
+## tracked変更と環境差異の観測
+
+検証前にHEAD/index blob・clean状態と、生成入力/生成先の属性・必要なraw byte hashを記録する。`git check-attr text eol -- <path>`、`git ls-files --stage -- <path>`、`git hash-object --no-filters -- <path>`はread-onlyで使える。秘密を含むファイル内容をログへ出さない。
+
+検証後はstatusとdiffの両方を見る。`git diff`が空でもstatusがdirtyならcleanと扱わない。raw byteの前後差とindex blobを区別し、テキストだと確認した全変更ファイルに限り、CRLFをLFへ置換する以外の変換をしない比較で改行差異を確定する。空白削除・trim・Unicode正規化・`--ignore-all-space`で実内容変更を隠さない。バイナリや分類不能な変更を改行だけと推定しない。
+
+remote HEAD移動はSTALE_REVIEW、local HEAD/実内容変更はLOCAL_CONTENT_CHANGED、確認できた改行等の環境差異はLOCAL_ENVIRONMENT_DIFFERENCEで通常writeを停止する。中断で結果未確定ならVERIFICATION_INTERRUPTED。2回目の生成が安定しても、最初のtracked変更をなかったことにしない。core.autocrlf変更・.gitattributes変更・生成物復元をこのrunで行って承認へ戻らず、原因・未検証範囲・別runの再開条件を報告する。条件付き停止通知は`review-stop.md`に従う。
+
 - **検証環境の選択**:
   - 最初に `git rev-parse --is-inside-work-tree` で作業場所がGit作業ツリーか確認する。
   - Git作業ツリーであり、tracked fileがclean・HEADが `reviewedHeadSha` と一致する場合だけ、その場所で検証してよい。

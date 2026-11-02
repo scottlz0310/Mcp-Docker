@@ -2,6 +2,8 @@
 
 SKILL.md の「Phase 7.5: 完了記録とローカル契約検証」から移した手順。
 
+REVIEWER_STOPPEDはこの手順の対象外。stoppedの受信証跡を`skillCompleted=true`の完了記録へ変換せず、reviewgateのvalidやマージ根拠にしない。通常完了と同じHEADでも例外にしない。
+
 1. Phase 7 のサマリ投稿と投稿者確認が成功した直後に、最終スナップショットを取り直します。
    - `{GH}:get_pr` で現在のPR HEADを取得し、`final_head` として固定する。Phase 6.5 の `reviewedHeadSha` と異なる場合は、古いCI結果を破棄して Phase 6.5 からやり直す。
    - `references/comment-reader.md`に従って`{RAVEN}:read_pr_comments`を再取得し、`pagination.complete=true`と`summary.unresolvedThreads=0`を全thread状態と照合する。snapshotIdの変化と新規actionable指摘も確認する。未解決が残る場合は `REVIEW_INCOMPLETE` として停止する。

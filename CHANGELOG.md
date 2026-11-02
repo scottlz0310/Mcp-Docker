@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- reviewer中断を通常完了から分離する両skill契約を追加した。専用停止通知高々1回、開始時attempt固定、ローカル実内容/改行環境差異の分類、結果不明時の再送禁止、stopped受信時の待機停止を定義する。reviewed rev42 / reviewer rev29。thread-owlの停止通知APIを先に配備し、その後にskillを配布する。
+
 ## [2.41.0] - 2026-11-02
 
 ### Fixed
