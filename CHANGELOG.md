@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-11-03
+
 ### Fixed
 
 - reviewer rev30は`get_pr(includePatch: false)`でmetadataを取得し、完全diffを固定base/head SHAの隔離環境から取得する。patch省略を空diffと誤認せず、未対応APIでは停止する。thread-owl #291対応APIを先に配備してからskillを配布する。reviewed rev42は維持する。
@@ -1091,7 +1093,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...HEAD
+[2.43.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.39.0...v2.40.0
