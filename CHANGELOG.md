@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- reviewed-side skill rev43で通常購読20分を入口/R-22へ明示し、現在値確認10秒・shellの返却待ちと区別する。timeout後は未完了なら公開JSONを必ず確認し、既存上限内で再enqueueせず再購読する。
+
 - 横断の責務・API/skill適用順・過去の実機検証をreviewers-forestへ統合し、Compose/登録/instruction固有の契約と旧文書の参照入口を維持する。
 
 ## [2.43.0] - 2026-11-03

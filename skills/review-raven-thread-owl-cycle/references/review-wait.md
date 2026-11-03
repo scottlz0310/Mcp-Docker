@@ -2,6 +2,14 @@
 
 `--mcp-http` では、Node >=26.10.0で `resource-bridge-cli` をシェル実行し、JSONを同じセッションへ返す。MCP探索・登録にCLIを混ぜない。完了の判定は `review://status` の購読、進捗の途中報告は `watch-review-status`（v0.8.0 以降）で行い、2 つを混ぜない。
 
+## enqueue前に確認する待機契約
+
+PR作成・更新後の実装側は、enqueue前に本書を読む。通常購読は`--timeout-ms 1200000`（20分）を明示する。CI待ち最大12分とレビュー実測4〜7分を含む1回の購読上限であり、合計待機の上限ではない。CLIの短い既定値や診断用時間を通常購読へ流用しない。
+
+現在値確認用の`--timeout-ms 10000`は、下記のtimeout後の再取得だけに使う。shellの返却待ち/yieldはプロセス寿命と別であり、短い間隔で同じ実行を受け取っても、subscriberを終了・再起動しない。
+
+`NOTIFICATION_TIMEOUT`だけでは停止しない。完了の現在値を再取得し、未完了なら公開JSONの対象・受信時刻・鮮度を必ず確認する。running/busy/ciPendingは既存上限内で、再enqueueせず通常20分で再購読する。URI/HEAD不一致・認証失敗・stoppedなどはそれぞれの停止規則を維持する。
+
 ## Phase W: レビュー完了待機（`--mcp-http` のみ）
 
 R-22 の実行契約に従い、reviewer-side のレビュー完了を `review://status` resource の更新通知で待つ。ポーリングの代替であり、同一セッションのコンテキストを保ったままレビュー対応へ進むためのステップである。
@@ -53,7 +61,7 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
    ```
 
    - gateway の認証は subscriber のトークンキャッシュを使う。`errorCode = AUTH_LOGIN_REQUIRED` の場合は、対話ログインが必要なので停止し、ユーザーに `bunx resource-bridge-cli --login --url <同じ URL>` の実行を依頼する。
-   - `--timeout-ms`の20分は、CI待ち最大12分とレビュー実測4〜7分を含む1回の購読上限。合計待機の上限ではない。バックグラウンドで終了を待ち、shell側timeoutで切らない。購読timeout後は手順4へ。
+   - バックグラウンドで終了を待ち、shell側timeoutで切らない。購読timeout後は手順4へ進み、現在値・公開JSONから継続/停止を判断する。
    - `enqueue_review` より前に起動すると `RESOURCE_NOT_FOUND` になる。
    - 待機中は対象 PR へ push も enqueue もしない。reviewer の作業中に新しい round を始めると、前 round の完了が新 round の完了として記録され得る。
 
@@ -149,7 +157,7 @@ watchが利用不能、詳細非対応、または購読timeout時は同じ公�
    - 終了した購読の`initialText`は開始時点の値であり、待機中の完了を表さない。
    - `status` が `reviewed` / `approved` なら、Phase W 手順 4 の「HEAD 照合」へ進む。
    - `RESOURCE_NOT_FOUND` などの `errorCode` は、Phase W 手順 4 の表に従う。
-2. **公開状態を確認する。** 上の表で、待ち続けるか、打ち切るかを決める（監視が終了しているときは、同じ引数に `--timeout-ms 10000` を付けて起動し直し、最初の行を読む）。待ち続けるなら手順 3 へ。打ち切るなら、手順 2a を行ってから停止する。
+2. **公開状態を必ず確認する。** 未完了なら、購読開始時の古い値や過去の観測で代用せず、上の「公開JSONの直接確認」に従って対象・受信時刻・鮮度を照合する。上の表で、待ち続けるか、打ち切るかを決める（監視が終了しているときは、同じ引数に `--timeout-ms 10000` を付けて起動し直し、最初の行を読む）。待ち続けるなら手順 3 へ。打ち切るなら、手順 2a を行ってから停止する。
 2a. **打ち切る前に、現在値をもう一度取得する。** 手順 1 の再取得から、手順 2 の確認までの間に、reviewer が完了して、`finished` へ移った場合がある。公開状態の確認の**後**に、手順 1 と同じ `--timeout-ms 10000` の購読で `review://status` の現在値を読み、`reviewed` / `approved` なら HEAD 照合へ進む。`pending` のままなら、打ち切る。
 3. **待ち続ける場合は、購読を起動し直す。** Phase W 手順 3 の購読（`--timeout-ms 1200000`）を、**`enqueue_review` をやり直さずに**起動する。再購読は、最初の購読を含めて最大 6 回まで（合計で最大約 2 時間）。上限に達したら、`REVIEW_WAIT_TIMEOUT` で停止し、公開状態の確認結果を報告する。
 
