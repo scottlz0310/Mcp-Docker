@@ -18,6 +18,10 @@ Bitwardenの項目名は`env:<変数名>`、カスタムフィールドは非表
 
 Appは組織`scottlz0310`のAll repositoriesへインストールする。GitHubが許可する組織外の公開情報の読み取りは許容する。installation権限の対象を限定する方針であり、MCPに組織外の読み取りを一律拒否する制限は追加しない。`REVIEW_RAVEN_TRUSTED_COMMENT_AUTHORS`・`THREAD_OWL_ALLOWED_AUTHORS`に`review-raven`を含める。
 
+## follow-up Issue機能（opt-in）
+
+`REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES`（`true` / `false`）をreview-ravenへ転送する。未設定・空は`false`で、既定では無効のまま。`true`にするには専用App/installationにIssues writeが必要で、権限変更と有効化後の実投稿確認は設定変更とは別に合意して行う。値を変えた後はreview-ravenだけを再作成する。
+
 ## 起動・再起動
 
 鍵を登録した後は、同じシェルで次を実行する。他PCも同じ手順でよい。

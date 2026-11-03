@@ -47,6 +47,45 @@ func TestRepositoryReviewRavenAppContract(t *testing.T) {
 	}
 }
 
+func TestRepositoryReviewRavenFollowUpIssuesOptIn(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file composeFile
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	env, err := environmentMap(file.Services["review-raven"].Environment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, found := env["REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES"]
+	if !found {
+		t.Fatal("follow-up Issueのopt-inが渡されません")
+	}
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{name: "未設定は無効", env: map[string]string{}, want: "false"},
+		{name: "明示的な空も無効", env: map[string]string{"REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES": ""}, want: "false"},
+		{name: "明示的にtrue", env: map[string]string{"REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES": "true"}, want: "true"},
+		{name: "明示的にfalse", env: map[string]string{"REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES": "false"}, want: "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := expandComposeVars(raw, func(key string) (string, bool) {
+				value, ok := tc.env[key]
+				return value, ok
+			})
+			if got != tc.want {
+				t.Fatalf("follow-up Issueのopt-in = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRepositoryCommentReaderTrust(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.yml"))
 	if err != nil {
