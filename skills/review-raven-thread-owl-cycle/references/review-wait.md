@@ -36,7 +36,7 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
 ### 手順
 
 1. 「起動モードの判定」節（R-13）で起動モードを確定する。`--webhook-mcp-http` なら待機せず、待機エントリーでは Phase U2 へ、再レビュー依頼後は cycle 完了とする。判定できなければ停止する。
-2. 「起動前の前提（購読）」の節を満たしてから、`{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
+2. 「起動前の前提（購読）」の節を満たしてから、`{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{RAVEN}:get_pr_context` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
    - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
    - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
 3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（gateway routeを使う）。
@@ -83,7 +83,7 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
    | `errorCode = AUTH_LOGIN_REQUIRED` | `REVIEW_WAIT_FAILED` で停止し、`--login` の実行を依頼する |
    | 上記以外の `failed` / `timeout`、JSON 不正、対象 PR 不一致 | `REVIEW_WAIT_FAILED` で停止する |
 
-   **HEAD 照合（fail-closed）**: 完了とみなした状態の `headSha` を、手順 2 で固定した `expected_head` と文字列全体で比較する。あわせて `{GH}:get_pr` で current PR head を再取得する。`headSha` と current PR head がどちらも `expected_head` と一致する場合だけ手順 5 へ進む。それ以外は古い HEAD や前 round の結果を受理しないよう `REVIEW_HEAD_MISMATCH` で停止し、自動で再 enqueue しない（無人ループを避けるため）。
+   **HEAD 照合（fail-closed）**: 完了とみなした状態の `headSha` を、手順 2 で固定した `expected_head` と文字列全体で比較する。あわせて `{RAVEN}:get_pr_context` で current PR head を再取得する。`headSha` と current PR head がどちらも `expected_head` と一致する場合だけ手順 5 へ進む。それ以外は古い HEAD や前 round の結果を受理しないよう `REVIEW_HEAD_MISMATCH` で停止し、自動で再 enqueue しない（無人ループを避けるため）。
    - `headSha` が null: reviewer-side がレビュー対象 HEAD を渡していない（`headSha` 対応前の `thread-owl-pr-reviewer` か、完了通知 write の呼び出し漏れ）。reviewer skill の更新を依頼する。
    - `headSha` が `expected_head` と不一致、または current PR head が移動した: 待機中の push か、古い round の完了の混入。current head に対して手順 2 からやり直すか（再 enqueue・再レビュー）をユーザーに確認する。
 
