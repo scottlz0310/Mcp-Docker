@@ -2,17 +2,11 @@
 
 `--mcp-http` では、Node >=26.10.0で `resource-bridge-cli` をシェル実行し、JSONを同じセッションへ返す。MCP探索・登録にCLIを混ぜない。完了の判定は `review://status` の購読、進捗の途中報告は `watch-review-status`（v0.8.0 以降）で行い、2 つを混ぜない。
 
-## enqueue前に確認する待機契約
-
-PR作成・更新後の実装側は、enqueue前に本書を読む。通常購読は`--timeout-ms 1200000`（20分）を明示する。CI待ち最大12分とレビュー実測4〜7分を含む1回の購読上限であり、合計待機の上限ではない。CLIの短い既定値や診断用時間を通常購読へ流用しない。
-
-現在値確認用の`--timeout-ms 10000`は、下記のtimeout後の再取得だけに使う。shellの返却待ち/yieldはプロセス寿命と別であり、短い間隔で同じ実行を受け取っても、subscriberを終了・再起動しない。
-
-`NOTIFICATION_TIMEOUT`だけでは停止しない。完了の現在値を再取得し、未完了なら公開JSONの対象・受信時刻・鮮度を必ず確認する。running/busy/ciPendingは既存上限内で、再enqueueせず通常20分で再購読する。URI/HEAD不一致・認証失敗・stoppedなどはそれぞれの停止規則を維持する。
+enqueue前に本書を読む。通常購読は`--timeout-ms 1200000`（20分）を明示する。CI待ち最大12分とレビュー実測4〜7分を含む1回の上限で、合計待機の上限ではない。CLI既定値や診断用時間を通常購読へ流用しない。現在値確認用10000msやshellの返却待ち/yieldで購読時間を短縮しない。
 
 ## Phase W: レビュー完了待機（`--mcp-http` のみ）
 
-R-22 の実行契約に従い、reviewer-side のレビュー完了を `review://status` resource の更新通知で待つ。ポーリングの代替であり、同一セッションのコンテキストを保ったままレビュー対応へ進むためのステップである。
+同一セッションで`review://status`の完了通知を待つ。LLMの反復ポーリングに戻さない。
 
 ### 前提
 
@@ -45,7 +39,7 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
 2. 「起動前の前提（購読）」の節を満たしてから、`{OWL}:enqueue_review` をこの round で **1 回だけ**呼ぶ。`pending` へのリセットと `resources/list` への登録を兼ねるため省略できない。呼ぶ直前に `{GH}:get_pr` で PR head SHA を読み、ローカル HEAD と一致することを確認して `expected_head` として固定し、あわせて呼ぶ直前の時刻（UTC）を、**小数秒つき**で `enqueued_after` として控える（bash: `date -u +%Y-%m-%dT%H:%M:%S.%NZ`、PowerShell: `[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffffffZ")`）。秒に切り捨てると、同じ秒に起きた enqueue と受信の前後を判定できない。
    - `reason`: PR 新規作成の直後は `opened`、既存 PR への push の直後は `synchronized`、Phase U6 の再レビュー依頼では `re-review-requested`（「queue への登録」節で実行済み）。
    - 同一セッションで直前に同じ PR・同じ head に対して enqueue 済みで、その後 push していない場合は再度呼ばない。二重に呼ぶと queue の通知 listener が二重発火する。
-3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（Mcp-Docker の compose は thread-owl をホストへ公開しないので、mcp-gateway の route を経由する）。
+3. **その直後に** subscriber を起動する。`--uri` の owner / repo は必ず小文字にする（通知 URI は小文字に正規化され、`subscriptions/listen` の URI 照合は完全一致のため）。thread-owl の MCP URL は次の順で解決する（gateway routeを使う）。
 
    1. 環境変数 `MCP_PROBE_URL` が設定されていれば、subscriber がそれを `--url` として読むので `--url` を省略する。
    2. 未設定で `MCP_GATEWAY_PUBLIC_URL` が設定されていれば、`<MCP_GATEWAY_PUBLIC_URL>/mcp/thread-owl`（末尾の `/` は重ねない）を `--url` に渡す。
@@ -101,21 +95,20 @@ enqueue の前に、Squirrel Notifier の公開状態（`%LocalAppData%/Squirrel
 
 stopped受信時は`review-stop.md`のREVIEWER_STOPPEDを使う。その他の停止でも、「レビュー未開始」「レビューするを押す」と案内する前に公開状態を読み、runningなら重複起動を促さない。
 
-`REVIEW_WAIT_TIMEOUT` / `REVIEW_STATUS_NOT_FOUND` / `REVIEW_WAIT_FAILED` / `REVIEW_HEAD_MISMATCH` で停止した場合は、ポーリングで待ち続けず、R-22 の evidence と次のフォールバック手順を報告する。
+停止時はR-22のevidenceと以下のフォールバックを報告する。
 
 - `watch-review-status` の出力を再確認し、起動待ち（`holdReason`）・実行中・Verdict なしの終了（`outcome` / `exitCode`）・受信していない（`not_received`）・観測不能（`unobservable`）を区別して報告する。`action_required`（`holdReason = manual`。自動起動 off または手動運用）なら、Squirrel Notifier の「レビューする」か別 CLI エージェントでの `/thread-owl-pr-reviewer <owner>/<repo>#<pr> initial-review|re-review` を案内する。既に起動中の reviewer を重複起動しない。
-- reviewer が `VERDICT_TOOL_UNAVAILABLE` で停止していた場合は、稼働中の thread-owl が v0.5.0 未満である。PR には Verdict も完了サマリーも投稿されていないので、thread-owl を v0.5.0 以降へ更新してから reviewer を再起動する（`post_summary_comment` での Verdict の代替投稿は依頼しない）。
+- `VERDICT_TOOL_UNAVAILABLE`ならthread-owl v0.5.0以降へ更新して再開する。Verdictの代わりに`post_summary_comment`を依頼しない。
 - レビュー投稿後は、このスキルをコールドスタートで起動し直す。
 
 ---
 
 ## レビュー完了待機のタイムアウト後の確認（Phase W 手順 4・R-22）
 
-購読が`NOTIFICATION_TIMEOUT`で終わり、`initialText.status`が`reviewed`/`approved`以外なら以下へ。D4導入までの暫定手順。
+`NOTIFICATION_TIMEOUT`で、`initialText.status`が`reviewed`/`approved`以外なら以下へ。
 
 ### 原則
 
-- `--timeout-ms`は1回の購読の上限。busy/ciPending/runningは状態で継続を決め、autoPauseは下記20分方針で判定する。
 - **完了の判定は、常に `review://status`（`status` と `headSha`）で行う。** `watch-review-status`（公開状態）は、待ち続けるか打ち切るかの判断と、起動状態の報告にだけ使う。`outcome` / `exitCode` は reviewer のプロセスの終了結果で、Verdict ではない（Verdict の投稿は、`finished` より先に届くのが普通）。
 
 ### 進捗の監視の出力の読み方
@@ -165,7 +158,3 @@ watchが利用不能、詳細非対応、または購読timeout時は同じ公�
 
 - 待ち続ける間は、再購読のたびに 1 行で報告する（経過、起動待ち（`holdReason`）/ 実行中）。
 - 停止するときは、R-22 の evidence に、再購読の回数、確認時刻、公開状態（`running` / `waiting`（`holdReason`）/ `finished`（`exitCode`）/ どこにもない / 観測不能）、`updatedAt` を含める。起動待ちのまま上限に達したら、`holdReason` を伝え、Recent review events の確認か「レビューする」を案内する（起動中の reviewer を重複起動しない）。
-
-### 限界（暫定の理由）
-
-- 待つ間、エージェントのセッションが占有される（10〜20 分ごとの再購読）。待機をエージェントから外す設計（D4）が入るまでの暫定である。
