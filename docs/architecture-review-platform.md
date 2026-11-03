@@ -8,8 +8,8 @@
 
 - gateway routeは`docker-compose.yml`の`mcp-gateway.environment.ROUTE_*`を入力とし、gatewayが実行時に参照する。
 - `config/mcp-external.yml`はCLIへ直接登録する外部MCP URLの入力。gateway routeとは区別する。
-- `config/mcp-profiles.yml`はCLI単位の登録profile。reviewer/reviewedの役割単位の露出制御とは区別する。再登録前にdry-runで実登録との差分を確認する。
-- Playwrightは任意のprofile。GitHub MCPは残存利用者・skill依存を確認する前に撤去しない。新しいprofile化やroute生成を実装済みと扱わない。
+- `config/mcp-profiles.yml`はCLI単位の登録profile。どのCLIも実装役・レビュー役を取り替えられるため、全CLIを同一の最小構成（review-raven + thread-owl）にしており、reviewer/reviewedの役割単位の露出制御とは区別する。再登録前にdry-runで実登録との差分を確認する。
+- Playwrightは任意のprofile。GitHub MCPはCLI登録から外した（reviewed rev44・reviewer rev30はGitHub MCPに依存しない。汎用のgit/repo操作はgh CLIとgit）。gateway routeとgithub-mcpサービスは残存利用者の確認前に撤去しない。新しいprofile化やroute生成を実装済みと扱わない。
 - 秘密値は環境変数・mount・保管庫から注入し、imageや生成するクライアント設定へ焼き込まない。外部直接登録でtokenを必要とする場合は、そのCLIが対応する環境変数経由の方式を使う。
 
 ### ユーザー instruction source の責務

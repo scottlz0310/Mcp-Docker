@@ -139,9 +139,13 @@ MCP サーバーは、登録数が増えるほど攻撃面が広がり、tool �
 ```yaml
 version: 1
 agents:
-  codex: [thread-owl, review-raven]
-  claude: [review-raven, thread-owl, github]
+  claude: [review-raven, thread-owl]
+  copilot: [review-raven, thread-owl]
+  codex: [review-raven, thread-owl]
+  antigravity: [review-raven, thread-owl]
 ```
+
+既定の宣言は、どの CLI も実装役・レビュー役を取り替えられる設計のため、全 CLI を同一の最小構成（review-raven + thread-owl）にしています。github は載せません（汎用の git / repo 操作は gh CLI と git で行います）。
 
 | 場面 | 動作 |
 |---|---|

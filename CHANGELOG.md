@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `config/mcp-profiles.yml`を、全CLI（claude/copilot/codex/antigravity）で同一の最小構成（review-raven + thread-owl）に変更した。githubはCLI登録から外す。どのCLIも実装役・レビュー役を取り替えられる設計のため、役割ではなく全CLI共通とした。再登録時、宣言のなかったcopilot/antigravityは、従来の「全サーバー」から宣言どおりの2サーバーになる。`register --prune`でclaude/antigravityの既存のgithub登録が削除候補になる（実行前に`--dry-run`で確認）。gateway routeとgithub-mcpサービスは撤去しない。
+
 ## [2.44.0] - 2026-11-03
 
 ### Added
