@@ -1,80 +1,16 @@
-# Review Platform における Mcp-Docker の責務
+# Mcp-Dockerの構成・配布の責務
 
-本ドキュメントは、レビュー基盤（review platform）における `Mcp-Docker` の位置づけと責務境界を定義する。
-`Mcp-Docker` を **MCP container orchestration / configuration automation layer** として明確化し、
-他コンポーネント（Thread Owl / review-raven / mcp-resource-subscriber / mcp-gateway）との責務分担を文書化する。
+レビュー基盤全体の責務・廃案・共通運用の正本はreviewers-forestへ統合した。`~/Dropbox/src/reviewers-forest/project_review-infra-architecture.md`と`docs/guidebook/review-infra-operations.md`を参照する。進捗は同ワークスペースの`docs/hand-off/cross.md`だけに保持する。
 
-関連: [Issue #158](https://github.com/scottlz0310/Mcp-Docker/issues/158)
+本repoはコンテナ構成、gateway接続設定、CLI登録、skillとinstructionの管理・配布を担当する。レビュー結果の判定・queue業務・実行待機は各サービス/skillに委ねる。
 
-> **本ドキュメントの位置づけ**: 本書は `Mcp-Docker` の**目標とする責務モデル（target architecture）**を定義する。
-> 現行実装が目標と異なる箇所は各節に「現状」として注記する。
+## このrepoに維持する構成契約
 
-## 1. Review Platform の全体像
-
-レビュー基盤は、単一のアプリケーションではなく、責務の異なる複数の MCP / CLI コンポーネントの組み合わせで構成される。
-
-| コンポーネント | 役割 |
-|---|---|
-| `thread-owl` | review する側 / subscribe される側。GitHub App 認証・webhook handling・review queue 管理 |
-| `review-raven` | review を受けて直す側 / reviewed-side operations。review thread の reply / resolve |
-| `mcp-resource-subscriber` | subscribe する側 / agent workflow bridge。resource subscription の待機 |
-| `mcp-gateway` | 複数 MCP server を束ねる reverse proxy / routing / auth boundary |
-| `Mcp-Docker` | MCP server 群の container 管理と CLI agent 設定自動化（**本リポジトリ**） |
-
-このうち `Mcp-Docker` は、review platform を実際にローカル・半ローカル環境で運用するための
-**orchestration layer** に位置づけられる。個々の MCP server を手作業で起動し、各 CLI agent に
-個別設定する運用は server 数の増加に伴い破綻しやすい。`Mcp-Docker` は container lifecycle・compose・
-gateway config・CLI agent config を束ねることで、レビュー基盤を再現可能な形で立ち上げる。
-
-```text
-Mcp-Docker
-  ├─ thread-owl container
-  ├─ review-raven container
-  ├─ mcp-gateway container
-  ├─ optional github-mcp / other MCP containers
-  ├─ generated gateway routes
-  └─ generated client config
-```
-
-> **現状**: 上図は目標構成。現行 compose が既定で起動するのは `github-mcp` / `review-raven` / `thread-owl` / `mcp-gateway`（`playwright-mcp` は任意で、`PLAYWRIGHT_MCP_ENABLED=1` のときだけ起動する）。`mcp-resource-subscriber` は常駐コンテナではなく CLI bridge として扱う。
-
-## 2. Mcp-Docker の定義
-
-`Mcp-Docker` は **MCP container orchestration / configuration automation layer** である。
-
-- review platform を構成する MCP server 群を再現可能な形で起動・管理する
-- domain logic（認証・review・protocol 実装）は各 repo に残し、`Mcp-Docker` には取り込まない
-- orchestration（container lifecycle）と configuration automation（gateway route / CLI agent config 生成）に集中する
-
-## 3. 責務境界
-
-### Mcp-Docker が担うこと
-
-- review platform を構成する MCP server 群の container lifecycle 管理
-- Docker Compose / container definitions の提供
-- compose profiles による optional component の選択的有効化
-- `mcp-gateway` の upstream route config 生成・配置
-- Claude Code / Claude Desktop / Codex CLI など CLI agent / desktop client 向け MCP 設定生成
-- ユーザー管理の instruction source のパス設定、CLI ごとの入口への symlink 配置、状態確認・バックアップ付き修復
-- environment variable / secrets mount policy の整理
-- local development / semi-local operation の bootstrap scripts / docs
-- health check / status aggregation / logs への導線
-
-> **現状**: container lifecycle 管理（`docker-compose.yml` + `Makefile`）、CLI agent config 生成（`mcp-docker register`、対象は Claude Code / GitHub Copilot CLI / Codex CLI）、health check 導線（`scripts/health-check.sh`）は実装済み。
-> 以下は目標で未実装: compose profiles による選択的有効化（現状は optional service も既定起動）、Claude Desktop 向け設定生成、`mcp-gateway` route config の自動生成（現状は `docker-compose.yml` の `ROUTE_*` を手動定義し mcp-gateway が直接参照）。
-
-### Mcp-Docker が担わないこと（委譲先）
-
-| 担わないこと | 委譲先 |
-|---|---|
-| GitHub App 認証ロジック | Thread Owl |
-| webhook event handling | Thread Owl |
-| review queue 管理 | Thread Owl |
-| MCP protocol の tool/resource 実装 | 各 MCP server |
-| reverse proxy runtime logic | mcp-gateway |
-| resource subscription の待機 CLI | mcp-resource-subscriber |
-| review thread の reply / resolve 実装 | review-raven |
-| LLM / AI review logic | agent skill / LLM client |
+- gateway routeは`docker-compose.yml`の`mcp-gateway.environment.ROUTE_*`を入力とし、gatewayが実行時に参照する。
+- `config/mcp-external.yml`はCLIへ直接登録する外部MCP URLの入力。gateway routeとは区別する。
+- `config/mcp-profiles.yml`はCLI単位の登録profile。reviewer/reviewedの役割単位の露出制御とは区別する。再登録前にdry-runで実登録との差分を確認する。
+- Playwrightは任意のprofile。GitHub MCPは残存利用者・skill依存を確認する前に撤去しない。新しいprofile化やroute生成を実装済みと扱わない。
+- 秘密値は環境変数・mount・保管庫から注入し、imageや生成するクライアント設定へ焼き込まない。外部直接登録でtokenを必要とする場合は、そのCLIが対応する環境変数経由の方式を使う。
 
 ### ユーザー instruction source の責務
 
@@ -82,89 +18,11 @@ Mcp-Docker
 
 既存の通常ファイルや異なるリンクは確認後にバックアップを作成し、配置先を staging へ移して実体を再確認してから作成専用の symlink へ更新する。同一リンクは変更せず、source と配置先が symlink / ハードリンク経由で同じ実体を指す場合は拒否する。配置先を置換直前と staging 後に再検証し、別の通常ファイル・symlink・ディレクトリへ変化した場合は新しい配置を上書きせず、復元または staging に保全して停止する。配置先がディレクトリの場合は停止し、symlink 作成失敗時に本文のコピーへフォールバックしない。`status` は source 消失を状態として表示し、`link` / `repair` は source 不在時に fail-closed で停止する。レビュー完了イベントの購読は `mcp-resource-subscriber`、reviewer の起動は Squirrel Notifier または別 CLI エージェントの責務であり、instruction 配置機能には含めない。
 
-## 4. mcp-gateway との関係
 
-`mcp-gateway` は runtime の reverse proxy / auth boundary として動作する。
-`Mcp-Docker` はその gateway を含む MCP server 群を起動し、gateway が参照する upstream route config を生成または配置する。
+## 製品固有の運用・仕様
 
-両者は **生成（Mcp-Docker）と実行（mcp-gateway）** で責務が分かれる。
+- 構成と登録コマンドは[README](../README.md)、[専用AppのCompose運用](review-raven-app-auth.md)。
+- instructionの操作は[instruction-source](instruction-source.md)、完了記録の契約は[reviewgate](reviewed-side-completion-contract.md)。
+- skillの正本は`skills/`。配置済みコピーを直接編集せず、対応APIの配備後に公開CLIから配布する。
 
-```text
-Mcp-Docker
-  ├─ containers を起動
-  ├─ gateway routes を生成
-  ├─ CLI agent config を生成
-  └─ health/logs/status を提供
-
-mcp-gateway
-  ├─ generated routes を読み込む
-  ├─ /mcp/thread-owl などを upstream へ route
-  └─ auth / token mediation を担当
-```
-
-## 5. Configuration automation の方針
-
-### route 定義と外部サーバー定義
-
-`Mcp-Docker` は性質の異なる 2 系統の MCP サーバー定義を扱う。
-
-- **gateway route**: `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*` を単一の source of truth とする。
-  現状は手動定義し `mcp-gateway` が直接参照する（route config の自動生成は目標）。
-- **外部直接登録サーバー**: `config/mcp-external.yml` の定義は **gateway route ではなく**、`mcp-docker register` が
-  CLI agent へ**直接登録する外部 MCP サーバー URL**（gateway を経由しない）の入力である。
-- `mcp-docker register` は `ROUTE_GITHUB` → `github`、`ROUTE_PLAYWRIGHT` → `playwright` のように route 名から登録名を導出する。
-
-### CLI agent config 生成
-
-- CLI agent（現状は Claude Code / GitHub Copilot CLI / Codex CLI）向けの MCP 設定を生成する。
-- gateway 経由のサーバーは token 値を含めず `http://127.0.0.1:8080/<path>` の gateway URL のみを記載する。
-  例外として `mcp-external.yml` の外部直接登録サーバーは upstream URL を直接記載し、token は agent が対応する場合のみ env 経由で渡す（Codex の `--bearer-token-env-var` 等）。
-- agent ごとの設定差分は template として扱い、生成ロジックを共通化する。
-
-## 6. Compose profile / optional component 管理
-
-- review platform の中核コンポーネントと optional component を compose profile で分離する
-- optional component（github-mcp / playwright / Remote MCP プロバイダー等）は profile により選択的に有効化する
-- profile 単位で「最小構成」「フル構成」を切り替えられるようにし、運用者が必要なものだけ起動できるようにする
-
-> **現状**: optional service のうち、`playwright-mcp` だけが profile `playwright` で任意になっている（既定では起動しない。#328）。ほかの optional service の profile 化は本節の目標。
-
-## 7. Bootstrap フロー
-
-review platform の立ち上げは、運用者の単一コマンド / compose profile を起点とする。
-
-```text
-Developer / operator
-  ↓ setup command / compose profile
-Mcp-Docker
-  ├─ starts MCP servers
-  ├─ starts mcp-gateway
-  ├─ writes gateway config
-  ├─ writes agent config
-  └─ exposes operational status
-      ↓
-CLI agents / Desktop clients
-  ↓ generated config
-mcp-gateway
-  ↓ routes
-Thread Owl / review-raven / other MCP servers
-```
-
-> **現状**: 上図は目標フロー。現行は `make start-gateway` で全サービスを起動し、`mcp-docker register` で CLI agent 設定を生成する。gateway config / agent config の自動生成と profile 起点の bootstrap は目標。
-
-## 8. 設計原則
-
-- MCP server 実装を `Mcp-Docker` に取り込まない
-- Gateway runtime logic を `Mcp-Docker` に取り込まない
-- `Mcp-Docker` は orchestration / configuration automation に集中する
-- agent ごとの設定差分は template / profile として扱う
-- secrets は container image に焼き込まず、env / mounted file / secret store から注入する
-- local-first / semi-local operation を優先し、remote hosting は別設計として扱う
-- review platform 全体を再現可能にするが、domain logic は各 repo に残す
-
-## 関連 Issue
-
-- Thread Owl responsibility boundary: [scottlz0310/thread-owl#75](https://github.com/scottlz0310/thread-owl/issues/75)
-- mcp-resource-subscriber JSON output: [scottlz0310/mcp-resource-subscriber#86](https://github.com/scottlz0310/mcp-resource-subscriber/issues/86)
-- review-raven reviewed-side redefinition: [scottlz0310/review-raven#63](https://github.com/scottlz0310/review-raven/issues/63)
-- mcp-gateway routing gateway definition: [scottlz0310/mcp-gateway#92](https://github.com/scottlz0310/mcp-gateway/issues/92)
+[移管前の全体像・比較・未実装案](https://github.com/scottlz0310/Mcp-Docker/blob/08561187f82ef33dc73f6027d0a7eceec5397e1a/docs/architecture-review-platform.md)は履歴であり、現行の実装状況や追加作業の許可ではない。移管先一覧はreviewers-forestの`docs/reference/review-infra-document-map.md`を参照する。

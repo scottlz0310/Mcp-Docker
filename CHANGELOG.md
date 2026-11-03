@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- 横断の責務・API/skill適用順・過去の実機検証をreviewers-forestへ統合し、Compose/登録/instruction固有の契約と旧文書の参照入口を維持する。
+
 ## [2.43.0] - 2026-11-03
 
 ### Fixed
