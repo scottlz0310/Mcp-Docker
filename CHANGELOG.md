@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.1] - 2026-11-03
+
 ### Documentation
 
 - reviewed-side skill rev43で通常購読20分を入口/R-22へ明示し、現在値確認10秒・shellの返却待ちと区別する。timeout後は未完了なら公開JSONを必ず確認し、既存上限内で再enqueueせず再購読する。
@@ -1099,7 +1101,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.1...HEAD
+[2.43.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...v2.43.1
 [2.43.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.40.0...v2.41.0
