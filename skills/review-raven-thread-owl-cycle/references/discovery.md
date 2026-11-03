@@ -2,7 +2,7 @@
 
 ### R-00: 論理 alias の discovery と固定
 
-`{GH}` / `{RAVEN}` / `{OWL}` は論理 alias であり、MCP client が割り当てた server 名・tool 名・namespace を skill 本文に書かない。各 alias の実体は、対象 PR と起動モードが確定した時点で、実行中の client の discovery 結果から解決する。
+`{RAVEN}` / `{OWL}` は論理 alias であり、MCP client が割り当てた server 名・tool 名・namespace を skill 本文に書かない。各 alias の実体は、対象 PR と起動モードが確定した時点で、実行中の client の discovery 結果から解決する。
 
 1. client-native の server / tool / resource discovery を実行し、候補ごとに server の識別情報、transport / route、tool または resource の opaque handle、input / output schema を記録する。server 一覧の `Connected` 表示や tool 名の存在だけでは、利用可能と判定しない。
 2. 候補は文字列の prefix / namespace ではなく、論理 alias に必要な capability と schema で分類する。method 引数で操作を切り替える tool と操作ごとに分かれた tool は、schema が契約を満たす限り同じ論理候補として扱う。
@@ -30,13 +30,13 @@ status = blocked
 
 ### Write route と投稿 identity の discovery
 
-R-23が必要な場合は、同じRAVEN bindingの`get_pr_description` / `update_pr_description`も`pr-description.md`の入出力schemaで固定する。通常のレビューでは必須capabilityにしない。必要時の不在・不一致は`BLOCKED_MCP_DISCOVERY`で止まり、GH/ghへ切り替えない。
+R-23が必要な場合は、同じRAVEN bindingの`get_pr_description` / `update_pr_description`も`pr-description.md`の入出力schemaで固定する。通常のレビューでは必須capabilityにしない。必要時の不在・不一致は`BLOCKED_MCP_DISCOVERY`で止まり、別経路へ切り替えない。
 
 R-00で2つのwrite routeを固定する。候補のserver instance/route/opaque handle、input/output schema、repository対象、明示bindingを記録する。明示指定を優先し、無ければ必要capability/schemaを満たす一意の候補だけを採用する。曖昧・利用不能なら`BLOCKED_MCP_DISCOVERY`で停止する。
 
-- R-10の汎用指摘返信は`{GH}`のissue-comment writeを`write_binding`へ固定。使用前だけ、R-10が明示する未使用primaryのfallbackを選べる。投稿後は切り替えない。
-- R-14/R-19は同じ`{RAVEN}:post_review_cycle_comment`を`cycle_write_binding`へ固定する。入力owner/repo/pr/headSha/kind/body、出力commentId/url/author/headShaのschemaを確認。不在・不一致なら停止し、GHへ迂回しない。詳細は`references/cycle-comment.md`。
+- R-10の指摘返信は`{RAVEN}:reply_to_pr_comment`、R-11のIssue作成は`create_follow_up_issue`を`write_binding`へ固定する。入出力schemaは`references/follow-up.md`で確認する。不在・不一致は、R-10なら`BLOCKED_MCP_DISCOVERY`、R-11なら`FOLLOW_UP_UNTRACKED`で停止し、別経路（`gh`を含む）へ切り替えない。
+- R-14/R-19は同じ`{RAVEN}:post_review_cycle_comment`を`cycle_write_binding`へ固定する。入力owner/repo/pr/headSha/kind/body、出力commentId/url/author/headShaのschemaを確認。不在・不一致なら停止し、別経路へ迂回しない。詳細は`references/cycle-comment.md`。
 - `get_me`は診断補助で、失敗は停止条件にしない。probe投稿をせず、対象PRで実際に必要な最初のwrite後に返却comment IDで投稿者を観測する。token種別から推測しない。
-- GHは同じPRのmetadataから`author.login`を取得して`write_author_login`へ保存する。RAVENは既存readerで本文/flat authorも照合し、別の`cycle_write_author_login`へ保存する。両identityを混同しない。
+- 全writeの投稿identityは、返却`author`と既存readerの本文/flat authorを照合して`cycle_write_author_login`へ保存する（App名義の単一identity）。
 - いずれも正規化した実投稿者がcanonical allowlist内で、後続writeも観測済みidentityと一致すること。不一致/null/欠落/類似名は`WRITE_IDENTITY_UNCONFIRMED`。初回投稿自体の誤identityは事後検出となる。
 - write開始後のtransport failure/受理不明/identity不一致では、別candidate/server/認証/ghへ切り替えず停止する。重複投稿しない。

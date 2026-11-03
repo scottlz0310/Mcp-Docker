@@ -17,7 +17,7 @@ SKILL.md の「必須コメント投稿者ゲート」にある「プロジェ�
 }
 ```
 
-1. `policy-source.md`を読み、現在のbase branch名と先頭SHAを`baseRefName` / `policyBaseSha`へ固定し、そのSHAのファイルだけを固定済みの`{GH}` bindingで読む。`baseRefOid`はPR比較元であり宣言元へ代用しない。宣言元の取得不能・不一致も`PROJECT_ALLOWLIST_INVALID`で停止する。
+1. `policy-source.md`を読み、現在のbase branch名と先頭SHAを`baseRefName` / `policyBaseSha`へ固定し、そのSHAのファイルだけを`gh api`のread-only（`repos/<owner>/<repo>/contents/<path>?ref=<policyBaseSha>`）で読む。readerが返す`allowlist.projectFile` / `projectLogins`（件数）と読んだ内容が一致しない場合は`PROJECT_ALLOWLIST_INVALID`とする。`baseRefOid`はPR比較元であり宣言元へ代用しない。宣言元の取得不能・不一致も`PROJECT_ALLOWLIST_INVALID`で停止する。
 2. ファイルが存在しない場合は追加項目なしとして、サーバーの許可リスト（`{RAVEN}:get_trusted_comment_authors` が返し、run の状態へ固定したもの）だけを使う。存在する場合は JSON object、`version: 1`、文字列だけの `additional_logins` 配列、未知のキーがないことを検証する。
 3. 各 login には既存の `normalize_login` を適用し、サーバーの許可リストとの union を canonical allowlist とする。wildcard、正規表現、Organization 所属、`author_association`、App の権限による暗黙の追加は認めない。配列内の正規化後重複、null、空文字、非文字列、類似名は不正とする。
 4. このファイルを変更できる主体が新しい信頼境界になるため、保護された base branch へ取り込む変更はリポジトリ管理者がレビューする。PR 側で追加された設定は、base branch に反映されるまで信頼源にしない。

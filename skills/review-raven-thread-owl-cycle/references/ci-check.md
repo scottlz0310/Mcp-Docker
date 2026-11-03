@@ -6,7 +6,7 @@ SKILL.md の「Phase 6.5: CI 確認」から移した手順（内容は変更し
 
 R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分けて実行する。
 
-1. **状態集約**: CI 判定の直前に `{GH}:get_pr` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、R-00 で固定した CI read 経路で `reviewedHeadSha` の check runs を取得する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
+1. **状態集約**: CI 判定の直前に `{RAVEN}:get_pr_context` を read し、現在の PR HEAD SHA を `reviewedHeadSha` として固定する。その直後に、R-00 で固定した CI read 経路で `reviewedHeadSha` の check runs を取得する。対象 SHA を確認できない応答は `CI: unknown` とし、成功扱いにしない。
    - **第一選択**: `{RAVEN}:list_check_runs_for_sha`（`owner`、`repo`、40 桁小文字 hex の `sha` を入力する。branch 名や PR 番号は tool 側で拒否される）。次を検証してから使い、満たさない場合は `CI: unknown` とする。
      - 応答の `sha` が入力の `reviewedHeadSha` と一致すること
      - `pagination.complete` が `true` であること（`false` や欠落は取得未完了とする）
@@ -17,8 +17,8 @@ R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分け�
      - 取得対象は check runs だけで、Status API の commit status（一部の外部 CI が使う）は含まれない
    - **fallback**: R-00 の時点で `{RAVEN}:list_check_runs_for_sha` が無い（review-raven v0.5.0 未満）か schema が一致しない場合だけ、`gh api "repos/<owner>/<repo>/commits/<reviewedHeadSha>/check-runs?per_page=100" --paginate --jq '.check_runs[] | {id, name, head_sha, status, conclusion, app_id: .app.id, app: .app.slug}'` を read-only で使う。この経路では**同じ GitHub App・同じ `name` の run が複数ある場合（再実行）は ID が最大のものだけを採用する**。`pagination.complete` に相当する情報が無いため、`--paginate` が途中で失敗した場合は `CI: unknown` とする。
    - **実行時の失敗で経路を切り替えない**: binding 後の tool error（認証系の構造化 error、入力検証 error のいずれも）、transport failure、schema 不一致は `CI: unknown` として扱い、`gh api` へ迂回しない。
-   - **`{GH}:get_check_runs`（公式 GitHub MCP の `pull_request_read`）は PR 番号を入力とし `head_sha` を返さないので、CI 判定の根拠にしない。**
-2. **required の集合の確定**: `<base>` は PR の base ref（`{GH}:get_pr` の `base.ref`）。次の 2 つを、`gh api` の read-only で読み（MCP tool は提供していないため、CI read の経路にかかわらず常に `gh api`）、**和集合**をとる。判定規則は `thread-owl-pr-reviewer` の `references/ci-check.md`「4. required checks の集合」と同じで、片方を変えるときはもう片方も同時に更新する。
+   - **PR 番号を入力とし `head_sha` を返さない check runs の取得（公式 GitHub MCP の `get_check_runs` など）は、CI 判定の根拠にしない。**
+2. **required の集合の確定**: `<base>` は PR の base ref（`{RAVEN}:get_pr_context` の `baseRefName`）。次の 2 つを、`gh api` の read-only で読み（MCP tool は提供していないため、CI read の経路にかかわらず常に `gh api`）、**和集合**をとる。判定規則は `thread-owl-pr-reviewer` の `references/ci-check.md`「4. required checks の集合」と同じで、片方を変えるときはもう片方も同時に更新する。
    - ruleset（組織レベルとリポジトリの両方を含む）:
 
      ```text
@@ -38,10 +38,10 @@ R-16 の CI 判定は、状態集約・SHA 固定・失敗ログ取得を分け�
      - provider 制約を解決できない（classic の `checks[].app_id` が `null` または欠落、`checks[]` の裏付けがない legacy context、同じ `context` で異なる具体的 App ID が矛盾）。解釈は `thread-owl-pr-reviewer` の同節に従う。
    - 上記に当たらず、和集合が**空**なら **required 未定義**とする（読み取りに成功して確認した空であり、取得失敗とは区別する）。和集合が空でなければ、各 required check を `(context, provider 制約)` で check run と照合する。
 2a. **skipped の許可（リポジトリ方針）**: `if` 条件で設計どおりに skipped になる job（PR では実行しない job など）は、GitHub では成功として扱われる。一方で、本来動くべき実質的な check が、`if` やパスフィルタの誤りで黙って skipped になった場合と、結論からは区別できない。そのため、`skipped` を成功として扱うのは、リポジトリが**名前を明示して許可した check に限る**。
-   - 宣言: `policy-source.md`を必ず読み、現在のbase branch先頭の`policyBaseSha`にある`.review-raven/ci-policy.json`を固定済み`{GH}` bindingで読む。author宣言とreader v2の`baseRefName` / `policyBaseSha`と一致させる。PR比較元の`baseRefOid`、HEAD、作業ツリーへ代替しない。参照消失・不一致・取得失敗は`CI: unknown`。形式は`{"version": 1, "allowedSkippedChecks": ["<check run の name>", ...]}`。
+   - 宣言: `policy-source.md`を必ず読み、現在のbase branch先頭の`policyBaseSha`にある`.review-raven/ci-policy.json`を、`{RAVEN}:get_pr_context`の`ciPolicy`（`found`と未加工`content`。`found=false`が404相当の不在）から取得する。author宣言とreader v2の`baseRefName` / `policyBaseSha`と一致させる。PR比較元の`baseRefOid`、HEAD、作業ツリーへ代替しない。参照消失・不一致・取得失敗は`CI: unknown`。形式は`{"version": 1, "allowedSkippedChecks": ["<check run の name>", ...]}`。
    - ファイルが無い（404）なら、許可は 0 件。存在するのに、JSON ではない、`version` が 1 ではない、`allowedSkippedChecks` が空または文字列だけの配列ではない、前後に空白のある名前や重複がある、未知のキーがある、のいずれかなら、`CI: unknown`（宣言を読めないまま、許可の有無を推測しない）。
    - 適用: `conclusion: skipped` の check run の `name` が `allowedSkippedChecks` に完全一致する場合だけ、成功として扱う。それ以外の check が 1 件でも成功でなければ、許可があっても `CI: success` にしない。`success` の check が 1 件も無い（すべてが許可した skipped）場合も `CI: success` にしない。`neutral` など、`skipped` 以外は許可の対象外。
 3. `CI: success` は、`reviewedHeadSha` に対するすべての required check が `status: completed` かつ `conclusion: success`（または 2a で許可した `skipped`）の場合だけにする。required 未定義のときは、報告済みの check run すべてが `status: completed` かつ `conclusion: success`（または 2a で許可した `skipped`）で、`success` が 1 件以上ある場合だけにする。required check が未返却（`check_runs` が空配列の場合を含む）、または `queued` / `in_progress` / `pending`（未完了 run の `conclusion` は `null` になり得る）の場合は `CI: pending`、required check に `failure` / `cancelled` / `timed_out` / `action_required` / `startup_failure` / `skipped`（2a で許可されていない場合）などの結論があれば `CI: failure` とする。required 未定義で check run が 1 件も報告されていない場合は `CI: pending` とする（CI が未開始の可能性がある。成功扱いにしない）。optional check の結果は別途記録する。`combined status` は使用禁止であり、その応答を「実行中」や成功の根拠にしてはならない。
    - required 未定義のときは、まだ報告されていない check（後から現れる check）を検知できず、commit status も見ない。この限界を、サマリの検証欄に書く（例: 「required checks が未定義のため、報告済みの check run すべてを対象にした。後から現れる check と commit status は検知できない」）。
 4. **失敗ログ**: `CI: failure` の場合、現在の client に workflow run / job / log の read capability があれば、その capability で失敗 job のログを取得する。client にその capability がなければ `gh run view <run-id> --log-failed` を read-only のフォールバックとして使う。失敗ログ取得の可否は client 依存であり、いずれの経路も利用できない場合は `CI: unknown` としてユーザーに報告し、修正可能なら Phase 4、修正困難なら停止する。
-5. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{GH}:get_pr` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して同じ経路で手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。
+5. **HEAD 移動時の再確認**: Phase 6.6 または Phase 7 へ進む前に `{RAVEN}:get_pr_context` を再度 read して PR HEAD が `reviewedHeadSha` のままであることを確認する。HEAD が動いた場合は、以前の check runs 結果を破棄し、新しい current head を固定して同じ経路で手順 1 から再実行する。再取得または SHA 照合ができない場合は `CI: unknown` として停止する。

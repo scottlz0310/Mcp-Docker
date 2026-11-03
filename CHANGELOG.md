@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - review-ravenサービスへ`REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES`を転送する。未設定は`false`で既存の挙動を変えない。有効化には専用App/installationのIssues write権限が別途必要。
 
+### Changed
+
+- reviewed rev44: GitHub MCP（`{GH}`）への依存をreview-ravenへ移行した。PR参照・全件の投稿者metadata・CI宣言は`get_pr_context`、指摘への返信は`reply_to_pr_comment`、follow-up Issueは`create_follow_up_issue` / `get_follow_up_issue`を使う。手順は新reference`follow-up.md`へ置いた。Issue用toolが無い・無効・権限不足のときは`gh`や別routeへ迂回せず、未追跡のまま停止する。`gh`は宣言ファイル（プロジェクトの許可リスト）・CI保護設定・失敗ログのread-onlyと、resolve補完に限る。review-raven v0.12.0以降を先に配備してからskillを配布する（Issue用toolはopt-in）。reviewer rev30は変更しない。
+
 ## [2.43.1] - 2026-11-03
 
 ### Documentation

@@ -225,7 +225,9 @@ var skillSizeBudgets = []struct {
 	// 入口の500行/文字数予算は維持し、既存契約を削らず新機能分だけ合計へ反映する。
 	// #408: 現在の宣言元解決・v2照合・再確認を参照文書へ追加。入口予算は維持し、合計は実測+2,290文字。
 	// #391: stopped受信/attempt照合と完了記録禁止を参照へ追加。入口予算は維持、合計を実測へ更新。
-	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 89910},
+	// B4 rev44: GitHub MCP（{GH}）依存を、review-ravenのget_pr_context / reply_to_pr_comment / create_follow_up_issueへ移行。
+	// R-10・R-11の手順を新referenceのfollow-up.mdへ置き、入口の上限は維持する。合計は新referenceの分で +1,679 文字（実測へ更新）。
+	{skill: "review-raven-thread-owl-cycle", maxLines: 500, maxRunes: 43695, maxTotalRunes: 91589},
 	// #326: CI 判定を references/ci-check.md へ集約。#331/#332: required checks の集合、provider 制約、未対応 ruleset rule の解決を追加
 	// #326 PR2a: queue 待機とローカル検証の隔離手順を references/ へ移動（SKILL.md は -39 行。合計は入口の注記と見出し分で +1,402 文字）
 	// #326 PR2b: Verdict 投稿と再レビュー・thread follow-up の手順を references/ へ移動（SKILL.md は -69 行。合計は入口の注記と見出し分で +143 文字）

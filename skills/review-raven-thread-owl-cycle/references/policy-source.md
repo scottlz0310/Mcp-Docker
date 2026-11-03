@@ -4,21 +4,9 @@ PR比較用の`baseSha`（`baseRefOid`）と、宣言元の`policyBaseSha`を分
 
 ## 解決と固定
 
-1. metadata bindingのdiscoveryと最小readが成功した後、次の`gh api graphql`をread-only補完として使う。reviewerは先にPR作成元の許可判定も通す。拒否されたreadを迂回しない。この経路を宣言元解決に固定し、失敗後に別認証へ切り替えない。owner/repo/PR番号は確定済み対象を渡す。queryとowner/repoは`-f`、PR番号は整数の`-F pr=<番号>`で渡す。コメント本文は選択しない。
+1. metadata bindingのdiscoveryと最小readが成功した後、`{RAVEN}:get_pr_context`の`baseRefName` / `policyBaseSha`（現在のbase branch先頭Commit。PR比較元の`baseSha`とは別）を宣言元として固定する。取得は1回で、失敗後に別認証・別経路へ切り替えない。branch名・SHAの形式、PR head/baseとの整合はtool側で検証される。
 
-   ```graphql
-   query($owner: String!, $repo: String!, $pr: Int!) {
-     repository(owner: $owner, name: $repo) {
-       pullRequest(number: $pr) {
-         headRefOid baseRefOid baseRefName
-         baseRef { name prefix target { __typename oid } }
-       }
-     }
-   }
-   ```
-
-2. PRのhead/baseが固定metadataと一致し、`baseRefName`が非空で`baseRef.name`と一致、prefixが`refs/heads/`、targetが`Commit`、oidが40桁小文字hexの場合だけ、branch名とoidを宣言元として固定する。null・削除・不一致・取得失敗は呼出し元のauthor gate / CI / readerの停止分類に従い、宣言なしへ補完しない。
-3. reviewedのfile readは固定したGH binding、reviewerのCI宣言はread-only補完の`gh api repos/<owner>/<repo>/contents/.review-raven/ci-policy.json?ref=<policyBaseSha>`に固定する。REST応答はtype=file / encoding=base64を確認し、contentを復号して宣言JSONを検証する。reviewerのauthor宣言はOWL reader自身が同じSHAで検証する。reviewedも両ファイルへ`policyBaseSha`を明示する。ファイル取得の404だけを不在とし、他の失敗や不正JSONを空の許可へ代替しない。ファイル取得後にも同じqueryを実行し、head/base/branch名/宣言SHAの一致を確認する。変化した場合は古い宣言を使わず停止する。再開時は宣言取得と投稿者検証から新しく実行する。
+2. author宣言は既存readerが同じ`policyBaseSha`で検証する。許可リスト本体は`author-gate.md`の手順で`gh api`のread-only、CI宣言は`get_pr_context`の`ciPolicy`から取得する。`found=false`だけを不在（空の許可）とし、他の失敗や不正JSON（schema不一致）を空の許可へ代替しない。取得後にも`get_pr_context`を再取得し、head/base/branch名/`policyBaseSha`の一致を確認する。変化した場合は古い宣言を使わず停止する。再開時は宣言取得と投稿者検証から新しく実行する。
 
 ## 書込み前と終端
 
