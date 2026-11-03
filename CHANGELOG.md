@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- review-ravenサービスへ`REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES`を転送する。未設定は`false`で既存の挙動を変えない。有効化には専用App/installationのIssues write権限が別途必要。
+
 ## [2.43.1] - 2026-11-03
 
 ### Documentation
