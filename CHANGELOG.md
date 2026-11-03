@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-11-03
+
 ### Added
 
 - review-ravenサービスへ`REVIEW_RAVEN_ENABLE_FOLLOW_UP_ISSUES`を転送する。未設定は`false`で既存の挙動を変えない。有効化には専用App/installationのIssues write権限が別途必要。
@@ -1109,7 +1111,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.1...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.44.0...HEAD
+[2.44.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.1...v2.44.0
 [2.43.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...v2.43.1
 [2.43.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.41.0...v2.42.0
