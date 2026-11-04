@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.45.0] - 2026-11-04
+
 ### Removed
 
 - GitHub MCPを構成から撤去した。`docker-compose.yml`の`github-mcp`サービス（`mcp-github`）・gatewayの`ROUTE_GITHUB`（`/mcp/github`）・`github-mcp-cache`ボリューム、`make`の起動対象、`health-check.sh`の`github-mcp`、`security.yml`の公式イメージscanと対応する`.trivyignore`、`verify-mcp-endpoint.js`の既定URL（review-ravenへ変更）を除いた。reviewed rev44・reviewer rev30はGitHub MCPに依存せず、CLI登録は#435で外し済み。稼働中のスタックでは、`make start-gateway`などの`--remove-orphans`で`mcp-github`が除かれる。`mcp-docker_github-mcp-cache`ボリュームは手動削除する。gatewayへの`GITHUB_APP_*`の受け渡しの撤去は、次の項目を参照。
@@ -1121,7 +1123,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.44.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.45.0...HEAD
+[2.45.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.44.0...v2.45.0
 [2.44.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.1...v2.44.0
 [2.43.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...v2.43.1
 [2.43.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.42.0...v2.43.0
