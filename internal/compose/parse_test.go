@@ -58,11 +58,6 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		want string
 	}{
 		{
-			name: "github の upstream endpoint（GitHub App token 注入・auth=none なし）",
-			key:  "ROUTE_GITHUB",
-			want: "/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true",
-		},
-		{
 			name: "review-raven の upstream endpoint（専用proxyの共有Bearer注入）",
 			key:  "ROUTE_REVIEW_RAVEN",
 			want: "/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET",
@@ -81,9 +76,17 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		})
 	}
 
+	// GitHub MCP は撤去済み。route とサービスが戻ると、CLI 登録・security scan の前提も崩れるため、意図して戻す場合だけ期待値を変える。
+	if _, exists := gateway["ROUTE_GITHUB"]; exists {
+		t.Fatal("ROUTE_GITHUB は撤去済みです")
+	}
+
 	var file composeFile
 	if err := yaml.Unmarshal(data, &file); err != nil {
 		t.Fatal(err)
+	}
+	if _, exists := file.Services["github-mcp"]; exists {
+		t.Fatal("services.github-mcp は撤去済みです")
 	}
 	threadOwl, ok := file.Services["thread-owl"]
 	if !ok {
@@ -107,7 +110,7 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 		t.Fatal("thread-owl must use its default /mcp endpoint")
 	}
 
-	for _, serviceName := range []string{"github-mcp", "mcp-gateway", "review-raven"} {
+	for _, serviceName := range []string{"mcp-gateway", "review-raven"} {
 		service, ok := file.Services[serviceName]
 		if !ok {
 			t.Fatalf("services.%s not found", serviceName)

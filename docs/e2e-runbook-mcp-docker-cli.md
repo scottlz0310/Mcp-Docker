@@ -97,9 +97,6 @@ claude の dry-run 計画:
 - review-raven:
   - 既存登録があれば削除: claude mcp remove --scope user review-raven
   - 追加: claude mcp add --transport http --scope user review-raven http://127.0.0.1:8080/mcp/review-raven
-- github:
-  - 既存登録があれば削除: claude mcp remove --scope user github
-  - 追加: claude mcp add --transport http --scope user github http://127.0.0.1:8080/mcp/github
 - playwright:
   - 既存登録があれば削除: claude mcp remove --scope user playwright
   - 追加: claude mcp add --transport http --scope user playwright http://127.0.0.1:8080/mcp/playwright
