@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `config/mcp-profiles.yml`を、全CLI（claude/copilot/codex/antigravity）で同一の最小構成（review-raven + thread-owl）に変更した。githubはCLI登録から外す。どのCLIも実装役・レビュー役を取り替えられる設計のため、役割ではなく全CLI共通とした。再登録時、宣言のなかったcopilot/antigravityは、従来の「全サーバー」から宣言どおりの2サーバーになる。`register --prune`でclaude/antigravityの既存のgithub登録が削除候補になる（実行前に`--dry-run`で確認）。gateway routeとgithub-mcpサービスは撤去しない。
+- ログイン用 GitHub App の権限を、`Metadata`（Read-only）だけにする手順へ直した（`docs/github-app-setup.md`・`.env.template`）。従来は Contents・Issues・Pull requests・`Email addresses` を推奨していたが、gateway がログインで GitHub から読むのは`GET /user`の`login`と`name`だけで、これらは使われない（mcp-gateway#249 と同じ根拠）。`upstream_github_app`・`upstream_provider_token`の route を追加して上流が必要とするときに限り、その分の権限を足す。実機で、権限を`Metadata`のみに縮小した後も OAuth ログインが成功することを確認した。
 
 ## [2.44.0] - 2026-11-03
 

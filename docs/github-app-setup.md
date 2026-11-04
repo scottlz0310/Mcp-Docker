@@ -45,15 +45,15 @@ GitHub App に登録する URL は**必ずこの値と一致させる**。
    | **Enable Device Flow** | チェック不要。`/device_callback` は mcp-gateway 自身が実装する Device Authorization Grant 用のエンドポイントであり、GitHub 側の device flow は使用しない |
    | **Webhook** の **Active** | チェックを**外す**（Webhook は使用しない。外すと Webhook URL の入力は不要になる） |
 
-5. **Permissions** で以下を設定する（各権限は **No access** / **Read-only** / **Read & write** から選択）:
+5. **Permissions** は、**`Metadata`（Read-only）だけ**にする。`Metadata` は自動で選択され、外せない。ほかの Repository permissions と Account permissions（`Email addresses` を含む）は、すべて **No access** のままにする。
 
    | カテゴリ | Permission | Access |
    |---|---|---|
    | Repository permissions | Metadata | Read-only（自動選択） |
-   | Repository permissions | Contents | Read-only |
-   | Repository permissions | Issues | Read and write |
-   | Repository permissions | Pull requests | Read and write |
-   | Account permissions | Email addresses | Read-only |
+
+   gateway がログインで GitHub から読むのは、`GET /user` の `login`（と `name`）だけである。メールアドレスもリポジトリの内容も読まない。この App は、ログイン（ユーザー認可）にだけ使う。
+
+   権限を足すのは、gateway に **App の権限で動く route**（`upstream_github_app=true`）や、**呼び出し元の GitHub トークンを転送する route**（`upstream_provider_token=true`）を追加して、その上流が必要とするときだけにする。現在の構成（review-raven と thread-owl）には、どちらもない。
 
 6. **Where can this GitHub App be installed?** は、個人利用なら **Only on this account** を選択
 7. **Create GitHub App** をクリック
