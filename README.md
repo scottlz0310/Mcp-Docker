@@ -1,6 +1,6 @@
 # Mcp-Docker — MCP Server Docker 統合環境
 
-GitHub MCP Server をはじめとする複数の MCP サーバーを Docker で常駐させ、OAuth 2.0 認証を一元化して各 CLI から統一的に利用する環境。
+review-raven・thread-owl をはじめとする複数の MCP サーバーを Docker で常駐させ、OAuth 2.0 認証を一元化して各 CLI から統一的に利用する環境。
 
 ## アーキテクチャ
 
@@ -8,7 +8,6 @@ GitHub MCP Server をはじめとする複数の MCP サーバーを Docker で�
 CLI（Claude CLI / GitHub Copilot CLI / Codex CLI / Antigravity CLI）
   ↓ HTTP  127.0.0.1:8080
 mcp-gateway  ← OAuth 2.0 認証・ルーティング
-  ├── /mcp/github          → github-mcp-server   [OAuth 必須]
   ├── /mcp/review-raven    → review-raven        [OAuth 必須]
   └── /mcp/playwright      → playwright-mcp      [auth=none・任意。既定では無効]
 ```
@@ -23,11 +22,10 @@ OAuth フローは mcp-gateway コンテナ内で完結するため、CLI の起
 | サービス | イメージ | ポート | 説明 |
 |---|---|---|---|
 | `mcp-gateway` | `ghcr.io/scottlz0310/mcp-gateway:latest` | 8080（ホスト公開） | OAuth ゲートウェイ |
-| `github-mcp` | `ghcr.io/github/github-mcp-server:main` | 8082（内部のみ） | GitHub MCP サーバー |
 | `review-raven` | `ghcr.io/scottlz0310/review-raven:main` | 8083（内部のみ） | 専用App名義のレビュー対応（reviewed-side） |
 | `playwright-mcp` | `mcr.microsoft.com/playwright/mcp:latest` | 8931（内部のみ） | ブラウザ操作（auth=none）。**任意で、既定では起動しない**（[有効にする手順](#playwright-mcpauthnone任意)） |
 
-`github-mcp`・`review-raven`・`playwright-mcp` はホストに直接公開されません。
+`review-raven`・`playwright-mcp` はホストに直接公開されません。
 すべて mcp-gateway（ポート 8080）経由でアクセスします。
 
 
@@ -84,7 +82,7 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 - App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（同上）
 - 生成した秘密鍵（PEM）は、`make github-app-key-b64 PEM=<path>` で単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` で gateway へ渡す（`.env` からは読まない。PEM のファイルは、リポジトリに置かず、gateway へマウントもしない）
 
-gateway は秘密鍵から短命の installation token を生成し、期限前に更新して `github-mcp` へリクエスト単位で注入します。GPAT は構成・コンテナ環境のいずれにも不要です。
+`github-mcp` と gateway の `/mcp/github` route は撤去した（reviewed rev44・reviewer rev30 は GitHub MCP に依存しない）。このため、gateway が installation token を注入する先は、現在の構成にはない。`GITHUB_APP_*` の gateway への受け渡しは、gateway が起動に必要とするかを確認するまで残している。GPAT は構成・コンテナ環境のいずれにも不要です。
 
 画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
@@ -226,7 +224,7 @@ mcp-docker register --agent all --yes
 - `docker-compose.yml` の `mcp-gateway.environment.ROUTE_*`
 - `config/mcp-external.yml` の外部 MCP サーバー定義
 
-`ROUTE_GITHUB` は `github`、`ROUTE_REVIEW_RAVEN` は `review-raven` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
+`ROUTE_THREAD_OWL` は `thread-owl`、`ROUTE_REVIEW_RAVEN` は `review-raven` のようにサーバー名へ変換されます。`REGISTER_FLAGS=--yes` を外すと、検出した名前を対話的に変更できます。
 
 ### skill の配置（`mcp-docker skill`）
 
@@ -374,7 +372,6 @@ mcp-docker instruction repair --yes
 
 | URL | サービス | 認証 |
 |---|---|---|
-| `http://127.0.0.1:8080/mcp/github` | github-mcp-server | OAuth 必須 |
 | `http://127.0.0.1:8080/mcp/review-raven` | review-raven | OAuth 必須 |
 | `http://127.0.0.1:8080/mcp/playwright` | playwright-mcp（`PLAYWRIGHT_MCP_ENABLED=1` のときだけ公開） | なし |
 | `http://127.0.0.1:8080/health` | mcp-gateway | なし |
@@ -476,14 +473,13 @@ servers:
 | 環境変数 | 既定値 | 説明 |
 |---|---|---|
 | `GITHUB_MCP_GATEWAY_IMAGE` | `ghcr.io/scottlz0310/mcp-gateway:main` | ゲートウェイイメージ |
-| `GITHUB_MCP_IMAGE` | `ghcr.io/github/github-mcp-server:main` | github-mcp-server イメージ |
 | `REVIEW_RAVEN_IMAGE` | `ghcr.io/scottlz0310/review-raven:main` | 専用App認証対応のreview-raven イメージ |
 | `PLAYWRIGHT_MCP_IMAGE` | `mcr.microsoft.com/playwright/mcp:latest` | 通常起動時のイメージ。`pull-main` / `start-main` の fallback にも使用 |
 | `PLAYWRIGHT_MCP_MAIN_IMAGE` | `mcr.microsoft.com/playwright/mcp:main` | `pull-main` が取得し、`start-main` がローカルにあれば起動する開発版イメージ |
 | `PLAYWRIGHT_MCP_FALLBACK_IMAGE` | `PLAYWRIGHT_MCP_IMAGE` または `mcr.microsoft.com/playwright/mcp:latest` | `pull-main` の fallback、および `start-main` で `:main` がローカルにない場合に使用するイメージ |
 
 ```bash
-GITHUB_MCP_IMAGE=ghcr.io/github/github-mcp-server:v1.0.0 make start-gateway
+REVIEW_RAVEN_IMAGE=ghcr.io/scottlz0310/review-raven:v0.12.0 make start-gateway
 ```
 
 ## トラブルシューティング
@@ -501,26 +497,22 @@ make logs-gateway  # mcp-gateway ログ
 
 1. mcp-gateway が起動しているか確認（`make status-gateway`）
 2. ポート確認（デフォルト 8080）
-3. CLI の MCP サーバー設定 URL が `http://127.0.0.1:8080/mcp/github` 等になっているか確認
+3. CLI の MCP サーバー設定 URL が `http://127.0.0.1:8080/mcp/review-raven` 等になっているか確認
 4. OAuth フローが完了しているか確認（ブラウザで `http://127.0.0.1:8080/health` にアクセス可能か）
 
 ### タイムアウト
 
 デフォルトの HTTP タイムアウトは 30 秒。複雑な操作では `--timeout` の調整が必要な場合があります。
 
-### コンテナ内部に入れない（Distroless）
+### 撤去した github-mcp の残り
 
-`github-mcp-server` コンテナはシェルなし（Distroless）のため、`docker exec -it ... bash` は動作しません。
-ヘルスチェックは `make health-check` で行ってください。Windows では Makefile が Git for Windows の Bash を解決して実行します。
-
-### コンフィグボリュームが古い
-
-`make clean` 後も `./config/github-mcp` ボリュームは残ります。
-最初から設定し直す場合は手動で削除してください：
+`github-mcp` を撤去する前のスタックには、`mcp-github` コンテナと `mcp-docker_github-mcp-cache` ボリュームが残ることがある。コンテナは `make start-gateway`（`--remove-orphans`）で除去される。ボリュームは次で手動削除する：
 
 ```bash
 docker volume rm mcp-docker_github-mcp-cache
 ```
+
+ヘルスチェックは `make health-check` で行ってください。Windows では Makefile が Git for Windows の Bash を解決して実行します。
 
 ### mcp-gateway トークンストア / 監査ログボリューム（`mcp-gateway-data`）
 
@@ -554,7 +546,7 @@ docker compose up -d
 
 **セキュリティ注意事項**:
 - `mcp-gateway-data` ボリュームは `mcp-gateway` コンテナ専用です。他のサービスには公開しないでください。
-- ボリュームパスやトークンファイルの内容を CLI 設定に含めないでください。CLI へは `http://127.0.0.1:8080/mcp/github` 等の URL のみを記載します。
+- ボリュームパスやトークンファイルの内容を CLI 設定に含めないでください。CLI へは `http://127.0.0.1:8080/mcp/review-raven` 等の URL のみを記載します。
 
 ## ディレクトリ構成
 
@@ -571,11 +563,10 @@ Mcp-Docker/
 ├── skills/                     # skill の収蔵先（バイナリへ埋め込み）
 │   ├── review-raven-thread-owl-cycle/
 │   └── thread-owl-pr-reviewer/
-├── docker-compose.yml          # メインの Compose 定義（4サービス）
+├── docker-compose.yml          # メインの Compose 定義
 ├── Makefile                    # 操作コマンド集
 ├── config/
 │   ├── mcp-external.yml        # 外部 MCP サーバー定義
-│   └── github-mcp/             # GitHub MCP のローカル bind mount 用（未作成時は Docker が作成）
 ├── scripts/
 │   ├── github-app-key-b64.sh   # GitHub App の秘密鍵を単一行の base64 にしてクリップボードへ（make github-app-key-b64）
 │   ├── health-check.sh         # ヘルスチェック
@@ -603,7 +594,6 @@ Mcp-Docker/
 ## 関連リソース
 
 - [docs/architecture-review-platform.md](docs/architecture-review-platform.md) — review platform における Mcp-Docker の責務・責務境界
-- [github-mcp-server](https://github.com/github/github-mcp-server) — 本家 GitHub MCP サーバー
 - [mcp-gateway](https://github.com/scottlz0310/mcp-gateway) — OAuth ゲートウェイ
 - [review-raven](https://github.com/scottlz0310/review-raven) — レビュー対応自動化 MCP（reviewed-side）
 - [CHANGELOG.md](CHANGELOG.md) — リリース履歴・破壊的変更

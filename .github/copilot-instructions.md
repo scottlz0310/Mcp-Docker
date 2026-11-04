@@ -6,8 +6,8 @@
 CLI clients (Claude CLI / GitHub Copilot CLI / Codex CLI)
   ↓ HTTP (port 8080)
 Docker: ghcr.io/scottlz0310/mcp-gateway:latest  ← OAuth 2.0 ゲートウェイ（compose デフォルト）
-  ↓ /mcp/github         ↓ /mcp/review-raven
-ghcr.io/github/github-mcp-server:main   review-raven
+  ↓ /mcp/review-raven   ↓ /mcp/thread-owl
+review-raven            thread-owl
   ↓
 GitHub API (REST v3 + GraphQL v4)
 ```
@@ -39,11 +39,9 @@ make clean-all       # Full cleanup including images
 
 ## Conventions
 
-- **GitHub upstream auth**: `mcp-gateway` が GitHub App installation token を生成・更新する。GPAT を構成や各コンテナへ渡さない。
-- **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `github-mcp-server` runs on internal port `8082` (`GITHUB_MCP_HTTP_PORT`, not exposed to host), and `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
-- **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image, and set `GITHUB_MCP_IMAGE` to swap the default `github-mcp-server` image.
-- **HTTP transport: supported in stable releases `v0.31.0+`**: Stable releases `v0.31.0` and later include native Streamable HTTP support (`http` subcommand). `v1.0.0` is the current latest stable. Use `main` for cutting-edge features.
-- **Distroless container**: The container has no shell. Health checks are done host-side via `make health-check`, not inside the container.
+- **GitHub MCP は撤去済み**: gateway の `/mcp/github` route と `github-mcp` サービスは無い。`GITHUB_APP_*` の gateway への受け渡しは、撤去の要否を決めるまで残している。GPAT を構成や各コンテナへ渡さない。
+- **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
+- **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image.
 - **Documentation language**: User-facing docs, Makefile help output, and messages are written in Japanese.
 - **Registration**: Use `mcp-docker register` or `make register-*` for Claude CLI, GitHub Copilot CLI, and Codex CLI.
 
@@ -59,7 +57,6 @@ make clean-all       # Full cleanup including images
 ## Gotchas
 
 - **Timeout**: default HTTP timeout is 30 s. Complex operations may need `--timeout` tuning.
-- **Stale config volume**: `./config/github-mcp` persists after `make clean`. Remove manually if reconfiguring from scratch.
 
 ## Further Reading
 

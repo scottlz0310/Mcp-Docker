@@ -4,6 +4,8 @@ mcp-gateway 経由で MCP サーバーに接続するために必要な GitHub A
 **GitHub Web UI 側で行う作業**（新規登録・インストール・秘密鍵管理・TLS 切替時の URL 変更）を説明する。
 `.env` への設定値は [README](../README.md) および `.env.template` のコメントを参照。
 
+> **`/mcp/github` route の撤去について**: gateway の `/mcp/github` route と `github-mcp` サービスは撤去した。gateway が GitHub App の installation token を注入する先は現在の構成にはなく、`GITHUB_APP_*` の受け渡しと秘密鍵の運用（本書の該当節）は、その撤去・整理を決めるまで残している。以下に残る `/mcp/github` での確認手順は、`make health-check` の credential 診断に読み替える。
+
 > 本書の画面遷移・ラベルは 2026-07 時点の GitHub Web UI（表示は英語）に基づく。
 > UI が変更された場合は公式ドキュメント
 > [Registering a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) /
@@ -123,13 +125,13 @@ GitHub App の秘密鍵（PEM）を入れ替える（ロールする）手順。
 2. **Bitwarden を更新する**: `make github-app-key-b64 PEM=<新しい PEM のパス>` で、単一行の base64 をクリップボードへ入れる（値は画面に出ない）。Bitwarden の項目 `env:GITHUB_APP_PRIVATE_KEY_B64` のカスタムフィールド `value`（非表示）を、貼り付けて更新する。
 3. **注入して、PEM と一致することを確認する**: `bw sync` → `dsx-env` → `make verify-github-app-key PEM=<新しい PEM のパス>` が「一致しました」を返す。**`bw sync` を忘れると、旧い値が注入される**。
 4. **gateway を入れ替える**: `make rotate-secret` を、**レビューが動いていない時**に実行する。全サービスを一度止め、`config.yaml` を削除して、起動し直す（`tokens.db` は保持される。gateway の OIDC 署名鍵も作り直されるので、クライアントによっては、再ログインが要る）。`rotate-secret` の最後は `make start-gateway`（既定のイメージ `:latest`）なので、`:main` の開発版で動かしている場合は、続けて `make start-main` を実行する。
-5. **動作を確認する**: `make health-check`（credential の診断。`GitHub App installation credential is ready`）が合格し、`/mcp/github` で、ファイルの取得（読み取り）が成功する。
+5. **動作を確認する**: `make health-check`（credential の診断。`GitHub App installation credential is ready`）が合格する。
 6. **旧い鍵を削除する**: 5 まで確認できてから、GitHub の App 設定で、旧い鍵を削除する（漏えいが疑われるときは、確認を待たない。下の注意を参照）。
 
-- **gateway を動かしている PC が複数あるとき**: PC ごとに `config.yaml` を持つので、**PC ごとに 3〜5 を行う**（2 は、Bitwarden の更新で、1 回だけ）。**旧い鍵の削除（6）は、すべての PC で 5 を確認してから**行う。先に削除すると、まだ旧い鍵の PC の `/mcp/github` が止まる。
+- **gateway を動かしている PC が複数あるとき**: PC ごとに `config.yaml` を持つので、**PC ごとに 3〜5 を行う**（2 は、Bitwarden の更新で、1 回だけ）。**旧い鍵の削除（6）は、すべての PC で 5 を確認してから**行う。先に削除すると、まだ旧い鍵の PC の credential 診断が失敗する。
 - **漏えいが疑われるとき（旧い鍵を、直ちに失効させる）**: 動作確認を待たず、次の順序で行う。**1（新しい鍵を生成）→ すぐに 6（漏えいした旧い鍵の削除）→ 2〜5（切り替え・確認）**。
   - **1 を省いてはいけない**。App に鍵が 1 本しかないとき、GitHub は、新しい鍵を生成する前に、最後の鍵を削除させない（[GitHub Docs — Managing private keys for GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/managing-private-keys-for-github-apps#deleting-private-keys)）。
-  - 削除した時点から、2〜4 を終えるまで、`/mcp/github` は動かない。
+  - 削除した時点から、2〜4 を終えるまで、gateway の installation token 取得は失敗する。
   - **削除後は、旧い鍵へ戻せない**。失敗したときは、新しい鍵で、3〜5 をやり直す。
   - gateway を動かしている PC が複数あるときも、削除は、全 PC の確認を待たない（漏えいした鍵を、残さないため）。
 - **うまくいかないとき（通常のローテーション）**: 旧い鍵が GitHub に残っていれば、Bitwarden の値を旧い鍵へ戻し、`bw sync` → `dsx-env` → `make rotate-secret` で戻せる。症状と対処は、「5. トラブルシューティング」を参照する。
@@ -166,7 +168,7 @@ GitHub App の秘密鍵（PEM）を入れ替える（ロールする）手順。
 | TLS 切替後にブラウザが証明書警告を出す | mkcert のローカル CA が信頼されていない。`make setup-tls` を再実行する（CA の生成・信頼登録は冪等） |
 | Node.js 製 MCP クライアントが TLS 接続に失敗する | `NODE_EXTRA_CA_CERTS`（setup-tls が `.env` に自動設定）がクライアントのプロセス環境に渡っていない |
 | 認可後に 401 が続く | Client secret の値違い・失効の可能性。セクション 2 の手順で再生成し、環境変数（Bitwarden の項目）を更新して、`make rotate-secret`。gateway は、初回に保存した暗号化済みの secret を、環境変数より優先するので、`make restart-gateway` だけでは反映されない |
-| `/mcp/github` が HTTP 502。gateway のログに `GitHub installation token endpoint returned HTTP 401`・`server credential unavailable` | 秘密鍵が一致しない。`config.yaml` に旧い鍵が残り、環境変数より優先されている（鍵の入れ替えのあと、`make rotate-secret` を実行していない）、または GitHub 側で旧い鍵を削除済みで、Bitwarden の値が旧い鍵のまま。「秘密鍵のローテーション」の 3〜4 をやり直す（`bw sync` → `dsx-env` → `make verify-github-app-key` → `make rotate-secret`） |
+| `make health-check` の credential 診断が失敗する。gateway のログに `GitHub installation token endpoint returned HTTP 401`・`server credential unavailable` | 秘密鍵が一致しない。`config.yaml` に旧い鍵が残り、環境変数より優先されている（鍵の入れ替えのあと、`make rotate-secret` を実行していない）、または GitHub 側で旧い鍵を削除済みで、Bitwarden の値が旧い鍵のまま。「秘密鍵のローテーション」の 3〜4 をやり直す（`bw sync` → `dsx-env` → `make verify-github-app-key` → `make rotate-secret`） |
 | `make` が `GITHUB_APP_PRIVATE_KEY_B64 is required` で止まる | 秘密鍵が環境変数に入っていない（Bitwarden に未登録、または `dsx-env` を実行していない）。`.env` には書いても読まれない。「資格情報の置き場」の手順で登録し、`bw sync` → `dsx-env` を実行したシェルで再実行する |
 | `--with-api` の資格情報診断が失敗する | App ID / Installation ID / 秘密鍵の組み合わせ、App のインストール先、権限を確認する。`docker compose logs mcp-gateway` には秘密値を出さず失敗原因が記録される |
 

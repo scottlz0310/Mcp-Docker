@@ -1,53 +1,9 @@
 services:
-  github-mcp:
-    image: ${GITHUB_MCP_IMAGE:-ghcr.io/github/github-mcp-server:main}
-    container_name: mcp-github
-    restart: unless-stopped
-    command: ["http", "--port", "${GITHUB_MCP_HTTP_PORT:-8082}"]
-
-    environment:
-      - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-
-    volumes:
-      - ./config/github-mcp:/app/config
-      - github-mcp-cache:/app/cache
-
-    # Exposed only within the Docker network. Direct host access is intentionally
-    # removed; use mcp-gateway (:8080) for authenticated external access.
-    expose:
-      - "${GITHUB_MCP_HTTP_PORT:-8082}"
-
-    networks:
-      - mcp-network
-
-    # Note: GitHub MCP Server uses a distroless image without shell commands.
-    # Health is validated from host side via scripts/health-check.sh.
-    healthcheck:
-      disable: true
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          cpus: "0.5"
-          memory: 256M
-
   mcp-gateway:
     image: ${GITHUB_MCP_GATEWAY_IMAGE:-ghcr.io/scottlz0310/mcp-gateway:latest}
     container_name: mcp-gateway
     restart: unless-stopped
     depends_on:
-      github-mcp:
-        condition: service_started
       review-raven:
         condition: service_started
       # playwright-mcp は任意（既定では起動しない。有効化の手順は playwright-mcp サービスの
@@ -82,7 +38,6 @@ services:
       # 作り方: make github-app-key-b64 PEM=<path>
       - GITHUB_APP_PRIVATE_KEY_B64=${GITHUB_APP_PRIVATE_KEY_B64}
       - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
-      - ROUTE_GITHUB=/mcp/github|http://github-mcp:${GITHUB_MCP_HTTP_PORT:-8082}|upstream_github_app=true
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET
       - REVIEW_RAVEN_PROXY_SECRET=${REVIEW_RAVEN_PROXY_SECRET:?専用proxyの共有シークレットを保管庫から注入してください}
       # playwright は任意。PLAYWRIGHT_MCP_ENABLED が未設定の間は、ルートが空になり、
@@ -300,8 +255,6 @@ services:
         max-file: "3"
 
 volumes:
-  github-mcp-cache:
-    driver: local
   review-raven-data:
     driver: local
   mcp-gateway-data:

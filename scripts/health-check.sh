@@ -14,8 +14,7 @@ usage() {
 オプション:
   --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
                           mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
-                          review-raven       : review-raven / github-mcp / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
-                          github-mcp         : github-mcp コンテナ状態のみ確認 (ホスト非公開のため HTTP 疎通不可)
+                          review-raven       : review-raven / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
   --with-api              GitHub App installation credential 診断を必ず実行
   --no-api                GitHub App installation credential 診断をスキップ
   -h, --help              ヘルプを表示
@@ -50,10 +49,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$SERVICE" in
-    github-mcp|mcp-gateway|review-raven) ;;
+    mcp-gateway|review-raven) ;;
     *)
         echo "❌ 未対応のサービス: $SERVICE"
-        echo "対応サービス: github-mcp, mcp-gateway, review-raven"
+        echo "対応サービス: mcp-gateway, review-raven"
         exit 1
         ;;
 esac
@@ -210,25 +209,12 @@ check_container_state() {
     fi
 }
 
-echo "🏥 GitHub MCP Server ヘルスチェック (--service ${SERVICE})"
+echo "🏥 MCP ヘルスチェック (--service ${SERVICE})"
 echo ""
 
 ensure_docker_ready
 
-if [[ "${SERVICE}" == "github-mcp" ]]; then
-    # github-mcp はホスト非公開（Docker ネットワーク内部のみ）のため、
-    # コンテナ状態確認のみ実施。HTTP 疎通は mcp-gateway 経由で確認してください。
-    echo "ℹ️  github-mcp はホスト非公開です。HTTP 疎通確認はスキップします。"
-    echo "   HTTP エンドポイントを確認する場合: $0 --service mcp-gateway"
-    echo ""
-    check_container_state "github-mcp"
-    echo ""
-    echo "🎉 コンテナ状態チェックに合格しました"
-    exit 0
-fi
-
 if [[ "${SERVICE}" == "review-raven" ]]; then
-    check_container_state "github-mcp"
     check_container_state "review-raven"
     check_container_state "mcp-gateway"
     gateway_url="$(resolve_gateway_url)"
@@ -243,8 +229,6 @@ if [[ "${SERVICE}" == "review-raven" ]]; then
 fi
 
 # mcp-gateway のヘルスチェック
-# github-mcp コンテナ状態も確認
-check_container_state "github-mcp"
 check_container_state "mcp-gateway"
 
 # HTTP エンドポイント確認 (mcp-gateway 経由)

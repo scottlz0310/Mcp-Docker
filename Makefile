@@ -115,7 +115,7 @@ verify-github-app-key: ## 注入済みの GITHUB_APP_PRIVATE_KEY_B64 が PEM と
 .PHONY: start-gateway
 start-gateway: check-compose-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
 	# --remove-orphans: リネーム前の copilot-review-mcp など compose 定義外の旧コンテナを除去
-	docker compose up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway $(PLAYWRIGHT_SERVICE)
+	docker compose up -d --remove-orphans review-raven thread-owl mcp-gateway $(PLAYWRIGHT_SERVICE)
 	@echo "Started mcp-gateway endpoint: $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 
 .PHONY: stop-gateway
@@ -209,7 +209,6 @@ pull-main start-main restart-main: export THREAD_OWL_IMAGE := $(THREAD_OWL_MAIN_
 
 .PHONY: pull-main
 pull-main: check-compose-config ## 最新開発版イメージを取得（リリース前 main ブランチビルド）
-	docker compose pull github-mcp
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
@@ -231,12 +230,12 @@ ifneq ($(strip $(PLAYWRIGHT_MCP_ENABLED)),)
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
 	PLAYWRIGHT_MCP_IMAGE="$$playwright_image" \
-	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp
+	docker compose up -d --pull never --remove-orphans review-raven thread-owl mcp-gateway playwright-mcp
 else
 	GITHUB_MCP_GATEWAY_IMAGE=$(MCP_GATEWAY_MAIN_IMAGE) \
 	REVIEW_RAVEN_IMAGE=$(REVIEW_RAVEN_MAIN_IMAGE) \
 	THREAD_OWL_IMAGE=$(THREAD_OWL_MAIN_IMAGE) \
-	docker compose up -d --pull never --remove-orphans github-mcp review-raven thread-owl mcp-gateway
+	docker compose up -d --pull never --remove-orphans review-raven thread-owl mcp-gateway
 endif
 	@echo "Started mcp-gateway endpoint (main build): $(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080))"
 

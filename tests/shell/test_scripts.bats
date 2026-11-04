@@ -262,7 +262,7 @@ EOF
     run env -u PLAYWRIGHT_MCP_ENABLED make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-gateway
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway"* ]]
+    [[ "$output" == *"up -d --remove-orphans review-raven thread-owl mcp-gateway"* ]]
     [[ "$output" != *"playwright-mcp"* ]]
 }
 
@@ -270,7 +270,7 @@ EOF
     run env PLAYWRIGHT_MCP_ENABLED=1 make -C "${PROJECT_ROOT}" -o check-github-app-config --dry-run start-gateway
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"up -d --remove-orphans github-mcp review-raven thread-owl mcp-gateway playwright-mcp"* ]]
+    [[ "$output" == *"up -d --remove-orphans review-raven thread-owl mcp-gateway playwright-mcp"* ]]
 }
 
 @test "Makefile: start-main は PLAYWRIGHT_MCP_ENABLED が未設定なら Playwright のイメージ選択も起動もしない" {
@@ -353,10 +353,10 @@ EOF
 }
 
 @test "Makefile: health-check-quick は credential 診断をスキップする" {
-    run make -C "${PROJECT_ROOT}" --dry-run health-check-quick SERVICE=github-mcp
+    run make -C "${PROJECT_ROOT}" --dry-run health-check-quick SERVICE=mcp-gateway
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *'./scripts/health-check.sh --service "github-mcp" --no-api'* ]]
+    [[ "$output" == *'./scripts/health-check.sh --service "mcp-gateway" --no-api'* ]]
 }
 
 @test "lint-shell.sh: スクリプトが存在し実行可能" {

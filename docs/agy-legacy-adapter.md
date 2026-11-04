@@ -2,6 +2,8 @@
 
 対応 Issue: [#240](https://github.com/scottlz0310/Mcp-Docker/issues/240)。MCP `2026-07-28` 未対応の agy から modern upstream を利用する間だけ、gateway の互換層を有効化する。
 
+> 注: 本書の `github-mcp` / `ROUTE_GITHUB` は、撤去前の構成を前提にした記述である。現行の Compose に両者は無い。
+
 ## 前提と制限
 
 - [mcp-gateway PR #234](https://github.com/scottlz0310/mcp-gateway/pull/234) を含むイメージを使用する。マージ済みであることだけでは、利用イメージへの収録を保証しない。公開イメージのリリース内容を確認して `GITHUB_MCP_GATEWAY_IMAGE` を選ぶ。

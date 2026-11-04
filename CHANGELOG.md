@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- GitHub MCPを構成から撤去した。`docker-compose.yml`の`github-mcp`サービス（`mcp-github`）・gatewayの`ROUTE_GITHUB`（`/mcp/github`）・`github-mcp-cache`ボリューム、`make`の起動対象、`health-check.sh`の`github-mcp`、`security.yml`の公式イメージscanと対応する`.trivyignore`、`verify-mcp-endpoint.js`の既定URL（review-ravenへ変更）を除いた。reviewed rev44・reviewer rev30はGitHub MCPに依存せず、CLI登録は#435で外し済み。稼働中のスタックでは、`make start-gateway`などの`--remove-orphans`で`mcp-github`が除かれる。`mcp-docker_github-mcp-cache`ボリュームは手動削除する。gatewayへの`GITHUB_APP_*`の受け渡しと秘密鍵の運用は、gatewayが起動に必要とするかを確認するまで残す（別途整理）。
+
 ### Changed
 
 - `config/mcp-profiles.yml`を、全CLI（claude/copilot/codex/antigravity）で同一の最小構成（review-raven + thread-owl）に変更した。githubはCLI登録から外す。どのCLIも実装役・レビュー役を取り替えられる設計のため、役割ではなく全CLI共通とした。再登録時、宣言のなかったcopilot/antigravityは、従来の「全サーバー」から宣言どおりの2サーバーになる。`register --prune`でclaude/antigravityの既存のgithub登録が削除候補になる（実行前に`--dry-run`で確認）。gateway routeとgithub-mcpサービスは撤去しない。
