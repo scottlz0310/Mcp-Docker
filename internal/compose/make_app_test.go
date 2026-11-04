@@ -138,8 +138,6 @@ func runMakeAppFixture(t *testing.T, target string, changed map[string]string) (
 	logPath := filepath.Join(dir, "docker.log")
 	env := map[string]string{
 		"OAUTH_CLIENT_ID": "fixture-client", "OAUTH_CLIENT_SECRET": "fixture-secret",
-		"GITHUB_APP_ID": "4076097", "GITHUB_APP_INSTALLATION_ID": "167771183",
-		"GITHUB_APP_PRIVATE_KEY_B64": "fixture-gateway-key", "MCP_GATEWAY_INTERNAL_SECRET": strings.Repeat("x", 32),
 		"REVIEW_RAVEN_GITHUB_APP_ID": "5184108", "REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID": "169443079",
 		"REVIEW_RAVEN_GITHUB_APP_OWNER": "scottlz0310", "REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64": "fixture-private-key",
 		"REVIEW_RAVEN_PROXY_SECRET": "proxy-secret-" + strings.Repeat("x", 32), "PLAYWRIGHT_MCP_ENABLED": "",

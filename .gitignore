@@ -8,7 +8,7 @@
 config/certs/*
 !config/certs/.gitkeep
 
-# GitHub App private key（旧運用で配置した PEM の誤コミット防止。現在は環境変数 GITHUB_APP_PRIVATE_KEY_B64 で渡す）
+# GitHub App private key（旧運用で配置した PEM の誤コミット防止。gateway は秘密鍵を使わない）
 config/github-app/*
 
 # Local MCP/client config

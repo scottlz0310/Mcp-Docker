@@ -28,7 +28,7 @@ make lint            # All linting
 make lint-shell      # Shell script lint (shellcheck)
 
 # Validation
-make health-check             # コンテナ・HTTP endpoint・GitHub App 資格情報を確認
+make health-check             # コンテナ・HTTP endpoint を確認
 make mcp-conformance          # 実routeのMCP 2026-07-28契約を確認（MCP_E2E_BEARER_TOKENが必要）
 make register-all REGISTER_FLAGS=--dry-run
 
@@ -39,7 +39,7 @@ make clean-all       # Full cleanup including images
 
 ## Conventions
 
-- **GitHub MCP は撤去済み**: gateway の `/mcp/github` route と `github-mcp` サービスは無い。`GITHUB_APP_*` の gateway への受け渡しは、撤去の要否を決めるまで残している。GPAT を構成や各コンテナへ渡さない。
+- **GitHub MCP は撤去済み**: gateway の `/mcp/github` route と `github-mcp` サービスは無い。gateway は GitHub App の installation token を使わないので、`GITHUB_APP_*`・`GITHUB_APP_PRIVATE_KEY_B64`・`MCP_GATEWAY_INTERNAL_SECRET` を gateway へ渡さない。GPAT を構成や各コンテナへ渡さない。
 - **Port**: CLI clients connect to `mcp-gateway` on port `8080` (`MCP_GATEWAY_PORT`). `review-raven` runs on internal port `8083` (`REVIEW_RAVEN_PORT`, also not exposed to host; reachable only via the gateway).
 - **Image override**: Set `GITHUB_MCP_GATEWAY_IMAGE` to swap the default `mcp-gateway` image.
 - **Documentation language**: User-facing docs, Makefile help output, and messages are written in Japanese.

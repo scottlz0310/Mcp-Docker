@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${PROJECT_ROOT}/.env"
-WITH_API_CHECK="auto"
 SERVICE="mcp-gateway"
 
 usage() {
@@ -15,8 +14,6 @@ usage() {
   --service <サービス名>  ヘルスチェック対象サービス (デフォルト: mcp-gateway)
                           mcp-gateway        : mcp-gateway 経由のエンドポイントを確認 (port MCP_GATEWAY_PORT、デフォルト: 8080)
                           review-raven       : review-raven / mcp-gateway の各コンテナ状態 + mcp-gateway 経由で確認
-  --with-api              GitHub App installation credential 診断を必ず実行
-  --no-api                GitHub App installation credential 診断をスキップ
   -h, --help              ヘルプを表示
 EOF
 }
@@ -26,14 +23,6 @@ while [[ $# -gt 0 ]]; do
         --service)
             SERVICE="$2"
             shift 2
-            ;;
-        --with-api)
-            WITH_API_CHECK="always"
-            shift
-            ;;
-        --no-api)
-            WITH_API_CHECK="never"
-            shift
             ;;
         -h|--help)
             usage
@@ -170,15 +159,6 @@ check_gateway_endpoint() {
     return 1
 }
 
-check_github_app_credential() {
-    if docker compose --profile diagnostics run --rm --no-deps gateway-credentials-check; then
-        echo "✅ GitHub App installation credential 診断成功"
-        return 0
-    fi
-    echo "❌ GitHub App installation credential 診断失敗"
-    echo "   mcp-gateway ログと GitHub App の App ID / Installation ID / 秘密鍵を確認してください"
-    return 1
-}
 
 check_container_state() {
     local service_name="$1"
@@ -237,29 +217,6 @@ if command -v curl > /dev/null 2>&1; then
     check_gateway_endpoint "${gateway_url}" || exit 1
 else
     echo "⚠️  curl が未インストールのため、HTTP エンドポイント確認をスキップします"
-fi
-
-# GitHub App installation credential 診断
-internal_secret="${MCP_GATEWAY_INTERNAL_SECRET:-}"
-if [[ -z "${internal_secret}" ]]; then
-    internal_secret="$(extract_env_value "MCP_GATEWAY_INTERNAL_SECRET")"
-fi
-
-should_run_api_check=false
-if [[ "${WITH_API_CHECK}" == "always" ]]; then
-    should_run_api_check=true
-elif [[ "${WITH_API_CHECK}" == "auto" ]] && [[ -n "${internal_secret}" ]]; then
-    should_run_api_check=true
-fi
-
-if [[ "${should_run_api_check}" == "true" ]]; then
-    check_github_app_credential || exit 1
-else
-    if [[ "${WITH_API_CHECK}" == "never" ]]; then
-        echo "ℹ️  GitHub App installation credential 診断はスキップしました (--no-api)"
-    else
-        echo "ℹ️  MCP_GATEWAY_INTERNAL_SECRET が未設定のため、資格情報診断をスキップしました"
-    fi
 fi
 
 echo ""

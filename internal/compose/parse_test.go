@@ -124,6 +124,11 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 			"MCP_GITHUB_PAT",
 			"REVIEW_RAVEN_DEFAULT_USER",
 			"GITHUB_APP_CLIENT_ID",
+			"GITHUB_APP_ID",
+			"GITHUB_APP_INSTALLATION_ID",
+			"GITHUB_APP_PRIVATE_KEY_B64",
+			"GITHUB_API_URL",
+			"MCP_GATEWAY_INTERNAL_SECRET",
 			"GITHUB_MCP_CLIENT_ID",
 			"GITHUB_MCP_CLIENT_SECRET",
 			"GITHUB_MCP_OAUTH_SCOPES",
@@ -131,9 +136,6 @@ func TestRepositoryComposeMCPRouteContract(t *testing.T) {
 			if _, exists := env[key]; exists {
 				t.Fatalf("services.%s must not receive deprecated credential %s", serviceName, key)
 			}
-		}
-		if serviceName == "mcp-gateway" && env["GITHUB_APP_ID"] != "${GITHUB_APP_ID}" {
-			t.Fatalf("services.mcp-gateway must receive the numeric GITHUB_APP_ID")
 		}
 	}
 }

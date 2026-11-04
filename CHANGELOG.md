@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - GitHub MCPを構成から撤去した。`docker-compose.yml`の`github-mcp`サービス（`mcp-github`）・gatewayの`ROUTE_GITHUB`（`/mcp/github`）・`github-mcp-cache`ボリューム、`make`の起動対象、`health-check.sh`の`github-mcp`、`security.yml`の公式イメージscanと対応する`.trivyignore`、`verify-mcp-endpoint.js`の既定URL（review-ravenへ変更）を除いた。reviewed rev44・reviewer rev30はGitHub MCPに依存せず、CLI登録は#435で外し済み。稼働中のスタックでは、`make start-gateway`などの`--remove-orphans`で`mcp-github`が除かれる。`mcp-docker_github-mcp-cache`ボリュームは手動削除する。gatewayへの`GITHUB_APP_*`の受け渡しと秘密鍵の運用は、gatewayが起動に必要とするかを確認するまで残す（別途整理）。
+- gatewayへのGitHub App installation token用の設定を撤去した。gatewayは`upstream_github_app` routeを持たない構成のため、`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`GITHUB_APP_PRIVATE_KEY_B64`・`GITHUB_API_URL`・`MCP_GATEWAY_INTERNAL_SECRET`/`PORT`をgatewayへ渡さない。`make start-gateway`等の起動前検証（`check-github-app-config`）からも外した。あわせて、`make github-app-key-b64`・`make verify-github-app-key`と各スクリプト・bats、`gateway-credentials-check`サービス（`diagnostics`プロファイル）、`make health-check-quick`、`health-check.sh`の`--with-api`/`--no-api`と資格情報診断を廃止した。`docs/github-app-setup.md`は、installation/秘密鍵/ローテーションの節を除き、ログイン用Appの手順に絞った。**移行**: gatewayが使うAppはログイン（`OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`）に引き続き必要なので、App自体は削除しない。秘密鍵の削除、旧Bitwarden項目、稼働中の`config.yaml`の`github_app.private_key`は、運用側で個別に整理する。
 
 ### Changed
 
@@ -66,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - 廃案となった認証付きレビュー内部連携のroute・専用設定・サービス主体token発行スクリプト・手順書・thread-owl台帳volume定義を撤去した。Appの公開routeと既存skill/reviewgate契約、汎用の内部route非登録は維持する。
+- gatewayへのGitHub App installation token用の設定を撤去した。gatewayは`upstream_github_app` routeを持たない構成のため、`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`GITHUB_APP_PRIVATE_KEY_B64`・`GITHUB_API_URL`・`MCP_GATEWAY_INTERNAL_SECRET`/`PORT`をgatewayへ渡さない。`make start-gateway`等の起動前検証（`check-github-app-config`）からも外した。あわせて、`make github-app-key-b64`・`make verify-github-app-key`と各スクリプト・bats、`gateway-credentials-check`サービス（`diagnostics`プロファイル）、`make health-check-quick`、`health-check.sh`の`--with-api`/`--no-api`と資格情報診断を廃止した。`docs/github-app-setup.md`は、installation/秘密鍵/ローテーションの節を除き、ログイン用Appの手順に絞った。**移行**: gatewayが使うAppはログイン（`OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`）に引き続き必要なので、App自体は削除しない。秘密鍵の削除、旧Bitwarden項目、稼働中の`config.yaml`の`github_app.private_key`は、運用側で個別に整理する。
 
 ## [2.38.0] - 2026-10-31
 
@@ -1098,6 +1100,7 @@ v1.x からの移行:
 ### Removed
 - Outdated test files
 - Comprehensive distribution files
+- gatewayへのGitHub App installation token用の設定を撤去した。gatewayは`upstream_github_app` routeを持たない構成のため、`GITHUB_APP_ID`・`GITHUB_APP_INSTALLATION_ID`・`GITHUB_APP_PRIVATE_KEY_B64`・`GITHUB_API_URL`・`MCP_GATEWAY_INTERNAL_SECRET`/`PORT`をgatewayへ渡さない。`make start-gateway`等の起動前検証（`check-github-app-config`）からも外した。あわせて、`make github-app-key-b64`・`make verify-github-app-key`と各スクリプト・bats、`gateway-credentials-check`サービス（`diagnostics`プロファイル）、`make health-check-quick`、`health-check.sh`の`--with-api`/`--no-api`と資格情報診断を廃止した。`docs/github-app-setup.md`は、installation/秘密鍵/ローテーションの節を除き、ログイン用Appの手順に絞った。**移行**: gatewayが使うAppはログイン（`OAUTH_CLIENT_ID`/`OAUTH_CLIENT_SECRET`）に引き続き必要なので、App自体は削除しない。秘密鍵の削除、旧Bitwarden項目、稼働中の`config.yaml`の`github_app.private_key`は、運用側で個別に整理する。
 
 ## [1.2.0] - 2025-10-18
 

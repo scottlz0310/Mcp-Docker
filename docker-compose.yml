@@ -29,15 +29,6 @@ services:
       - MCP_GATEWAY_PORT=${MCP_GATEWAY_PORT:-8080}
       - MCP_GATEWAY_KEY_PATH=${MCP_GATEWAY_KEY_PATH:-/data/gateway.key}
       - MCP_CONFIG_FILE=${MCP_CONFIG_FILE:-/data/config.yaml}
-      - GITHUB_APP_ID=${GITHUB_APP_ID}
-      - GITHUB_APP_INSTALLATION_ID=${GITHUB_APP_INSTALLATION_ID}
-      # GitHub App の秘密鍵は、PEM を単一行の base64 にして、環境変数で渡す（Bitwarden → dsx-env）。
-      # 複数行の PEM は dsx が注入できない。PEM のファイルは、マウントしない。
-      # gateway は、初回起動時に暗号化して config.yaml へ保存し、以後は保存済みの値を優先する
-      # （鍵を差し替えるときの手順は、docs/github-app-setup.md の「秘密鍵のローテーション」。make rotate-secret が要る）。
-      # 作り方: make github-app-key-b64 PEM=<path>
-      - GITHUB_APP_PRIVATE_KEY_B64=${GITHUB_APP_PRIVATE_KEY_B64}
-      - GITHUB_API_URL=${GITHUB_API_URL:-https://api.github.com}
       - ROUTE_REVIEW_RAVEN=/mcp/review-raven|http://review-raven:${REVIEW_RAVEN_PORT:-8083}/mcp|upstream_bearer_token_env=REVIEW_RAVEN_PROXY_SECRET
       - REVIEW_RAVEN_PROXY_SECRET=${REVIEW_RAVEN_PROXY_SECRET:?専用proxyの共有シークレットを保管庫から注入してください}
       # playwright は任意。PLAYWRIGHT_MCP_ENABLED が未設定の間は、ルートが空になり、
@@ -53,8 +44,6 @@ services:
       - MCP_GATEWAY_AUTH_AUDIT_LOG_PATH=${MCP_GATEWAY_AUTH_AUDIT_LOG_PATH:-/data/logs/auth-audit.jsonl}
       - MCP_GATEWAY_GITHUB_REFRESH_ENABLED=${MCP_GATEWAY_GITHUB_REFRESH_ENABLED:-true}
       - GATEWAY_LEGACY_ADAPTER_ENABLED=${GATEWAY_LEGACY_ADAPTER_ENABLED:-false}
-      - MCP_GATEWAY_INTERNAL_SECRET=${MCP_GATEWAY_INTERNAL_SECRET}
-      - MCP_GATEWAY_INTERNAL_PORT=${MCP_GATEWAY_INTERNAL_PORT:-9090}
       # ローカル HTTPS (TLS) 終端。make setup-tls が .env に設定する。
       # 両方とも空の場合、gateway は従来どおり HTTP で listen する。
       - MCP_GATEWAY_TLS_CERT_PATH=${MCP_GATEWAY_TLS_CERT_PATH:-}
@@ -145,32 +134,6 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
-
-  gateway-credentials-check:
-    image: ${CURL_IMAGE:-curlimages/curl:8.23.0}
-    profiles: ["diagnostics"]
-    network_mode: "service:mcp-gateway"
-    depends_on:
-      mcp-gateway:
-        condition: service_started
-    environment:
-      - MCP_GATEWAY_INTERNAL_SECRET=${MCP_GATEWAY_INTERNAL_SECRET}
-      - MCP_GATEWAY_INTERNAL_PORT=${MCP_GATEWAY_INTERNAL_PORT:-9090}
-    entrypoint: ["/bin/sh", "-eu", "-c"]
-    command:
-      - |
-        response="$$(curl -fsS \
-          -H "Authorization: Bearer $${MCP_GATEWAY_INTERNAL_SECRET}" \
-          "http://127.0.0.1:$${MCP_GATEWAY_INTERNAL_PORT}/internal/v1/credentials")"
-        case "$${response}" in
-          *'"credential_type":"github_app_installation"'*'"ready":true'*)
-            echo "GitHub App installation credential is ready"
-            ;;
-          *)
-            echo "GitHub App installation credential is not ready" >&2
-            exit 1
-            ;;
-        esac
 
   thread-owl:
     image: ${THREAD_OWL_IMAGE:-ghcr.io/scottlz0310/thread-owl:latest}
