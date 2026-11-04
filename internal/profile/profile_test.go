@@ -134,6 +134,27 @@ func TestServers(t *testing.T) {
 	})
 }
 
+// どの CLI も実装役・レビュー役を取り替えられる設計のため、リポジトリの既定の宣言は全 CLI で同一の最小構成にする。
+// github を載せる変更は、意図して行う場合に限り、この期待値の差分としてレビューさせる。
+func TestRepositoryProfileIsUniformMinimal(t *testing.T) {
+	p, err := Load(filepath.Join("..", "..", "config", "mcp-profiles.yml"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := []string{"review-raven", "thread-owl"}
+	for _, agent := range []string{"claude", "copilot", "codex", "antigravity"} {
+		t.Run(agent, func(t *testing.T) {
+			got, ok := p.Servers(agent)
+			if !ok {
+				t.Fatalf("%s の宣言がありません", agent)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("Servers(%s) = %v, want %v", agent, got, want)
+			}
+		})
+	}
+}
+
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
 

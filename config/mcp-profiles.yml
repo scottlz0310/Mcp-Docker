@@ -12,10 +12,14 @@
 #
 # agent 名: claude / copilot / codex / antigravity
 #
-# 方針（reviewers-forest のハンドオフ review-operation-mcp-boundary）: 役割に必要な最小限の MCP だけを載せる。
-# reviewer は Squirrel Notifier から自律的に起動されるため、強力な補助サーバー（github など）を載せない。
-# review-raven は、reviewer が CI を読む経路が決まるまで残す。
+# 方針（reviewers-forest のハンドオフ review-operation-mcp-boundary）: 必要な最小限の MCP だけを載せる。
+# どの CLI も、実装役・レビュー役を自由に取り替えられる設計のため、役割ごとではなく、全 CLI を同一の最小構成にする。
+# reviewer は thread-owl、reviewed は review-raven で MCP 操作を完結できる（reviewed rev44 は github に依存しない）。
+# 汎用の git / repo 操作（PR・Issue の作成、検索など）は gh CLI と git で行うため、github は載せない。
+# gateway の github route と github-mcp サービスはここでは撤去しない（残存利用者の確認後に別途判断する）。
 version: 1
 agents:
-  codex: [thread-owl, review-raven]
-  claude: [review-raven, thread-owl, github]
+  claude: [review-raven, thread-owl]
+  copilot: [review-raven, thread-owl]
+  codex: [review-raven, thread-owl]
+  antigravity: [review-raven, thread-owl]
