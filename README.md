@@ -50,16 +50,11 @@ cp .env.template .env
 # 3. 資格情報を環境変数で渡す（推奨。環境変数を使わない場合に限り、同じ変数名で .env に書いても動きます）:
 #   OAUTH_CLIENT_ID                  (ユーザー認可用 GitHub App Client ID)
 #   OAUTH_CLIENT_SECRET              (ユーザー認可用 GitHub App Client Secret)
-#   GITHUB_APP_ID                    (upstream 認証用の数値 GitHub App ID)
-#   GITHUB_APP_INSTALLATION_ID       (対象 owner の Installation ID)
-#   MCP_GATEWAY_INTERNAL_SECRET      (32文字以上のランダム値)
-#   GITHUB_APP_PRIVATE_KEY_B64       (GitHub App の秘密鍵 PEM を、単一行の base64 にした値。必ず環境変数で渡す)
-#                                    作り方: make github-app-key-b64 PEM=<path>（クリップボードへ。値は表示しない）
 #   REVIEW_RAVEN_GITHUB_APP_ID / REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID / REVIEW_RAVEN_GITHUB_APP_OWNER
 #   REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64 / REVIEW_RAVEN_PROXY_SECRET（必ず保管庫から環境変数へ注入）
 # 例: Bitwarden に env:<変数名> の項目（カスタムフィールド value に値）を作り、dsx-env で注入する
 # 置き場の考え方は docs/github-app-setup.md の「資格情報の置き場」を参照
-# ※ App秘密鍵・review-raven proxy共有鍵は、.envからmakeへ読みません。未設定なら停止・起動前に検証で失敗します。
+# ※ review-raven の App 秘密鍵・proxy 共有鍵は、.envからmakeへ読みません。未設定なら停止・起動前に検証で失敗します。
 # ※ review-raven では OAuth を mcp-gateway が一元管理します。
 # ※ GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET の個別設定は不要です。
 # ※ 新規設定には canonical 名の OAUTH_* を使用してください。
@@ -79,10 +74,8 @@ mcp-gateway 経由で接続するには GitHub App が必要です。要点：
 - Homepage URL / Callback URL のベースは gateway の公開 URL と一致させる（解決順: `MCP_GATEWAY_PUBLIC_URL` → 旧名 `MCP_GATEWAY_BASE_URL` → 既定 `http://127.0.0.1:8080`）
 - Callback URL は `<PUBLIC_URL>/callback` と `<PUBLIC_URL>/device_callback` の 2 本を登録する
 - 作成後に Client secret を生成し、環境変数の `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` に設定する（推奨。環境変数を使わない場合に限り、`.env` に同じ変数名で書いても動く）
-- App を対象 owner にインストールし、環境変数の `GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID` を設定する（同上）
-- 生成した秘密鍵（PEM）は、`make github-app-key-b64 PEM=<path>` で単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` で gateway へ渡す（`.env` からは読まない。PEM のファイルは、リポジトリに置かず、gateway へマウントもしない）
 
-`github-mcp` と gateway の `/mcp/github` route は撤去した（reviewed rev44・reviewer rev30 は GitHub MCP に依存しない）。このため、gateway が installation token を注入する先は、現在の構成にはない。`GITHUB_APP_*` の gateway への受け渡しは、gateway が起動に必要とするかを確認するまで残している。GPAT は構成・コンテナ環境のいずれにも不要です。
+`github-mcp` と gateway の `/mcp/github` route は撤去した（reviewed rev44・reviewer rev30 は GitHub MCP に依存しない）。この App は、ログイン（ユーザー認可）にだけ使うので、Installation ID・秘密鍵・`GITHUB_APP_ID` は gateway に渡しません。
 
 画面遷移・入力フィールド・Permissions の詳細は **[docs/github-app-setup.md](docs/github-app-setup.md)** を参照してください。
 
@@ -342,8 +335,7 @@ mcp-docker instruction repair --yes
 | `make pull-main` | mcp-gateway / review-raven / thread-owl の `:main` と、（`PLAYWRIGHT_MCP_ENABLED` 設定時のみ）playwright-mcp の `:main`（未公開時は `:latest`）を取得 |
 | `make start-main` | `make pull-main` で取得済みの開発版イメージで全サービス起動（pull なし） |
 | `make restart-main` | `make pull-main` で取得済みの開発版イメージで全サービス再起動（pull なし） |
-| `make health-check` | サービスのヘルスチェック（GitHub App credential 診断込み） |
-| `make health-check-quick` | サービスのヘルスチェック（credential 診断をスキップ） |
+| `make health-check` | サービスのヘルスチェック |
 | `make mcp-conformance` | thread-owl / review-raven route の MCP `2026-07-28` conformance 検証 |
 | `make mcp-conformance-thread-owl` | thread-owl の discovery / resource / subscription ack 検証 |
 | `make mcp-conformance-review-raven` | review-raven の discovery / stateless tool 検証 |
@@ -379,10 +371,7 @@ mcp-docker instruction repair --yes
 疎通確認：
 
 ```bash
-# installation token の取得可否まで検証
 make health-check
-# credential 診断をスキップする簡易確認
-make health-check-quick
 # 対象サービスを切り替える場合
 make health-check SERVICE=review-raven
 # または
@@ -491,7 +480,6 @@ make status        # コンテナ状態確認
 make logs-gateway  # mcp-gateway ログ
 ```
 
-`GITHUB_APP_ID` / `GITHUB_APP_INSTALLATION_ID`、`GITHUB_APP_PRIVATE_KEY_B64`（`make verify-github-app-key PEM=<path>` で、PEM と一致するかを確認できます）、GitHub App のインストール先と権限を確認してください。
 
 ### CLI から接続できない
 
@@ -568,10 +556,8 @@ Mcp-Docker/
 ├── config/
 │   ├── mcp-external.yml        # 外部 MCP サーバー定義
 ├── scripts/
-│   ├── github-app-key-b64.sh   # GitHub App の秘密鍵を単一行の base64 にしてクリップボードへ（make github-app-key-b64）
 │   ├── health-check.sh         # ヘルスチェック
 │   ├── lint-shell.sh           # シェルスクリプト Lint（make lint-shell）
-│   ├── verify-github-app-key.sh  # 注入済みの秘密鍵が PEM と一致するか確認（make verify-github-app-key）
 │   └── verify-mcp-endpoint.js  # MCP エンドポイント疎通確認
 ├── docs/
 │   ├── SECURITY_PATCHES.md     # セキュリティ対応履歴
@@ -585,7 +571,6 @@ Mcp-Docker/
 ## セキュリティ
 
 - 資格情報（Client Secret・App ID など）はコンテナ外の環境変数で管理することを推奨します（例: Bitwarden と dsx-env）。環境変数を使わない場合に限り、`.env` に書いても動きます（環境変数が優先されます。両方に書くと、環境変数が入っていない実行で `.env` の旧い値が使われるので、避けてください）
-- GitHub App の秘密鍵は、単一行の base64 にして、環境変数 `GITHUB_APP_PRIVATE_KEY_B64` だけで渡します（`.env` からは読みません）。PEM のファイルを、リポジトリに置いたり、コンテナへマウントしたりしません。秘密鍵の入れ替え（ローテーション・漏えい時の失効）の手順は、[docs/github-app-setup.md の「秘密鍵のローテーション」](docs/github-app-setup.md#秘密鍵のローテーション)
 - `.env` ファイルは `.gitignore` で除外済みです
 - `.env` をコミットしないでください
 - トークンスコープ要件・Fine-grained PAT の詳細は [SECURITY.md](SECURITY.md) を参照

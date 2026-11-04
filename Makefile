@@ -46,9 +46,6 @@ ifneq (,$(wildcard .env))
   GITHUB_CLIENT_SECRET         ?= $(call ENV_GET,GITHUB_CLIENT_SECRET)
   GITHUB_MCP_CLIENT_ID         ?= $(call ENV_GET,GITHUB_MCP_CLIENT_ID)
   GITHUB_MCP_CLIENT_SECRET     ?= $(call ENV_GET,GITHUB_MCP_CLIENT_SECRET)
-  GITHUB_APP_ID                ?= $(call ENV_GET,GITHUB_APP_ID)
-  GITHUB_APP_INSTALLATION_ID   ?= $(call ENV_GET,GITHUB_APP_INSTALLATION_ID)
-  MCP_GATEWAY_INTERNAL_SECRET  ?= $(call ENV_GET,MCP_GATEWAY_INTERNAL_SECRET)
   MCP_GATEWAY_PORT             ?= $(call ENV_GET,MCP_GATEWAY_PORT)
   MCP_GATEWAY_PUBLIC_URL       ?= $(call ENV_GET,MCP_GATEWAY_PUBLIC_URL)
   MCP_GATEWAY_BASE_URL         ?= $(call ENV_GET,MCP_GATEWAY_BASE_URL)
@@ -67,7 +64,7 @@ ifeq ($(strip $(OAUTH_CLIENT_SECRET)),)
   OAUTH_CLIENT_SECRET := $(or $(GITHUB_MCP_CLIENT_SECRET),$(GITHUB_CLIENT_SECRET))
 endif
 # 子プロセス（docker compose / mcp-docker register）に確実に渡す
-export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID MCP_GATEWAY_INTERNAL_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL PLAYWRIGHT_MCP_ENABLED
+export OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET MCP_GATEWAY_PORT MCP_GATEWAY_PUBLIC_URL MCP_GATEWAY_BASE_URL PLAYWRIGHT_MCP_ENABLED
 export REVIEW_RAVEN_GITHUB_APP_ID REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID REVIEW_RAVEN_GITHUB_APP_OWNER REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64 REVIEW_RAVEN_PROXY_SECRET
 
 # playwright-mcp は任意（既定では起動しない。.env の PLAYWRIGHT_MCP_ENABLED=1 で有効にする）。
@@ -89,9 +86,6 @@ help: ## 利用可能なターゲット一覧を表示
 .PHONY: check-github-app-config
 check-github-app-config:
 	$(if $(and $(OAUTH_CLIENT_ID),$(OAUTH_CLIENT_SECRET)),,$(error ERROR: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET are required for the GitHub App (legacy: GITHUB_MCP_CLIENT_ID / GITHUB_MCP_CLIENT_SECRET). Set them in .env or as environment variables.))
-	$(if $(and $(GITHUB_APP_ID),$(GITHUB_APP_INSTALLATION_ID)),,$(error ERROR: GITHUB_APP_ID / GITHUB_APP_INSTALLATION_ID are required for GitHub App installation authentication. Set them in .env or as environment variables.))
-	$(if $(MCP_GATEWAY_INTERNAL_SECRET),,$(error ERROR: MCP_GATEWAY_INTERNAL_SECRET is required for credential diagnostics. Set a random value of at least 32 characters.))
-	$(if $(GITHUB_APP_PRIVATE_KEY_B64),,$(error ERROR: GITHUB_APP_PRIVATE_KEY_B64 is required (the GitHub App private key as a single-line base64 value). Create it with: make github-app-key-b64 PEM=<path>, store it in Bitwarden as env:GITHUB_APP_PRIVATE_KEY_B64, and load it with dsx-env. It is intentionally not read from .env (no secrets in .env). See docs/github-app-setup.md.))
 	$(if $(and $(REVIEW_RAVEN_GITHUB_APP_ID),$(REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID),$(REVIEW_RAVEN_GITHUB_APP_OWNER)),,$(error ERROR: REVIEW_RAVEN_GITHUB_APP_ID / REVIEW_RAVEN_GITHUB_APP_INSTALLATION_ID / REVIEW_RAVEN_GITHUB_APP_OWNERを設定してください。))
 	$(if $(REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64),,$(error ERROR: REVIEW_RAVEN_GITHUB_APP_PRIVATE_KEY_B64を保管庫からdsx-envで注入してください。))
 	$(if $(REVIEW_RAVEN_PROXY_SECRET),,$(error ERROR: REVIEW_RAVEN_PROXY_SECRETを保管庫からdsx-envで注入してください。))
@@ -100,17 +94,6 @@ check-github-app-config:
 .PHONY: check-compose-config
 check-compose-config: check-github-app-config ## 秘密値を表示せず標準Composeと資格情報を検証
 	@docker compose config --quiet
-
-# GitHub App の秘密鍵（PEM → 単一行の base64）。dsx は改行入りの値を注入できないため、環境変数では base64 で渡す。
-.PHONY: github-app-key-b64
-github-app-key-b64: ## PEM を単一行の base64 にしてクリップボードへ（PEM=<path>。値は表示しない）
-	$(if $(PEM),,$(error ERROR: PEM is required. Usage: make github-app-key-b64 PEM=<path to the GitHub App private key>))
-	"$(BASH_CMD)" ./scripts/github-app-key-b64.sh "$(PEM)"
-
-.PHONY: verify-github-app-key
-verify-github-app-key: ## 注入済みの GITHUB_APP_PRIVATE_KEY_B64 が PEM と一致するか確認（PEM=<path>）
-	$(if $(PEM),,$(error ERROR: PEM is required. Usage: make verify-github-app-key PEM=<path to the GitHub App private key>))
-	"$(BASH_CMD)" ./scripts/verify-github-app-key.sh "$(PEM)"
 
 .PHONY: start-gateway
 start-gateway: check-compose-config ## 全サービスを mcp-gateway 経由で起動（127.0.0.1:8080）
@@ -139,12 +122,8 @@ status-gateway: ## 全サービスの状態確認
 SERVICE ?= mcp-gateway
 
 .PHONY: health-check
-health-check: ## サービスのヘルスチェック（GitHub App credential 診断込み）
-	"$(BASH_CMD)" ./scripts/health-check.sh --service "$(SERVICE)" --with-api
-
-.PHONY: health-check-quick
-health-check-quick: ## サービスのヘルスチェック（credential 診断をスキップ）
-	"$(BASH_CMD)" ./scripts/health-check.sh --service "$(SERVICE)" --no-api
+health-check: ## サービスのヘルスチェック
+	"$(BASH_CMD)" ./scripts/health-check.sh --service "$(SERVICE)"
 
 MCP_CONFORMANCE_GATEWAY_URL = $(patsubst %/,%,$(or $(MCP_GATEWAY_PUBLIC_URL),$(MCP_GATEWAY_BASE_URL),http://127.0.0.1:$(or $(MCP_GATEWAY_PORT),8080)))
 MCP_CONFORMANCE_TOKEN_ENV ?= MCP_E2E_BEARER_TOKEN
