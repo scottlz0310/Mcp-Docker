@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-11-18
+
 ### Changed
 
 - reviewer skill に、変更した契約・前提からdiff外の利用経路を追う手順と確認記録を追加した。前提変更なし、代表経路での探索終了、再レビューで重大な未確認経路を引き継ぐ条件を明確化した。
@@ -1128,7 +1130,8 @@ v1.x からの移行:
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.45.0...HEAD
+[Unreleased]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.46.0...HEAD
+[2.46.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.45.0...v2.46.0
 [2.45.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.44.0...v2.45.0
 [2.44.0]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.1...v2.44.0
 [2.43.1]: https://github.com/scottlz0310/Mcp-Docker/compare/v2.43.0...v2.43.1
