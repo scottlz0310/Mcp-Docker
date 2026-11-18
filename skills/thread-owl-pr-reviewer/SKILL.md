@@ -43,6 +43,7 @@ Thread Owl を reviewer-side の GitHub App として使い、PR を独立レビ
 | 中断を通知するとき（開始時固定値はO-02で記録） | `references/review-stop.md` | 通知せず、未実施の理由を報告 |
 | PR が明示されず queue 待機を依頼されたとき | `references/queue-wait.md` | `QUEUE_WAIT_FAILED` |
 | ローカル検証をするとき（非 Git の作業場所を含む） | `references/local-verification.md` | `local verification: not performed`（承認しない） |
+| 初回・再レビューの実装確認（O-05） | `references/impact-review.md` | `INDEPENDENT_REVIEW_INCOMPLETE`（承認しない） |
 | CI を判定するとき（O-06、O-15、Snapshot Guard の手順 4） | `references/ci-check.md` | `CI: unknown`（Verdict / APPROVE を投稿しない） |
 | `verdict: approve` の Verdict を投稿するとき（O-12） | `references/verdict.md` | `VERDICT_FORMAT_INVALID` |
 | Filter・re-review・thread-follow-up・summary-only・Verdict読戻し | `references/comment-reader.md` | `REFERENCE_UNREADABLE` |
@@ -94,7 +95,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | O-02 | Remote Snapshotのmetadata。`{OWL}:get_pr(includePatch: false)` | owner/repo/prNumber → PR identity・base/head SHA・files・origin・reviewAttempt・patchesOmitted | `references/pr-snapshot.md`でschemaと省略を検証し、head SHAを`reviewedHeadSha`へ固定する。開始時attempt/UUIDは`references/review-stop.md`に従う。全modeでO-04以降の前に`origin.allowed: true`を必須とし、欠落/拒否はreasonを報告して停止する。allowlist拒否/read failureをreview-raven・GH・ghで迂回しない | `BLOCKED_MCP_READ`、`BLOCKED_PR_ORIGIN`、`REMOTE_SNAPSHOT_READ_FAILED` |
 | O-03 | Remote Snapshotの完全diff。固定SHAの隔離環境 | PR metadata → 完全diffと投稿可能位置 | O-02成功後、O-04の環境を用意し`references/pr-snapshot.md`に従って固定base/headからdiffを取得・filesを照合する。省略されたpatchやbranch名を根拠にしない | `DIFF_SNAPSHOT_INCOMPLETE` |
 | O-04 | Repository State Guard。`git rev-parse --is-inside-work-tree`・`git status`・`git rev-parse HEAD`・必要な `gh repo clone` / `git fetch` / `git worktree add --detach` | 作業場所・`reviewedHeadSha`・`SQUIRREL_REVIEW_SCRATCH_DIR` → clean・HEAD一致の検証環境と配置先 | 非Gitの作業場所ではscratchへcloneする。dirty/mismatchのworktreeは隔離し、stash/discardしない。不正scratchは既定パスへfallbackしない。環境を作れなければ理由付きで `local verification: not performed` とし、O-20で承認しない。片付けはランチャーの責務。手順は `references/local-verification.md` | `REPOSITORY_STATE_UNSAFE`、`LOCAL_CONTENT_CHANGED`、`LOCAL_ENVIRONMENT_DIFFERENCE` |
-| O-05 | Independent Stage の実装・テスト確認。固定した worktree での `git`・`rg`・build・test・static analysis | diff・実装・テスト → 独立した候補（failure path・回帰・security・packaging・テスト不足） | Independent Stage が終わるまで、既存 review comment・thread・summary の本文を文脈へ入れない。確認対象は固定済み SHA に限る。未実施を pass と解釈しない | `LOCAL_VERIFICATION_UNKNOWN` |
+| O-05 | 実装・テストとdiff外の影響確認。固定worktreeの `git`・`rg`・build・test・static analysis | diff・利用経路 → 独立候補・確認根拠・未確認範囲 | `references/impact-review.md`に従う。初回はIndependent Stage終了まで既存レビュー本文を読まない。固定SHAだけを確認し、未実施をpassと解釈しない | `LOCAL_VERIFICATION_UNKNOWN`、`INDEPENDENT_REVIEW_INCOMPLETE` |
 | O-06 | Independent Stage の CI。`{OWL}:get_pr` の直後に、固定した経路の check runs read | `reviewedHeadSha` → `CI: success` / `pending` / `failure` / `unknown` と根拠 | 読み取り・応答の検証・判定は `references/ci-check.md` の規則だけに従う。CI の再実行・設定変更はしない。`CI: unknown`（同文書を読めない場合を含む）のまま Verdict / APPROVE を投稿しない | なし（`CI:` の状態として記録する） |
 | O-07 | Independent Stage の候補生成（LLM 判断。外部 tool なし） | O-05・O-06 の観測 → 候補ごとの根拠・影響・再現条件・重大度 | 何も投稿しない。既存レビューの結論や言い換えを混ぜず、特定 diff 行または PR-level の根拠を持つ候補だけを作る。独立評価が不足するとき、既存レビュー本文を先に読んで補完しない | `INDEPENDENT_REVIEW_INCOMPLETE` |
 | O-08 | Filter Stageの既存コメント。`{OWL}:read_pr_comments` | 検証済みsnapshot → 既存範囲・重複候補・残す候補 | Independent Stage後に初めて本文を読み、`references/comment-reader.md`で全件性・head/base・snapshotを検証する。未回答の同一質問を重複投稿しない。GH本文read・RAVENへのfallbackなし | `BLOCKED_MCP_READ`、`REVIEW_THREADS_READ_FAILED` |
@@ -104,13 +105,13 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 | O-12 | Initial / Re-review の完了サマリー・Verdict。approve は `{OWL}:post_review_verdict`、それ以外は `{OWL}:post_summary_comment` | 観点・CI・残存リスク・投稿件数・current diff 外の指摘・`headSha = reviewedHeadSha` → comment の ID（approve は自由記述だけを `summary` に渡し、`commentId` を記録する） | 通常終了でO-20のverdictと他の投稿が確定し、O-10 が成功している場合だけ。`review://status` を `reviewed` にする。この run の最後の GitHub write として、どちらか一方を 1 回だけ呼び、`headSha` は省略しない（「レビュー完了サマリー」節）。approve は `references/verdict.md` に従い、投稿前に `summary`、投稿後に `commentId` の本文を検証する。Verdict を `post_summary_comment` や connector で代替せず、検証に失敗したコメントを再投稿しない。summary-only では明示されない投稿をしない | `VERDICT_TOOL_UNAVAILABLE`、`VERDICT_FORMAT_INVALID`、`STALE_REVIEW`、`VERDICT_POST_FAILED`、`SUMMARY_POST_FAILED` |
 | O-13 | APPROVE 投稿。`{OWL}:approve_pull_request` | `expectedHeadSha = reviewedHeadSha` → APPROVE review の ID | ユーザーがチャットで明示的に依頼し、Verdict approve・CI success・全 thread resolved・O-10 の current head 一致がそろう場合だけ。実行直前に get_pr と CI を再確認し、`expectedHeadSha`・CI 対象 SHA・current head を一致させる。merge・branch 操作・Issue クローズはしない。connector や `gh` の APPROVE で guard を迂回しない | `APPROVE_BLOCKED` |
 | O-14 | Re-review の queue candidate と前回差分。O-00 の queue resource read と `{OWL}:get_pr` | candidate の `reason`・`expected_head` → re-review 対象と `reviewedHeadSha` | queue reason は `re-review-requested` に限り、`expected_head` と current `pr.head.sha` を比較する。PR URL 起点では queue 待機を挿入せず、O-02 の direct snapshot を使う。queue read failure や stale candidate から対象 PR を推測しない | `STALE_REREVIEW_REQUEST` |
-| O-15 | Re-review の thread 状態・CI の再確認。`{OWL}:get_pr`・`{OWL}:read_pr_comments`・固定した CI read 経路 | 前回 thread・PR conversation・現 head の差分・CI → resolved / outdated / unresolved と残存回帰 | candidate の expected head・current diff・全 thread 状態・CI 対象 SHA を突合し、CI は current head を固定し直して `references/ci-check.md` の手順で再確認する。PR conversation も read-only で取得し、作成者の回答を根拠に再評価する。未回答の同一質問・同内容の返信を繰り返さず、未解決 thread と対応差分が導入した重大回帰だけを次の候補にする | `REREVIEW_STATE_UNKNOWN` |
+| O-15 | Re-review の thread 状態・CI の再確認。`{OWL}:get_pr`・`{OWL}:read_pr_comments`・固定した CI read 経路 | 前回 thread・PR conversation・現 head の差分・CI → resolved / outdated / unresolved と残存回帰 | candidate の expected head・current diff・全 thread 状態・CI 対象 SHA を突合し、CI は current head を固定し直して `references/ci-check.md` の手順で再確認する。PR conversation も read-only で取得し、作成者の回答を根拠に再評価する。未回答の同一質問・同内容の返信を繰り返さず、候補範囲は `references/impact-review.md` の再レビュー規則に従う | `REREVIEW_STATE_UNKNOWN` |
 | O-16 | Re-review の unresolved thread への返信。`{OWL}:reply_review_thread` | threadId・返信本文 → 返信 comment の ID | 元 thread への返信だけを行う（resolve / unresolve・new thread・APPROVE はしない）。残存再現条件を具体化し、作成者の回答を反映する。同内容の返信や未回答の `[question]` を繰り返さず、resolve は reviewed-side に任せる。独立した新論点を混ぜない。connector や `gh` で代替しない | `THREAD_REPLY_FAILED` |
 | O-17 | Re-review の current diff 上の新規 inline。`{OWL}:post_inline_comment` | current path / line・`commitId = reviewedHeadSha` → 新規 thread の ID | 元 thread が resolved / outdated で問題が残り、O-10 で current diff に有効な位置がある場合だけ。新しい unresolved thread を一件投稿し、元 thread へ重複返信しない。以前の指摘の継続であることと現 head の具体的な再現条件を書く。位置が無ければ O-18 | `REREVIEW_INLINE_FAILED` |
 | O-18 | Re-review / Follow-up の current diff 外の論点。re-review は O-12 の完了サマリーの「current diff 外の指摘」に含める。thread-follow-up は `{OWL}:post_summary_comment` | blocking / 残存条件・影響・再現手順 → PR-level summary の ID | re-review では別の `post_summary_comment` を呼ばない（途中で呼ぶと、reviewed-side の待機がレビュー完了前に終わる）。位置がない理由とマージへの影響を明記し、過去の行番号へ投稿しない。blocking なら Verdict approve を抑止する。無理に inline へ移さない | `REREVIEW_SUMMARY_FAILED` |
 | O-19 | Thread Follow-up。`{OWL}:get_pr`・`{OWL}:read_pr_comments` と、O-16〜O-18 の適切な write | root comment・全返信・対応差分 → resolved in code / partially resolved / not resolved / needs clarification / declined-by-implementer の判定と投稿結果 | 指定 thread の文脈だけを確認する。必要な場合だけ、返信・新規 inline・summary のいずれかを一件投稿する（resolve / unresolve / merge はしない）。question なら作成者の回答を根拠に再評価し、未回答の既存 question と同内容の返信は投稿しない。unresolved は O-16、current diff に位置があれば O-17、無ければ O-18。独立論点を同じ thread に混ぜない | `THREAD_FOLLOWUP_INCOMPLETE` |
 | O-20 | Verdict 判定（LLM 判断。投稿は O-12） | blocking・thread・question・主要リスク・CI・残存リスク → `approve` / `request changes` / `comment only` / `needs follow-up` | 判定基準は「Verdict」節。APPROVE・merge・Issue クローズは自動実行しない。ローカル検証未実施は、環境障害やCI成功を理由に承認せず、理由付きのcomment only / needs follow-upにする。CI・thread・SHA・独立検証がunknownでも承認しない | `VERDICT_INCOMPLETE` |
-| O-21 | ユーザー報告・ハンドオフ（外部 tool なし。「ユーザー報告」「ハンドオフ提示」の固定 Markdown を出力する） | O-00〜O-20 の evidence → 固定フォーマットの報告 | 何も write しない。approve / request changes / comment only / needs follow-up / blocked を混同せず、未確認を成功と書かない。必須値が得られない場合は unknown / blocked と明記し、推測で補完しない | `REPORT_EVIDENCE_INCOMPLETE` |
+| O-21 | ユーザー報告・ハンドオフ（外部 tool なし。「ユーザー報告」「ハンドオフ提示」の固定 Markdown を出力する） | O-00〜O-20 の evidence → 固定フォーマットの報告 | 初回・再レビューは `references/impact-review.md` の確認記録を含める。何も write しない。approve / request changes / comment only / needs follow-up / blocked を混同せず、未確認を成功と書かない。必須値が得られない場合は unknown / blocked と明記し、推測で補完しない | `REPORT_EVIDENCE_INCOMPLETE` |
 
 ## 停止コード
 
@@ -159,7 +160,7 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 モードを決めた直後、queue 待機またはレビュー本文の取得に入る前に O-00 を実行する。`{OWL}` の binding と read 検証が成功するまで、Independent Stage、Filter Stage、各種コメント投稿、Verdict、APPROVE へ進まない。PR が明示されず queue 待機を依頼された場合だけ subscription を使い、その手順は `references/queue-wait.md` に従う。
 
 - `initial-review`: PR 全体を初回レビューする。queue candidate の `reason` が `opened` または通常の `synchronized` の場合も使う。
-- `re-review`: 前回指摘への対応、未解決 thread、対応後の重大な回帰、CI の変化を確認する。candidate の `reason` が `re-review-requested` の場合はこのモードにする。
+- `re-review`: 前回指摘・CIの変化と、`references/impact-review.md`で定める利用経路を確認する。candidate の `reason` が `re-review-requested` の場合はこのモードにする。
 - `thread-follow-up`: 指定 thread の文脈、実装者の返信、対応差分だけを確認して返信する。
 - `summary-only`: インラインコメントを投稿せず、merge readiness と残存リスクをまとめる。ユーザーが投稿を明示していなければ draft のみ返す。
 
@@ -174,11 +175,11 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
 
 ## Initial Review
 
-初回レビューは次の順序を守る。Independent Stage が終わるまで、既存 review comment・review thread・review summary の本文を読まない。
+初回レビューは次の順序を守る。Independent Stageでは候補を投稿せず、終了まで既存 review comment・review thread・review summary の本文を読まない。
 
 ### 1. Independent Stage
 
-1. O-02の小さいmetadataでoriginとbase/head SHAを固定し、O-04の隔離環境を確保してからO-03の完全diff・関連実装・テスト差分を読む（`references/pr-snapshot.md`）。
+1. O-02でoriginとbase/head SHAを固定し、O-04の隔離環境でO-03の完全diffを読む（`references/pr-snapshot.md`）。続けて`references/impact-review.md`に従い、変更した前提からdiff外の利用経路・テストを確認する（O-05）。
 2. CI を Snapshot Guard の手順 4 で確認する（O-06）。failed/skipped checks、packaging、docs、release への影響も確認する。
 3. 既存レビューを参照せず、独立した懸念候補を作る（O-07）。
 4. 次の非主要パスを横断確認する。
@@ -190,8 +191,6 @@ Thread Owl の logical alias `{OWL}` を、実行中 client の discovery 結果
    - UI / domain / infrastructure / persistence / CLI / CI の責務境界
    - エラーメッセージ、ログ、通知、復旧導線
 5. テストが実装詳細ではなく、PR が壊してはならない仕様を固定しているか確認する。
-
-この段階では候補を投稿しない。
 
 ### 2. Filter Stage
 

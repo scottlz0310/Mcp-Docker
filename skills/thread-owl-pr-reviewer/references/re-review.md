@@ -7,7 +7,7 @@ SKILL.md の「Re-review」「Thread Follow-up」から移した手順。
 1. queue 起点なら `reason = re-review-requested` と対象 PR を確認する。
 2. `references/comment-reader.md`に従う`{OWL}:read_pr_comments`の同一snapshotで前回threadと全返信、PR-level の question と作成者の後続コメント、現 head、前回レビュー後の差分を読む。回答は根拠として再評価し、未回答の同じ質問を再投稿しない。
 3. 各 thread の `isResolved` / `isOutdated` 状態と、現 head での対応状況を確認する。
-4. 未解決 thread と、対応差分が導入した重大な回帰だけを確認する。
+4. `impact-review.md`に従い、未解決thread、対応差分が変えた前提と重大な回帰、前回の残存リスクのうち当該PRの前提に関係する重大な未確認経路を確認し、確認記録を更新する。
 5. CI の変化を確認する。
 6. 次の投稿経路表に従って各 thread を処理する。
 
